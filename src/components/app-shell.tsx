@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
   ChevronDown,
@@ -103,7 +103,7 @@ const navGroups = [
 export function AppShell({ user, settings, notifications, children }: ShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [search, setSearch] = useState("");
   const [shellSettings, setShellSettings] = useState(settings);
   const [collapsed, setCollapsed] = useState(settings.sidebarCollapsed);
@@ -111,9 +111,10 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationItems, setNotificationItems] = useState(notifications);
-  const [clock, setClock] = useState(() => new Date());
-  const appliedThemeRef = useRef<string | null>(null);
-  const activeTheme = shellSettings.theme === "dark" ? "dark" : "light";
+  const [mounted, setMounted] = useState(false);
+  const [clock, setClock] = useState<Date | null>(null);
+  const themePreference = shellSettings.theme === "dark" ? "dark" : "light";
+  const activeTheme = mounted ? (resolvedTheme === "dark" ? "dark" : "light") : themePreference;
 
   const unreadCount = useMemo(() => notificationItems.filter((item) => !item.read).length, [notificationItems]);
 
@@ -128,12 +129,13 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
 
   useEffect(() => {
-    setShellSettings(settings);
-    if (settings.theme && appliedThemeRef.current !== settings.theme) {
-      appliedThemeRef.current = settings.theme;
-      setTheme(settings.theme);
-    }
-  }, [setTheme, settings]);
+    setShellSettings((current) => ({ ...settings, theme: current.theme }));
+  }, [settings]);
+
+  useEffect(() => {
+    setTheme(themePreference);
+    setMounted(true);
+  }, [setTheme, themePreference]);
 
   useEffect(() => {
     setCollapsed(shellSettings.sidebarCollapsed);
@@ -144,20 +146,19 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       const customEvent = event as CustomEvent<"light" | "dark">;
       const nextTheme = customEvent.detail;
       if (!nextTheme) return;
-      appliedThemeRef.current = nextTheme;
       setShellSettings((current) => ({ ...current, theme: nextTheme }));
-      setTheme(nextTheme);
     }
 
     window.addEventListener("skyhub:theme-change", handleExternalThemeChange as EventListener);
     return () => window.removeEventListener("skyhub:theme-change", handleExternalThemeChange as EventListener);
-  }, [setTheme]);
+  }, []);
 
   useEffect(() => {
     setNotificationItems(notifications);
   }, [notifications]);
 
   useEffect(() => {
+    setClock(new Date());
     const timer = window.setInterval(() => setClock(new Date()), 60000);
     return () => window.clearInterval(timer);
   }, []);
@@ -223,7 +224,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
   async function handleThemeToggle() {
     const nextTheme = activeTheme === "dark" ? "light" : "dark";
-    appliedThemeRef.current = nextTheme;
     setShellSettings((current) => ({ ...current, theme: nextTheme }));
     setTheme(nextTheme);
     const persisted = await persistSettings({ theme: nextTheme });
@@ -236,7 +236,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
     <div
       className={cn(
         "min-h-screen overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
-        activeTheme === "dark" ? "dark" : "light",
         shellSettings.compactRows && "compact-table",
       )}
     >
@@ -441,7 +440,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                 <div className="h-2.5 w-2.5 rounded-full bg-[color:var(--tone-success)]" />
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Live</p>
-                  <p className="text-sm font-semibold text-[color:var(--text-strong)]">{formatDateTime(clock)}</p>
+                  <p className="text-sm font-semibold text-[color:var(--text-strong)]">{clock ? formatDateTime(clock) : "Sinkronisasi waktu"}</p>
                 </div>
               </div>
 
@@ -451,11 +450,15 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               </button>
 
               <div className="relative">
-                <button type="button" className="topbar-button relative" onClick={() => setNotificationOpen((value) => !value)}>
+                <button
+                  type="button"
+                  className="topbar-button relative overflow-visible pr-5 sm:pr-8"
+                  onClick={() => setNotificationOpen((value) => !value)}
+                >
                   <Bell size={18} />
                   <span className="hidden sm:inline">Alerts</span>
                   {unreadCount > 0 ? (
-                    <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1 text-[10px] font-bold text-white">
+                    <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[color:var(--panel-bg)] bg-[color:var(--brand-primary)] px-1 text-[10px] font-bold leading-none text-white shadow-[0_6px_16px_rgba(0,61,155,0.24)]">
                       {unreadCount}
                     </span>
                   ) : null}

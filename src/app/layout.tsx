@@ -33,6 +33,7 @@ export default function RootLayout({
     <html
       lang="id"
       suppressHydrationWarning
+      data-scroll-behavior="smooth"
       className={`${inter.variable} ${manrope.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-[color:var(--app-bg)] font-[family:var(--font-body)] text-[color:var(--app-fg)]">

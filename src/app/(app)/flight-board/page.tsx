@@ -191,11 +191,25 @@ export default function FlightBoardPage() {
               onClick={() => setSelectedFlightId(flight.id)}
             >
               <div className="relative h-44 overflow-hidden border-b border-[color:var(--border-soft)]">
-                <Image src={flight.imageUrl} alt={flight.flightNumber} fill className="object-cover" />
+                <Image
+                  src={flight.imageUrl}
+                  alt={flight.flightNumber}
+                  fill
+                  sizes="(max-width: 1023px) 100vw, 33vw"
+                  className="object-cover"
+                />
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,38,0.08),rgba(8,20,38,0.74))]" />
                 <div className="absolute left-4 top-4 flex items-center gap-3">
                   <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/90 p-1 shadow-sm">
-                    <Image src={flight.airlineLogoUrl} alt={flight.airlineName} width={36} height={36} className="h-full w-full object-contain" />
+                    <Image
+                      src={flight.airlineLogoUrl}
+                      alt={flight.airlineName}
+                      width={36}
+                      height={36}
+                      sizes="36px"
+                      className="object-contain"
+                      style={{ height: "100%", width: "auto" }}
+                    />
                   </span>
                   <div>
                     <p className="text-sm font-semibold text-white">{flight.airlineName}</p>
@@ -271,7 +285,15 @@ export default function FlightBoardPage() {
                       <td>
                         <div className="flex items-center gap-3">
                           <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border-soft)] bg-white/90 p-1">
-                            <Image src={flight.airlineLogoUrl} alt={flight.airlineName} width={32} height={32} className="h-full w-full object-contain" />
+                            <Image
+                              src={flight.airlineLogoUrl}
+                              alt={flight.airlineName}
+                              width={32}
+                              height={32}
+                              sizes="32px"
+                              className="object-contain"
+                              style={{ height: "100%", width: "auto" }}
+                            />
                           </span>
                           <div>
                             <p className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">{flight.flightNumber}</p>
@@ -308,14 +330,28 @@ export default function FlightBoardPage() {
             <div className="space-y-5">
               <div className="overflow-hidden rounded-[26px] border border-[color:var(--border-soft)]">
                 <div className="relative h-56">
-                  <Image src={selectedFlight.imageUrl} alt={selectedFlight.flightNumber} fill className="object-cover" />
+                  <Image
+                    src={selectedFlight.imageUrl}
+                    alt={selectedFlight.flightNumber}
+                    fill
+                    sizes="(max-width: 1535px) 100vw, 420px"
+                    className="object-cover"
+                  />
                   <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,38,0.1),rgba(8,20,38,0.78))]" />
                   <div className="absolute inset-x-0 bottom-0 px-5 pb-5">
                     <div className="flex items-end justify-between gap-3">
                       <div>
                         <div className="mb-3 flex items-center gap-3">
                           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/90 p-1 shadow-sm">
-                            <Image src={selectedFlight.airlineLogoUrl} alt={selectedFlight.airlineName} width={40} height={40} className="h-full w-full object-contain" />
+                            <Image
+                              src={selectedFlight.airlineLogoUrl}
+                              alt={selectedFlight.airlineName}
+                              width={40}
+                              height={40}
+                              sizes="40px"
+                              className="object-contain"
+                              style={{ height: "100%", width: "auto" }}
+                            />
                           </span>
                           <div>
                             <p className="text-base font-semibold text-white">{selectedFlight.airlineName}</p>

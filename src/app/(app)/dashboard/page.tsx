@@ -320,11 +320,25 @@ export default function DashboardPage() {
                     filteredFlights.map((flight) => (
                       <div key={flight.id} className="overflow-hidden rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]">
                         <div className="relative h-28 overflow-hidden border-b border-[color:var(--border-soft)]">
-                          <Image src={flight.imageUrl} alt={flight.flightNumber} fill className="object-cover" />
+                          <Image
+                            src={flight.imageUrl}
+                            alt={flight.flightNumber}
+                            fill
+                            sizes="(max-width: 1279px) 100vw, 320px"
+                            className="object-cover"
+                          />
                           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,38,0.08),rgba(8,20,38,0.72))]" />
                           <div className="absolute left-3 top-3 flex items-center gap-2">
                             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/92 p-1 shadow-sm">
-                              <Image src={flight.airlineLogoUrl} alt={flight.airlineName} width={32} height={32} className="h-full w-full object-contain" />
+                              <Image
+                                src={flight.airlineLogoUrl}
+                                alt={flight.airlineName}
+                                width={32}
+                                height={32}
+                                sizes="32px"
+                                className="object-contain"
+                                style={{ height: "100%", width: "auto" }}
+                              />
                             </span>
                             <div>
                               <p className="text-xs font-semibold text-white">{flight.airlineName}</p>
