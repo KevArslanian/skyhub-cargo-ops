@@ -73,12 +73,35 @@ type DashboardData = {
   }[];
 };
 
+function getCurrentShift(): "Pagi" | "Siang" | "Malam" {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Makassar",
+    }).format(new Date()),
+  );
+  if (hour >= 6 && hour < 14) return "Pagi";
+  if (hour >= 14 && hour < 22) return "Siang";
+  return "Malam";
+}
+
+function getOpsHour(value: string) {
+  return Number(
+    new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Makassar",
+    }).format(new Date(value)),
+  );
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [shift, setShift] = useState<"Pagi" | "Siang" | "Malam">("Pagi");
+  const [shift, setShift] = useState<"Pagi" | "Siang" | "Malam">(getCurrentShift);
 
   const loadDashboard = useCallback(async () => {
     const response = await fetch("/api/dashboard", { cache: "no-store" });
@@ -126,7 +149,7 @@ export default function DashboardPage() {
 
   const isInShift = useMemo(() => {
     return (value: string) => {
-      const hour = new Date(value).getHours();
+      const hour = getOpsHour(value);
       if (shift === "Pagi") return hour >= 6 && hour < 14;
       if (shift === "Siang") return hour >= 14 && hour < 22;
       return hour >= 22 || hour < 6;
@@ -134,23 +157,23 @@ export default function DashboardPage() {
   }, [shift]);
 
   const filteredShipments = useMemo(
-    () => (data?.shipmentsToday ?? []).filter((shipment) => isInShift(shipment.receivedAt)),
+    () => (data?.shipmentsToday ?? []).filter((shipment) => isInShift(shipment.receivedAt)).slice(0, 10),
     [data?.shipmentsToday, isInShift],
   );
 
   const filteredFlights = useMemo(
-    () => (data?.flightsSummary ?? []).filter((flight) => isInShift(flight.departureTime)),
+    () => (data?.flightsSummary ?? []).filter((flight) => isInShift(flight.departureTime)).slice(0, 6),
     [data?.flightsSummary, isInShift],
   );
 
   const filteredActivities = useMemo(
-    () => (data?.recentActivity ?? []).filter((activity) => isInShift(activity.createdAt)),
+    () => (data?.recentActivity ?? []).filter((activity) => isInShift(activity.createdAt)).slice(0, 8),
     [data?.recentActivity, isInShift],
   );
 
   const filteredAlerts = useMemo(() => {
     const awbs = new Set(filteredShipments.map((shipment) => shipment.awb));
-    return (data?.alerts ?? []).filter((alert) => awbs.has(alert.awb));
+    return (data?.alerts ?? []).filter((alert) => awbs.has(alert.awb)).slice(0, 4);
   }, [data?.alerts, filteredShipments]);
 
   const activeLoaded = filteredShipments.filter((shipment) => shipment.status === "loaded_to_aircraft").length;

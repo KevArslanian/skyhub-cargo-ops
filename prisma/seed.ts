@@ -1,5 +1,5 @@
 import { hashSync } from "bcryptjs";
-import { addHours, addMinutes, subHours, subMinutes } from "date-fns";
+import { addHours, addMinutes, set, subHours, subMinutes } from "date-fns";
 import { FlightStatus, PrismaClient, ShipmentStatus, UserRole } from "@prisma/client";
 import { getFlightVisualMeta } from "../src/lib/flight-meta";
 
@@ -16,6 +16,15 @@ function demoDocument(fileName: string, mimeType: string, fileSize: number) {
     fileSize,
     storageUrl: mimeType.includes("csv") ? "/demo-assets/sample-data.csv" : "/demo-assets/sample-document.pdf",
   };
+}
+
+function todayAt(baseDate: Date, hour: number, minute: number) {
+  return set(baseDate, {
+    hours: hour,
+    minutes: minute,
+    seconds: 0,
+    milliseconds: 0,
+  });
 }
 
 async function main() {
@@ -584,10 +593,10 @@ async function main() {
       status: ShipmentStatus.hold,
       flightNumber: "GA-520",
       createdById: admin.id,
-      receivedAt: subHours(now, 7),
+      receivedAt: todayAt(now, 10, 15),
       trackingLogs: [
-        makeTracking(ShipmentStatus.received, subHours(now, 7), "DG Acceptance", "Chemical samples diterima.", "Mira Putri"),
-        makeTracking(ShipmentStatus.hold, subHours(now, 6), "DG Acceptance", "Shipment ditahan menunggu validasi dokumen DG.", "Mira Putri"),
+        makeTracking(ShipmentStatus.received, todayAt(now, 10, 15), "DG Acceptance", "Chemical samples diterima.", "Mira Putri"),
+        makeTracking(ShipmentStatus.hold, todayAt(now, 11, 5), "DG Acceptance", "Shipment ditahan menunggu validasi dokumen DG.", "Mira Putri"),
       ],
       documents: [demoDocument("dg-declaration.pdf", "application/pdf", 80221)],
     },

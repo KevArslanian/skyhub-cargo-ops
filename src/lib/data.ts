@@ -140,16 +140,16 @@ export async function getDashboardData() {
         documents: true,
       },
       orderBy: { receivedAt: "desc" },
-      take: 10,
+      take: 50,
     }),
     db.flight.findMany({
       orderBy: { cargoCutoffTime: "asc" },
-      take: 12,
+      take: 24,
     }),
     db.activityLog.findMany({
       include: { user: true },
       orderBy: { createdAt: "desc" },
-      take: 10,
+      take: 50,
     }),
   ]);
 
@@ -167,7 +167,7 @@ export async function getDashboardData() {
       departed,
       holds,
     },
-    flightsSummary: flightsToday.slice(0, 6).map((flight) => {
+    flightsSummary: flightsToday.map((flight) => {
       const meta = getFlightVisualMeta(flight.flightNumber, flight.aircraftType, flight.imageUrl);
       return {
         id: flight.id,
