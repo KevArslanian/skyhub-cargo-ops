@@ -1,0 +1,173 @@
+// This file is generated from prisma/schema.template.prisma.
+// Run `pnpm prisma:sync-schema` after changing DATABASE_PROVIDER.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  operator
+  supervisor
+}
+
+enum UserStatus {
+  active
+  invited
+  disabled
+}
+
+enum ShipmentStatus {
+  received
+  sortation
+  loaded_to_aircraft
+  departed
+  arrived
+  hold
+}
+
+enum FlightStatus {
+  on_time
+  delayed
+  departed
+}
+
+model User {
+  id                String            @id @default(cuid())
+  name              String
+  email             String            @unique
+  passwordHash      String
+  role              UserRole
+  station           String
+  status            UserStatus        @default(active)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  settings          UserSetting?
+  notifications     Notification[]
+  activityLogs      ActivityLog[]
+  recentAwbSearches RecentAwbSearch[]
+  createdShipments  Shipment[]        @relation("ShipmentCreator")
+}
+
+model UserSetting {
+  userId                 String   @id
+  theme                  String   @default("light")
+  compactRows            Boolean  @default(false)
+  sidebarCollapsed       Boolean  @default(false)
+  cutoffAlert            Boolean  @default(true)
+  exceptionAlert         Boolean  @default(true)
+  soundAlert             Boolean  @default(false)
+  emailDigest            Boolean  @default(false)
+  autoRefresh            Boolean  @default(true)
+  refreshIntervalSeconds Int      @default(5)
+  timezone               String   @default("Asia/Makassar")
+  updatedAt              DateTime @updatedAt
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Flight {
+  id              String       @id @default(cuid())
+  flightNumber    String       @unique
+  aircraftType    String
+  origin          String
+  destination     String
+  departureTime   DateTime
+  arrivalTime     DateTime
+  cargoCutoffTime DateTime
+  status          FlightStatus
+  gate            String?
+  remarks         String?
+  imageUrl        String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  shipments       Shipment[]
+}
+
+model Shipment {
+  id              String            @id @default(cuid())
+  awb             String            @unique
+  commodity       String
+  origin          String
+  destination     String
+  pieces          Int
+  weightKg        Float
+  volumeM3        Float?
+  specialHandling String?
+  docStatus       String            @default("Complete")
+  readiness       String            @default("Ready")
+  shipper         String
+  consignee       String
+  forwarder       String
+  ownerName       String
+  notes           String?
+  status          ShipmentStatus
+  receivedAt      DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  flightId        String?
+  createdById     String?
+  flight          Flight?           @relation(fields: [flightId], references: [id], onDelete: SetNull)
+  createdBy       User?             @relation("ShipmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  trackingLogs    TrackingLog[]
+  documents       ShipmentDocument[]
+}
+
+model TrackingLog {
+  id         String         @id @default(cuid())
+  shipmentId String
+  status     ShipmentStatus
+  message    String
+  location   String
+  actorName  String?
+  createdAt  DateTime       @default(now())
+  shipment   Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+}
+
+model ShipmentDocument {
+  id         String   @id @default(cuid())
+  shipmentId String
+  fileName   String
+  mimeType   String
+  fileSize   Int
+  storageUrl String
+  storageKey String?
+  createdAt  DateTime @default(now())
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  targetType  String
+  targetId    String?
+  targetLabel String
+  description String
+  level       String   @default("info")
+  createdAt   DateTime @default(now())
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  href      String?
+  type      String   @default("info")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RecentAwbSearch {
+  id        String   @id @default(cuid())
+  userId    String
+  awb       String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
