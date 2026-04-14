@@ -21,7 +21,7 @@ const heroImage =
 
 export default function AboutUsPage() {
   return (
-    <div className="light min-h-screen bg-[color:var(--app-bg)] text-[color:var(--app-fg)]">
+    <div className="min-h-screen bg-[color:var(--app-bg)] text-[color:var(--app-fg)]">
       <div className="about-shell">
         <div className="about-frame">
           <header className="panel flex flex-wrap items-center justify-between gap-4 px-6 py-5">

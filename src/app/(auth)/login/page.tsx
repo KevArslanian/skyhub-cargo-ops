@@ -9,9 +9,11 @@ import {
   EyeOff,
   Info,
   Loader2,
+  MoonStar,
   PlaneTakeoff,
   Radar,
   ScrollText,
+  SunMedium,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import {
@@ -20,6 +22,7 @@ import {
   COMPANY_HERO_COPY,
   COMPANY_HERO_HEADLINE,
 } from "@/lib/company-profile";
+import { useTheme } from "next-themes";
 
 const featureCards = [
   {
@@ -46,6 +49,7 @@ const demoCredentials = [
 
 export default function LoginPage() {
   const router = useRouter();
+  const { resolvedTheme, setTheme } = useTheme();
   const [email, setEmail] = useState("operator@skyhub.test");
   const [password, setPassword] = useState("operator123");
   const [remember, setRemember] = useState(true);
@@ -85,8 +89,13 @@ export default function LoginPage() {
     router.refresh();
   }
 
+  function handleThemeToggle() {
+    const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+  }
+
   return (
-    <div className="light min-h-screen bg-[color:var(--app-bg)] text-[color:var(--app-fg)]">
+    <div className="min-h-screen bg-[color:var(--app-bg)] text-[color:var(--app-fg)]">
       <div className="login-shell">
         <section className="login-rail">
           <div className="login-rail-inner">
@@ -221,6 +230,14 @@ export default function LoginPage() {
           <div className="login-hero-scroll ops-scrollbar">
             <div className="login-hero-inner">
               <div className="login-hero-actions">
+                <button
+                  type="button"
+                  onClick={handleThemeToggle}
+                  className="inline-flex min-h-[58px] items-center justify-center gap-3 rounded-[24px] border border-white/14 bg-white/10 px-5 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur-md transition hover:-translate-y-[1px] hover:bg-white/12"
+                >
+                  {resolvedTheme === "dark" ? <SunMedium size={18} /> : <MoonStar size={18} />}
+                  <span suppressHydrationWarning>{resolvedTheme === "dark" ? "Light" : "Dark"}</span>
+                </button>
                 <Link
                   href="/about-us"
                   className="inline-flex min-h-[58px] items-center justify-center gap-3 rounded-[24px] border border-white/14 bg-white/10 px-5 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur-md transition hover:-translate-y-[1px] hover:bg-white/12"
