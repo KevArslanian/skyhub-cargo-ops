@@ -4,14 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
+  AtSign,
   BellRing,
   Building2,
   Clock3,
   Eye,
   EyeOff,
   Globe2,
-  Instagram,
-  Linkedin,
+  Link2,
   Loader2,
   Mail,
   MapPin,
@@ -22,8 +22,21 @@ import {
   ScrollText,
   ShieldCheck,
   Smartphone,
+  type LucideIcon,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
+
+type ContactItem = {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  href?: string;
+};
+
+type ContactSection = {
+  title: string;
+  items: ContactItem[];
+};
 
 const featureCards = [
   {
@@ -43,7 +56,7 @@ const featureCards = [
   },
 ] as const;
 
-const contactSections = [
+const contactSections: ContactSection[] = [
   {
     title: "Office & Access",
     items: [
@@ -114,13 +127,13 @@ const contactSections = [
     title: "Business Presence",
     items: [
       {
-        icon: Instagram,
+        icon: AtSign,
         label: "Instagram",
         value: "@skyhub.official",
         href: "https://instagram.com/skyhub.official",
       },
       {
-        icon: Linkedin,
+        icon: Link2,
         label: "LinkedIn",
         value: "SkyHub Cargo Systems",
         href: "https://www.linkedin.com",
