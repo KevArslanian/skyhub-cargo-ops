@@ -529,6 +529,80 @@ textarea {
   background-clip: padding-box;
 }
 
+.login-shell {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+.login-rail {
+  position: relative;
+  border-bottom: 1px solid var(--border-soft);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.98));
+}
+
+.login-rail-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+}
+
+.login-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.login-hero-scroll {
+  position: relative;
+  z-index: 10;
+}
+
+.login-hero-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+}
+
+.login-hero-copy {
+  max-width: 42rem;
+}
+
+.login-hero-title {
+  max-width: 46rem;
+  font-size: clamp(2.7rem, 5vw, 4.45rem);
+  line-height: 0.96;
+  letter-spacing: -0.07em;
+}
+
+.login-feature-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.login-feature-card {
+  min-height: 11.75rem;
+}
+
+.login-company-panel {
+  max-width: 62rem;
+}
+
+.login-company-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.login-contact-item {
+  transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.login-contact-item:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.12);
+}
+
 input[type="checkbox"] {
   accent-color: var(--brand-primary);
 }
@@ -604,6 +678,58 @@ input[type="checkbox"] {
     gap: 1rem;
     min-height: 0;
   }
+
+  .login-shell {
+    display: grid;
+    grid-template-columns: 400px minmax(0, 1fr);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .login-rail {
+    border-right: 1px solid var(--border-soft);
+    border-bottom: 0;
+  }
+
+  .login-rail-inner {
+    height: 100%;
+    max-width: 408px;
+    margin: 0 auto;
+    justify-content: center;
+    gap: 1.6rem;
+    padding: 2rem 1.5rem;
+  }
+
+  .login-hero-scroll {
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  .login-hero-inner {
+    min-height: 100%;
+    gap: 1.75rem;
+    padding: 2.15rem 2.6rem 2.4rem;
+  }
+
+  .login-feature-grid {
+    max-width: 62rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .login-company-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1536px) {
+  .login-shell {
+    grid-template-columns: 408px minmax(0, 1fr);
+  }
+
+  .login-hero-inner {
+    padding-left: 3rem;
+    padding-right: 3rem;
+  }
 }
 
 @media (max-width: 1024px) {
@@ -616,5 +742,10 @@ input[type="checkbox"] {
   .ops-filter-bar,
   .table-shell {
     border-radius: 24px;
+  }
+
+  .login-feature-grid,
+  .login-company-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
