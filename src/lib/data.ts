@@ -126,7 +126,7 @@ export async function getShellData(userId: string) {
 
 export async function getDashboardData() {
   const now = new Date();
-  const [shipmentsToday, flightsToday, recentActivity] = await Promise.all([
+  const [initialShipments, flightsToday, recentActivity] = await Promise.all([
     db.shipment.findMany({
       where: {
         receivedAt: {
@@ -152,6 +152,33 @@ export async function getDashboardData() {
       take: 50,
     }),
   ]);
+
+  let shipmentsToday = initialShipments;
+
+  if (!shipmentsToday.length) {
+    const latestShipment = await db.shipment.findFirst({
+      orderBy: { receivedAt: "desc" },
+      select: { receivedAt: true },
+    });
+
+    if (latestShipment) {
+      shipmentsToday = await db.shipment.findMany({
+        where: {
+          receivedAt: {
+            gte: startOfDay(latestShipment.receivedAt),
+            lte: endOfDay(latestShipment.receivedAt),
+          },
+        },
+        include: {
+          flight: true,
+          trackingLogs: true,
+          documents: true,
+        },
+        orderBy: { receivedAt: "desc" },
+        take: 50,
+      });
+    }
+  }
 
   const onTime = flightsToday.filter((flight) => flight.status === "on_time").length;
   const delayed = flightsToday.filter((flight) => flight.status === "delayed").length;
