@@ -509,6 +509,26 @@ textarea {
   padding-bottom: 12px;
 }
 
+.ops-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.ops-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.ops-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ops-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background: linear-gradient(180deg, var(--border-strong), var(--border-soft));
+  background-clip: padding-box;
+}
+
 input[type="checkbox"] {
   accent-color: var(--brand-primary);
 }
