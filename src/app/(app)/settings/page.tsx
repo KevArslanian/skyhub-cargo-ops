@@ -59,6 +59,34 @@ const tabGroups = [
   },
 ] as const;
 
+type PreferenceToggleCardProps = {
+  title: string;
+  copy: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+};
+
+function PreferenceToggleCard({ title, copy, checked, onChange }: PreferenceToggleCardProps) {
+  return (
+    <label className="flex w-full items-center justify-between gap-4 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
+      <div className="min-w-0">
+        <p className="font-semibold text-[color:var(--text-strong)]">{title}</p>
+        <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{copy}</p>
+      </div>
+      <span className="relative inline-flex shrink-0 items-center">
+        <input
+          type="checkbox"
+          className="peer sr-only"
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        <span className="h-7 w-12 rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] transition-colors peer-checked:border-[color:var(--brand-primary)] peer-checked:bg-[color:var(--brand-primary)]" />
+        <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
+      </span>
+    </label>
+  );
+}
+
 function toDraft(data: SettingsPayload | null) {
   return {
     name: data?.profile.name ?? "",
@@ -313,17 +341,13 @@ export default function SettingsPage() {
                   ["soundAlert", "Sound alerts", "Aktifkan bunyi notifikasi di control room."],
                   ["emailDigest", "Email digest", "Ringkasan harian untuk supervisor atau admin."],
                 ].map(([key, title, copy]) => (
-                  <label key={key} className="flex items-center justify-between gap-4 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
-                    <div>
-                      <p className="font-semibold text-[color:var(--text-strong)]">{title}</p>
-                      <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{copy}</p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(draft[key as keyof typeof draft])}
-                      onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.checked }))}
-                    />
-                  </label>
+                  <PreferenceToggleCard
+                    key={key}
+                    title={title}
+                    copy={copy}
+                    checked={Boolean(draft[key as keyof typeof draft])}
+                    onChange={(checked) => setDraft((current) => ({ ...current, [key]: checked }))}
+                  />
                 ))}
               </div>
             </OpsPanel>
@@ -346,24 +370,18 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <label className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-semibold text-[color:var(--text-strong)]">Compact row mode</p>
-                      <p className="mt-1 text-sm text-[color:var(--muted-fg)]">Menghemat ruang untuk operator dengan banyak tabel.</p>
-                    </div>
-                    <input type="checkbox" checked={draft.compactRows} onChange={(event) => setDraft((current) => ({ ...current, compactRows: event.target.checked }))} />
-                  </div>
-                </label>
-                <label className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-semibold text-[color:var(--text-strong)]">Auto-refresh</p>
-                      <p className="mt-1 text-sm text-[color:var(--muted-fg)]">Refresh data otomatis untuk ritme kargo udara yang cepat.</p>
-                    </div>
-                    <input type="checkbox" checked={draft.autoRefresh} onChange={(event) => setDraft((current) => ({ ...current, autoRefresh: event.target.checked }))} />
-                  </div>
-                </label>
+                <PreferenceToggleCard
+                  title="Compact row mode"
+                  copy="Menghemat ruang untuk operator dengan banyak tabel."
+                  checked={draft.compactRows}
+                  onChange={(checked) => setDraft((current) => ({ ...current, compactRows: checked }))}
+                />
+                <PreferenceToggleCard
+                  title="Auto-refresh"
+                  copy="Refresh data otomatis untuk ritme kargo udara yang cepat."
+                  checked={draft.autoRefresh}
+                  onChange={(checked) => setDraft((current) => ({ ...current, autoRefresh: checked }))}
+                />
               </div>
             </OpsPanel>
           ) : null}
@@ -372,15 +390,12 @@ export default function SettingsPage() {
             <OpsPanel className="p-5">
               <SectionHeader title="Sidebar Preferences" subtitle="Kontrol perilaku shell agar nyaman dipakai pada layar lebar maupun sempit." />
               <div className="mt-5">
-                <label className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-semibold text-[color:var(--text-strong)]">Default collapsed sidebar</p>
-                      <p className="mt-1 text-sm text-[color:var(--muted-fg)]">Aktifkan mode collapse sebagai default untuk layar yang lebih sempit.</p>
-                    </div>
-                    <input type="checkbox" checked={draft.sidebarCollapsed} onChange={(event) => setDraft((current) => ({ ...current, sidebarCollapsed: event.target.checked }))} />
-                  </div>
-                </label>
+                <PreferenceToggleCard
+                  title="Default collapsed sidebar"
+                  copy="Aktifkan mode collapse sebagai default untuk layar yang lebih sempit."
+                  checked={draft.sidebarCollapsed}
+                  onChange={(checked) => setDraft((current) => ({ ...current, sidebarCollapsed: checked }))}
+                />
               </div>
             </OpsPanel>
           ) : null}
