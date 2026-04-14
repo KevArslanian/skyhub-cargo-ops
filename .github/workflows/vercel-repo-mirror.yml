@@ -1,0 +1,42 @@
+name: Mirror To Vercel Repo
+
+on:
+  push:
+    tags-ignore:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-repo-mirror-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    if: github.repository == 'KevArslanian/skyhub-cargo-ops'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Load mirror SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VERCEL_MIRROR_SSH_KEY }}
+
+      - name: Configure GitHub host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Mirror branch to Vercel source repo
+        env:
+          TARGET_REPO: git@github.com:KevArslanian/UGD5_C_2918.git
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: |
+          git remote add vercel-mirror "$TARGET_REPO"
+          git push --force vercel-mirror "HEAD:refs/heads/${TARGET_BRANCH}"
