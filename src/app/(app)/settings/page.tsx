@@ -59,6 +59,17 @@ const tabGroups = [
   },
 ] as const;
 
+const stationOptions = ["CGK", "SUB", "DPS", "SOQ", "UPG", "BPN"] as const;
+
+const rolePillClasses: Record<SettingsPayload["profile"]["role"], string> = {
+  admin:
+    "border border-[color:var(--tone-danger-soft)] bg-[color:var(--tone-danger-soft)] text-[color:var(--tone-danger)]",
+  operator:
+    "border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]",
+  supervisor:
+    "border border-[color:var(--tone-warning-soft)] bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]",
+};
+
 type PreferenceToggleCardProps = {
   title: string;
   copy: string;
@@ -101,6 +112,15 @@ function toDraft(data: SettingsPayload | null) {
     soundAlert: data?.settings?.soundAlert ?? false,
     emailDigest: data?.settings?.emailDigest ?? false,
   };
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 }
 
 export default function SettingsPage() {
@@ -182,7 +202,7 @@ export default function SettingsPage() {
         subtitle="Kelola profil, role, notifikasi, tampilan, dan preferensi sidebar secara persisten agar pengalaman operator tetap stabil lintas sesi."
         actions={
           <button type="button" className="btn btn-primary" onClick={saveSettings} disabled={saving}>
-            {saving ? "Menyimpan..." : "Save Changes"}
+            {saving ? "Menyimpan..." : "Simpan"}
           </button>
         }
       />
@@ -241,27 +261,74 @@ export default function SettingsPage() {
 
         <div className="space-y-6">
           {activeTab === "Profile" ? (
-            <OpsPanel className="p-5">
-              <SectionHeader title="Profile" subtitle="Data profil operator yang dipakai di shell dan settings." />
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="label">Nama</label>
-                  <input className="input-field" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
-                </div>
-                <div>
-                  <label className="label">Station</label>
-                  <input className="input-field" value={draft.station} onChange={(event) => setDraft((current) => ({ ...current, station: event.target.value }))} />
-                </div>
-                <div>
-                  <label className="label">Email</label>
-                  <input className="input-field" value={data?.profile.email ?? ""} disabled />
-                </div>
-                <div>
-                  <label className="label">Role</label>
-                  <input className="input-field" value={data ? ROLE_LABELS[data.profile.role] : ""} disabled />
-                </div>
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-[2rem] font-[family:var(--font-heading)] font-black tracking-[-0.04em] text-[color:var(--text-strong)]">
+                  Profile
+                </h2>
+                <p className="mt-1 text-base text-[color:var(--muted-fg)]">Informasi akun operator</p>
               </div>
-            </OpsPanel>
+
+              <OpsPanel className="p-5">
+                <SectionHeader title="Profil Operator" subtitle="Informasi akun dan identitas operator aktif" />
+
+                <div className="mt-6 flex flex-col gap-6">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-primary)] font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.04em] text-white">
+                      {getInitials(draft.name || data?.profile.name || "Sky Hub")}
+                    </div>
+
+                    <div className="min-w-0 space-y-1">
+                      <p className="truncate font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.04em] text-[color:var(--text-strong)]">
+                        {draft.name || data?.profile.name || "-"}
+                      </p>
+                      <p className="truncate text-base text-[color:var(--muted-fg)]">{data?.profile.email ?? "-"}</p>
+                      {data?.profile.role ? (
+                        <span
+                          className={cn(
+                            "inline-flex w-fit rounded-xl px-3 py-1 text-sm font-semibold",
+                            rolePillClasses[data.profile.role],
+                          )}
+                        >
+                          {ROLE_LABELS[data.profile.role]}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-3">
+                    <div>
+                      <label className="label">Nama Lengkap</label>
+                      <input
+                        className="input-field"
+                        value={draft.name}
+                        onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="label">Email</label>
+                      <input className="input-field" value={data?.profile.email ?? ""} readOnly />
+                    </div>
+
+                    <div>
+                      <label className="label">Stasiun</label>
+                      <select
+                        className="select-field"
+                        value={draft.station}
+                        onChange={(event) => setDraft((current) => ({ ...current, station: event.target.value }))}
+                      >
+                        {stationOptions.map((station) => (
+                          <option key={station} value={station}>
+                            {station}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </OpsPanel>
+            </div>
           ) : null}
 
           {activeTab === "User & Role" ? (
