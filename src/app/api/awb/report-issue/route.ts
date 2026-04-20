@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { routeErrorResponse } from "@/lib/api";
 import { reportAwbIssue } from "@/lib/data";
 
 export async function POST(request: Request) {
@@ -11,12 +12,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "AWB wajib diisi." }, { status: 400 });
     }
 
-    await reportAwbIssue(user.id, awb);
+    await reportAwbIssue(user, awb);
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gagal melaporkan isu." },
-      { status: 500 },
-    );
+    return routeErrorResponse(error, "Gagal melaporkan isu.");
   }
 }

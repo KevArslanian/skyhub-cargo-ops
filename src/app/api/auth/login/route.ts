@@ -15,10 +15,25 @@ export async function POST(request: Request) {
 
     const user = await db.user.findUnique({
       where: { email: parsed.data.email },
+      include: {
+        customerAccount: {
+          select: {
+            status: true,
+          },
+        },
+      },
     });
 
     if (!user || !compareSync(parsed.data.password, user.passwordHash)) {
       return NextResponse.json({ error: "Email atau password tidak cocok." }, { status: 401 });
+    }
+
+    if (user.status !== "active") {
+      return NextResponse.json({ error: "Akun ini belum aktif atau sudah dinonaktifkan." }, { status: 403 });
+    }
+
+    if (user.role === "customer" && user.customerAccount?.status !== "active") {
+      return NextResponse.json({ error: "Akun pelanggan ini belum aktif." }, { status: 403 });
     }
 
     await createSession(user.id, user.role, parsed.data.remember);
@@ -28,7 +43,7 @@ export async function POST(request: Request) {
         userId: user.id,
         action: "Login",
         targetType: "session",
-        targetLabel: "Ops Console",
+        targetLabel: "Konsol Operasional",
         description: `${user.name} berhasil login ke sistem.`,
         level: "success",
       },

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { routeErrorResponse } from "@/lib/api";
 import { updateUserAccess } from "@/lib/data";
 import { userRoleUpdateSchema } from "@/lib/validators";
 
@@ -15,7 +16,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const parsed = userRoleUpdateSchema.safeParse(json);
 
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message || "Perubahan user tidak valid." }, { status: 400 });
+      return NextResponse.json({ error: parsed.error.issues[0]?.message || "Perubahan pengguna tidak valid." }, { status: 400 });
     }
 
     const user = await updateUserAccess(id, {
@@ -25,9 +26,6 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({ user });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gagal memperbarui user." },
-      { status: 500 },
-    );
+    return routeErrorResponse(error, "Gagal memperbarui pengguna.");
   }
 }

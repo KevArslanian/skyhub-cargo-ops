@@ -23,7 +23,8 @@ import {
   UserCircle2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { APP_NAME, APP_SUBTITLE, NAV_ITEMS, ROLE_LABELS } from "@/lib/constants";
+import { getNavigationForRole } from "@/lib/access";
+import { APP_NAME, APP_SUBTITLE, ROLE_LABELS } from "@/lib/constants";
 import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
 import { BrandMark } from "./brand-mark";
 import { StatusBadge } from "./status-badge";
@@ -33,8 +34,9 @@ type ShellProps = {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "operator" | "supervisor";
+    role: "admin" | "operator" | "supervisor" | "customer";
     station: string;
+    customerAccountName?: string | null;
   };
   settings: {
     theme: string;
@@ -69,41 +71,17 @@ const navIconMap = {
   "/settings": Settings2,
 } as const;
 
-const navHintMap = {
-  "/dashboard": "Live ops",
-  "/shipment-ledger": "Manifest control",
-  "/awb-tracking": "Lookup",
-  "/flight-board": "Departure watch",
-  "/activity-log": "Audit trail",
-  "/reports": "Export center",
-  "/settings": "Preferences",
+const navGroupIconMap = {
+  operasional: FolderKanban,
+  pemantauan: PlaneTakeoff,
+  sistem: Settings2,
 } as const;
-
-const navGroups = [
-  {
-    id: "ops",
-    label: "Operations",
-    icon: FolderKanban,
-    items: ["/dashboard", "/shipment-ledger", "/awb-tracking"] as const,
-  },
-  {
-    id: "monitoring",
-    label: "Monitoring",
-    icon: PlaneTakeoff,
-    items: ["/flight-board", "/activity-log", "/reports"] as const,
-  },
-  {
-    id: "system",
-    label: "System",
-    icon: Settings2,
-    items: ["/settings"] as const,
-  },
-] as const;
 
 export function AppShell({ user, settings, notifications, children }: ShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
+  const navigation = getNavigationForRole(user.role);
   const [search, setSearch] = useState("");
   const [shellSettings, setShellSettings] = useState(settings);
   const [collapsed, setCollapsed] = useState(settings.sidebarCollapsed);
@@ -119,12 +97,14 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const unreadCount = useMemo(() => notificationItems.filter((item) => !item.read).length, [notificationItems]);
 
   const activeNav =
-    NAV_ITEMS.find((item) => pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))) ??
-    NAV_ITEMS[0];
+    navigation.items.find(
+      (item) => pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href)),
+    ) ?? navigation.items[0];
   const activeGroupId =
-    navGroups.find((group) => group.items.some((href) => pathname === href || (href !== "/dashboard" && pathname.startsWith(href))))?.id ??
-    navGroups[0].id;
-  const [openGroupId, setOpenGroupId] = useState<(typeof navGroups)[number]["id"]>(activeGroupId);
+    navigation.groups.find((group) =>
+      group.items.some((item) => pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))),
+    )?.id ?? navigation.groups[0].id;
+  const [openGroupId, setOpenGroupId] = useState<(typeof navigation.groups)[number]["id"]>(activeGroupId);
   const visibleNotifications = notificationItems.slice(0, 4);
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
 
@@ -204,6 +184,10 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   }, [notifications]);
 
   useEffect(() => {
+    setOpenGroupId(activeGroupId);
+  }, [activeGroupId]);
+
+  useEffect(() => {
     setClock(new Date());
     const timer = window.setInterval(() => setClock(new Date()), 60000);
     return () => window.clearInterval(timer);
@@ -264,7 +248,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
   async function handleSignOut() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    router.push("/about-us");
     router.refresh();
   }
 
@@ -281,11 +265,11 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   return (
     <div
       className={cn(
-        "min-h-screen overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
+        "min-h-screen overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)] lg:h-screen lg:overflow-hidden",
         shellSettings.compactRows && "compact-table",
       )}
     >
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen lg:h-screen">
         <div className={cn("fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm lg:hidden", mobileOpen ? "block" : "hidden")} onClick={() => setMobileOpen(false)} />
 
         <aside
@@ -295,7 +279,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
             mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           )}
         >
-          <div className="flex w-full flex-col">
+          <div className="flex min-h-0 w-full flex-col">
             <div className={cn("border-b border-[color:var(--border-soft)]", collapsed ? "px-3 py-4" : "px-5 py-5")}>
               {collapsed ? (
                 <div className="flex flex-col items-center gap-4">
@@ -306,7 +290,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                     type="button"
                     className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] lg:inline-flex"
                     onClick={() => handleSidebarToggle(false)}
-                    aria-label="Expand sidebar"
+                    aria-label="Perluas sidebar"
                   >
                     <ChevronRight size={16} />
                   </button>
@@ -319,14 +303,16 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                     </Link>
                     <div className="mt-3 flex items-center gap-2 pl-[68px]">
                       <StatusBadge value="normal" label="Normal" />
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Soedirman</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">
+                        {user.customerAccountName || user.station}
+                      </span>
                     </div>
                   </div>
                   <button
                     type="button"
                     className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] lg:inline-flex"
                     onClick={() => handleSidebarToggle(true)}
-                    aria-label="Collapse sidebar"
+                    aria-label="Lipat sidebar"
                   >
                     <ChevronLeft size={16} />
                   </button>
@@ -337,18 +323,23 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
             <div className="px-4 py-5">
               {!collapsed && (
                 <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Active Module</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Modul Aktif</p>
                   <p className="mt-2 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
                     {activeNav.label}
                   </p>
-                  <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{navHintMap[activeNav.href]}</p>
+                  <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{activeNav.hint}</p>
                 </div>
               )}
             </div>
 
-            <nav className={cn("flex-1", collapsed ? "flex flex-col items-center gap-3 px-4 py-2" : "space-y-3 px-4")}>
+            <nav
+              className={cn(
+                "min-h-0 flex-1 overflow-y-auto ops-scrollbar",
+                collapsed ? "flex flex-col items-center gap-3 px-4 py-2" : "space-y-3 px-4 pb-4",
+              )}
+            >
               {collapsed
-                ? NAV_ITEMS.map((item) => {
+                ? navigation.items.map((item) => {
                     const Icon = navIconMap[item.href];
                     const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
                     return (
@@ -368,8 +359,8 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                       </Link>
                     );
                   })
-                : navGroups.map((group) => {
-                    const GroupIcon = group.icon;
+                : navigation.groups.map((group) => {
+                    const GroupIcon = navGroupIconMap[group.id];
                     const isOpen = openGroupId === group.id;
 
                     return (
@@ -398,15 +389,15 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
                         {isOpen ? (
                           <div className="mt-2 space-y-1">
-                            {group.items.map((href) => {
-                              const item = NAV_ITEMS.find((entry) => entry.href === href)!;
-                              const Icon = navIconMap[href];
-                              const isActive = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+                            {group.items.map((item) => {
+                              const Icon = navIconMap[item.href];
+                              const isActive =
+                                pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
                               return (
                                 <Link
-                                  key={href}
-                                  href={href}
+                                  key={item.href}
+                                  href={item.href}
                                   className={cn("sidebar-link", isActive && "sidebar-link-active")}
                                   onClick={() => {
                                     setOpenGroupId(group.id);
@@ -416,7 +407,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                                   <Icon size={18} className="shrink-0" />
                                   <div className="min-w-0">
                                     <p className="truncate">{item.label}</p>
-                                    <p className="truncate text-[11px] font-medium text-[color:var(--muted-2)]">{navHintMap[href]}</p>
+                                    <p className="truncate text-[11px] font-medium text-[color:var(--muted-2)]">{item.hint}</p>
                                   </div>
                                 </Link>
                               );
@@ -432,13 +423,17 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               <div className={cn("rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-contrast)] px-4 py-4 text-white", collapsed && "px-0 py-3")}>
                 {!collapsed ? (
                   <>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">Shift Desk</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">Ringkasan</p>
                     <div className="mt-3 flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em]">Pagi</p>
-                        <p className="mt-1 text-sm text-white/70">{ROLE_LABELS[user.role]} | {user.station}</p>
+                        <p className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em]">
+                          {user.role === "customer" ? "Portal Akun" : "Shift Aktif"}
+                        </p>
+                        <p className="mt-1 text-sm text-white/70">
+                          {ROLE_LABELS[user.role]} | {user.customerAccountName || user.station}
+                        </p>
                       </div>
-                      <StatusBadge value="normal" label="Ready" className="border-white/15 bg-white/10 text-white" />
+                      <StatusBadge value="normal" label="Siap" className="border-white/15 bg-white/10 text-white" />
                     </div>
                   </>
                 ) : (
@@ -458,15 +453,15 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
           </div>
         </aside>
 
-        <div className={cn("flex w-full flex-col transition-all duration-200 lg:ml-[284px]", collapsed && "lg:ml-[94px]")}>
-          <header className="sticky top-0 z-30 px-4 py-4 lg:px-8 lg:py-5">
+        <div className={cn("flex min-h-0 w-full flex-col transition-all duration-200 lg:ml-[284px] lg:h-screen", collapsed && "lg:ml-[94px]")}>
+          <header className="sticky top-0 z-30 shrink-0 px-4 py-4 lg:px-8 lg:py-5">
             <div className="ops-panel flex flex-wrap items-center gap-3 px-4 py-4 lg:px-5">
               <button type="button" className="topbar-button lg:hidden" onClick={() => setMobileOpen(true)}>
                 <Menu size={18} />
               </button>
 
               <div className="min-w-[200px]">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Control Room</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Ruang Kontrol</p>
                 <p className="mt-1 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
                   {activeNav.label}
                 </p>
@@ -485,14 +480,14 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               <div className="topbar-button hidden xl:flex">
                 <div className="h-2.5 w-2.5 rounded-full bg-[color:var(--tone-success)]" />
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Live</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Sinkron</p>
                   <p className="text-sm font-semibold text-[color:var(--text-strong)]">{clock ? formatDateTime(clock) : "Sinkronisasi waktu"}</p>
                 </div>
               </div>
 
               <button type="button" className="topbar-button" onClick={handleThemeToggle}>
                 {activeTheme === "dark" ? <SunMedium size={18} /> : <MoonStar size={18} />}
-                <span className="hidden sm:inline">{activeTheme === "dark" ? "Light" : "Dark"}</span>
+                <span className="hidden sm:inline">{activeTheme === "dark" ? "Terang" : "Gelap"}</span>
               </button>
 
               <div className="relative">
@@ -502,7 +497,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                   onClick={() => setNotificationOpen((value) => !value)}
                 >
                   <Bell size={18} />
-                  <span className="hidden sm:inline">Alerts</span>
+                  <span className="hidden sm:inline">Notifikasi</span>
                   {unreadCount > 0 ? (
                     <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[color:var(--panel-bg)] bg-[color:var(--brand-primary)] px-1 text-[10px] font-bold leading-none text-white shadow-[0_6px_16px_rgba(0,61,155,0.24)]">
                       {unreadCount}
@@ -515,12 +510,12 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                     <div className="flex items-center justify-between border-b border-[color:var(--border-soft)] px-4 py-4">
                       <div>
                         <p className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
-                          Notifications
+                          Notifikasi
                         </p>
                         <p className="text-sm text-[color:var(--muted-fg)]">{unreadCount} belum dibaca</p>
                       </div>
                       <button type="button" className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--brand-primary)]" onClick={handleMarkAllRead}>
-                        Mark all
+                        Tandai semua
                       </button>
                     </div>
                     <div>
@@ -556,7 +551,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                             router.push("/activity-log");
                           }}
                         >
-                          Open Activity Log
+                          Buka Log Aktivitas
                         </button>
                       </div>
                     ) : null}
@@ -588,11 +583,13 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                   <div className="dropdown-panel right-0 top-14 w-[248px]">
                     <div className="border-b border-[color:var(--border-soft)] px-4 py-4">
                       <p className="font-semibold text-[color:var(--text-strong)]">{user.email}</p>
-                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[color:var(--muted-2)]">{user.station}</p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
+                        {user.customerAccountName || user.station}
+                      </p>
                     </div>
                     <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-[color:var(--panel-muted)]">
                       <UserCircle2 size={18} />
-                      Profile
+                      Profil
                     </Link>
                     <button
                       type="button"
@@ -600,7 +597,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                       onClick={handleSignOut}
                     >
                       <ChevronRight size={18} />
-                      Sign Out
+                      Keluar
                     </button>
                   </div>
                 ) : null}
@@ -608,7 +605,9 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
             </div>
           </header>
 
-          <main className="flex-1 px-4 pb-6 lg:px-8">{children}</main>
+          <main className="min-h-0 flex-1 overflow-hidden px-4 pb-6 lg:px-8">
+            <div className="h-full min-h-0">{children}</div>
+          </main>
         </div>
       </div>
     </div>

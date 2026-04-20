@@ -136,6 +136,7 @@ textarea {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.96)), var(--panel-bg);
   border-radius: 28px;
   box-shadow: var(--shadow-soft);
+  min-height: 0;
 }
 
 .dark .ops-panel,
@@ -148,6 +149,7 @@ textarea {
   border: 1px solid var(--border-soft);
   background: var(--panel-muted);
   border-radius: 24px;
+  min-height: 0;
 }
 
 .dark .ops-panel-muted,
@@ -161,6 +163,7 @@ textarea {
   color: white;
   border-radius: 28px;
   box-shadow: var(--shadow-strong);
+  min-height: 0;
 }
 
 .dropdown-panel {
@@ -170,6 +173,7 @@ textarea {
   border: 1px solid var(--border-soft);
   background: var(--panel-bg);
   box-shadow: var(--shadow-soft);
+  max-height: min(480px, calc(100vh - 120px));
 }
 
 .dark .dropdown-panel,
@@ -328,6 +332,7 @@ textarea {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.98)), var(--panel-bg);
   padding: 18px;
   box-shadow: var(--shadow-soft);
+  min-height: 88px;
 }
 
 .dark .ops-filter-bar {
@@ -335,11 +340,12 @@ textarea {
 }
 
 .table-shell {
-  overflow: hidden;
+  overflow: auto;
   border: 1px solid var(--border-soft);
   border-radius: 28px;
   background: var(--panel-bg);
   box-shadow: var(--shadow-soft);
+  min-height: 0;
 }
 
 .data-table {
@@ -356,6 +362,9 @@ textarea {
   text-transform: uppercase;
   letter-spacing: 0.18em;
   color: var(--muted-2);
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .dark .data-table thead th {
@@ -447,6 +456,30 @@ textarea {
   border-radius: 22px;
   background: var(--brand-primary-soft);
   color: var(--brand-primary-2);
+}
+
+.page-workspace,
+.page-stack {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.page-scroll {
+  min-height: 0;
+  overflow: auto;
+}
+
+.page-pane {
+  min-height: 0;
+}
+
+.page-grid-2,
+.page-grid-3 {
+  display: grid;
+  gap: 1rem;
+  min-height: 0;
 }
 
 .ops-tab-button {
@@ -673,10 +706,23 @@ input[type="checkbox"] {
 }
 
 @media (min-width: 1280px) {
+  .page-workspace {
+    height: 100%;
+    overflow: hidden;
+  }
+
   .dashboard-viewport {
     height: calc(100vh - 158px);
     overflow: hidden;
     gap: 0.9rem;
+  }
+
+  .page-grid-2 {
+    grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.9fr);
+  }
+
+  .page-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .dashboard-main {

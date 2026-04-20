@@ -7,6 +7,7 @@ import {
   BellRing,
   Boxes,
   Clock3,
+  FileCheck2,
   PackageCheck,
   PlaneTakeoff,
   RefreshCw,
@@ -17,7 +18,30 @@ import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/for
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 
-type DashboardData = {
+type BaseShipment = {
+  id: string;
+  awb: string;
+  commodity: string;
+  origin: string;
+  destination: string;
+  pieces: number;
+  weightKg: number;
+  status: string;
+  statusLabel: string;
+  flightNumber: string | null;
+  receivedAt: string;
+  updatedAt: string;
+  docStatus: string;
+  documentSummary: {
+    docStatus: string;
+    count: number;
+    latestUploadedAt: string | null;
+  };
+};
+
+type InternalDashboardData = {
+  variant: "internal";
+  viewer: { role: "admin" | "operator" | "supervisor" };
   metrics: {
     shipmentsToday: number;
     activeFlights: number;
@@ -40,22 +64,8 @@ type DashboardData = {
     aircraftType: string;
     registration: string;
     imageUrl: string;
-    brandColor: string;
   }[];
-  shipmentsToday: {
-    id: string;
-    awb: string;
-    commodity: string;
-    origin: string;
-    destination: string;
-    pieces: number;
-    weightKg: number;
-    status: string;
-    statusLabel: string;
-    flightNumber: string | null;
-    receivedAt: string;
-    updatedAt: string;
-  }[];
+  shipmentsToday: BaseShipment[];
   alerts: {
     id: string;
     awb: string;
@@ -73,16 +83,46 @@ type DashboardData = {
   }[];
 };
 
+type CustomerDashboardData = {
+  variant: "customer";
+  viewer: {
+    role: "customer";
+    customerAccountName: string | null;
+  };
+  metrics: {
+    activeShipments: number;
+    actionRequired: number;
+    pendingDocuments: number;
+    arrived: number;
+  };
+  shipments: BaseShipment[];
+  actionItems: {
+    id: string;
+    awb: string;
+    title: string;
+    detail: string;
+  }[];
+  documentSummary: {
+    id: string;
+    awb: string;
+    docStatus: string;
+    count: number;
+    latestUploadedAt: string | null;
+  }[];
+  recentSearches: {
+    id: string;
+    awb: string;
+    createdAt: string;
+  }[];
+};
+
+type DashboardData = InternalDashboardData | CustomerDashboardData;
+
 type DashboardSettingsPayload = {
   settings: {
     autoRefresh: boolean;
     refreshIntervalSeconds: number;
   } | null;
-};
-
-type DashboardRefreshSettings = {
-  autoRefresh: boolean;
-  refreshIntervalSeconds: number;
 };
 
 function getCurrentShift(): "Pagi" | "Siang" | "Malam" {
@@ -93,6 +133,7 @@ function getCurrentShift(): "Pagi" | "Siang" | "Malam" {
       timeZone: "Asia/Makassar",
     }).format(new Date()),
   );
+
   if (hour >= 6 && hour < 14) return "Pagi";
   if (hour >= 14 && hour < 22) return "Siang";
   return "Malam";
@@ -132,19 +173,13 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadDashboard();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    void loadDashboard();
   }, [loadDashboard]);
 
   useEffect(() => {
-    let mounted = true;
-
     async function loadSettings() {
       const response = await fetch("/api/settings", { cache: "no-store" });
-      if (!response.ok || !mounted) return;
+      if (!response.ok) return;
 
       const payload = (await response.json()) as DashboardSettingsPayload;
       setRefreshSettings({
@@ -154,25 +189,6 @@ export default function DashboardPage() {
     }
 
     void loadSettings();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    function handleSettingsPreview(event: Event) {
-      const detail = (event as CustomEvent<Partial<DashboardRefreshSettings>>).detail;
-      if (!detail) return;
-
-      setRefreshSettings((current) => ({
-        autoRefresh: detail.autoRefresh ?? current.autoRefresh,
-        refreshIntervalSeconds: detail.refreshIntervalSeconds ?? current.refreshIntervalSeconds,
-      }));
-    }
-
-    window.addEventListener("skyhub:settings-preview", handleSettingsPreview as EventListener);
-    return () => window.removeEventListener("skyhub:settings-preview", handleSettingsPreview as EventListener);
   }, []);
 
   useEffect(() => {
@@ -200,34 +216,209 @@ export default function DashboardPage() {
     };
   }, [shift]);
 
+  const internalData = data?.variant === "internal" ? data : null;
+  const customerData = data?.variant === "customer" ? data : null;
+
   const filteredShipments = useMemo(
-    () => (data?.shipmentsToday ?? []).filter((shipment) => isInShift(shipment.receivedAt)).slice(0, 10),
-    [data?.shipmentsToday, isInShift],
+    () => (internalData?.shipmentsToday ?? []).filter((shipment) => isInShift(shipment.receivedAt)).slice(0, 10),
+    [internalData?.shipmentsToday, isInShift],
   );
 
   const filteredFlights = useMemo(
-    () => (data?.flightsSummary ?? []).filter((flight) => isInShift(flight.departureTime)).slice(0, 6),
-    [data?.flightsSummary, isInShift],
+    () => (internalData?.flightsSummary ?? []).filter((flight) => isInShift(flight.departureTime)).slice(0, 6),
+    [internalData?.flightsSummary, isInShift],
   );
 
   const filteredActivities = useMemo(
-    () => (data?.recentActivity ?? []).filter((activity) => isInShift(activity.createdAt)).slice(0, 8),
-    [data?.recentActivity, isInShift],
+    () => (internalData?.recentActivity ?? []).filter((activity) => isInShift(activity.createdAt)).slice(0, 8),
+    [internalData?.recentActivity, isInShift],
   );
 
   const filteredAlerts = useMemo(() => {
     const awbs = new Set(filteredShipments.map((shipment) => shipment.awb));
-    return (data?.alerts ?? []).filter((alert) => awbs.has(alert.awb)).slice(0, 4);
-  }, [data?.alerts, filteredShipments]);
+    return (internalData?.alerts ?? []).filter((alert) => awbs.has(alert.awb)).slice(0, 4);
+  }, [filteredShipments, internalData?.alerts]);
 
   const activeLoaded = filteredShipments.filter((shipment) => shipment.status === "loaded_to_aircraft").length;
 
+  if (customerData) {
+    return (
+      <div className="page-workspace">
+        <PageHeader
+          eyebrow="Portal Pelanggan"
+          title="Dashboard Pelanggan"
+          subtitle={`Ringkasan shipment milik ${customerData.viewer.customerAccountName || "akun Anda"} dengan status, dokumen, dan pencarian AWB terbaru.`}
+          actions={
+            <>
+              <button type="button" className="topbar-button" onClick={handleRefresh}>
+                <RefreshCw size={16} className={cn(refreshing && "animate-spin")} />
+                <span>{refreshing ? "Memuat ulang..." : "Muat ulang"}</span>
+              </button>
+              <div className="topbar-button hidden xl:flex">
+                <Clock3 size={16} />
+                <span>
+                  {refreshSettings.autoRefresh
+                    ? `Otomatis ${Math.max(5, refreshSettings.refreshIntervalSeconds)} detik`
+                    : "Penyegaran otomatis nonaktif"}
+                  {lastUpdated ? ` • diperbarui ${formatRelativeShort(lastUpdated)}` : ""}
+                </span>
+              </div>
+            </>
+          }
+        />
+
+        <div className="grid gap-4 xl:grid-cols-4">
+          <StatCard label="Shipment Aktif" value={loading ? "..." : customerData.metrics.activeShipments} note="Shipment akun Anda yang masih berada dalam proses operasional." icon={Boxes} tone="primary" />
+          <StatCard label="Perlu Tindakan" value={loading ? "..." : customerData.metrics.actionRequired} note="Shipment dengan hold, dokumen belum lengkap, atau masih perlu tindak lanjut." icon={ShieldAlert} tone="warning" />
+          <StatCard label="Dokumen Pending" value={loading ? "..." : customerData.metrics.pendingDocuments} note="Jumlah shipment dengan status dokumen yang masih diproses." icon={FileCheck2} tone="info" />
+          <StatCard label="Tiba" value={loading ? "..." : customerData.metrics.arrived} note="Shipment yang sudah tercatat tiba di tujuan." icon={PackageCheck} tone="success" />
+        </div>
+
+        <div className="page-grid-2">
+          <OpsPanel className="page-pane p-5">
+            <SectionHeader
+              title="Shipment Saya"
+              subtitle="Daftar shipment yang terhubung ke akun pelanggan Anda."
+              action={
+                <Link href="/shipment-ledger" className="btn btn-secondary">
+                  Buka ledger
+                </Link>
+              }
+            />
+
+            <div className="page-scroll mt-4 table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>AWB</th>
+                    <th>Komoditas</th>
+                    <th>Status</th>
+                    <th>Dokumen</th>
+                    <th>Terakhir Update</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customerData.shipments.length ? (
+                    customerData.shipments.map((shipment) => (
+                      <tr key={shipment.id}>
+                        <td className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{shipment.awb}</td>
+                        <td>
+                          <p className="font-semibold text-[color:var(--text-strong)]">{shipment.commodity}</p>
+                          <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
+                            {shipment.origin}{" -> "}{shipment.destination}
+                          </p>
+                        </td>
+                        <td>
+                          <StatusBadge value={shipment.status} label={shipment.statusLabel} />
+                        </td>
+                        <td>
+                          <p className="text-sm font-semibold text-[color:var(--text-strong)]">{shipment.documentSummary.docStatus}</p>
+                          <p className="mt-1 text-xs text-[color:var(--muted-fg)]">{shipment.documentSummary.count} dokumen tercatat</p>
+                        </td>
+                        <td className="text-sm text-[color:var(--muted-fg)]">{formatRelativeShort(shipment.updatedAt)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5}>
+                        <EmptyState
+                          icon={Boxes}
+                          title="Belum ada shipment"
+                          copy="Shipment yang terhubung ke akun pelanggan Anda akan tampil di sini setelah diproses tim internal."
+                          className="m-4"
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </OpsPanel>
+
+          <div className="page-stack">
+            <OpsPanel className="page-pane p-5">
+              <SectionHeader title="Perlu Tindakan" subtitle="Shipment yang masih memerlukan pemantauan." />
+              <div className="page-scroll mt-4 space-y-3">
+                {customerData.actionItems.length ? (
+                  customerData.actionItems.map((item) => (
+                    <div key={item.id} className="rounded-[22px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-[color:var(--tone-warning)]">{item.title}</p>
+                          <p className="mt-2 text-sm leading-6 text-[color:var(--text-strong)]">{item.detail}</p>
+                        </div>
+                        <BellRing size={18} className="shrink-0 text-[color:var(--tone-warning)]" />
+                      </div>
+                      <Link href={`/awb-tracking?awb=${item.awb}`} className="mt-4 inline-flex text-sm font-semibold text-[color:var(--brand-primary)]">
+                        Buka pelacakan
+                      </Link>
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState
+                    icon={ShieldAlert}
+                    title="Tidak ada tindakan terbuka"
+                    copy="Semua shipment akun Anda saat ini berada pada jalur proses normal."
+                  />
+                )}
+              </div>
+            </OpsPanel>
+
+            <OpsPanel className="page-pane p-5">
+              <SectionHeader title="Ringkasan Dokumen" subtitle="Status dokumen per shipment tanpa membuka file mentah." />
+              <div className="page-scroll mt-4 space-y-3">
+                {customerData.documentSummary.length ? (
+                  customerData.documentSummary.map((item) => (
+                    <div key={item.id} className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{item.awb}</p>
+                          <p className="mt-2 text-sm font-semibold text-[color:var(--text-strong)]">{item.docStatus}</p>
+                        </div>
+                        <StatusBadge value={item.docStatus === "Complete" ? "success" : "warning"} label={`${item.count} dokumen`} />
+                      </div>
+                      <p className="mt-3 text-xs text-[color:var(--muted-fg)]">
+                        {item.latestUploadedAt ? `Upload terakhir ${formatDateTime(item.latestUploadedAt)}` : "Belum ada timestamp upload"}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-[color:var(--muted-fg)]">Belum ada ringkasan dokumen.</p>
+                )}
+              </div>
+            </OpsPanel>
+
+            <OpsPanel className="page-pane p-5">
+              <SectionHeader title="Pencarian AWB Terakhir" subtitle="Riwayat lookup AWB akun Anda." />
+              <div className="page-scroll mt-4 space-y-3">
+                {customerData.recentSearches.length ? (
+                  customerData.recentSearches.map((item) => (
+                    <Link
+                      key={item.id}
+                      href={`/awb-tracking?awb=${encodeURIComponent(item.awb)}`}
+                      className="flex items-center justify-between rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4"
+                    >
+                      <span className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{item.awb}</span>
+                      <span className="text-xs text-[color:var(--muted-fg)]">{formatRelativeShort(item.createdAt)}</span>
+                    </Link>
+                  ))
+                ) : (
+                  <p className="text-sm text-[color:var(--muted-fg)]">Belum ada pencarian AWB terbaru.</p>
+                )}
+              </div>
+            </OpsPanel>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="dashboard-viewport">
+    <div className="page-workspace dashboard-viewport">
       <PageHeader
-        eyebrow="Cargo Control"
+        eyebrow="Kontrol Kargo"
         title="Dashboard Operator"
-        subtitle="Ringkasan shift, flight status, manifest board, dan alert operasional dalam satu layar kontrol tanpa perlu scroll halaman utama."
+        subtitle="Ringkasan shift, status flight, papan manifest, dan alert operasional dalam satu layar kontrol desktop yang stabil."
         actions={
           <>
             <div className="inline-flex rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-1 shadow-[var(--shadow-soft)]">
@@ -247,16 +438,15 @@ export default function DashboardPage() {
             </div>
             <button type="button" className="topbar-button" onClick={handleRefresh}>
               <RefreshCw size={16} className={cn(refreshing && "animate-spin")} />
-              <span>{refreshing ? "Refreshing..." : "Refresh sekarang"}</span>
+              <span>{refreshing ? "Memuat ulang..." : "Muat ulang"}</span>
             </button>
             <div className="topbar-button hidden xl:flex">
               <Clock3 size={16} />
               <span>
                 {refreshSettings.autoRefresh
-                  ? `Auto ${Math.max(5, refreshSettings.refreshIntervalSeconds)} detik • ${lastUpdated ? `update ${formatRelativeShort(lastUpdated)}` : "menunggu data"}`
-                  : lastUpdated
-                    ? `Auto-refresh off • update ${formatRelativeShort(lastUpdated)}`
-                    : "Auto-refresh off"}
+                  ? `Otomatis ${Math.max(5, refreshSettings.refreshIntervalSeconds)} detik`
+                  : "Penyegaran otomatis nonaktif"}
+                {lastUpdated ? ` • diperbarui ${formatRelativeShort(lastUpdated)}` : ""}
               </span>
             </div>
           </>
@@ -264,41 +454,17 @@ export default function DashboardPage() {
       />
 
       <div className="dashboard-stats grid gap-3 xl:grid-cols-4">
-        <StatCard
-          label="Kargo Masuk"
-          value={loading ? "..." : filteredShipments.length}
-          note={`Manifest yang aktif pada shift ${shift.toLowerCase()}.`}
-          icon={Boxes}
-          tone="primary"
-        />
-        <StatCard
-          label="Flight Aktif"
-          value={loading ? "..." : filteredFlights.length}
-          note={`${filteredFlights.filter((flight) => flight.status === "on_time").length} on-time, ${filteredFlights.filter((flight) => flight.status === "delayed").length} delayed.`}
-          icon={PlaneTakeoff}
-          tone="info"
-        />
-        <StatCard
-          label="Sudah Loaded"
-          value={loading ? "..." : activeLoaded}
-          note="Shipment yang sudah siap berangkat ke pesawat."
-          icon={PackageCheck}
-          tone="success"
-        />
-        <StatCard
-          label="Perlu Tindakan"
-          value={loading ? "..." : filteredAlerts.length}
-          note="Alert hold, cutoff, atau masalah validasi AWB."
-          icon={ShieldAlert}
-          tone="warning"
-        />
+        <StatCard label="Kargo Masuk" value={loading ? "..." : filteredShipments.length} note={`Manifest aktif pada shift ${shift.toLowerCase()}.`} icon={Boxes} tone="primary" />
+        <StatCard label="Flight Aktif" value={loading ? "..." : filteredFlights.length} note={`${filteredFlights.filter((flight) => flight.status === "on_time").length} tepat waktu, ${filteredFlights.filter((flight) => flight.status === "delayed").length} terlambat.`} icon={PlaneTakeoff} tone="info" />
+        <StatCard label="Sudah Muat" value={loading ? "..." : activeLoaded} note="Shipment yang sudah siap berangkat ke pesawat." icon={PackageCheck} tone="success" />
+        <StatCard label="Perlu Tindakan" value={loading ? "..." : filteredAlerts.length} note="Alert hold, cutoff, atau validasi dokumen." icon={ShieldAlert} tone="warning" />
       </div>
 
       <div className="dashboard-main">
         <OpsPanel className="dashboard-panel p-4 xl:p-5">
           <SectionHeader
-            title="Operator Board"
-            subtitle="Daftar manifest yang terakhir masuk gudang udara untuk shift aktif."
+            title="Papan Operasional"
+            subtitle="Manifest yang paling relevan untuk shift aktif."
             action={
               <Link href="/shipment-ledger" className="btn btn-secondary">
                 Buka ledger
@@ -316,7 +482,7 @@ export default function DashboardPage() {
                     <th>Rute</th>
                     <th>Status</th>
                     <th>Flight</th>
-                    <th>Updated</th>
+                    <th>Update</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -344,7 +510,7 @@ export default function DashboardPage() {
                         <EmptyState
                           icon={Boxes}
                           title="Belum ada shipment untuk shift ini"
-                          copy="Dashboard tetap aktif, tetapi belum ada manifest baru yang masuk pada rentang shift yang dipilih."
+                          copy="Dashboard tetap aktif, tetapi belum ada manifest yang masuk pada rentang shift yang dipilih."
                           className="m-4"
                         />
                       </td>
@@ -361,8 +527,8 @@ export default function DashboardPage() {
                     <TowerControl size={18} />
                   </div>
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Flight Status</p>
-                    <p className="font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">Near Cutoff Board</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Mendekati Cutoff</p>
+                    <p className="font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">Papan Flight</p>
                   </div>
                 </div>
                 <div className="mt-4 space-y-3">
@@ -409,11 +575,11 @@ export default function DashboardPage() {
                             <p className="mt-1 font-semibold text-[color:var(--text-strong)]">{formatDateTime(flight.cargoCutoffTime)}</p>
                           </div>
                           <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Registration</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Registrasi</p>
                             <p className="mt-1 font-semibold text-[color:var(--text-strong)]">{flight.registration}</p>
                           </div>
                           <div className="col-span-2">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Departure</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Berangkat</p>
                             <p className="mt-1 font-semibold text-[color:var(--text-strong)]">{formatDateTime(flight.departureTime)}</p>
                           </div>
                         </div>
@@ -435,7 +601,7 @@ export default function DashboardPage() {
 
         <div className="dashboard-side-stack">
           <OpsPanel className="dashboard-panel p-4 xl:p-5">
-            <SectionHeader title="Action Center" subtitle="AWB yang membutuhkan intervensi operator atau supervisor." />
+            <SectionHeader title="Pusat Tindakan" subtitle="AWB yang membutuhkan intervensi operator atau supervisor." />
             <div className="dashboard-alert-scroll mt-4 space-y-3">
               {filteredAlerts.length ? (
                 filteredAlerts.map((alert) => (
@@ -448,24 +614,20 @@ export default function DashboardPage() {
                       <BellRing size={18} className="shrink-0 text-[color:var(--tone-warning)]" />
                     </div>
                     <Link href={`/awb-tracking?awb=${alert.awb}`} className="mt-4 inline-flex text-sm font-semibold text-[color:var(--brand-primary)]">
-                      Buka tracking
+                      Buka pelacakan
                     </Link>
                   </div>
                 ))
               ) : (
-                <EmptyState
-                  icon={BellRing}
-                  title="Tidak ada alert kritis"
-                  copy="Semua shipment pada shift ini berada dalam kondisi normal atau sudah tertangani."
-                />
+                <EmptyState icon={BellRing} title="Tidak ada alert kritis" copy="Semua shipment pada shift ini berada dalam kondisi normal atau sudah tertangani." />
               )}
             </div>
           </OpsPanel>
 
           <OpsPanel className="dashboard-panel p-4 xl:p-5">
             <SectionHeader
-              title="Recent Activity"
-              subtitle="Log terbaru yang relevan untuk operator control room."
+              title="Aktivitas Terbaru"
+              subtitle="Jejak audit terbaru yang relevan untuk ruang kontrol."
               action={
                 <Link href="/activity-log" className="btn btn-secondary">
                   Buka log
@@ -488,11 +650,7 @@ export default function DashboardPage() {
                   </div>
                 ))
               ) : (
-                <EmptyState
-                  icon={Clock3}
-                  title="Belum ada aktivitas"
-                  copy="Audit trail untuk shift ini akan muncul otomatis saat operator mulai melakukan aksi."
-                />
+                <EmptyState icon={Clock3} title="Belum ada aktivitas" copy="Audit trail untuk shift ini akan muncul otomatis saat operator mulai melakukan aksi." />
               )}
             </div>
           </OpsPanel>

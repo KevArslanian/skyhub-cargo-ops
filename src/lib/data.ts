@@ -1,8 +1,49 @@
 import { Prisma, ShipmentStatus } from "@prisma/client";
 import { addMinutes, endOfDay, startOfDay } from "date-fns";
-import { db } from "./prisma";
-import { AWB_REGEX, FLIGHT_STATUS_LABELS, SHIPMENT_STATUS_LABELS } from "./constants";
+import {
+  AccessError,
+  canManageCustomerAccounts,
+  canManageFlights,
+  canManageShipments,
+  canManageUsers,
+  isInternalRole,
+  scopeAwbWhere,
+  scopeCustomerAccountWhere,
+  scopeFlightWhere,
+  scopeShipmentWhere,
+  type AccessUser,
+} from "./access";
+import { AWB_REGEX, FLIGHT_STATUS_LABELS, ROLE_LABELS, SHIPMENT_STATUS_LABELS } from "./constants";
 import { getFlightVisualMeta, getShipmentPriorityScore } from "./flight-meta";
+import { db } from "./prisma";
+import { deleteDocumentBlob } from "./storage";
+
+const shipmentInclude = Prisma.validator<Prisma.ShipmentInclude>()({
+  flight: true,
+  trackingLogs: {
+    orderBy: { createdAt: "asc" },
+  },
+  documents: {
+    where: { deletedAt: null },
+    orderBy: { createdAt: "desc" },
+  },
+  customerAccount: {
+    select: {
+      id: true,
+      name: true,
+      status: true,
+    },
+  },
+});
+
+const flightBoardInclude = Prisma.validator<Prisma.FlightInclude>()({
+  shipments: {
+    where: { archivedAt: null },
+    include: shipmentInclude,
+  },
+});
+
+type ShipmentRecord = Prisma.ShipmentGetPayload<{ include: typeof shipmentInclude }>;
 
 function serializeTrackingLog(log: {
   id: string;
@@ -19,21 +60,27 @@ function serializeTrackingLog(log: {
   };
 }
 
-function serializeShipment(
-  shipment: Prisma.ShipmentGetPayload<{
-    include: {
-      flight: true;
-      trackingLogs: true;
-      documents: true;
-    };
-  }>,
-) {
+function getDocumentSummary(shipment: ShipmentRecord) {
+  const activeDocuments = shipment.documents.filter((document) => !document.deletedAt);
+  const latestDocument = activeDocuments[0] ?? null;
+
+  return {
+    docStatus: shipment.docStatus,
+    count: activeDocuments.length,
+    latestUploadedAt: latestDocument?.createdAt.toISOString() ?? null,
+  };
+}
+
+function serializeShipment(shipment: ShipmentRecord, user: AccessUser) {
   const latestTrackingTimestamp = shipment.trackingLogs.reduce<Date | null>((latest, log) => {
     if (!latest || log.createdAt.getTime() > latest.getTime()) {
       return log.createdAt;
     }
     return latest;
   }, null);
+
+  const documentSummary = getDocumentSummary(shipment);
+  const isCustomer = user.role === "customer";
 
   return {
     id: shipment.id,
@@ -58,17 +105,21 @@ function serializeShipment(
     updatedAt: (latestTrackingTimestamp ?? shipment.updatedAt).toISOString(),
     flightId: shipment.flightId,
     flightNumber: shipment.flight?.flightNumber ?? null,
-    trackingLogs: shipment.trackingLogs
-      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
-      .map(serializeTrackingLog),
-    documents: shipment.documents.map((document) => ({
-      id: document.id,
-      fileName: document.fileName,
-      mimeType: document.mimeType,
-      fileSize: document.fileSize,
-      storageUrl: document.storageUrl,
-      createdAt: document.createdAt.toISOString(),
-    })),
+    customerAccountId: shipment.customerAccountId,
+    customerAccountName: shipment.customerAccount?.name ?? null,
+    documentSummary,
+    trackingLogs: shipment.trackingLogs.map(serializeTrackingLog),
+    documents: isCustomer
+      ? []
+      : shipment.documents.map((document) => ({
+          id: document.id,
+          fileName: document.fileName,
+          mimeType: document.mimeType,
+          fileSize: document.fileSize,
+          storageUrl: document.storageUrl,
+          createdAt: document.createdAt.toISOString(),
+          blobCleanupStatus: document.blobCleanupStatus,
+        })),
   };
 }
 
@@ -76,12 +127,192 @@ function serializeRoute(origin: string, destination: string) {
   return `${origin} -> ${destination}`;
 }
 
+function getShipmentOrderBy(sortBy?: string): Prisma.ShipmentOrderByWithRelationInput[] {
+  if (sortBy === "received") {
+    return [{ receivedAt: "desc" }];
+  }
+
+  return [{ updatedAt: "desc" }];
+}
+
+async function getActorWithRelations(userId: string) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    include: {
+      settings: true,
+      customerAccount: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+        },
+      },
+    },
+  });
+
+  if (!user || user.status !== "active") {
+    return null;
+  }
+
+  return user;
+}
+
+async function validateCustomerAccount(customerAccountId?: string | null) {
+  if (!customerAccountId) {
+    return null;
+  }
+
+  const account = await db.customerAccount.findUnique({
+    where: { id: customerAccountId },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+    },
+  });
+
+  if (!account || account.status !== "active") {
+    throw new AccessError("Akun pelanggan tidak aktif atau tidak ditemukan.", 400, "CUSTOMER_ACCOUNT_INVALID");
+  }
+
+  return account;
+}
+
+async function validateFlight(flightId?: string | null) {
+  if (!flightId) {
+    return null;
+  }
+
+  const flight = await db.flight.findFirst({
+    where: {
+      id: flightId,
+      ...scopeFlightWhere(),
+    },
+    select: {
+      id: true,
+      flightNumber: true,
+    },
+  });
+
+  if (!flight) {
+    throw new AccessError("Flight tidak ditemukan atau sudah diarsipkan.", 400, "FLIGHT_INVALID");
+  }
+
+  return flight;
+}
+
+function ensureShipmentManager(user: AccessUser) {
+  if (!canManageShipments(user)) {
+    throw new AccessError("Perubahan shipment hanya untuk pengguna internal.", 403, "SHIPMENT_INTERNAL_ONLY");
+  }
+}
+
+function ensureFlightManager(user: AccessUser) {
+  if (!canManageFlights(user)) {
+    throw new AccessError("Perubahan flight hanya untuk admin atau supervisor.", 403, "FLIGHT_MANAGER_ONLY");
+  }
+}
+
+function ensureAdmin(user: AccessUser) {
+  if (!canManageUsers(user)) {
+    throw new AccessError("Aksi ini hanya untuk admin.", 403, "ADMIN_ONLY");
+  }
+}
+
+function getUserFilters(user: AccessUser) {
+  if (user.role === "customer") {
+    return {
+      where: { id: user.id },
+      orderBy: { createdAt: "asc" as const },
+    };
+  }
+
+  if (canManageUsers(user)) {
+    return {
+      where: {},
+      orderBy: { createdAt: "asc" as const },
+    };
+  }
+
+  return {
+    where: { id: user.id },
+    orderBy: { createdAt: "asc" as const },
+  };
+}
+
+function serializeManagedUser(user: {
+  id: string;
+  name: string;
+  email: string;
+  role: AccessUser["role"];
+  station: string;
+  status: "active" | "invited" | "disabled";
+  customerAccountId: string | null;
+  customerAccount: { id: string; name: string } | null;
+}) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    station: user.station,
+    status: user.status,
+    customerAccountId: user.customerAccountId,
+    customerAccountName: user.customerAccount?.name ?? null,
+  };
+}
+
+function serializeCustomerAccount(account: {
+  id: string;
+  code: string;
+  name: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  status: "active" | "disabled";
+  users?: { id: string; name: string; email: string }[];
+  shipments?: { id: string }[];
+}) {
+  return {
+    id: account.id,
+    code: account.code,
+    name: account.name,
+    contactName: account.contactName,
+    contactEmail: account.contactEmail,
+    contactPhone: account.contactPhone,
+    status: account.status,
+    userCount: account.users?.length ?? 0,
+    shipmentCount: account.shipments?.length ?? 0,
+  };
+}
+
+async function getShipmentRecordForMutation(shipmentId: string) {
+  const shipment = await db.shipment.findUnique({
+    where: { id: shipmentId },
+    include: shipmentInclude,
+  });
+
+  if (!shipment) {
+    throw new AccessError("Shipment tidak ditemukan.", 404, "SHIPMENT_NOT_FOUND");
+  }
+
+  return shipment;
+}
+
+async function generateUniqueAwb() {
+  while (true) {
+    const numeric = `${Math.floor(Math.random() * 90000000 + 10000000)}`;
+    const awb = `160-${numeric}`;
+    const existing = await db.shipment.findUnique({ where: { awb } });
+    if (!existing) {
+      return awb;
+    }
+  }
+}
+
 export async function getShellData(userId: string) {
   const [user, notifications] = await Promise.all([
-    db.user.findUnique({
-      where: { id: userId },
-      include: { settings: true },
-    }),
+    getActorWithRelations(userId),
     db.notification.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -100,6 +331,7 @@ export async function getShellData(userId: string) {
       email: user.email,
       role: user.role,
       station: user.station,
+      customerAccountName: user.customerAccount?.name ?? null,
     },
     settings: {
       theme: user.settings.theme,
@@ -124,25 +356,83 @@ export async function getShellData(userId: string) {
   };
 }
 
-export async function getDashboardData() {
+export async function getDashboardData(user: AccessUser) {
+  if (user.role === "customer") {
+    const scopedWhere = scopeShipmentWhere(user);
+    const [shipments, recentSearches] = await Promise.all([
+      db.shipment.findMany({
+        where: scopedWhere,
+        include: shipmentInclude,
+        orderBy: [{ updatedAt: "desc" }],
+        take: 24,
+      }),
+      getRecentAwbSearches(user.id),
+    ]);
+
+    const serializedShipments = shipments.map((shipment) => serializeShipment(shipment, user));
+    const actionShipments = serializedShipments.filter(
+      (shipment) =>
+        shipment.status === "hold" || shipment.docStatus.toLowerCase() !== "complete" || shipment.readiness.toLowerCase() !== "ready",
+    );
+
+    return {
+      variant: "customer" as const,
+      viewer: {
+        role: user.role,
+        customerAccountName: user.customerAccount?.name ?? null,
+      },
+      metrics: {
+        activeShipments: serializedShipments.filter((shipment) => shipment.status !== "arrived").length,
+        actionRequired: actionShipments.length,
+        pendingDocuments: serializedShipments.filter((shipment) => shipment.docStatus.toLowerCase() !== "complete").length,
+        arrived: serializedShipments.filter((shipment) => shipment.status === "arrived").length,
+      },
+      shipments: serializedShipments,
+      actionItems: actionShipments.slice(0, 6).map((shipment) => ({
+        id: shipment.id,
+        awb: shipment.awb,
+        title:
+          shipment.status === "hold"
+            ? "Shipment perlu penanganan"
+            : shipment.docStatus.toLowerCase() !== "complete"
+              ? "Dokumen masih menunggu validasi"
+              : "Shipment perlu tindak lanjut",
+        detail:
+          shipment.status === "hold"
+            ? `Shipment ${shipment.awb} masih tertahan dan sedang ditinjau tim internal.`
+            : shipment.docStatus.toLowerCase() !== "complete"
+              ? `Status dokumen ${shipment.awb} masih ${shipment.docStatus}.`
+              : `Shipment ${shipment.awb} masih berstatus ${shipment.statusLabel}.`,
+      })),
+      documentSummary: serializedShipments.slice(0, 6).map((shipment) => ({
+        id: shipment.id,
+        awb: shipment.awb,
+        docStatus: shipment.documentSummary.docStatus,
+        count: shipment.documentSummary.count,
+        latestUploadedAt: shipment.documentSummary.latestUploadedAt,
+      })),
+      recentSearches,
+    };
+  }
+
   const now = new Date();
-  const [initialShipments, flightsToday, recentActivity] = await Promise.all([
+  const scopedShipments = scopeShipmentWhere(user);
+
+  const [todayShipments, flightsToday, recentActivity] = await Promise.all([
     db.shipment.findMany({
       where: {
+        ...scopedShipments,
         receivedAt: {
           gte: startOfDay(now),
           lte: endOfDay(now),
         },
       },
-      include: {
-        flight: true,
-        trackingLogs: true,
-        documents: true,
-      },
-      orderBy: { receivedAt: "desc" },
+      include: shipmentInclude,
+      orderBy: [{ receivedAt: "desc" }],
       take: 50,
     }),
     db.flight.findMany({
+      where: scopeFlightWhere(),
       orderBy: { cargoCutoffTime: "asc" },
       take: 24,
     }),
@@ -153,10 +443,11 @@ export async function getDashboardData() {
     }),
   ]);
 
-  let shipmentsToday = initialShipments;
+  let shipmentsToday = todayShipments;
 
   if (!shipmentsToday.length) {
     const latestShipment = await db.shipment.findFirst({
+      where: scopedShipments,
       orderBy: { receivedAt: "desc" },
       select: { receivedAt: true },
     });
@@ -164,30 +455,32 @@ export async function getDashboardData() {
     if (latestShipment) {
       shipmentsToday = await db.shipment.findMany({
         where: {
+          ...scopedShipments,
           receivedAt: {
             gte: startOfDay(latestShipment.receivedAt),
             lte: endOfDay(latestShipment.receivedAt),
           },
         },
-        include: {
-          flight: true,
-          trackingLogs: true,
-          documents: true,
-        },
-        orderBy: { receivedAt: "desc" },
+        include: shipmentInclude,
+        orderBy: [{ receivedAt: "desc" }],
         take: 50,
       });
     }
   }
 
+  const serializedShipments = shipmentsToday.map((shipment) => serializeShipment(shipment, user));
   const onTime = flightsToday.filter((flight) => flight.status === "on_time").length;
   const delayed = flightsToday.filter((flight) => flight.status === "delayed").length;
   const departed = flightsToday.filter((flight) => flight.status === "departed").length;
   const holds = shipmentsToday.filter((shipment) => shipment.status === "hold").length;
 
   return {
+    variant: "internal" as const,
+    viewer: {
+      role: user.role,
+    },
     metrics: {
-      shipmentsToday: shipmentsToday.length,
+      shipmentsToday: serializedShipments.length,
       activeFlights: flightsToday.length,
       onTime,
       delayed,
@@ -213,16 +506,16 @@ export async function getDashboardData() {
         brandColor: meta.brandColor,
       };
     }),
-    shipmentsToday: shipmentsToday.map(serializeShipment),
-    alerts: shipmentsToday
-      .filter((shipment) => shipment.status === "hold" || shipment.docStatus !== "Complete")
+    shipmentsToday: serializedShipments,
+    alerts: serializedShipments
+      .filter((shipment) => shipment.status === "hold" || shipment.docStatus.toLowerCase() !== "complete")
       .map((shipment) => ({
         id: shipment.id,
         awb: shipment.awb,
         title: shipment.status === "hold" ? "Shipment tertahan" : "Dokumen perlu ditinjau",
         detail:
           shipment.status === "hold"
-            ? `Shipment ${shipment.awb} masih berstatus hold dan perlu tindakan operator.`
+            ? `Shipment ${shipment.awb} masih berstatus tertahan dan perlu penanganan operator.`
             : `Shipment ${shipment.awb} memiliki status dokumen ${shipment.docStatus}.`,
       })),
     recentActivity: recentActivity.map((activity) => ({
@@ -231,19 +524,24 @@ export async function getDashboardData() {
       targetLabel: activity.targetLabel,
       description: activity.description,
       level: activity.level,
-      userName: activity.user?.name ?? "System",
+      userName: activity.user?.name ?? "Sistem",
       createdAt: activity.createdAt.toISOString(),
     })),
   };
 }
 
-export async function listShipments(filters?: {
-  query?: string;
-  status?: string;
-  flight?: string;
-  sortBy?: string;
-}) {
-  const where: Prisma.ShipmentWhereInput = {};
+export async function listShipments(
+  user: AccessUser,
+  filters?: {
+    query?: string;
+    status?: string;
+    flight?: string;
+    sortBy?: string;
+  },
+) {
+  const where: Prisma.ShipmentWhereInput = {
+    ...scopeShipmentWhere(user),
+  };
 
   if (filters?.query) {
     where.OR = [
@@ -251,6 +549,7 @@ export async function listShipments(filters?: {
       { commodity: { contains: filters.query } },
       { shipper: { contains: filters.query } },
       { consignee: { contains: filters.query } },
+      { ownerName: { contains: filters.query } },
     ];
   }
 
@@ -262,30 +561,27 @@ export async function listShipments(filters?: {
     where.flight = { flightNumber: filters.flight };
   }
 
-  const orderBy =
-    filters?.sortBy === "updated"
-      ? [{ updatedAt: "desc" as const }]
-      : filters?.sortBy === "received"
-        ? [{ receivedAt: "desc" as const }]
-        : [{ status: "asc" as const }, { updatedAt: "desc" as const }];
-
-  const [shipments, flights] = await Promise.all([
+  const [shipments, flights, customerAccounts] = await Promise.all([
     db.shipment.findMany({
       where,
-      include: {
-        flight: true,
-        trackingLogs: true,
-        documents: true,
-      },
-      orderBy,
+      include: shipmentInclude,
+      orderBy: getShipmentOrderBy(filters?.sortBy),
     }),
     db.flight.findMany({
+      where: scopeFlightWhere(),
       orderBy: { cargoCutoffTime: "asc" },
       select: { id: true, flightNumber: true },
     }),
+    canManageShipments(user)
+      ? db.customerAccount.findMany({
+          where: { status: "active" },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, code: true },
+        })
+      : Promise.resolve([]),
   ]);
 
-  const serializedShipments = shipments.map(serializeShipment);
+  const serializedShipments = shipments.map((shipment) => serializeShipment(shipment, user));
 
   if (filters?.sortBy === "priority") {
     serializedShipments.sort((left, right) => {
@@ -299,20 +595,19 @@ export async function listShipments(filters?: {
   }
 
   return {
+    viewer: {
+      role: user.role,
+      readOnly: user.role === "customer",
+      customerAccountName: user.customerAccount?.name ?? null,
+    },
+    permissions: {
+      canCreate: canManageShipments(user),
+      canEdit: canManageShipments(user),
+    },
     shipments: serializedShipments,
     flights,
+    customerAccounts,
   };
-}
-
-async function generateUniqueAwb() {
-  while (true) {
-    const numeric = `${Math.floor(Math.random() * 90000000 + 10000000)}`;
-    const awb = `160-${numeric}`;
-    const existing = await db.shipment.findUnique({ where: { awb } });
-    if (!existing) {
-      return awb;
-    }
-  }
 }
 
 export async function createShipment(input: {
@@ -329,11 +624,23 @@ export async function createShipment(input: {
   forwarder: string;
   ownerName: string;
   flightId?: string | null;
+  customerAccountId?: string | null;
   notes?: string;
   userId: string;
   actorName: string;
 }) {
+  const actor = await getActorWithRelations(input.userId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  ensureShipmentManager(actor);
+
   const awb = input.awb && AWB_REGEX.test(input.awb) ? input.awb : await generateUniqueAwb();
+  const [customerAccount, flight] = await Promise.all([
+    validateCustomerAccount(input.customerAccountId ?? null),
+    validateFlight(input.flightId ?? null),
+  ]);
 
   const shipment = await db.$transaction(async (tx) => {
     const created = await tx.shipment.create({
@@ -354,8 +661,9 @@ export async function createShipment(input: {
         ownerName: input.ownerName,
         notes: input.notes || "",
         status: "received",
-        flightId: input.flightId || null,
-        createdById: input.userId,
+        flightId: flight?.id ?? null,
+        customerAccountId: customerAccount?.id ?? null,
+        createdById: actor.id,
         trackingLogs: {
           create: {
             status: "received",
@@ -365,21 +673,17 @@ export async function createShipment(input: {
           },
         },
       },
-      include: {
-        flight: true,
-        trackingLogs: true,
-        documents: true,
-      },
+      include: shipmentInclude,
     });
 
     await tx.activityLog.create({
       data: {
-        userId: input.userId,
-        action: "Create Shipment",
+        userId: actor.id,
+        action: "Buat Shipment",
         targetType: "shipment",
         targetId: created.id,
         targetLabel: created.awb,
-        description: `Shipment baru ${created.awb} diterima untuk rute ${created.origin} -> ${created.destination}.`,
+        description: `Shipment baru ${created.awb} dibuat untuk rute ${created.origin} -> ${created.destination}.`,
         level: "success",
       },
     });
@@ -387,7 +691,7 @@ export async function createShipment(input: {
     return created;
   });
 
-  return serializeShipment(shipment);
+  return serializeShipment(shipment, actor);
 }
 
 export async function updateShipment(
@@ -396,32 +700,47 @@ export async function updateShipment(
     status?: ShipmentStatus;
     notes?: string;
     ownerName?: string;
+    flightId?: string | null;
+    customerAccountId?: string | null;
+    docStatus?: string;
+    readiness?: string;
     userId: string;
     actorName: string;
   },
 ) {
-  const current = await db.shipment.findUnique({
-    where: { id: shipmentId },
-  });
-
-  if (!current) {
-    throw new Error("Shipment tidak ditemukan.");
+  const actor = await getActorWithRelations(input.userId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
   }
 
-  const nextStatus = input.status ?? current.status;
+  ensureShipmentManager(actor);
 
-  const updated = await db.$transaction(async (tx) => {
-    const shipment = await tx.shipment.update({
+  const current = await getShipmentRecordForMutation(shipmentId);
+  if (current.archivedAt) {
+    throw new AccessError("Shipment sudah diarsipkan.", 400, "SHIPMENT_ARCHIVED");
+  }
+
+  const [customerAccount, flight] = await Promise.all([
+    input.customerAccountId !== undefined ? validateCustomerAccount(input.customerAccountId) : Promise.resolve(null),
+    input.flightId !== undefined ? validateFlight(input.flightId) : Promise.resolve(null),
+  ]);
+
+  const nextStatus = input.status ?? current.status;
+  const nextFlightId = input.flightId !== undefined ? flight?.id ?? null : current.flightId;
+  const nextCustomerAccountId =
+    input.customerAccountId !== undefined ? customerAccount?.id ?? null : current.customerAccountId;
+
+  await db.$transaction(async (tx) => {
+    await tx.shipment.update({
       where: { id: shipmentId },
       data: {
         status: nextStatus,
         notes: input.notes ?? current.notes,
         ownerName: input.ownerName ?? current.ownerName,
-      },
-      include: {
-        flight: true,
-        trackingLogs: true,
-        documents: true,
+        flightId: nextFlightId,
+        customerAccountId: nextCustomerAccountId,
+        docStatus: input.docStatus ?? current.docStatus,
+        readiness: input.readiness ?? current.readiness,
       },
     });
 
@@ -431,7 +750,7 @@ export async function updateShipment(
           shipmentId,
           status: nextStatus,
           message: `Status diubah menjadi ${SHIPMENT_STATUS_LABELS[nextStatus]}.`,
-          location: "Control Room",
+          location: "Ruang Kontrol",
           actorName: input.actorName,
         },
       });
@@ -439,32 +758,63 @@ export async function updateShipment(
 
     await tx.activityLog.create({
       data: {
-        userId: input.userId,
-        action: nextStatus !== current.status ? "Update Status" : "Update Shipment",
+        userId: actor.id,
+        action: nextStatus !== current.status ? "Ubah Status" : "Perbarui Shipment",
         targetType: "shipment",
         targetId: shipmentId,
         targetLabel: current.awb,
         description:
           nextStatus !== current.status
             ? `Status ${current.awb} berubah dari ${SHIPMENT_STATUS_LABELS[current.status]} ke ${SHIPMENT_STATUS_LABELS[nextStatus]}.`
-            : `Catatan shipment ${current.awb} diperbarui.`,
+            : `Detail shipment ${current.awb} diperbarui.`,
         level: nextStatus === "hold" ? "warning" : "info",
       },
     });
-
-    return shipment;
   });
 
-  const full = await db.shipment.findUniqueOrThrow({
-    where: { id: updated.id },
-    include: {
-      flight: true,
-      trackingLogs: true,
-      documents: true,
-    },
+  const full = await getShipmentRecordForMutation(shipmentId);
+  return serializeShipment(full, actor);
+}
+
+export async function archiveShipment(shipmentId: string, archived: boolean, userId: string) {
+  const actor = await getActorWithRelations(userId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  ensureShipmentManager(actor);
+
+  const current = await db.shipment.findUnique({
+    where: { id: shipmentId },
+    select: { id: true, awb: true, archivedAt: true },
   });
 
-  return serializeShipment(full);
+  if (!current) {
+    throw new AccessError("Shipment tidak ditemukan.", 404, "SHIPMENT_NOT_FOUND");
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.shipment.update({
+      where: { id: shipmentId },
+      data: {
+        archivedAt: archived ? new Date() : null,
+      },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.id,
+        action: archived ? "Arsipkan Shipment" : "Pulihkan Shipment",
+        targetType: "shipment",
+        targetId: shipmentId,
+        targetLabel: current.awb,
+        description: archived
+          ? `Shipment ${current.awb} diarsipkan dari daftar kerja aktif.`
+          : `Shipment ${current.awb} dipulihkan kembali ke daftar kerja aktif.`,
+        level: archived ? "warning" : "success",
+      },
+    });
+  });
 }
 
 export async function addShipmentDocument(input: {
@@ -476,6 +826,17 @@ export async function addShipmentDocument(input: {
   storageKey?: string;
   userId: string;
 }) {
+  const actor = await getActorWithRelations(input.userId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  ensureShipmentManager(actor);
+  const shipment = await getShipmentRecordForMutation(input.shipmentId);
+  if (shipment.archivedAt) {
+    throw new AccessError("Shipment sudah diarsipkan.", 400, "SHIPMENT_ARCHIVED");
+  }
+
   const [document] = await db.$transaction([
     db.shipmentDocument.create({
       data: {
@@ -489,12 +850,12 @@ export async function addShipmentDocument(input: {
     }),
     db.activityLog.create({
       data: {
-        userId: input.userId,
-        action: "Upload Document",
+        userId: actor.id,
+        action: "Unggah Dokumen",
         targetType: "document",
         targetId: input.shipmentId,
         targetLabel: input.fileName,
-        description: `${input.fileName} diunggah ke shipment ${input.shipmentId}.`,
+        description: `${input.fileName} diunggah ke shipment ${shipment.awb}.`,
         level: "success",
       },
     }),
@@ -510,17 +871,117 @@ export async function addShipmentDocument(input: {
   };
 }
 
-export async function getShipmentByAwb(awb: string) {
-  const shipment = await db.shipment.findUnique({
-    where: { awb },
+export async function deleteShipmentDocument(input: {
+  shipmentId: string;
+  documentId: string;
+  userId: string;
+}) {
+  const actor = await getActorWithRelations(input.userId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  ensureShipmentManager(actor);
+
+  const document = await db.shipmentDocument.findFirst({
+    where: {
+      id: input.documentId,
+      shipmentId: input.shipmentId,
+      deletedAt: null,
+      shipment: {
+        archivedAt: null,
+      },
+    },
     include: {
-      flight: true,
-      trackingLogs: true,
-      documents: true,
+      shipment: {
+        select: {
+          awb: true,
+        },
+      },
     },
   });
 
-  return shipment ? serializeShipment(shipment) : null;
+  if (!document) {
+    throw new AccessError("Dokumen tidak ditemukan.", 404, "DOCUMENT_NOT_FOUND");
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.shipmentDocument.update({
+      where: { id: document.id },
+      data: {
+        deletedAt: new Date(),
+        blobCleanupStatus: "pending",
+      },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.id,
+        action: "Hapus Dokumen",
+        targetType: "document",
+        targetId: document.id,
+        targetLabel: document.fileName,
+        description: `Dokumen ${document.fileName} disembunyikan dari shipment ${document.shipment.awb} dan menunggu cleanup blob.`,
+        level: "info",
+      },
+    });
+  });
+
+  let warning: string | null = null;
+
+  try {
+    await deleteDocumentBlob({
+      storageKey: document.storageKey,
+      storageUrl: document.storageUrl,
+    });
+
+    await db.shipmentDocument.update({
+      where: { id: document.id },
+      data: {
+        blobCleanupStatus: "deleted",
+      },
+    });
+  } catch (error) {
+    warning = "Dokumen berhasil disembunyikan, tetapi cleanup blob gagal. Tim internal perlu menindaklanjuti penyimpanan.";
+
+    await db.$transaction(async (tx) => {
+      await tx.shipmentDocument.update({
+        where: { id: document.id },
+        data: {
+          blobCleanupStatus: "failed",
+        },
+      });
+
+      await tx.activityLog.create({
+        data: {
+          userId: actor.id,
+          action: "Pembersihan Blob Gagal",
+          targetType: "document",
+          targetId: document.id,
+          targetLabel: document.fileName,
+          description:
+            error instanceof Error
+              ? `Cleanup blob untuk ${document.fileName} gagal: ${error.message}`
+              : `Cleanup blob untuk ${document.fileName} gagal dan perlu ditangani manual.`,
+          level: "warning",
+        },
+      });
+    });
+  }
+
+  return {
+    success: true,
+    warning,
+  };
+}
+
+export async function getShipmentByAwb(user: AccessUser, awb: string) {
+  const shipment = await db.shipment.findFirst({
+    where: scopeAwbWhere(user, awb),
+    include: shipmentInclude,
+  });
+
+  return shipment ? serializeShipment(shipment, user) : null;
 }
 
 export async function rememberAwbSearch(userId: string, awb: string) {
@@ -560,10 +1021,25 @@ export async function getRecentAwbSearches(userId: string) {
 export async function inviteUser(input: {
   name: string;
   email: string;
-  role: "admin" | "operator" | "supervisor";
+  role: "admin" | "operator" | "supervisor" | "customer";
   station: string;
+  customerAccountId?: string | null;
   invitedById: string;
 }) {
+  const actor = await getActorWithRelations(input.invitedById);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  ensureAdmin(actor);
+
+  const customerAccount =
+    input.role === "customer" ? await validateCustomerAccount(input.customerAccountId ?? null) : null;
+
+  if (input.role === "customer" && !customerAccount) {
+    throw new AccessError("Pengguna pelanggan wajib terhubung ke akun pelanggan aktif.", 400, "CUSTOMER_LINK_REQUIRED");
+  }
+
   const user = await db.$transaction(async (tx) => {
     const created = await tx.user.create({
       data: {
@@ -573,6 +1049,7 @@ export async function inviteUser(input: {
         role: input.role,
         station: input.station,
         status: "invited",
+        customerAccountId: customerAccount?.id ?? null,
         settings: {
           create: {
             theme: "light",
@@ -594,17 +1071,24 @@ export async function inviteUser(input: {
         role: true,
         station: true,
         status: true,
+        customerAccountId: true,
+        customerAccount: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
     await tx.activityLog.create({
       data: {
-        userId: input.invitedById,
-        action: "Invite User",
+        userId: actor.id,
+        action: "Undang Pengguna",
         targetType: "user",
         targetId: created.id,
         targetLabel: created.email,
-        description: `User ${created.email} diundang sebagai ${created.role}.`,
+        description: `Pengguna ${created.email} diundang sebagai ${ROLE_LABELS[created.role]}.`,
         level: "success",
       },
     });
@@ -612,25 +1096,58 @@ export async function inviteUser(input: {
     return created;
   });
 
-  return user;
+  return serializeManagedUser(user);
 }
 
 export async function updateUserAccess(
   userId: string,
   input: {
-    role?: "admin" | "operator" | "supervisor";
+    role?: "admin" | "operator" | "supervisor" | "customer";
     status?: "active" | "invited" | "disabled";
     station?: string;
+    customerAccountId?: string | null;
     actorUserId: string;
   },
 ) {
+  const actor = await getActorWithRelations(input.actorUserId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  ensureAdmin(actor);
+
+  const current = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      role: true,
+      customerAccountId: true,
+      email: true,
+    },
+  });
+
+  if (!current) {
+    throw new AccessError("Pengguna tidak ditemukan.", 404, "USER_NOT_FOUND");
+  }
+
+  const nextRole = input.role ?? current.role;
+  const resolvedCustomerAccount =
+    nextRole === "customer"
+      ? await validateCustomerAccount(input.customerAccountId ?? current.customerAccountId)
+      : null;
+
+  if (nextRole === "customer" && !resolvedCustomerAccount) {
+    throw new AccessError("Pengguna pelanggan wajib memiliki akun pelanggan aktif.", 400, "CUSTOMER_LINK_REQUIRED");
+  }
+
   const user = await db.$transaction(async (tx) => {
     const updated = await tx.user.update({
       where: { id: userId },
       data: {
-        role: input.role,
+        role: nextRole,
         status: input.status,
         station: input.station,
+        customerAccountId: nextRole === "customer" ? resolvedCustomerAccount?.id ?? null : null,
       },
       select: {
         id: true,
@@ -639,13 +1156,20 @@ export async function updateUserAccess(
         role: true,
         station: true,
         status: true,
+        customerAccountId: true,
+        customerAccount: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
     await tx.activityLog.create({
       data: {
-        userId: input.actorUserId,
-        action: "Update User Role",
+        userId: actor.id,
+        action: "Perbarui Hak Akses Pengguna",
         targetType: "user",
         targetId: updated.id,
         targetLabel: updated.email,
@@ -657,14 +1181,130 @@ export async function updateUserAccess(
     return updated;
   });
 
-  return user;
+  return serializeManagedUser(user);
 }
 
-export async function getFlightBoardData(filters?: { status?: string; query?: string }) {
-  const where: Prisma.FlightWhereInput = {};
+export async function createCustomerAccount(input: {
+  code: string;
+  name: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  actorUserId: string;
+}) {
+  const actor = await getActorWithRelations(input.actorUserId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  if (!canManageCustomerAccounts(actor)) {
+    throw new AccessError("Akun pelanggan hanya dapat dikelola admin.", 403, "CUSTOMER_ACCOUNT_ADMIN_ONLY");
+  }
+
+  const account = await db.$transaction(async (tx) => {
+    const created = await tx.customerAccount.create({
+      data: {
+        code: input.code.toUpperCase(),
+        name: input.name,
+        contactName: input.contactName || null,
+        contactEmail: input.contactEmail || null,
+        contactPhone: input.contactPhone || null,
+      },
+      include: {
+        users: {
+          select: { id: true, name: true, email: true },
+        },
+        shipments: {
+          select: { id: true },
+        },
+      },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.id,
+        action: "Buat Akun Pelanggan",
+        targetType: "customer-account",
+        targetId: created.id,
+        targetLabel: created.name,
+        description: `Akun pelanggan ${created.name} dibuat.`,
+        level: "success",
+      },
+    });
+
+    return created;
+  });
+
+  return serializeCustomerAccount(account);
+}
+
+export async function updateCustomerAccount(input: {
+  accountId: string;
+  code?: string;
+  name?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  status?: "active" | "disabled";
+  actorUserId: string;
+}) {
+  const actor = await getActorWithRelations(input.actorUserId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  if (!canManageCustomerAccounts(actor)) {
+    throw new AccessError("Akun pelanggan hanya dapat dikelola admin.", 403, "CUSTOMER_ACCOUNT_ADMIN_ONLY");
+  }
+
+  const account = await db.$transaction(async (tx) => {
+    const updated = await tx.customerAccount.update({
+      where: { id: input.accountId },
+      data: {
+        code: input.code?.toUpperCase(),
+        name: input.name,
+        contactName: input.contactName,
+        contactEmail: input.contactEmail,
+        contactPhone: input.contactPhone,
+        status: input.status,
+      },
+      include: {
+        users: {
+          select: { id: true, name: true, email: true },
+        },
+        shipments: {
+          select: { id: true },
+        },
+      },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.id,
+        action: "Perbarui Akun Pelanggan",
+        targetType: "customer-account",
+        targetId: updated.id,
+        targetLabel: updated.name,
+        description: `Akun pelanggan ${updated.name} diperbarui.`,
+        level: updated.status === "disabled" ? "warning" : "info",
+      },
+    });
+
+    return updated;
+  });
+
+  return serializeCustomerAccount(account);
+}
+
+export async function getFlightBoardData(user: AccessUser, filters?: { status?: string; query?: string }) {
+  if (!isInternalRole(user.role)) {
+    throw new AccessError("Halaman flight hanya untuk pengguna internal.", 403, "INTERNAL_ROUTE_ONLY");
+  }
+
+  const where: Prisma.FlightWhereInput = scopeFlightWhere();
 
   if (filters?.status && filters.status !== "all") {
-    where.status = filters.status as Prisma.EnumFlightStatusFilter["equals"];
+    where.status = filters.status as Prisma.FlightWhereInput["status"];
   }
 
   if (filters?.query) {
@@ -677,19 +1317,14 @@ export async function getFlightBoardData(filters?: { status?: string; query?: st
 
   const flights = await db.flight.findMany({
     where,
-    include: {
-      shipments: {
-        include: {
-          trackingLogs: true,
-          documents: true,
-          flight: true,
-        },
-      },
-    },
+    include: flightBoardInclude,
     orderBy: { cargoCutoffTime: "asc" },
   });
 
   return {
+    permissions: {
+      canManageFlights: canManageFlights(user),
+    },
     summary: {
       onTime: flights.filter((item) => item.status === "on_time").length,
       delayed: flights.filter((item) => item.status === "delayed").length,
@@ -719,13 +1354,168 @@ export async function getFlightBoardData(filters?: { status?: string; query?: st
         registration: meta.registration,
         category: meta.category,
         brandColor: meta.brandColor,
-        shipments: flight.shipments.map(serializeShipment),
+        archivedAt: flight.archivedAt?.toISOString() ?? null,
+        shipments: flight.shipments.map((shipment) => {
+          const serialized = serializeShipment(shipment, user);
+          return {
+            id: serialized.id,
+            awb: serialized.awb,
+            commodity: serialized.commodity,
+            status: serialized.status,
+            statusLabel: serialized.statusLabel,
+            weightKg: serialized.weightKg,
+          };
+        }),
       };
     }),
   };
 }
 
-export async function listActivityLogs(filters?: { query?: string; action?: string; userId?: string }) {
+export async function createFlight(input: {
+  flightNumber: string;
+  aircraftType: string;
+  origin: string;
+  destination: string;
+  departureTime: string;
+  arrivalTime: string;
+  cargoCutoffTime: string;
+  status: "on_time" | "delayed" | "departed";
+  gate?: string | null;
+  remarks?: string | null;
+  imageUrl?: string | null;
+  actorUserId: string;
+}) {
+  const actor = await getActorWithRelations(input.actorUserId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  ensureFlightManager(actor);
+  const meta = getFlightVisualMeta(input.flightNumber, input.aircraftType, input.imageUrl ?? undefined);
+
+  const flight = await db.$transaction(async (tx) => {
+    const created = await tx.flight.create({
+      data: {
+        flightNumber: input.flightNumber.toUpperCase(),
+        aircraftType: input.aircraftType,
+        origin: input.origin.toUpperCase(),
+        destination: input.destination.toUpperCase(),
+        departureTime: new Date(input.departureTime),
+        arrivalTime: new Date(input.arrivalTime),
+        cargoCutoffTime: new Date(input.cargoCutoffTime),
+        status: input.status,
+        gate: input.gate || null,
+        remarks: input.remarks || null,
+        imageUrl: input.imageUrl || meta.aircraftImageUrl,
+      },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.id,
+        action: "Buat Flight",
+        targetType: "flight",
+        targetId: created.id,
+        targetLabel: created.flightNumber,
+        description: `Flight ${created.flightNumber} dibuat untuk rute ${created.origin} -> ${created.destination}.`,
+        level: "success",
+      },
+    });
+
+    return created;
+  });
+
+  return flight;
+}
+
+export async function updateFlight(input: {
+  flightId: string;
+  flightNumber?: string;
+  aircraftType?: string;
+  origin?: string;
+  destination?: string;
+  departureTime?: string;
+  arrivalTime?: string;
+  cargoCutoffTime?: string;
+  status?: "on_time" | "delayed" | "departed";
+  gate?: string | null;
+  remarks?: string | null;
+  imageUrl?: string | null;
+  archived?: boolean;
+  actorUserId: string;
+}) {
+  const actor = await getActorWithRelations(input.actorUserId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  ensureFlightManager(actor);
+
+  const current = await db.flight.findUnique({
+    where: { id: input.flightId },
+    select: {
+      id: true,
+      flightNumber: true,
+      origin: true,
+      destination: true,
+      archivedAt: true,
+    },
+  });
+
+  if (!current) {
+    throw new AccessError("Flight tidak ditemukan.", 404, "FLIGHT_NOT_FOUND");
+  }
+
+  const updated = await db.$transaction(async (tx) => {
+    const next = await tx.flight.update({
+      where: { id: input.flightId },
+      data: {
+        flightNumber: input.flightNumber?.toUpperCase(),
+        aircraftType: input.aircraftType,
+        origin: input.origin?.toUpperCase(),
+        destination: input.destination?.toUpperCase(),
+        departureTime: input.departureTime ? new Date(input.departureTime) : undefined,
+        arrivalTime: input.arrivalTime ? new Date(input.arrivalTime) : undefined,
+        cargoCutoffTime: input.cargoCutoffTime ? new Date(input.cargoCutoffTime) : undefined,
+        status: input.status,
+        gate: input.gate,
+        remarks: input.remarks,
+        imageUrl: input.imageUrl,
+        archivedAt: input.archived === undefined ? undefined : input.archived ? new Date() : null,
+      },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.id,
+        action: input.archived === undefined ? "Perbarui Flight" : input.archived ? "Arsipkan Flight" : "Pulihkan Flight",
+        targetType: "flight",
+        targetId: next.id,
+        targetLabel: next.flightNumber,
+        description:
+          input.archived === undefined
+            ? `Detail flight ${next.flightNumber} diperbarui.`
+            : input.archived
+              ? `Flight ${next.flightNumber} diarsipkan dari papan kerja aktif.`
+              : `Flight ${next.flightNumber} dipulihkan kembali ke papan kerja aktif.`,
+        level: input.archived ? "warning" : "info",
+      },
+    });
+
+    return next;
+  });
+
+  return updated;
+}
+
+export async function listActivityLogs(
+  user: AccessUser,
+  filters?: { query?: string; action?: string; userId?: string },
+) {
+  if (!isInternalRole(user.role)) {
+    throw new AccessError("Log aktivitas hanya untuk pengguna internal.", 403, "INTERNAL_ROUTE_ONLY");
+  }
+
   const where: Prisma.ActivityLogWhereInput = {};
 
   if (filters?.query) {
@@ -749,7 +1539,7 @@ export async function listActivityLogs(filters?: { query?: string; action?: stri
       where,
       include: { user: true },
       orderBy: { createdAt: "desc" },
-      take: 100,
+      take: 120,
     }),
     db.user.findMany({
       select: { id: true, name: true },
@@ -766,7 +1556,7 @@ export async function listActivityLogs(filters?: { query?: string; action?: stri
       targetLabel: log.targetLabel,
       description: log.description,
       level: log.level,
-      userName: log.user?.name ?? "System",
+      userName: log.user?.name ?? "Sistem",
       userId: log.userId,
       createdAt: log.createdAt.toISOString(),
     })),
@@ -774,12 +1564,14 @@ export async function listActivityLogs(filters?: { query?: string; action?: stri
 }
 
 export async function getSettingsData(userId: string) {
-  const [user, users] = await Promise.all([
-    db.user.findUniqueOrThrow({
-      where: { id: userId },
-      include: { settings: true },
-    }),
+  const user = await getActorWithRelations(userId);
+  if (!user) {
+    throw new AccessError("Pengguna tidak ditemukan.", 404, "USER_NOT_FOUND");
+  }
+
+  const [users, customerAccounts] = await Promise.all([
     db.user.findMany({
+      ...getUserFilters(user),
       select: {
         id: true,
         name: true,
@@ -787,8 +1579,31 @@ export async function getSettingsData(userId: string) {
         role: true,
         station: true,
         status: true,
+        customerAccountId: true,
+        customerAccount: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
-      orderBy: { createdAt: "asc" },
+    }),
+    db.customerAccount.findMany({
+      where: scopeCustomerAccountWhere(user),
+      orderBy: { name: "asc" },
+      include: {
+        users: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        shipments: {
+          where: { archivedAt: null },
+          select: { id: true },
+        },
+      },
     }),
   ]);
 
@@ -799,6 +1614,8 @@ export async function getSettingsData(userId: string) {
       email: user.email,
       role: user.role,
       station: user.station,
+      customerAccountId: user.customerAccountId,
+      customerAccountName: user.customerAccount?.name ?? null,
     },
     settings: user.settings
       ? {
@@ -813,7 +1630,12 @@ export async function getSettingsData(userId: string) {
           emailDigest: user.settings.emailDigest,
         }
       : null,
-    users,
+    permissions: {
+      canManageUsers: canManageUsers(user),
+      canManageCustomerAccounts: canManageCustomerAccounts(user),
+    },
+    users: users.map(serializeManagedUser),
+    customerAccounts: customerAccounts.map(serializeCustomerAccount),
   };
 }
 
@@ -872,10 +1694,10 @@ export async function updateSettings(
     await tx.activityLog.create({
       data: {
         userId,
-        action: "Update Settings",
+        action: "Perbarui Pengaturan",
         targetType: "settings",
-        targetLabel: "Display Preferences",
-        description: "Pengaturan operator diperbarui.",
+        targetLabel: "Preferensi Tampilan",
+        description: "Pengaturan pengguna diperbarui.",
         level: "success",
       },
     });
@@ -902,16 +1724,27 @@ export async function markNotificationRead(userId: string, notificationId: strin
   });
 }
 
-export async function reportAwbIssue(userId: string, awb: string) {
-  const shipment = await db.shipment.findUnique({ where: { awb } });
+export async function reportAwbIssue(user: AccessUser, awb: string) {
+  const shipment = await db.shipment.findFirst({
+    where: scopeAwbWhere(user, awb),
+    select: {
+      id: true,
+      awb: true,
+    },
+  });
+
+  if (!shipment) {
+    throw new AccessError("AWB tidak ditemukan.", 404, "SHIPMENT_NOT_FOUND");
+  }
+
   await db.activityLog.create({
     data: {
-      userId,
-      action: "Report Issue",
+      userId: user.id,
+      action: "Laporkan Isu",
       targetType: "tracking",
-      targetId: shipment?.id,
+      targetId: shipment.id,
       targetLabel: awb,
-      description: `Operator menandai isu pada AWB ${awb} untuk ditinjau supervisor.`,
+      description: `${isInternalRole(user.role) ? "Pengguna internal" : "Pelanggan"} menandai isu pada AWB ${awb} untuk ditinjau.`,
       level: "warning",
     },
   });
@@ -919,26 +1752,41 @@ export async function reportAwbIssue(userId: string, awb: string) {
   return { success: true };
 }
 
-export async function searchGlobal(query: string) {
+export async function searchGlobal(user: AccessUser, query: string) {
   if (AWB_REGEX.test(query)) {
-    const shipment = await db.shipment.findUnique({ where: { awb: query } });
+    const shipment = await db.shipment.findFirst({
+      where: scopeAwbWhere(user, query),
+      select: { awb: true },
+    });
+
     if (shipment) {
       return { path: `/awb-tracking?awb=${shipment.awb}`, label: shipment.awb, kind: "AWB" };
     }
   }
 
-  const flight = await db.flight.findFirst({
-    where: { flightNumber: { contains: query } },
-  });
-  if (flight) {
-    return { path: `/flight-board?query=${flight.flightNumber}`, label: flight.flightNumber, kind: "Flight" };
+  if (isInternalRole(user.role)) {
+    const flight = await db.flight.findFirst({
+      where: {
+        ...scopeFlightWhere(),
+        flightNumber: { contains: query },
+      },
+    });
+
+    if (flight) {
+      return { path: `/flight-board?query=${flight.flightNumber}`, label: flight.flightNumber, kind: "Flight" };
+    }
   }
 
   const shipment = await db.shipment.findFirst({
     where: {
+      ...scopeShipmentWhere(user),
       OR: [{ awb: { contains: query } }, { commodity: { contains: query } }],
     },
+    select: {
+      awb: true,
+    },
   });
+
   if (shipment) {
     return { path: `/shipment-ledger?query=${shipment.awb}`, label: shipment.awb, kind: "Shipment" };
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { routeErrorResponse } from "@/lib/api";
 import { addShipmentDocument } from "@/lib/data";
 import { storeDocument } from "@/lib/storage";
 
@@ -31,9 +32,6 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json({ document });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gagal mengunggah dokumen." },
-      { status: 500 },
-    );
+    return routeErrorResponse(error, "Gagal mengunggah dokumen.");
   }
 }

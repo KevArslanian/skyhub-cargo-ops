@@ -1,6 +1,7 @@
 import { hashSync } from "bcryptjs";
 import { addHours, addMinutes, set, subHours, subMinutes } from "date-fns";
 import { FlightStatus, PrismaClient, ShipmentStatus, UserRole } from "@prisma/client";
+import { SHIPMENT_STATUS_LABELS } from "../src/lib/constants";
 import { getFlightVisualMeta } from "../src/lib/flight-meta";
 
 const prisma = new PrismaClient();
@@ -27,6 +28,31 @@ function todayAt(baseDate: Date, hour: number, minute: number) {
   });
 }
 
+type SeedShipment = {
+  awb: string;
+  commodity: string;
+  origin: string;
+  destination: string;
+  pieces: number;
+  weightKg: number;
+  volumeM3: number;
+  specialHandling: string;
+  docStatus: string;
+  readiness: string;
+  shipper: string;
+  consignee: string;
+  forwarder: string;
+  ownerName: string;
+  notes: string;
+  status: ShipmentStatus;
+  flightNumber: string;
+  createdById: string;
+  customerAccountId?: string | null;
+  receivedAt: Date;
+  trackingLogs: ReturnType<typeof makeTracking>[];
+  documents: ReturnType<typeof demoDocument>[];
+};
+
 async function main() {
   await prisma.recentAwbSearch.deleteMany();
   await prisma.notification.deleteMany();
@@ -37,10 +63,46 @@ async function main() {
   await prisma.flight.deleteMany();
   await prisma.userSetting.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.customerAccount.deleteMany();
 
   const now = new Date();
 
+  const customerAccount = await prisma.customerAccount.create({
+    data: {
+      code: "NUSFRESH",
+      name: "PT Nusantara Fresh Cargo",
+      contactName: "Ayu Mahendra",
+      contactEmail: "ops@nusantarafresh.test",
+      contactPhone: "+62-811-7000-123",
+      status: "active",
+    },
+  });
+
   const users = await Promise.all([
+    prisma.user.create({
+      data: {
+        name: "Nadia Kusuma",
+        email: "customer@skyhub.test",
+        passwordHash: hashSync("operator123", 10),
+        role: UserRole.customer,
+        station: "SOQ",
+        customerAccountId: customerAccount.id,
+        settings: {
+          create: {
+            theme: "light",
+            compactRows: false,
+            sidebarCollapsed: false,
+            cutoffAlert: true,
+            exceptionAlert: true,
+            soundAlert: false,
+            emailDigest: false,
+            autoRefresh: true,
+            refreshIntervalSeconds: 15,
+            timezone: "Asia/Makassar",
+          },
+        },
+      },
+    }),
     prisma.user.create({
       data: {
         name: "Rina Sari",
@@ -160,7 +222,7 @@ async function main() {
     }),
   ]);
 
-  const [supervisor, operator, admin, invitedOperator, disabledSupervisor] = users;
+  const [customer, supervisor, operator, admin, invitedOperator, disabledSupervisor] = users;
 
   const flightSpecs = [
     {
@@ -285,7 +347,7 @@ async function main() {
     flightMap.set(spec.flightNumber, flight);
   }
 
-  const shipments = [
+  const shipments: SeedShipment[] = [
     {
       awb: "160-12345678",
       commodity: "Elektronik Konsumer",
@@ -305,6 +367,7 @@ async function main() {
       status: ShipmentStatus.sortation,
       flightNumber: "GA-714",
       createdById: operator.id,
+      customerAccountId: customerAccount.id,
       receivedAt: subMinutes(now, 55),
       trackingLogs: [
         makeTracking(ShipmentStatus.received, subMinutes(now, 55), "Gudang Udara", "Kargo diterima di gudang udara.", "Andika"),
@@ -331,6 +394,7 @@ async function main() {
       status: ShipmentStatus.received,
       flightNumber: "SJ-182",
       createdById: operator.id,
+      customerAccountId: customerAccount.id,
       receivedAt: subMinutes(now, 42),
       trackingLogs: [
         makeTracking(ShipmentStatus.received, subMinutes(now, 42), "Gudang Udara", "Data masuk menunggu verifikasi airway bill.", "Andika"),
@@ -644,6 +708,7 @@ async function main() {
       status: ShipmentStatus.arrived,
       flightNumber: "QG-931",
       createdById: supervisor.id,
+      customerAccountId: customerAccount.id,
       receivedAt: subHours(now, 10),
       trackingLogs: [
         makeTracking(ShipmentStatus.received, subHours(now, 10), "Gudang Udara", "Parts box diterima.", "Andika"),
@@ -678,6 +743,7 @@ async function main() {
         status: shipment.status,
         flightId: flight?.id ?? null,
         createdById: shipment.createdById,
+        customerAccountId: shipment.customerAccountId ?? null,
         receivedAt: shipment.receivedAt,
         trackingLogs: {
           create: shipment.trackingLogs,
@@ -692,7 +758,7 @@ async function main() {
       data: [
         {
           userId: shipment.createdById,
-          action: "Create Shipment",
+          action: "Buat Shipment",
           targetType: "shipment",
           targetId: created.id,
           targetLabel: created.awb,
@@ -701,11 +767,11 @@ async function main() {
         },
         {
           userId: shipment.createdById,
-          action: "Update Status",
+          action: "Ubah Status",
           targetType: "tracking",
           targetId: created.id,
           targetLabel: created.awb,
-          description: `Status terbaru ${created.awb}: ${created.status.replaceAll("_", " ")}`,
+          description: `Status terbaru ${created.awb}: ${SHIPMENT_STATUS_LABELS[created.status]}.`,
           level: created.status === ShipmentStatus.hold ? "warning" : "info",
         },
       ],
@@ -715,44 +781,53 @@ async function main() {
   await prisma.activityLog.createMany({
       data: [
         {
+          userId: customer.id,
+          action: "Login",
+          targetType: "session",
+          targetLabel: "Portal Pelanggan",
+          description: "Pelanggan login untuk memantau shipment akun PT Nusantara Fresh Cargo.",
+          level: "info",
+          createdAt: subMinutes(now, 24),
+        },
+        {
           userId: operator.id,
           action: "Login",
           targetType: "session",
-          targetLabel: "Ops Console",
+          targetLabel: "Konsol Operasional",
           description: "Operator login ke sistem shift pagi.",
           level: "info",
           createdAt: subMinutes(now, 18),
         },
         {
           userId: supervisor.id,
-          action: "Export Report",
+          action: "Cetak Laporan",
           targetType: "report",
-          targetLabel: "Flight Board Summary",
-          description: "Supervisor mengekspor ringkasan penerbangan harian.",
+          targetLabel: "Ringkasan Papan Flight",
+          description: "Supervisor mencetak ringkasan penerbangan harian.",
           level: "success",
           createdAt: subHours(now, 3),
         },
         {
           userId: admin.id,
-          action: "Update Settings",
+          action: "Perbarui Pengaturan",
           targetType: "settings",
-          targetLabel: "Display Preferences",
-          description: "Admin menguji dark mode dan compact sidebar.",
+          targetLabel: "Preferensi Tampilan",
+          description: "Admin menguji mode gelap dan sidebar terlipat.",
           level: "info",
           createdAt: subHours(now, 7),
         },
         {
           userId: operator.id,
-          action: "Report Issue",
+          action: "Laporkan Isu",
           targetType: "tracking",
           targetLabel: "160-33445566",
-          description: "Operator menandai issue DG declaration untuk supervisor.",
+          description: "Operator menandai isu deklarasi DG untuk ditinjau supervisor.",
           level: "warning",
           createdAt: subMinutes(now, 46),
         },
         {
           userId: admin.id,
-          action: "Invite User",
+          action: "Undang Pengguna",
           targetType: "user",
           targetLabel: invitedOperator.email,
           description: "Admin menambahkan operator baru untuk shift cadangan.",
@@ -761,10 +836,10 @@ async function main() {
         },
         {
           userId: admin.id,
-          action: "Update User Role",
+          action: "Perbarui Hak Akses Pengguna",
           targetType: "user",
           targetLabel: disabledSupervisor.email,
-          description: "Akses supervisor nonaktif ditandai disabled setelah review roster.",
+          description: "Akses supervisor nonaktif ditandai nonaktif setelah review roster.",
           level: "warning",
           createdAt: subHours(now, 16),
         },
@@ -773,6 +848,24 @@ async function main() {
 
   await prisma.notification.createMany({
       data: [
+        {
+          userId: customer.id,
+          title: "Dokumen sedang ditinjau",
+          message: "Satu shipment akun Anda masih berstatus dokumen parsial dan menunggu validasi internal.",
+          href: "/shipment-ledger?status=received",
+          type: "warning",
+          read: false,
+          createdAt: subMinutes(now, 16),
+        },
+        {
+          userId: customer.id,
+          title: "Shipment telah tiba",
+          message: "AWB 160-55667788 sudah tercatat tiba di terminal tujuan.",
+          href: "/awb-tracking?awb=160-55667788",
+          type: "success",
+          read: false,
+          createdAt: subHours(now, 3),
+        },
         {
           userId: operator.id,
           title: "AWB perlu validasi",
@@ -832,6 +925,8 @@ async function main() {
 
     await prisma.recentAwbSearch.createMany({
       data: [
+        { userId: customer.id, awb: "160-12345678", createdAt: subMinutes(now, 28) },
+        { userId: customer.id, awb: "160-23456789", createdAt: subMinutes(now, 19) },
         { userId: operator.id, awb: "160-12345678", createdAt: subMinutes(now, 30) },
         { userId: operator.id, awb: "160-45678901", createdAt: subMinutes(now, 26) },
         { userId: operator.id, awb: "160-33445566", createdAt: subMinutes(now, 22) },

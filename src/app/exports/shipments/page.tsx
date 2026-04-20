@@ -1,5 +1,6 @@
 import Script from "next/script";
 import { requireUser } from "@/lib/auth";
+import { requireInternalUser } from "@/lib/access";
 import { listShipments } from "@/lib/data";
 import { formatDateTime } from "@/lib/format";
 
@@ -10,18 +11,19 @@ export default async function ShipmentsPrintPage({
 }: {
   searchParams: Promise<{ query?: string; status?: string; flight?: string; sortBy?: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
+  requireInternalUser(user);
   const params = await searchParams;
-  const data = await listShipments(params);
+  const data = await listShipments(user, params);
 
   return (
     <div className="mx-auto max-w-6xl bg-white p-8 text-black">
       <Script id="print-shipments">{`window.addEventListener("load", () => window.print(), { once: true });`}</Script>
-      <h1 className="font-[family:var(--font-heading)] text-3xl font-bold">Shipment Ledger Export</h1>
+      <h1 className="font-[family:var(--font-heading)] text-3xl font-bold">Tampilan Cetak Ledger Shipment</h1>
       <table className="mt-6 w-full border-collapse text-sm">
         <thead>
           <tr>
-            {["AWB", "Komoditas", "Rute", "Status", "Flight", "Updated"].map((header) => (
+            {["AWB", "Komoditas", "Rute", "Status", "Flight", "Update"].map((header) => (
               <th key={header} className="border-b border-slate-300 px-3 py-2 text-left">
                 {header}
               </th>

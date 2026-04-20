@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Download, Filter, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
+import { FileText, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
@@ -61,29 +61,29 @@ export default function ActivityLogPage() {
   if (userId !== "all") exportParams.set("userId", userId);
 
   return (
-    <div className="space-y-6">
+    <div className="page-workspace">
       <PageHeader
-        eyebrow="Audit Trail"
-        title="Activity Log"
-        subtitle="Riwayat human-readable untuk login, update shipment, upload dokumen, export, dan perubahan settings yang relevan bagi operator serta supervisor."
+        eyebrow="Jejak Audit"
+        title="Log Aktivitas"
+        subtitle="Riwayat yang mudah dibaca untuk login, update shipment, upload dokumen, cetak, dan perubahan pengaturan yang relevan bagi operator serta supervisor."
       />
 
       <div className="grid gap-4 xl:grid-cols-4">
-        <StatCard label="Success" value={levels.success} note="Aksi berhasil tersimpan atau dieksekusi." icon={ShieldCheck} tone="success" />
+        <StatCard label="Berhasil" value={levels.success} note="Aksi berhasil tersimpan atau dieksekusi." icon={ShieldCheck} tone="success" />
         <StatCard label="Info" value={levels.info} note="Aktivitas normal operator dan sistem." icon={History} tone="info" />
-        <StatCard label="Warning" value={levels.warning} note="Event yang memerlukan perhatian tetapi belum fatal." icon={TriangleAlert} tone="warning" />
-        <StatCard label="Error" value={levels.error} note="Kejadian gagal atau exception log yang tercatat." icon={ShieldAlert} tone="danger" />
+        <StatCard label="Peringatan" value={levels.warning} note="Event yang memerlukan perhatian tetapi belum fatal." icon={TriangleAlert} tone="warning" />
+        <StatCard label="Galat" value={levels.error} note="Kejadian gagal atau exception log yang tercatat." icon={ShieldAlert} tone="danger" />
       </div>
 
-      <FilterBar className="xl:grid-cols-[1fr_220px_220px_auto_auto]">
+      <FilterBar className="xl:grid-cols-[1fr_220px_220px_auto]">
         <div>
           <label className="label">Cari log</label>
           <input className="input-field" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="AWB, deskripsi, target..." />
         </div>
         <div>
-          <label className="label">Action</label>
+          <label className="label">Aksi</label>
           <select className="select-field" value={action} onChange={(event) => setAction(event.target.value)}>
-            <option value="all">Semua action</option>
+            <option value="all">Semua aksi</option>
             {actions.map((item) => (
               <option key={item} value={item}>
                 {item}
@@ -92,9 +92,9 @@ export default function ActivityLogPage() {
           </select>
         </div>
         <div>
-          <label className="label">User</label>
+          <label className="label">Pengguna</label>
           <select className="select-field" value={userId} onChange={(event) => setUserId(event.target.value)}>
-            <option value="all">Semua user</option>
+            <option value="all">Semua pengguna</option>
             {(data?.users ?? []).map((user) => (
               <option key={user.id} value={user.id}>
                 {user.name}
@@ -102,27 +102,23 @@ export default function ActivityLogPage() {
             ))}
           </select>
         </div>
-        <Link href={`/api/exports/activity-log?${exportParams.toString()}`} className="btn btn-secondary self-end">
-          <Download size={16} />
-          CSV
-        </Link>
         <Link href={`/exports/activity-log?${exportParams.toString()}`} className="btn btn-secondary self-end">
-          <Filter size={16} />
+          <FileText size={16} />
           PDF / Print
         </Link>
       </FilterBar>
 
-      <OpsPanel className="p-5">
-        <SectionHeader title="Activity Timeline" subtitle="Semua entri audit disusun dalam tabel padat untuk memudahkan review cepat saat shift berjalan." />
-        <div className="mt-5 table-shell">
+      <OpsPanel className="page-pane p-5">
+        <SectionHeader title="Timeline Aktivitas" subtitle="Semua entri audit disusun dalam tabel padat untuk memudahkan review cepat saat shift berjalan." />
+        <div className="page-scroll mt-5 table-shell">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Timestamp</th>
-                <th>User</th>
-                <th>Action</th>
+                <th>Waktu</th>
+                <th>Pengguna</th>
+                <th>Aksi</th>
                 <th>Target</th>
-                <th>Description</th>
+                <th>Deskripsi</th>
                 <th>Level</th>
               </tr>
             </thead>

@@ -16,7 +16,7 @@ const manrope = Manrope({
 
 export const metadata: Metadata = {
   title: APP_NAME,
-  description: `${APP_SUBTITLE} untuk tracking AWB, flight board, dan dashboard operator.`,
+  description: `${APP_SUBTITLE} untuk pelacakan AWB, papan flight, dan dashboard operator.`,
   icons: {
     icon: "/skyhub-mark-blue.svg",
     shortcut: "/skyhub-mark-blue.svg",

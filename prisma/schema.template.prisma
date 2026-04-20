@@ -11,11 +11,17 @@ enum UserRole {
   admin
   operator
   supervisor
+  customer
 }
 
 enum UserStatus {
   active
   invited
+  disabled
+}
+
+enum CustomerAccountStatus {
+  active
   disabled
 }
 
@@ -34,6 +40,26 @@ enum FlightStatus {
   departed
 }
 
+enum BlobCleanupStatus {
+  pending
+  deleted
+  failed
+}
+
+model CustomerAccount {
+  id           String                @id @default(cuid())
+  code         String                @unique
+  name         String
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  status       CustomerAccountStatus @default(active)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  users        User[]
+  shipments    Shipment[]
+}
+
 model User {
   id                String            @id @default(cuid())
   name              String
@@ -42,6 +68,7 @@ model User {
   role              UserRole
   station           String
   status            UserStatus        @default(active)
+  customerAccountId String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   settings          UserSetting?
@@ -49,6 +76,7 @@ model User {
   activityLogs      ActivityLog[]
   recentAwbSearches RecentAwbSearch[]
   createdShipments  Shipment[]        @relation("ShipmentCreator")
+  customerAccount   CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
 }
 
 model UserSetting {
@@ -80,6 +108,7 @@ model Flight {
   gate            String?
   remarks         String?
   imageUrl        String?
+  archivedAt      DateTime?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   shipments       Shipment[]
@@ -104,11 +133,14 @@ model Shipment {
   notes           String?
   status          ShipmentStatus
   receivedAt      DateTime          @default(now())
+  archivedAt      DateTime?
   updatedAt       DateTime          @updatedAt
   flightId        String?
   createdById     String?
+  customerAccountId String?
   flight          Flight?           @relation(fields: [flightId], references: [id], onDelete: SetNull)
   createdBy       User?             @relation("ShipmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  customerAccount CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
   trackingLogs    TrackingLog[]
   documents       ShipmentDocument[]
 }
@@ -125,15 +157,17 @@ model TrackingLog {
 }
 
 model ShipmentDocument {
-  id         String   @id @default(cuid())
-  shipmentId String
-  fileName   String
-  mimeType   String
-  fileSize   Int
-  storageUrl String
-  storageKey String?
-  createdAt  DateTime @default(now())
-  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  id                String             @id @default(cuid())
+  shipmentId        String
+  fileName          String
+  mimeType          String
+  fileSize          Int
+  storageUrl        String
+  storageKey        String?
+  deletedAt         DateTime?
+  blobCleanupStatus BlobCleanupStatus?
+  createdAt         DateTime           @default(now())
+  shipment          Shipment           @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 }
 
 model ActivityLog {

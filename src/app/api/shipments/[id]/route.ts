@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { updateShipment } from "@/lib/data";
+import { routeErrorResponse } from "@/lib/api";
+import { archiveShipment, updateShipment } from "@/lib/data";
 import { shipmentUpdateSchema } from "@/lib/validators";
 
 type RouteContext = {
@@ -26,9 +27,18 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({ shipment });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gagal memperbarui shipment." },
-      { status: 500 },
-    );
+    return routeErrorResponse(error, "Gagal memperbarui shipment.");
+  }
+}
+
+export async function DELETE(_: Request, context: RouteContext) {
+  try {
+    const user = await requireUser();
+    const { id } = await context.params;
+
+    await archiveShipment(id, true, user.id);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return routeErrorResponse(error, "Gagal mengarsipkan shipment.");
   }
 }

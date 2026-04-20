@@ -14,8 +14,7 @@ Admin web app cargo udara untuk operator control room dengan fokus:
 - Next.js App Router
 - TypeScript
 - Prisma
-- SQLite untuk development lokal dan bundled demo deployment
-- PostgreSQL untuk deployment persisten
+- PostgreSQL / Neon sebagai database utama
 - Vercel Blob untuk dokumen production
 
 ## Menjalankan Lokal
@@ -23,18 +22,24 @@ Admin web app cargo udara untuk operator control room dengan fokus:
 1. Install dependency
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 ```
 
-2. Generate Prisma client, push schema, dan seed data
+2. Siapkan env database Postgres/Neon
+
+```bash
+cp .env.example .env
+```
+
+3. Generate Prisma client, apply migration, dan seed data
 
 ```bash
 pnpm prisma:generate
-pnpm db:push
+pnpm db:migrate
 pnpm db:seed
 ```
 
-3. Jalankan dev server
+4. Jalankan dev server
 
 ```bash
 pnpm dev
@@ -42,15 +47,23 @@ pnpm dev
 
 ## Demo Login
 
+- `customer@skyhub.test` / `operator123`
 - `operator@skyhub.test` / `operator123`
 - `supervisor@skyhub.test` / `operator123`
 - `admin@skyhub.test` / `operator123`
 
-## Catatan
+## Akun Seed Tambahan
 
-- Local default memakai `DATABASE_PROVIDER=sqlite` dan `DATABASE_URL=file:./dev.db`.
-- Untuk deployment persisten, ubah `DATABASE_PROVIDER=postgresql` dan arahkan `DATABASE_URL` ke instance Postgres Anda sebelum build.
-- Jika env database deployment belum tersedia, app akan fallback ke bundled SQLite demo DB agar seluruh menu tetap hidup untuk review UI dan alur operator.
+- `invited-ops@skyhub.test` / `operator123`
+- `disabled-supervisor@skyhub.test` / `operator123`
+
+## Catatan Neon dan Vercel
+
+- Set `DATABASE_PROVIDER=postgresql`.
+- Arahkan `DATABASE_URL` ke connection string Neon pooled untuk runtime aplikasi.
+- Gunakan `DATABASE_URL_UNPOOLED` untuk migrasi bila workflow deployment Anda memerlukannya.
+- Untuk validasi final, gunakan `pnpm db:migrate`; `pnpm db:push` hanya cocok untuk scratch/local reset yang tidak menjadi source of truth migration.
+- Tidak ada fallback otomatis ke SQLite demo. Build, migrate, seed, dan runtime harus memakai `DATABASE_URL`.
 - `BLOB_READ_WRITE_TOKEN` opsional saat local. Jika kosong, upload dokumen memakai fallback lokal ke `public/uploads`.
 - Di production tanpa `BLOB_READ_WRITE_TOKEN`, upload dokumen fallback ke runtime storage `/tmp` dan disajikan melalui route handler.
-- Export PDF memakai print view browser agar tetap ringan dan mudah dipakai lokal maupun di deployment.
+- Output PDF tetap menggunakan print view browser agar ringan dan konsisten dengan data operasional.

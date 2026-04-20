@@ -1,29 +1,34 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { routeErrorResponse } from "@/lib/api";
 import { createShipment, getShipmentByAwb, listShipments, rememberAwbSearch } from "@/lib/data";
 import { shipmentCreateSchema } from "@/lib/validators";
 
 export async function GET(request: Request) {
-  const user = await requireUser();
-  const { searchParams } = new URL(request.url);
-  const awb = searchParams.get("awb");
+  try {
+    const user = await requireUser();
+    const { searchParams } = new URL(request.url);
+    const awb = searchParams.get("awb");
 
-  if (awb) {
-    const shipment = await getShipmentByAwb(awb);
-    if (shipment) {
-      await rememberAwbSearch(user.id, awb);
+    if (awb) {
+      const shipment = await getShipmentByAwb(user, awb);
+      if (shipment) {
+        await rememberAwbSearch(user.id, awb);
+      }
+      return NextResponse.json({ shipment });
     }
-    return NextResponse.json({ shipment });
+
+    const data = await listShipments(user, {
+      query: searchParams.get("query") || undefined,
+      status: searchParams.get("status") || undefined,
+      flight: searchParams.get("flight") || undefined,
+      sortBy: searchParams.get("sortBy") || undefined,
+    });
+
+    return NextResponse.json(data);
+  } catch (error) {
+    return routeErrorResponse(error, "Gagal memuat shipment.");
   }
-
-  const data = await listShipments({
-    query: searchParams.get("query") || undefined,
-    status: searchParams.get("status") || undefined,
-    flight: searchParams.get("flight") || undefined,
-    sortBy: searchParams.get("sortBy") || undefined,
-  });
-
-  return NextResponse.json(data);
 }
 
 export async function POST(request: Request) {
@@ -40,15 +45,13 @@ export async function POST(request: Request) {
       ...parsed.data,
       volumeM3: parsed.data.volumeM3 ?? null,
       flightId: parsed.data.flightId ?? null,
+      customerAccountId: parsed.data.customerAccountId ?? null,
       userId: user.id,
       actorName: user.name,
     });
 
     return NextResponse.json({ shipment });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gagal membuat shipment." },
-      { status: 500 },
-    );
+    return routeErrorResponse(error, "Gagal membuat shipment.");
   }
 }

@@ -1,5 +1,6 @@
 import Script from "next/script";
 import { requireUser } from "@/lib/auth";
+import { requireInternalUser } from "@/lib/access";
 import { listActivityLogs } from "@/lib/data";
 import { formatDateTime } from "@/lib/format";
 
@@ -10,18 +11,19 @@ export default async function ActivityLogPrintPage({
 }: {
   searchParams: Promise<{ query?: string; action?: string; userId?: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
+  requireInternalUser(user);
   const params = await searchParams;
-  const data = await listActivityLogs(params);
+  const data = await listActivityLogs(user, params);
 
   return (
     <div className="mx-auto max-w-6xl bg-white p-8 text-black">
       <Script id="print-activity-log">{`window.addEventListener("load", () => window.print(), { once: true });`}</Script>
-      <h1 className="font-[family:var(--font-heading)] text-3xl font-bold">Activity Log Export</h1>
+      <h1 className="font-[family:var(--font-heading)] text-3xl font-bold">Tampilan Cetak Log Aktivitas</h1>
       <table className="mt-6 w-full border-collapse text-sm">
         <thead>
           <tr>
-            {["Timestamp", "User", "Action", "Target", "Description", "Level"].map((header) => (
+            {["Waktu", "Pengguna", "Aksi", "Target", "Deskripsi", "Level"].map((header) => (
               <th key={header} className="border-b border-slate-300 px-3 py-2 text-left">
                 {header}
               </th>
