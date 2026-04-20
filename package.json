@@ -4,13 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run prisma:generate && next build",
     "start": "next start",
     "lint": "eslint",
     "test:contracts": "node scripts/contracts/ui-contracts.mjs",
-    "db:push": "pnpm prisma:sync-schema && prisma db push",
-    "db:seed": "pnpm prisma:generate && tsx prisma/seed.ts && node scripts/sync-demo-db.mjs",
-    "prisma:generate": "pnpm prisma:sync-schema && prisma generate",
+    "db:push": "npm run prisma:sync-schema && prisma db push",
+    "db:seed": "npm run prisma:generate && tsx prisma/seed.ts && node scripts/sync-demo-db.mjs",
+    "prisma:generate": "npm run prisma:sync-schema && prisma generate",
     "prisma:sync-schema": "node scripts/sync-prisma-schema.mjs"
   },
   "dependencies": {
