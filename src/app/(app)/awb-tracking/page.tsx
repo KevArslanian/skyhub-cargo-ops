@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
@@ -75,6 +75,8 @@ const requiredSteps = [
   { key: "departed", label: "Berangkat" },
   { key: "arrived", label: "Tiba" },
 ] as const;
+
+type DataCardTone = ComponentProps<typeof DataCard>["tone"];
 
 function SearchBlank({
   title,
@@ -248,7 +250,12 @@ export default function AwbTrackingPage() {
       shipment.docStatus.toLowerCase() !== "complete" ||
       shipment.readiness.toLowerCase() !== "ready");
 
-  const intelligenceItems = shipment
+  const intelligenceItems: Array<{
+    label: string;
+    value: string;
+    note: string;
+    tone: DataCardTone;
+  }> = shipment
     ? [
         {
           label: "Update terakhir",
@@ -498,7 +505,9 @@ export default function AwbTrackingPage() {
                         <MapPinned size={16} className="text-[color:var(--brand-primary)]" />
                         {shipment.origin}
                       </span>
-                      <span className="text-[color:var(--muted-fg)]">-></span>
+                      <span className="text-[color:var(--muted-fg)]" aria-hidden="true">
+                        &rarr;
+                      </span>
                       <span className="inline-flex items-center gap-2 rounded-full bg-white/75 px-4 py-2 text-sm font-semibold text-[color:var(--text-strong)] shadow-sm dark:bg-white/[0.04]">
                         <MapPinned size={16} className="text-[color:var(--brand-primary)]" />
                         {shipment.destination}

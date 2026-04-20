@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
+  Boxes,
+  CircleAlert,
   Clock3,
   FileText,
   FolderOpen,
@@ -638,7 +640,7 @@ export default function ShipmentLedgerPage() {
                           </td>
                           <td>
                             <p className="font-semibold text-[color:var(--text-strong)]">
-                              {shipment.origin} -> {shipment.destination}
+                              {shipment.origin} &rarr; {shipment.destination}
                             </p>
                             <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
                               {shipment.flightNumber || "Belum assigned"}
@@ -699,7 +701,7 @@ export default function ShipmentLedgerPage() {
                       <StatusBadge value={selectedShipment.status} label={selectedShipment.statusLabel} />
                     </div>
                     <p className="mt-2 text-sm leading-7 text-[color:var(--muted-fg)]">
-                      {selectedShipment.commodity} • {selectedShipment.origin} -> {selectedShipment.destination}
+                      {selectedShipment.commodity} • {selectedShipment.origin} &rarr; {selectedShipment.destination}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
