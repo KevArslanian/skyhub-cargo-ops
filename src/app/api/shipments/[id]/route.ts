@@ -10,6 +10,9 @@ type RouteContext = {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const user = await requireUser();
+    if (user.role === "customer") {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    }
     const { id } = await context.params;
     const json = await request.json();
     const parsed = shipmentUpdateSchema.safeParse(json);

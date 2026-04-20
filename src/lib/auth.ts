@@ -1,6 +1,8 @@
+import type { UserRole } from "@prisma/client";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { DEFAULT_ROUTE_BY_ROLE } from "./constants";
 import { db } from "./prisma";
 
 const SESSION_COOKIE = "ep_session";
@@ -8,7 +10,7 @@ const secret = new TextEncoder().encode(process.env.SESSION_SECRET || "dev-secre
 
 type SessionPayload = {
   userId: string;
-  role: string;
+  role: UserRole;
   remember: boolean;
 };
 
@@ -20,7 +22,7 @@ async function signToken(payload: SessionPayload, maxAgeSeconds: number) {
     .sign(secret);
 }
 
-export async function createSession(userId: string, role: string, remember: boolean) {
+export async function createSession(userId: string, role: UserRole, remember: boolean) {
   const maxAge = remember ? 60 * 60 * 24 * 30 : 60 * 60 * 12;
   const token = await signToken({ userId, role, remember }, maxAge);
   const cookieStore = await cookies();
@@ -81,4 +83,8 @@ export async function requireUser() {
     redirect("/login");
   }
   return user;
+}
+
+export function getDefaultRouteByRole(role: UserRole) {
+  return DEFAULT_ROUTE_BY_ROLE[role] ?? "/dashboard";
 }

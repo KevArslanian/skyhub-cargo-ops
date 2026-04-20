@@ -6,14 +6,15 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 enum UserRole {
   admin
-  operator
   supervisor
+  operator
+  customer
 }
 
 enum UserStatus {

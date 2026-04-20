@@ -9,8 +9,9 @@ datasource db {
 
 enum UserRole {
   admin
-  operator
   supervisor
+  operator
+  customer
 }
 
 enum UserStatus {

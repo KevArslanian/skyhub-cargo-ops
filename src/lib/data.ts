@@ -560,7 +560,7 @@ export async function getRecentAwbSearches(userId: string) {
 export async function inviteUser(input: {
   name: string;
   email: string;
-  role: "admin" | "operator" | "supervisor";
+  role: "admin" | "supervisor" | "operator" | "customer";
   station: string;
   invitedById: string;
 }) {
@@ -618,7 +618,7 @@ export async function inviteUser(input: {
 export async function updateUserAccess(
   userId: string,
   input: {
-    role?: "admin" | "operator" | "supervisor";
+    role?: "admin" | "supervisor" | "operator" | "customer";
     status?: "active" | "invited" | "disabled";
     station?: string;
     actorUserId: string;

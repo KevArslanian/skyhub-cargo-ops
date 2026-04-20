@@ -16,6 +16,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ shipment });
   }
 
+  if (user.role === "customer") {
+    return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+  }
+
   const data = await listShipments({
     query: searchParams.get("query") || undefined,
     status: searchParams.get("status") || undefined,
@@ -29,6 +33,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
+    if (user.role === "customer") {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    }
     const payload = await request.json();
     const parsed = shipmentCreateSchema.safeParse(payload);
 

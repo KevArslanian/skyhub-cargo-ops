@@ -14,7 +14,7 @@ type SettingsPayload = {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "operator" | "supervisor";
+    role: "admin" | "supervisor" | "operator" | "customer";
     station: string;
   };
   settings: {
@@ -32,7 +32,7 @@ type SettingsPayload = {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "operator" | "supervisor";
+    role: "admin" | "supervisor" | "operator" | "customer";
     station: string;
     status: "active" | "invited" | "disabled";
   }[];
@@ -64,10 +64,12 @@ const stationOptions = ["CGK", "SUB", "DPS", "SOQ", "UPG", "BPN"] as const;
 const rolePillClasses: Record<SettingsPayload["profile"]["role"], string> = {
   admin:
     "border border-[color:var(--tone-danger-soft)] bg-[color:var(--tone-danger-soft)] text-[color:var(--tone-danger)]",
-  operator:
-    "border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]",
   supervisor:
     "border border-[color:var(--tone-warning-soft)] bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]",
+  operator:
+    "border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]",
+  customer:
+    "border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] text-[color:var(--tone-info)]",
 };
 
 const userStatusLabels: Record<SettingsPayload["users"][number]["status"], string> = {
@@ -79,15 +81,19 @@ const userStatusLabels: Record<SettingsPayload["users"][number]["status"], strin
 const roleDefinitionCards = [
   {
     title: "Admin",
-    copy: "Akses penuh, manajemen user, semua settings",
-  },
-  {
-    title: "Operator",
-    copy: "CRUD shipment, tracking AWB, handling cargo",
+    copy: "Akses penuh lintas modul, manajemen user, dan kontrol konfigurasi.",
   },
   {
     title: "Supervisor",
-    copy: "Monitoring, approval manifest, eskalasi",
+    copy: "Monitoring operasional, approval, eskalasi isu, dan review audit.",
+  },
+  {
+    title: "Operator",
+    copy: "CRUD shipment, tracking AWB, pembaruan status, dan pengelolaan dokumen.",
+  },
+  {
+    title: "Customer",
+    copy: "Akses terbatas ke dashboard ringkas, tracking, reports, dan profil sendiri.",
   },
 ] as const;
 
@@ -157,7 +163,12 @@ export default function SettingsPage() {
   const [data, setData] = useState<SettingsPayload | null>(null);
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["label"]>("Profile");
   const [saving, setSaving] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ name: "", email: "", role: "operator", station: "SOQ" });
+  const [inviteForm, setInviteForm] = useState<{ name: string; email: string; role: SettingsPayload["users"][number]["role"]; station: string }>({
+    name: "",
+    email: "",
+    role: "operator",
+    station: "SOQ",
+  });
   const [draft, setDraft] = useState(() => toDraft(null));
   const [openGroupId, setOpenGroupId] = useState<(typeof tabGroups)[number]["id"]>("account");
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -362,6 +373,11 @@ export default function SettingsPage() {
     const payload = (await response.json()) as { user: SettingsPayload["users"][number] };
     setData((current) => (current ? { ...current, users: [...current.users, payload.user] } : current));
     setInviteForm({ name: "", email: "", role: "operator", station: "SOQ" });
+    setPreviewNotice({
+      title: "User berhasil diundang",
+      copy: "Akun baru sudah ditambahkan ke daftar user dan siap dikelola per role.",
+      tone: "success",
+    });
     setShowInviteForm(false);
   }
 
@@ -581,11 +597,17 @@ export default function SettingsPage() {
                     <select
                       className="select-field"
                       value={inviteForm.role}
-                      onChange={(event) => setInviteForm((current) => ({ ...current, role: event.target.value }))}
+                      onChange={(event) =>
+                        setInviteForm((current) => ({
+                          ...current,
+                          role: event.target.value as SettingsPayload["users"][number]["role"],
+                        }))
+                      }
                     >
                       <option value="operator">Operator</option>
                       <option value="supervisor">Supervisor</option>
                       <option value="admin">Admin</option>
+                      <option value="customer">Customer</option>
                     </select>
                     <select
                       className="select-field"
