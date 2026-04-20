@@ -3,6 +3,14 @@
 :root,
 .light {
   color-scheme: light;
+  --panel-radius: 28px;
+  --card-radius: 24px;
+  --control-radius: 18px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
   --app-bg: #eff4fa;
   --app-bg-alt: #e3ebf6;
   --app-fg: #12233d;
@@ -134,7 +142,7 @@ textarea {
 .panel {
   border: 1px solid var(--border-soft);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.96)), var(--panel-bg);
-  border-radius: 28px;
+  border-radius: var(--panel-radius);
   box-shadow: var(--shadow-soft);
   min-height: 0;
 }
@@ -148,7 +156,7 @@ textarea {
 .panel-muted {
   border: 1px solid var(--border-soft);
   background: var(--panel-muted);
-  border-radius: 24px;
+  border-radius: var(--card-radius);
   min-height: 0;
 }
 
@@ -161,7 +169,7 @@ textarea {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)), var(--panel-contrast);
   color: white;
-  border-radius: 28px;
+  border-radius: var(--panel-radius);
   box-shadow: var(--shadow-strong);
   min-height: 0;
 }
@@ -169,7 +177,7 @@ textarea {
 .dropdown-panel {
   position: absolute;
   overflow: hidden;
-  border-radius: 24px;
+  border-radius: var(--card-radius);
   border: 1px solid var(--border-soft);
   background: var(--panel-bg);
   box-shadow: var(--shadow-soft);
@@ -190,7 +198,7 @@ textarea {
   border: 1px solid var(--border-soft);
   background: var(--panel-muted);
   color: var(--text-strong);
-  border-radius: 18px;
+  border-radius: var(--control-radius);
   outline: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
 }
@@ -232,7 +240,7 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border-radius: 18px;
+  border-radius: var(--control-radius);
   padding: 0 18px;
   min-height: 46px;
   font-size: 0.92rem;
@@ -314,7 +322,7 @@ textarea {
 
 .metric-card {
   border: 1px solid var(--border-soft);
-  border-radius: 28px;
+  border-radius: var(--panel-radius);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.98)), var(--panel-bg);
   padding: 22px;
   box-shadow: var(--shadow-soft);
@@ -328,7 +336,7 @@ textarea {
   display: grid;
   gap: 16px;
   border: 1px solid var(--border-soft);
-  border-radius: 28px;
+  border-radius: var(--panel-radius);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.98)), var(--panel-bg);
   padding: 18px;
   box-shadow: var(--shadow-soft);
@@ -342,7 +350,7 @@ textarea {
 .table-shell {
   overflow: auto;
   border: 1px solid var(--border-soft);
-  border-radius: 28px;
+  border-radius: var(--panel-radius);
   background: var(--panel-bg);
   box-shadow: var(--shadow-soft);
   min-height: 0;
@@ -436,7 +444,7 @@ textarea {
 
 .ops-empty {
   border: 1px dashed var(--border-strong);
-  border-radius: 28px;
+  border-radius: var(--panel-radius);
   background: rgba(255, 255, 255, 0.38);
   padding: 40px 24px;
   text-align: center;
@@ -540,6 +548,115 @@ textarea {
 .compact-table .data-table tbody td {
   padding-top: 12px;
   padding-bottom: 12px;
+}
+
+.ops-skeleton {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(201, 214, 230, 0.42) 0%,
+      rgba(255, 255, 255, 0.92) 48%,
+      rgba(201, 214, 230, 0.42) 100%
+    ),
+    var(--panel-muted);
+  background-size: 220% 100%;
+  animation: ops-shimmer 1.4s linear infinite;
+}
+
+.dark .ops-skeleton {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(39, 72, 107, 0.5) 0%,
+      rgba(255, 255, 255, 0.08) 48%,
+      rgba(39, 72, 107, 0.5) 100%
+    ),
+    var(--panel-muted);
+  background-size: 220% 100%;
+}
+
+@keyframes ops-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -100% 0;
+  }
+}
+
+.ops-snap-track {
+  display: flex;
+  gap: var(--space-16);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--space-16);
+  scrollbar-width: none;
+}
+
+.ops-snap-track::-webkit-scrollbar {
+  display: none;
+}
+
+.ops-snap-card {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  flex: 0 0 min(86vw, 560px);
+  touch-action: pan-y pinch-zoom;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease;
+  user-select: none;
+}
+
+.ops-snap-card[data-active="true"] {
+  transform: translateY(-4px);
+  border-color: rgba(0, 82, 204, 0.2);
+  box-shadow: 0 18px 36px rgba(7, 23, 46, 0.12);
+}
+
+.dark .ops-snap-card[data-active="true"] {
+  border-color: rgba(139, 188, 255, 0.24);
+}
+
+.ops-snap-dot {
+  display: inline-flex;
+  height: 10px;
+  width: 10px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition:
+    width 0.18s ease,
+    background-color 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.ops-snap-dot-active {
+  width: 28px;
+  background: var(--brand-primary);
+}
+
+.ops-textarea-elevated {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.08)),
+    var(--panel-muted);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.dark .ops-textarea-elevated {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    var(--panel-muted);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.ops-sticky-footer {
+  position: sticky;
+  bottom: 0;
 }
 
 .ops-scrollbar {
@@ -759,6 +876,10 @@ input[type="checkbox"] {
     min-height: 0;
   }
 
+  .ops-snap-card {
+    flex-basis: min(58vw, 680px);
+  }
+
   .login-shell {
     display: grid;
     grid-template-columns: 400px minmax(0, 1fr);
@@ -847,6 +968,10 @@ input[type="checkbox"] {
   .ops-filter-bar,
   .table-shell {
     border-radius: 24px;
+  }
+
+  .ops-snap-card {
+    flex-basis: min(88vw, 520px);
   }
 
   .login-feature-grid,

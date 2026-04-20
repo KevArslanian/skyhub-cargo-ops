@@ -367,7 +367,7 @@ export async function getDashboardData(user: AccessUser) {
         orderBy: [{ updatedAt: "desc" }],
         take: 24,
       }),
-      getRecentAwbSearches(user.id),
+      getRecentAwbSearches(user),
     ]);
 
     const serializedShipments = shipments.map((shipment) => serializeShipment(shipment, user));
@@ -994,7 +994,7 @@ export async function rememberAwbSearch(userId: string, awb: string) {
     const searches = await tx.recentAwbSearch.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      skip: 5,
+      skip: 8,
     });
 
     if (searches.length) {
@@ -1005,17 +1005,56 @@ export async function rememberAwbSearch(userId: string, awb: string) {
   });
 }
 
-export async function getRecentAwbSearches(userId: string) {
+export async function getRecentAwbSearches(user: AccessUser) {
   const searches = await db.recentAwbSearch.findMany({
-    where: { userId },
+    where: { userId: user.id },
     orderBy: { createdAt: "desc" },
-    take: 5,
+    take: 8,
   });
+
+  const awbs = Array.from(new Set(searches.map((item) => item.awb)));
+  const scopedShipments = awbs.length
+    ? await db.shipment.findMany({
+        where: {
+          ...scopeShipmentWhere(user),
+          awb: { in: awbs },
+        },
+        include: {
+          flight: {
+            select: {
+              flightNumber: true,
+            },
+          },
+        },
+      })
+    : [];
+
+  const shipmentByAwb = new Map(
+    scopedShipments.map((shipment) => [
+      shipment.awb,
+      {
+        status: shipment.status,
+        statusLabel: SHIPMENT_STATUS_LABELS[shipment.status],
+        origin: shipment.origin,
+        destination: shipment.destination,
+        flightNumber: shipment.flight?.flightNumber ?? null,
+        updatedAt: shipment.updatedAt.toISOString(),
+        docStatus: shipment.docStatus,
+      },
+    ]),
+  );
 
   return searches.map((item) => ({
     id: item.id,
     awb: item.awb,
     createdAt: item.createdAt.toISOString(),
+    status: shipmentByAwb.get(item.awb)?.status ?? null,
+    statusLabel: shipmentByAwb.get(item.awb)?.statusLabel ?? null,
+    origin: shipmentByAwb.get(item.awb)?.origin ?? null,
+    destination: shipmentByAwb.get(item.awb)?.destination ?? null,
+    flightNumber: shipmentByAwb.get(item.awb)?.flightNumber ?? null,
+    updatedAt: shipmentByAwb.get(item.awb)?.updatedAt ?? null,
+    docStatus: shipmentByAwb.get(item.awb)?.docStatus ?? null,
   }));
 }
 
