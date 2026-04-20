@@ -49,6 +49,12 @@ export type CompanySwipeCard = {
   label: string;
   title: string;
   description: string;
+  artworkSrc: string;
+  artworkAlt: string;
+  stageEyebrow: string;
+  stageLabel: string;
+  stageNote: string;
+  sceneFacts: CompanyFactItem[];
   chips?: string[];
   metrics?: CompanyFactItem[];
   highlights?: CompanyHighlightItem[];
@@ -63,16 +69,22 @@ export type CompanyTimelineItem = {
 };
 
 export const COMPANY_HERO_HEADLINE =
-  "Pusat kendali kargo udara yang cepat discan, stabil di shift panjang, dan tetap tenang dibaca.";
+  "Pusat kendali kargo udara yang cepat dipindai, elegan dibaca, dan stabil untuk shift operasional panjang.";
 
 export const COMPANY_HERO_COPY =
-  "SkyHub menyatukan pelacakan AWB, manifest board, pengelolaan shipment, audit, dan preferensi operator dalam satu sistem operasional yang formal, ringan, dan siap dipakai sepanjang hari.";
+  "SkyHub menyatukan pelacakan AWB, manifest board, pengelolaan shipment, audit, alert, dan preferensi operator dalam satu sistem operasional yang formal, tenang, dan siap dipakai sepanjang hari.";
 
 export const COMPANY_ABOUT_COPY =
-  "Dirancang untuk operator, admin, dan manifest control, SkyHub menjaga hierarchy data tetap tegas: status lebih cepat terbaca, exception lebih cepat terlihat, dan aksi kerja lebih dekat ke konteks kiriman.";
+  "Dirancang untuk operator, admin, supervisor, dan customer portal, SkyHub menjaga hierarchy data tetap tegas: status lebih cepat terbaca, exception lebih cepat terlihat, dan aksi kerja tetap dekat ke konteks shipment.";
+
+export const COMPANY_HERO_PILLS = [
+  "Internal cargo operations system",
+  "Swipeable information deck",
+  "Manual controls, no autoplay",
+] as const;
 
 export const COMPANY_OPERATOR_NOTE =
-  "Setiap panel dibuat untuk keputusan cepat: angka penting dibuat kontras, identifier diprioritaskan, dan state sistem tetap jelas walau layar penuh data.";
+  "Setiap panel dibuat untuk keputusan cepat: identifier selalu lebih dominan daripada ornamen, status penting selalu memiliki affordance yang jelas, dan ritme panel sengaja dijaga agar padat informasi tanpa terasa bising.";
 
 export const COMPANY_HERO_METRICS: CompanyFactItem[] = [
   {
@@ -100,11 +112,11 @@ export const COMPANY_FACTS: CompanyFactItem[] = [
   },
   {
     label: "Cakupan layanan",
-    value: "Monitoring shipment, manifest, assignment flight, audit, alert",
+    value: "Monitoring shipment, manifest, assignment flight, audit, alert, dan review readiness",
   },
   {
     label: "Karakter produk",
-    value: "Enterprise dashboard yang fokus pada speed of scanning",
+    value: "Enterprise dashboard yang fokus pada speed of scanning dan operational clarity",
   },
 ];
 
@@ -195,16 +207,9 @@ export const COMPANY_DIGITAL_ITEMS: CompanyContactItem[] = [
     icon: Link2,
     label: "LinkedIn",
     value: "SkyHub Cargo Systems",
-    href: "https://www.linkedin.com",
+    href: "https://www.linkedin.com/company/skyhub-cargo-systems",
   },
 ];
-
-export const COMPANY_CONTACT_TEASER = [
-  COMPANY_CONTACT_ITEMS[0],
-  COMPANY_CONTACT_ITEMS[3],
-  COMPANY_CONTACT_ITEMS[5],
-  COMPANY_CONTACT_ITEMS[7],
-] as const;
 
 export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
   {
@@ -213,13 +218,23 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
     title: "SkyHub mempertemukan monitoring kargo, alur review, dan kendali peran dalam satu ruang kontrol.",
     description:
       "Platform ini dibuat untuk operasional harian yang padat. Data inti selalu berada di depan, exception tidak tenggelam, dan operator dapat berpindah dari tracking ke manifest tanpa kehilangan konteks.",
+    artworkSrc: "/auth/about-stage-atlas.svg",
+    artworkAlt: "Editorial company summary scene with aviation lighting and command deck composition.",
+    stageEyebrow: "Company Identity Stage",
+    stageLabel: "Operational atlas with calm hierarchy",
+    stageNote: "Card aktif mendorong hero visual agar identitas perusahaan, scope layanan, dan positioning produk terasa hidup sejak fold pertama.",
+    sceneFacts: [
+      { label: "Status operasional", value: "Normal dan aktif sepanjang shift" },
+      { label: "Scope layanan", value: "Shipment, flight, audit, customer portal" },
+      { label: "Visual tone", value: "Blue-white, editorial, enterprise" },
+    ],
     chips: ["Operational workspace", "Brand-led blue system", "Rounded enterprise layout"],
     metrics: [
-      { label: "Status operasional", value: "Normal dan aktif sepanjang shift" },
       { label: "Ruang kendali", value: "Internal cargo operations center" },
-      { label: "Scope layanan", value: "Shipment, flight, audit, customer portal" },
+      { label: "Narasi utama", value: "Speed of scanning without losing calm" },
+      { label: "Arah visual", value: "Premium internal operations system" },
     ],
-    note: "Card aktif dibuat dominan agar identitas perusahaan, status, dan positioning produk selalu mudah ditangkap dalam satu pandangan.",
+    note: "Ringkasan perusahaan harus terasa seperti satu deck identitas yang siap dibaca cepat, bukan paragraf profil statis.",
   },
   {
     id: "fokus",
@@ -227,6 +242,16 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
     title: "Lima capability utama dipusatkan untuk mempercepat pemindaian dan keputusan operator.",
     description:
       "Alih-alih daftar fitur panjang, capability platform dipresentasikan sebagai blok kerja yang langsung menjawab aktivitas shift dan monitoring kiriman.",
+    artworkSrc: "/auth/about-stage-operations.svg",
+    artworkAlt: "Operational capability scene with modular cargo tracking overlays and runway-like framing.",
+    stageEyebrow: "Capability Stage",
+    stageLabel: "Function blocks that read like a control deck",
+    stageNote: "Visual stage diarahkan ke kapabilitas kerja: tracking, manifest, flight assignment, audit, dan notifikasi tersusun sebagai runway informasi.",
+    sceneFacts: [
+      { label: "Tracking", value: "Timeline AWB, status aktif, exception, update terakhir" },
+      { label: "Manifest", value: "Board, filter cepat, review status, detail panel" },
+      { label: "Audit", value: "Alert, chronology, dan jalur eskalasi" },
+    ],
     highlights: [
       {
         icon: Radar,
@@ -249,7 +274,7 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
         description: "Log kronologis, exception alerts, dan jalur eskalasi dibangun untuk tindakan cepat.",
       },
     ],
-    note: "Setiap capability dipecah menjadi blok ringkas agar mudah dipindai, bukan paragraf pemasaran.",
+    note: "Capability highlights harus terasa seperti blok kerja operator, bukan copy pemasaran generik.",
   },
   {
     id: "kualitas",
@@ -257,6 +282,16 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
     title: "Kepadatan informasi dibuat tinggi, tetapi ritme baca tetap dijaga.",
     description:
       "SkyHub menempatkan angka, timestamp, identifier, dan severity sebagai hirarki primer. Efek visual dipakai seperlunya untuk memperjelas state, bukan mengganggu fokus operator.",
+    artworkSrc: "/auth/about-stage-network.svg",
+    artworkAlt: "Operational quality scene with layered data bands, clean spacing, and aviation corridor lighting.",
+    stageEyebrow: "Quality Signals",
+    stageLabel: "Dense, legible, and predictable under pressure",
+    stageNote: "Hero visual untuk card ini menegaskan bahwa ketenangan layout adalah bagian dari kualitas operasional, bukan hanya pilihan estetika.",
+    sceneFacts: [
+      { label: "Readability", value: "Angka dan identifier selalu paling kontras" },
+      { label: "State design", value: "Hover, selected, warning, sync, empty, loading" },
+      { label: "Stability", value: "Panel bounded dan mudah diprediksi selama shift" },
+    ],
     metrics: [
       { label: "Kecepatan akses", value: "Pola layout konsisten untuk tugas berulang" },
       { label: "Struktur informasi", value: "Header, summary, table, detail panel terhubung jelas" },
@@ -264,7 +299,7 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
       { label: "Akurasi data", value: "Status, log, dan dokumen diringkas dari sumber yang sama" },
       { label: "Usability operator", value: "Scanning cepat di desktop, tetap nyaman di tablet/mobile" },
     ],
-    note: "Nilai-nilai ini dipresentasikan seperti KPI produk agar halaman profile terasa hidup, bukan sekadar teks statis.",
+    note: "Quality principles dipresentasikan seperti KPI produk agar halaman profile terasa hidup dan dapat dipindai.",
   },
   {
     id: "akses",
@@ -272,6 +307,16 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
     title: "Sistem menangani beberapa tipe pengguna dan workspace behavior yang berbeda.",
     description:
       "Operator internal membutuhkan command center yang padat. Portal pelanggan membutuhkan status yang lebih ringkas. Keduanya tetap memakai identitas visual yang sama, namun konteksnya dibedakan oleh role-based access.",
+    artworkSrc: "/auth/about-stage-atlas.svg",
+    artworkAlt: "Access environment scene with layered lounge framing and role-based control zones.",
+    stageEyebrow: "Access Environment",
+    stageLabel: "Shared identity with role-aware workspaces",
+    stageNote: "Card ini harus menegaskan bahwa pemisahan internal portal dan customer portal dilakukan lewat akses, bukan lewat brand yang tercerai-berai.",
+    sceneFacts: [
+      { label: "Pengguna internal", value: "Operator, supervisor, admin" },
+      { label: "Portal pelanggan", value: "Status shipment dan dokumen ringkas berbasis akun" },
+      { label: "Behavior", value: "Sidebar, topbar, refresh, preferensi bersifat personal" },
+    ],
     highlights: [
       {
         icon: Users,
@@ -294,7 +339,7 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
         description: "Sidebar, topbar, preferensi, dan refresh behavior tersimpan sebagai lingkungan kerja personal.",
       },
     ],
-    note: "Setiap mode akses tetap mengikuti logika operasional yang sama agar perpindahan role tidak membingungkan.",
+    note: "Perbedaan antar mode akses harus jelas, tetapi transisi mental user tetap ringan karena language visualnya konsisten.",
   },
   {
     id: "kontak",
@@ -302,6 +347,16 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
     title: "Kontak penting diringkas dalam satu card besar yang bisa dipindai tanpa kelelahan visual.",
     description:
       "Alih-alih ditumpuk ke bawah sebagai banyak kartu kecil, kanal dukungan dirangkum menjadi daftar berhierarki dengan label, jalur utama, dan support path yang jelas.",
+    artworkSrc: "/auth/about-stage-operations.svg",
+    artworkAlt: "Operational contact scene with premium communication cards and calm enterprise framing.",
+    stageEyebrow: "Support Lanes",
+    stageLabel: "Escalation paths that do not exhaust the eye",
+    stageNote: "Kontak operasional harus terasa seperti satu panel eskalasi yang siap dipakai, bukan deretan card kecil yang melelahkan.",
+    sceneFacts: [
+      { label: "General path", value: "Info, ops, support, telepon, panel operasional" },
+      { label: "Availability", value: "Support monitoring 24 jam untuk isu kritis" },
+      { label: "Reading rhythm", value: "Grid modular dengan label jelas dan ruang cukup" },
+    ],
     contacts: COMPANY_OPERATIONAL_CONTACT_ITEMS,
     note: "Urutan kontak diprioritaskan untuk jalur umum, jalur operasional, eskalasi, dan ketersediaan support.",
   },
@@ -311,10 +366,20 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
     title: "Jejak perusahaan dirangkum sebagai lokasi operasional, kanal resmi, dan coverage digital.",
     description:
       "Card ini menjaga konteks organisasi tetap lengkap tanpa memecah perhatian dari command center utama.",
-    metrics: [
+    artworkSrc: "/auth/about-stage-network.svg",
+    artworkAlt: "Digital footprint scene with air route lattice and premium locator markers.",
+    stageEyebrow: "Location and Coverage",
+    stageLabel: "Operational footprint, not decorative marketing filler",
+    stageNote: "Lokasi dan jejak digital ditempatkan sebagai context layer terakhir agar profile terasa lengkap, tetap ringkas, dan tidak berubah menjadi halaman marketing.",
+    sceneFacts: [
       { label: "Lokasi utama", value: "Area logistik bandara Jakarta" },
       { label: "Rute prioritas", value: "SOQ, UPG, CGK, DPS, SUB, dan bandara konektor" },
       { label: "Jejak digital", value: "Website resmi, Instagram, dan LinkedIn perusahaan" },
+    ],
+    metrics: [
+      { label: "Coverage", value: "Domestic trunk dan connector routes" },
+      { label: "Digital channels", value: "Website, Instagram, LinkedIn" },
+      { label: "Context", value: "Identitas operasional yang tetap terukur" },
     ],
     contacts: COMPANY_DIGITAL_ITEMS,
     note: "Digital footprint ditampilkan sebagai bagian dari identitas operasional, bukan elemen marketing yang dominan.",

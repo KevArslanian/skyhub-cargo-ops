@@ -605,7 +605,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
             </div>
           </header>
 
-          <main className="min-h-0 flex-1 overflow-hidden px-4 pb-6 lg:px-8">
+          <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 lg:overflow-hidden lg:px-8">
             <div className="h-full min-h-0">{children}</div>
           </main>
         </div>

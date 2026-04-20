@@ -912,7 +912,7 @@ export default function SettingsPage() {
                   </div>
                 ) : null}
 
-                <div className="page-scroll mt-5 overflow-hidden rounded-[24px] border border-[color:var(--border-soft)]">
+                <div className="page-scroll table-shell mt-5 rounded-[24px] border border-[color:var(--border-soft)]">
                   <table className="data-table">
                     <thead>
                       <tr>
@@ -1150,7 +1150,7 @@ export default function SettingsPage() {
                   </div>
                 ) : null}
 
-                <div className="page-scroll mt-5 overflow-hidden rounded-[24px] border border-[color:var(--border-soft)]">
+                <div className="page-scroll table-shell mt-5 rounded-[24px] border border-[color:var(--border-soft)]">
                   <table className="data-table">
                     <thead>
                       <tr>
