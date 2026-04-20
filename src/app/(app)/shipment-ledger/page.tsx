@@ -238,7 +238,7 @@ export default function ShipmentLedgerPage() {
         <StatCard label="Hold / Exception" value={holdCount} note="Manifest yang perlu perhatian operator atau supervisor." icon={CircleAlert} tone="warning" />
       </div>
 
-      <FilterBar className="xl:grid-cols-[1fr_180px_180px_180px_auto_auto]">
+      <FilterBar className="xl:grid-cols-[1fr_180px_180px_180px_auto]">
         <div>
           <label className="label">Cari shipment</label>
           <input className="input-field" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="AWB, komoditas, shipper..." />
@@ -274,20 +274,16 @@ export default function ShipmentLedgerPage() {
             <option value="priority">Priority</option>
           </select>
         </div>
-        <Link href={`/api/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary self-end">
-          <Download size={16} />
-          CSV
-        </Link>
         <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary self-end">
           <Download size={16} />
           PDF / Print
         </Link>
       </FilterBar>
 
-      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.3fr)_420px]">
+      <div className="ledger-layout grid gap-6 2xl:grid-cols-[minmax(0,1.65fr)_minmax(360px,1fr)]">
         <OpsPanel className="p-5">
           <SectionHeader title="Manifest Board" subtitle="Klik baris untuk membuka detail, update status, atau upload dokumen." />
-          <div className="mt-5 table-shell">
+          <div className="ops-table-scroll ops-table-sticky table-shell mt-5">
             <table className="data-table">
               <thead>
                 <tr>
@@ -335,7 +331,7 @@ export default function ShipmentLedgerPage() {
           </div>
         </OpsPanel>
 
-        <OpsPanel className="p-5">
+        <OpsPanel className="ops-pane-scroll p-5">
           {selectedShipment ? (
             <div className="space-y-5">
               <div className="flex items-start justify-between gap-4 border-b border-[color:var(--border-soft)] pb-4">

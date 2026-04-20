@@ -7,6 +7,7 @@
     "build": "pnpm prisma:generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "test:contracts": "node scripts/contracts/ui-contracts.mjs",
     "db:push": "pnpm prisma:sync-schema && prisma db push",
     "db:seed": "pnpm prisma:generate && tsx prisma/seed.ts && node scripts/sync-demo-db.mjs",
     "prisma:generate": "pnpm prisma:sync-schema && prisma generate",

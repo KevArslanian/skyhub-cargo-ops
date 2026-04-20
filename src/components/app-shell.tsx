@@ -105,16 +105,30 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const [search, setSearch] = useState("");
-  const [shellSettings, setShellSettings] = useState(settings);
-  const [collapsed, setCollapsed] = useState(settings.sidebarCollapsed);
+  const [settingsOverrides, setSettingsOverrides] = useState<Partial<ShellProps["settings"]>>({});
+  const shellSettings = useMemo(() => ({ ...settings, ...settingsOverrides }), [settings, settingsOverrides]);
+  const collapsed = shellSettings.sidebarCollapsed;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
-  const [notificationItems, setNotificationItems] = useState(notifications);
-  const [mounted, setMounted] = useState(false);
-  const [clock, setClock] = useState<Date | null>(null);
+  const [previewNotifications, setPreviewNotifications] = useState<ShellProps["notifications"]>([]);
+  const [readNotificationIds, setReadNotificationIds] = useState<Record<string, true>>({});
+  const [clock, setClock] = useState<Date>(() => new Date());
   const themePreference = shellSettings.theme === "dark" ? "dark" : "light";
-  const activeTheme = mounted ? (resolvedTheme === "dark" ? "dark" : "light") : themePreference;
+  const activeTheme = resolvedTheme === "dark" ? "dark" : themePreference;
+
+  const notificationItems = useMemo(() => {
+    const seen = new Set<string>();
+
+    return [...previewNotifications, ...notifications]
+      .filter((item) => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      })
+      .map((item) => (readNotificationIds[item.id] ? { ...item, read: true } : item))
+      .slice(0, 8);
+  }, [notifications, previewNotifications, readNotificationIds]);
 
   const unreadCount = useMemo(() => notificationItems.filter((item) => !item.read).length, [notificationItems]);
 
@@ -129,17 +143,8 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
 
   useEffect(() => {
-    setShellSettings((current) => ({ ...settings, theme: current.theme }));
-  }, [settings]);
-
-  useEffect(() => {
     setTheme(themePreference);
-    setMounted(true);
   }, [setTheme, themePreference]);
-
-  useEffect(() => {
-    setCollapsed(shellSettings.sidebarCollapsed);
-  }, [shellSettings.sidebarCollapsed]);
 
   useEffect(() => {
     function handleSettingsPreview(event: Event) {
@@ -147,7 +152,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       const nextSettings = customEvent.detail;
       if (!nextSettings) return;
 
-      setShellSettings((current) => ({ ...current, ...nextSettings }));
+      setSettingsOverrides((current) => ({ ...current, ...nextSettings }));
 
       if (nextSettings.theme) {
         setTheme(nextSettings.theme);
@@ -158,7 +163,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       const customEvent = event as CustomEvent<"light" | "dark">;
       const nextTheme = customEvent.detail;
       if (!nextTheme) return;
-      setShellSettings((current) => ({ ...current, theme: nextTheme }));
+      setSettingsOverrides((current) => ({ ...current, theme: nextTheme }));
     }
 
     window.addEventListener("skyhub:settings-preview", handleSettingsPreview as EventListener);
@@ -190,7 +195,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
         createdAt: new Date().toISOString(),
       };
 
-      setNotificationItems((items) => [previewItem, ...items].slice(0, 8));
+      setPreviewNotifications((items) => [previewItem, ...items].slice(0, 8));
       setNotificationOpen(true);
     }
 
@@ -200,11 +205,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   }, []);
 
   useEffect(() => {
-    setNotificationItems(notifications);
-  }, [notifications]);
-
-  useEffect(() => {
-    setClock(new Date());
     const timer = window.setInterval(() => setClock(new Date()), 60000);
     return () => window.clearInterval(timer);
   }, []);
@@ -222,11 +222,10 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   }
 
   async function handleSidebarToggle(nextValue: boolean) {
-    setCollapsed(nextValue);
-    setShellSettings((current) => ({ ...current, sidebarCollapsed: nextValue }));
+    setSettingsOverrides((current) => ({ ...current, sidebarCollapsed: nextValue }));
     const persisted = await persistSettings({ sidebarCollapsed: nextValue });
     if (persisted) {
-      setShellSettings((current) => ({ ...current, ...persisted }));
+      setSettingsOverrides((current) => ({ ...current, ...persisted }));
     }
   }
 
@@ -244,14 +243,18 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
   async function handleMarkAllRead() {
     await fetch("/api/notifications/mark-all-read", { method: "POST" });
-    setNotificationItems((items) => items.map((item) => ({ ...item, read: true })));
+    setReadNotificationIds((current) => {
+      const next = { ...current };
+      for (const item of notificationItems) {
+        next[item.id] = true;
+      }
+      return next;
+    });
   }
 
   async function handleNotificationClick(item: ShellProps["notifications"][number]) {
     if (!item.read) {
-      setNotificationItems((items) =>
-        items.map((entry) => (entry.id === item.id ? { ...entry, read: true } : entry)),
-      );
+      setReadNotificationIds((current) => ({ ...current, [item.id]: true }));
       await fetch(`/api/notifications/${item.id}/read`, { method: "POST" });
     }
 
@@ -270,22 +273,22 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
   async function handleThemeToggle() {
     const nextTheme = activeTheme === "dark" ? "light" : "dark";
-    setShellSettings((current) => ({ ...current, theme: nextTheme }));
+    setSettingsOverrides((current) => ({ ...current, theme: nextTheme }));
     setTheme(nextTheme);
     const persisted = await persistSettings({ theme: nextTheme });
     if (persisted) {
-      setShellSettings((current) => ({ ...current, ...persisted }));
+      setSettingsOverrides((current) => ({ ...current, ...persisted }));
     }
   }
 
   return (
     <div
       className={cn(
-        "min-h-screen overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
+        "app-workspace overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
         shellSettings.compactRows && "compact-table",
       )}
     >
-      <div className="flex min-h-screen">
+      <div className="flex h-full min-h-full">
         <div className={cn("fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm lg:hidden", mobileOpen ? "block" : "hidden")} onClick={() => setMobileOpen(false)} />
 
         <aside
@@ -346,7 +349,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               )}
             </div>
 
-            <nav className={cn("flex-1", collapsed ? "flex flex-col items-center gap-3 px-4 py-2" : "space-y-3 px-4")}>
+            <nav className={cn("shell-sidebar-nav-scroll ops-scrollbar", collapsed ? "flex flex-col items-center gap-3 px-4 py-2" : "space-y-3 px-4")}>
               {collapsed
                 ? NAV_ITEMS.map((item) => {
                     const Icon = navIconMap[item.href];
@@ -458,7 +461,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
           </div>
         </aside>
 
-        <div className={cn("flex w-full flex-col transition-all duration-200 lg:ml-[284px]", collapsed && "lg:ml-[94px]")}>
+        <div className={cn("flex h-full min-h-full w-full flex-col transition-all duration-200 lg:ml-[284px]", collapsed && "lg:ml-[94px]")}>
           <header className="sticky top-0 z-30 px-4 py-4 lg:px-8 lg:py-5">
             <div className="ops-panel flex flex-wrap items-center gap-3 px-4 py-4 lg:px-5">
               <button type="button" className="topbar-button lg:hidden" onClick={() => setMobileOpen(true)}>
@@ -608,7 +611,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
             </div>
           </header>
 
-          <main className="flex-1 px-4 pb-6 lg:px-8">{children}</main>
+          <main className="shell-content-frame px-4 pb-6 lg:px-8">{children}</main>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Download, FileBarChart2, FileSpreadsheet, ShieldCheck } from "lucide-react";
+import { FileBarChart2, FileSpreadsheet, ShieldCheck } from "lucide-react";
 import { OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 
 type DashboardMetrics = {
@@ -41,27 +41,17 @@ export default function ReportsPage() {
       </div>
 
       <OpsPanel className="p-5">
-        <SectionHeader title="Export Center" subtitle="Semua export mengambil data yang sama dengan modul operasional utama." />
+        <SectionHeader title="Print & Report Center" subtitle="Gunakan print view untuk menyimpan PDF formal." />
         <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <Link href="/api/exports/shipments" className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-5 py-5">
-            <Download size={20} className="text-[color:var(--brand-primary)]" />
-            <p className="mt-4 font-semibold text-[color:var(--text-strong)]">Shipment Ledger CSV</p>
-            <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">Ekspor tabel shipment aktual sesuai data terbaru.</p>
-          </Link>
-          <Link href="/api/exports/activity-log" className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-5 py-5">
-            <Download size={20} className="text-[color:var(--brand-primary)]" />
-            <p className="mt-4 font-semibold text-[color:var(--text-strong)]">Activity Log CSV</p>
-            <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">Ekspor audit trail operator dan sistem.</p>
-          </Link>
           <Link href="/exports/shipments" className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-5 py-5">
             <FileBarChart2 size={20} className="text-[color:var(--brand-primary)]" />
             <p className="mt-4 font-semibold text-[color:var(--text-strong)]">Shipment PDF / Print</p>
-            <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">Gunakan tampilan print untuk simpan sebagai PDF.</p>
+            <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">Gunakan tampilan print untuk simpan sebagai PDF formal shipment.</p>
           </Link>
           <Link href="/exports/activity-log" className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-5 py-5">
             <FileBarChart2 size={20} className="text-[color:var(--brand-primary)]" />
             <p className="mt-4 font-semibold text-[color:var(--text-strong)]">Activity PDF / Print</p>
-            <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">Versi formal untuk audit dan supervisi.</p>
+            <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">Versi formal untuk audit trail operasional dan supervisi.</p>
           </Link>
         </div>
       </OpsPanel>

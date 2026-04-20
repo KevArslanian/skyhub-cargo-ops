@@ -127,6 +127,7 @@ export default function FlightBoardPage() {
 
   const selectedFlight = visibleFlights.find((flight) => flight.id === selectedFlightId) ?? visibleFlights[0] ?? null;
   const nearCutoff = visibleFlights.filter((flight) => flight.status !== "departed").slice(0, 3);
+  const selectedFlightToken = selectedFlight ? "selectedFlight" : "selectedFlight-none";
 
   return (
     <div className="space-y-6">
@@ -259,10 +260,10 @@ export default function FlightBoardPage() {
         )}
       </div>
 
-      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.25fr)_420px]">
+      <div className="flight-board-layout grid gap-6 2xl:grid-cols-[minmax(0,1.5fr)_minmax(380px,1fr)]">
         <OpsPanel className="p-5">
           <SectionHeader title="Flight Manifest" subtitle="Daftar flight yang sudah difilter dan siap dipilih untuk detail lebih lanjut." />
-          <div className="mt-5 table-shell">
+          <div className="ops-table-scroll ops-table-sticky table-shell mt-5">
             <table className="data-table">
               <thead>
                 <tr>
@@ -325,10 +326,10 @@ export default function FlightBoardPage() {
           </div>
         </OpsPanel>
 
-        <OpsPanel className="p-5">
+        <OpsPanel className="ops-pane-scroll p-5">
           {selectedFlight ? (
             <div className="space-y-5">
-              <div className="overflow-hidden rounded-[26px] border border-[color:var(--border-soft)]">
+              <div data-selected-flight={selectedFlightToken} className="overflow-hidden rounded-[26px] border border-[color:var(--border-soft)]">
                 <div className="relative h-56">
                   <Image
                     src={selectedFlight.imageUrl}

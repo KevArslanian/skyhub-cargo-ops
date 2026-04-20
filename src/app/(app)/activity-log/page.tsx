@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Download, Filter, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Filter, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
@@ -75,7 +75,7 @@ export default function ActivityLogPage() {
         <StatCard label="Error" value={levels.error} note="Kejadian gagal atau exception log yang tercatat." icon={ShieldAlert} tone="danger" />
       </div>
 
-      <FilterBar className="xl:grid-cols-[1fr_220px_220px_auto_auto]">
+      <FilterBar className="xl:grid-cols-[1fr_220px_220px_auto]">
         <div>
           <label className="label">Cari log</label>
           <input className="input-field" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="AWB, deskripsi, target..." />
@@ -102,10 +102,6 @@ export default function ActivityLogPage() {
             ))}
           </select>
         </div>
-        <Link href={`/api/exports/activity-log?${exportParams.toString()}`} className="btn btn-secondary self-end">
-          <Download size={16} />
-          CSV
-        </Link>
         <Link href={`/exports/activity-log?${exportParams.toString()}`} className="btn btn-secondary self-end">
           <Filter size={16} />
           PDF / Print
@@ -114,7 +110,7 @@ export default function ActivityLogPage() {
 
       <OpsPanel className="p-5">
         <SectionHeader title="Activity Timeline" subtitle="Semua entri audit disusun dalam tabel padat untuk memudahkan review cepat saat shift berjalan." />
-        <div className="mt-5 table-shell">
+        <div className="ops-table-scroll ops-table-sticky table-shell mt-5">
           <table className="data-table">
             <thead>
               <tr>
