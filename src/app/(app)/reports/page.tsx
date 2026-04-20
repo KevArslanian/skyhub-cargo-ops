@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { FileBarChart2, FileSpreadsheet, ShieldCheck } from "lucide-react";
+import { FileBarChart2, ShieldCheck } from "lucide-react";
 import { OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 
 type DashboardMetrics = {
@@ -37,7 +37,7 @@ export default function ReportsPage() {
       <div className="grid gap-4 xl:grid-cols-3">
         <StatCard label="Shipment Harian" value={metrics?.shipmentsToday ?? 0} note="Ringkasan volume masuk gudang udara hari ini." icon={FileBarChart2} tone="primary" />
         <StatCard label="Flight On-Time" value={metrics?.onTime ?? 0} note="Dipakai untuk evaluasi performa operasional." icon={ShieldCheck} tone="success" />
-        <StatCard label="Open Issues" value={metrics?.holds ?? 0} note="Shipment hold dan exception yang masih perlu review." icon={FileSpreadsheet} tone="warning" />
+        <StatCard label="Open Issues" value={metrics?.holds ?? 0} note="Shipment hold dan exception yang masih perlu review." icon={FileBarChart2} tone="warning" />
       </div>
 
       <OpsPanel className="p-5">

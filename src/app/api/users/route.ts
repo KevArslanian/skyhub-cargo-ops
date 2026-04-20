@@ -5,6 +5,9 @@ import { inviteUserSchema } from "@/lib/validators";
 
 export async function GET() {
   const user = await requireUser();
+  if (user.role !== "admin" && user.role !== "supervisor") {
+    return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+  }
   const settings = await getSettingsData(user.id);
   return NextResponse.json({ users: settings.users });
 }
@@ -12,6 +15,9 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
+    if (user.role !== "admin" && user.role !== "supervisor") {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    }
     const json = await request.json();
     const parsed = inviteUserSchema.safeParse(json);
 

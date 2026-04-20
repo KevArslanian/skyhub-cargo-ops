@@ -10,6 +10,9 @@ type RouteContext = {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const user = await requireUser();
+    if (user.role === "customer") {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    }
     const { id } = await context.params;
     const formData = await request.formData();
     const uploadedFile = formData.get("file");

@@ -10,6 +10,9 @@ type RouteContext = {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const actor = await requireUser();
+    if (actor.role !== "admin" && actor.role !== "supervisor") {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    }
     const { id } = await context.params;
     const json = await request.json();
     const parsed = userRoleUpdateSchema.safeParse(json);

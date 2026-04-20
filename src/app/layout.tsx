@@ -36,7 +36,7 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       className={`${inter.variable} ${manrope.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-[color:var(--app-bg)] font-[family:var(--font-body)] text-[color:var(--app-fg)]">
+      <body className="h-full min-h-full overflow-hidden bg-[color:var(--app-bg)] font-[family:var(--font-body)] text-[color:var(--app-fg)]">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

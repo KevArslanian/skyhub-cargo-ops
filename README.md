@@ -14,8 +14,7 @@ Admin web app cargo udara untuk operator control room dengan fokus:
 - Next.js App Router
 - TypeScript
 - Prisma
-- SQLite untuk development lokal dan bundled demo deployment
-- PostgreSQL untuk deployment persisten
+- Neon PostgreSQL untuk development dan deployment persisten
 - Vercel Blob untuk dokumen production
 
 ## Menjalankan Lokal
@@ -45,12 +44,13 @@ pnpm dev
 - `operator@skyhub.test` / `operator123`
 - `supervisor@skyhub.test` / `operator123`
 - `admin@skyhub.test` / `operator123`
+- `customer@skyhub.test` / `operator123`
 
 ## Catatan
 
-- Local default memakai `DATABASE_PROVIDER=sqlite` dan `DATABASE_URL=file:./dev.db`.
-- Untuk deployment persisten, ubah `DATABASE_PROVIDER=postgresql` dan arahkan `DATABASE_URL` ke instance Postgres Anda sebelum build.
-- Jika env database deployment belum tersedia, app akan fallback ke bundled SQLite demo DB agar seluruh menu tetap hidup untuk review UI dan alur operator.
+- Gunakan Neon sebagai sumber data utama dengan `DATABASE_PROVIDER=postgresql`.
+- Set `DATABASE_URL` ke connection string Neon sebelum `prisma:generate`, `db:push`, dan `build`.
+- Untuk fallback lokal, set manual `DATABASE_PROVIDER=sqlite` dan `DATABASE_URL=file:./dev.db`.
 - `BLOB_READ_WRITE_TOKEN` opsional saat local. Jika kosong, upload dokumen memakai fallback lokal ke `public/uploads`.
 - Di production tanpa `BLOB_READ_WRITE_TOKEN`, upload dokumen fallback ke runtime storage `/tmp` dan disajikan melalui route handler.
 - Export PDF memakai print view browser agar tetap ringan dan mudah dipakai lokal maupun di deployment.

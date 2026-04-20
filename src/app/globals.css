@@ -99,10 +99,14 @@
 }
 
 html {
+  height: 100%;
+  overflow: hidden;
   scroll-behavior: smooth;
 }
 
 body {
+  height: 100%;
+  overflow: hidden;
   min-height: 100vh;
   background:
     radial-gradient(circle at top right, var(--bg-orb-1), transparent 26%),
@@ -182,10 +186,9 @@ body::before {
 }
 
 @media (max-width: 1279px) {
-  .shell-content-frame,
-  .app-workspace {
-    height: auto;
-    overflow: visible;
+  .shell-content-frame {
+    height: calc(100vh - 132px);
+    overflow: auto;
   }
 }
 

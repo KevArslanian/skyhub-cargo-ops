@@ -13,6 +13,33 @@ export const NAV_ITEMS = [
   { href: "/settings", label: "Settings" },
 ] as const;
 
+export const DEFAULT_ROUTE_BY_ROLE: Record<UserRole, string> = {
+  admin: "/dashboard",
+  supervisor: "/dashboard",
+  operator: "/dashboard",
+  customer: "/reports",
+};
+
+export function canAccessRoute(role: UserRole, pathname: string) {
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/awb-tracking")) {
+    return true;
+  }
+
+  if (role === "customer") {
+    return pathname.startsWith("/reports") || pathname.startsWith("/settings");
+  }
+
+  if (role === "operator") {
+    return !pathname.startsWith("/settings");
+  }
+
+  if (role === "supervisor" || role === "admin") {
+    return true;
+  }
+
+  return false;
+}
+
 export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
   received: "Received",
   sortation: "Sortation",
@@ -30,8 +57,9 @@ export const FLIGHT_STATUS_LABELS: Record<FlightStatus, string> = {
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Admin",
-  operator: "Operator",
   supervisor: "Supervisor",
+  operator: "Operator",
+  customer: "Customer",
 };
 
 export const AWB_REGEX = /^\d{3}-\d{8}$/;

@@ -14,7 +14,7 @@ function demoDocument(fileName: string, mimeType: string, fileSize: number) {
     fileName,
     mimeType,
     fileSize,
-    storageUrl: mimeType.includes("csv") ? "/demo-assets/sample-data.csv" : "/demo-assets/sample-document.pdf",
+    storageUrl: "/demo-assets/sample-document.pdf",
   };
 }
 
@@ -113,11 +113,11 @@ async function main() {
     prisma.user.create({
       data: {
         name: "Dian Rahma",
-        email: "invited-ops@skyhub.test",
+        email: "customer@skyhub.test",
         passwordHash: hashSync("operator123", 10),
-        role: UserRole.operator,
+        role: UserRole.customer,
         station: "SOQ",
-        status: "invited",
+        status: "active",
         settings: {
           create: {
             theme: "light",
@@ -160,7 +160,7 @@ async function main() {
     }),
   ]);
 
-  const [supervisor, operator, admin, invitedOperator, disabledSupervisor] = users;
+  const [supervisor, operator, admin, customer, disabledSupervisor] = users;
 
   const flightSpecs = [
     {
@@ -390,7 +390,7 @@ async function main() {
         makeTracking(ShipmentStatus.sortation, subHours(now, 2), "Cold Sortation", "Validasi cool chain selesai.", "Rina Sari"),
         makeTracking(ShipmentStatus.loaded_to_aircraft, subMinutes(now, 50), "Apron A3", "Muat ke unit GA-714.", "Rina Sari"),
       ],
-      documents: [demoDocument("temp-log-farmasi.csv", "text/csv", 4299)],
+      documents: [demoDocument("temp-log-farmasi.pdf", "application/pdf", 4299)],
     },
     {
       awb: "160-56789012",
@@ -470,7 +470,7 @@ async function main() {
         makeTracking(ShipmentStatus.received, subMinutes(now, 32), "Cold Dock", "Seafood diterima dan diperiksa suhu.", "Andika"),
         makeTracking(ShipmentStatus.sortation, subMinutes(now, 18), "Cold Sortation", "Menunggu proses loading final.", "Rina Sari"),
       ],
-      documents: [demoDocument("cold-chain-sheet.csv", "text/csv", 3612)],
+      documents: [demoDocument("cold-chain-sheet.pdf", "application/pdf", 3612)],
     },
     {
       awb: "160-89012345",
@@ -754,8 +754,8 @@ async function main() {
           userId: admin.id,
           action: "Invite User",
           targetType: "user",
-          targetLabel: invitedOperator.email,
-          description: "Admin menambahkan operator baru untuk shift cadangan.",
+          targetLabel: customer.email,
+          description: "Admin menambahkan customer account untuk akses tracking dan reports.",
           level: "success",
           createdAt: subHours(now, 12),
         },
@@ -810,10 +810,10 @@ async function main() {
           createdAt: subHours(now, 1),
         },
         {
-          userId: invitedOperator.id,
-          title: "Undangan akun siap",
-          message: "Akun operator cadangan sudah dibuat dan menunggu aktivasi pertama.",
-          href: "/settings",
+          userId: customer.id,
+          title: "Akun customer aktif",
+          message: "Akses customer tersedia untuk tracking, dashboard ringkas, dan laporan.",
+          href: "/reports",
           type: "info",
           read: false,
           createdAt: subHours(now, 8),
@@ -838,6 +838,7 @@ async function main() {
         { userId: operator.id, awb: "160-55667788", createdAt: subMinutes(now, 14) },
         { userId: supervisor.id, awb: "160-78901234", createdAt: subHours(now, 2) },
         { userId: admin.id, awb: "160-22334455", createdAt: subHours(now, 5) },
+        { userId: customer.id, awb: "160-12345678", createdAt: subHours(now, 1) },
       ],
     });
 }

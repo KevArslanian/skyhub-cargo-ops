@@ -5,6 +5,9 @@ import { reportAwbIssue } from "@/lib/data";
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
+    if (user.role === "customer") {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    }
     const { awb } = (await request.json()) as { awb?: string };
 
     if (!awb) {

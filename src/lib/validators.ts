@@ -56,12 +56,12 @@ export const settingsUpdateSchema = z.object({
 export const inviteUserSchema = z.object({
   name: z.string().trim().min(2),
   email: z.email(),
-  role: z.enum(["admin", "operator", "supervisor"]),
+  role: z.enum(["admin", "supervisor", "operator", "customer"]),
   station: z.string().trim().min(3),
 });
 
 export const userRoleUpdateSchema = z.object({
-  role: z.enum(["admin", "operator", "supervisor"]).optional(),
+  role: z.enum(["admin", "supervisor", "operator", "customer"]).optional(),
   status: z.enum(["active", "invited", "disabled"]).optional(),
   station: z.string().trim().min(3).optional(),
 });

@@ -23,7 +23,7 @@ import {
   UserCircle2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { APP_NAME, APP_SUBTITLE, NAV_ITEMS, ROLE_LABELS } from "@/lib/constants";
+import { APP_NAME, APP_SUBTITLE, NAV_ITEMS, ROLE_LABELS, canAccessRoute } from "@/lib/constants";
 import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
 import { BrandMark } from "./brand-mark";
 import { StatusBadge } from "./status-badge";
@@ -33,7 +33,7 @@ type ShellProps = {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "operator" | "supervisor";
+    role: "admin" | "supervisor" | "operator" | "customer";
     station: string;
   };
   settings: {
@@ -132,13 +132,38 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
   const unreadCount = useMemo(() => notificationItems.filter((item) => !item.read).length, [notificationItems]);
 
+  const allowedNavItems = useMemo(() => NAV_ITEMS.filter((item) => canAccessRoute(user.role, item.href)), [user.role]);
+
   const activeNav =
-    NAV_ITEMS.find((item) => pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))) ??
+    allowedNavItems.find((item) => pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))) ??
+    allowedNavItems[0] ??
     NAV_ITEMS[0];
+  const navGroupsWithAllowedItems = useMemo(
+    () =>
+      navGroups
+        .map((group) => ({
+          ...group,
+          items: group.items.filter((href) => allowedNavItems.some((item) => item.href === href)),
+        }))
+        .filter((group) => group.items.length > 0),
+    [allowedNavItems],
+  );
+
   const activeGroupId =
-    navGroups.find((group) => group.items.some((href) => pathname === href || (href !== "/dashboard" && pathname.startsWith(href))))?.id ??
-    navGroups[0].id;
+    navGroupsWithAllowedItems.find((group) =>
+      group.items.some((href) => pathname === href || (href !== "/dashboard" && pathname.startsWith(href))),
+    )?.id ?? navGroupsWithAllowedItems[0]?.id ?? navGroups[0].id;
   const [openGroupId, setOpenGroupId] = useState<(typeof navGroups)[number]["id"]>(activeGroupId);
+  const resolvedOpenGroupId = navGroupsWithAllowedItems.some((group) => group.id === openGroupId)
+    ? openGroupId
+    : activeGroupId;
+
+  useEffect(() => {
+    if (pathname && !canAccessRoute(user.role, pathname)) {
+      const fallback = user.role === "customer" ? "/reports" : "/dashboard";
+      router.replace(fallback);
+    }
+  }, [pathname, router, user.role]);
   const visibleNotifications = notificationItems.slice(0, 4);
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
 
@@ -351,7 +376,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
             <nav className={cn("shell-sidebar-nav-scroll ops-scrollbar", collapsed ? "flex flex-col items-center gap-3 px-4 py-2" : "space-y-3 px-4")}>
               {collapsed
-                ? NAV_ITEMS.map((item) => {
+                ? allowedNavItems.map((item) => {
                     const Icon = navIconMap[item.href];
                     const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
                     return (
@@ -371,9 +396,9 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                       </Link>
                     );
                   })
-                : navGroups.map((group) => {
+                : navGroupsWithAllowedItems.map((group) => {
                     const GroupIcon = group.icon;
-                    const isOpen = openGroupId === group.id;
+                    const isOpen = resolvedOpenGroupId === group.id;
 
                     return (
                       <div key={group.id} className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 py-3">

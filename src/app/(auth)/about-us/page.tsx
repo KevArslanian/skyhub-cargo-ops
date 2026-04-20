@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  ArrowLeft,
   ArrowRight,
   Building2,
   ShieldCheck,
@@ -27,11 +26,8 @@ export default function AboutUsPage() {
           <header className="panel flex flex-wrap items-center justify-between gap-4 px-6 py-5">
             <BrandMark />
             <div className="flex flex-wrap items-center gap-3">
-              <Link href="/login" className="btn btn-secondary">
+              <Link href="/login" className="btn btn-primary">
                 Login
-              </Link>
-              <Link href="/" className="btn btn-primary">
-                Open App
               </Link>
             </div>
           </header>
@@ -207,12 +203,8 @@ export default function AboutUsPage() {
               <p className="mt-4 text-[0.98rem] leading-8 text-[color:var(--muted-fg)]">{COMPANY_OPERATOR_NOTE}</p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link href="/login" className="btn btn-secondary">
-                <ArrowLeft size={16} />
-                Kembali ke login
-              </Link>
-              <Link href="/" className="btn btn-primary">
-                Masuk ke aplikasi
+              <Link href="/login" className="btn btn-primary">
+                Masuk ke login
                 <ArrowRight size={16} />
               </Link>
             </div>

@@ -7,7 +7,7 @@ declare global {
 }
 
 function configureRuntimeSqliteDatabase() {
-  const provider = process.env.DATABASE_PROVIDER ?? "sqlite";
+  const provider = process.env.DATABASE_PROVIDER ?? "postgresql";
   if (provider !== "sqlite") {
     return;
   }

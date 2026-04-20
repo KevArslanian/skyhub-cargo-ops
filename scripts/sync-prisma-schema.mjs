@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const supportedProviders = new Set(["sqlite", "postgresql"]);
-const provider = process.env.DATABASE_PROVIDER ?? "sqlite";
+const provider = process.env.DATABASE_PROVIDER ?? "postgresql";
 
 if (!supportedProviders.has(provider)) {
   console.error(

@@ -1,6 +1,6 @@
 import { compareSync } from "bcryptjs";
 import { NextResponse } from "next/server";
-import { createSession } from "@/lib/auth";
+import { createSession, getDefaultRouteByRole } from "@/lib/auth";
 import { db } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validators";
 
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, redirectTo: getDefaultRouteByRole(user.role) });
   } catch {
     return NextResponse.json({ error: "Tidak dapat memproses login saat ini." }, { status: 500 });
   }
