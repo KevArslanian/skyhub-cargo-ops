@@ -41,7 +41,7 @@ type BaseShipment = {
 
 type InternalDashboardData = {
   variant: "internal";
-  viewer: { role: "admin" | "operator" | "supervisor" };
+  viewer: { role: "admin" | "staff" };
   metrics: {
     shipmentsToday: number;
     activeFlights: number;
@@ -628,7 +628,7 @@ export default function DashboardPage() {
 
         <div className="dashboard-side-stack">
           <OpsPanel className="dashboard-panel p-4 xl:p-5">
-            <SectionHeader title="Pusat Tindakan" subtitle="AWB yang membutuhkan intervensi operator atau supervisor." />
+            <SectionHeader title="Pusat Tindakan" subtitle="AWB yang membutuhkan intervensi tim staff operasional." />
             <div className="dashboard-alert-scroll mt-4 space-y-3">
               {filteredAlerts.length ? (
                 filteredAlerts.map((alert) => (
@@ -677,7 +677,7 @@ export default function DashboardPage() {
                   </div>
                 ))
               ) : (
-                <EmptyState icon={Clock3} title="Belum ada aktivitas" copy="Audit trail untuk shift ini akan muncul otomatis saat operator mulai melakukan aksi." />
+                <EmptyState icon={Clock3} title="Belum ada aktivitas" copy="Audit trail untuk shift ini akan muncul otomatis saat staff mulai melakukan aksi." />
               )}
             </div>
           </OpsPanel>

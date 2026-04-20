@@ -42,9 +42,10 @@ export class AccessError extends Error {
   }
 }
 
-export const INTERNAL_ROLES: UserRole[] = ["admin", "supervisor", "operator"];
-export const FLIGHT_MANAGER_ROLES: UserRole[] = ["admin", "supervisor"];
+export const INTERNAL_ROLES: UserRole[] = ["admin", "staff"];
+export const FLIGHT_MANAGER_ROLES: UserRole[] = ["admin", "staff"];
 export const INTERNAL_ONLY_ROUTE_PREFIXES = ["/flight-board", "/activity-log", "/reports", "/exports"];
+export const CUSTOMER_ALLOWED_ROUTE_PREFIXES = ["/awb-tracking"] as const;
 export const PROTECTED_ROUTE_PREFIXES = [
   "/dashboard",
   "/shipment-ledger",
@@ -63,7 +64,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     hint: "Ringkasan operasional",
     groupId: "operasional",
     groupLabel: "Operasional",
-    roles: ["admin", "supervisor", "operator", "customer"],
+    roles: ["admin", "staff"],
   },
   {
     href: "/shipment-ledger",
@@ -71,7 +72,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     hint: "Manifest dan detail kiriman",
     groupId: "operasional",
     groupLabel: "Operasional",
-    roles: ["admin", "supervisor", "operator", "customer"],
+    roles: ["admin", "staff"],
   },
   {
     href: "/awb-tracking",
@@ -79,7 +80,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     hint: "Status dan timeline AWB",
     groupId: "operasional",
     groupLabel: "Operasional",
-    roles: ["admin", "supervisor", "operator", "customer"],
+    roles: ["admin", "staff", "customer"],
   },
   {
     href: "/flight-board",
@@ -87,7 +88,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     hint: "Cutoff dan manifest flight",
     groupId: "pemantauan",
     groupLabel: "Pemantauan",
-    roles: ["admin", "supervisor", "operator"],
+    roles: ["admin", "staff"],
   },
   {
     href: "/activity-log",
@@ -95,7 +96,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     hint: "Jejak audit operasional",
     groupId: "pemantauan",
     groupLabel: "Pemantauan",
-    roles: ["admin", "supervisor", "operator"],
+    roles: ["admin", "staff"],
   },
   {
     href: "/reports",
@@ -103,7 +104,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     hint: "Print dan PDF formal",
     groupId: "pemantauan",
     groupLabel: "Pemantauan",
-    roles: ["admin", "supervisor", "operator"],
+    roles: ["admin", "staff"],
   },
   {
     href: "/settings",
@@ -111,7 +112,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     hint: "Profil, akses, preferensi",
     groupId: "sistem",
     groupLabel: "Sistem",
-    roles: ["admin", "supervisor", "operator", "customer"],
+    roles: ["admin", "staff"],
   },
 ] as const;
 
@@ -121,6 +122,10 @@ export function isInternalRole(role: UserRole) {
 
 export function isInternalOnlyPath(pathname: string) {
   return INTERNAL_ONLY_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
+export function isCustomerAllowedPath(pathname: string) {
+  return CUSTOMER_ALLOWED_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 export function isProtectedPath(pathname: string) {

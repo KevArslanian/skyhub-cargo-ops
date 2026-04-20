@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AWB_REGEX } from "./constants";
+import { FLIGHT_NUMBER_REGEX } from "./flight-meta";
 
 export const loginSchema = z.object({
   email: z.email({ message: "Masukkan email yang valid." }),
@@ -65,13 +66,13 @@ export const settingsUpdateSchema = z.object({
 export const inviteUserSchema = z.object({
   name: z.string().trim().min(2),
   email: z.email(),
-  role: z.enum(["admin", "operator", "supervisor", "customer"]),
+  role: z.enum(["admin", "staff", "customer"]),
   station: z.string().trim().min(3),
   customerAccountId: z.string().trim().optional().nullable(),
 });
 
 export const userRoleUpdateSchema = z.object({
-  role: z.enum(["admin", "operator", "supervisor", "customer"]).optional(),
+  role: z.enum(["admin", "staff", "customer"]).optional(),
   status: z.enum(["active", "invited", "disabled"]).optional(),
   station: z.string().trim().min(3).optional(),
   customerAccountId: z.string().trim().optional().nullable(),
@@ -99,7 +100,13 @@ export const customerAccountUpdateSchema = z.object({
 });
 
 export const flightCreateSchema = z.object({
-  flightNumber: z.string().trim().min(3, "Nomor flight wajib diisi."),
+  flightNumber: z
+    .string()
+    .trim()
+    .transform((value) => value.toUpperCase())
+    .refine((value) => FLIGHT_NUMBER_REGEX.test(value), {
+      message: "Format flight harus CODE-XXX/XXXX dengan kode maskapai yang tersedia.",
+    }),
   aircraftType: z.string().trim().min(2, "Jenis pesawat wajib diisi."),
   origin: z.string().trim().min(3),
   destination: z.string().trim().min(3),
@@ -109,11 +116,17 @@ export const flightCreateSchema = z.object({
   status: z.enum(["on_time", "delayed", "departed"]),
   gate: z.string().trim().optional().nullable(),
   remarks: z.string().trim().optional().nullable(),
-  imageUrl: z.string().trim().optional().nullable(),
 });
 
 export const flightUpdateSchema = z.object({
-  flightNumber: z.string().trim().min(3).optional(),
+  flightNumber: z
+    .string()
+    .trim()
+    .transform((value) => value.toUpperCase())
+    .refine((value) => FLIGHT_NUMBER_REGEX.test(value), {
+      message: "Format flight harus CODE-XXX/XXXX dengan kode maskapai yang tersedia.",
+    })
+    .optional(),
   aircraftType: z.string().trim().min(2).optional(),
   origin: z.string().trim().min(3).optional(),
   destination: z.string().trim().min(3).optional(),
@@ -123,6 +136,5 @@ export const flightUpdateSchema = z.object({
   status: z.enum(["on_time", "delayed", "departed"]).optional(),
   gate: z.string().trim().optional().nullable(),
   remarks: z.string().trim().optional().nullable(),
-  imageUrl: z.string().trim().optional().nullable(),
   archived: z.boolean().optional(),
 });

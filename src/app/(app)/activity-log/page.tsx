@@ -65,12 +65,12 @@ export default function ActivityLogPage() {
       <PageHeader
         eyebrow="Jejak Audit"
         title="Log Aktivitas"
-        subtitle="Riwayat yang mudah dibaca untuk login, update shipment, upload dokumen, cetak, dan perubahan pengaturan yang relevan bagi operator serta supervisor."
+        subtitle="Riwayat yang mudah dibaca untuk login, update shipment, upload dokumen, cetak, dan perubahan pengaturan yang relevan bagi tim staff dan admin."
       />
 
       <div className="grid gap-4 xl:grid-cols-4">
         <StatCard label="Berhasil" value={levels.success} note="Aksi berhasil tersimpan atau dieksekusi." icon={ShieldCheck} tone="success" />
-        <StatCard label="Info" value={levels.info} note="Aktivitas normal operator dan sistem." icon={History} tone="info" />
+        <StatCard label="Info" value={levels.info} note="Aktivitas normal staff dan sistem." icon={History} tone="info" />
         <StatCard label="Peringatan" value={levels.warning} note="Event yang memerlukan perhatian tetapi belum fatal." icon={TriangleAlert} tone="warning" />
         <StatCard label="Galat" value={levels.error} note="Kejadian gagal atau exception log yang tercatat." icon={ShieldAlert} tone="danger" />
       </div>

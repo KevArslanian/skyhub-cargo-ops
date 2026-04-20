@@ -112,14 +112,14 @@ export function StatCard({
 const dataCardToneClasses = {
   default: "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]",
   primary:
-    "border-[color:rgba(0,82,204,0.12)] bg-[linear-gradient(180deg,rgba(0,82,204,0.08),rgba(255,255,255,0.96))]",
+    "border-[color:rgba(0,82,204,0.12)] bg-[linear-gradient(180deg,rgba(0,82,204,0.08),var(--panel-bg))]",
   success:
-    "border-[color:var(--tone-success-border)] bg-[linear-gradient(180deg,var(--tone-success-soft),rgba(255,255,255,0.96))]",
+    "border-[color:var(--tone-success-border)] bg-[linear-gradient(180deg,var(--tone-success-soft),var(--panel-bg))]",
   warning:
-    "border-[color:var(--tone-warning-border)] bg-[linear-gradient(180deg,var(--tone-warning-soft),rgba(255,255,255,0.96))]",
+    "border-[color:var(--tone-warning-border)] bg-[linear-gradient(180deg,var(--tone-warning-soft),var(--panel-bg))]",
   danger:
-    "border-[color:var(--tone-danger-border)] bg-[linear-gradient(180deg,var(--tone-danger-soft),rgba(255,255,255,0.96))]",
-  info: "border-[color:var(--tone-info-border)] bg-[linear-gradient(180deg,var(--tone-info-soft),rgba(255,255,255,0.96))]",
+    "border-[color:var(--tone-danger-border)] bg-[linear-gradient(180deg,var(--tone-danger-soft),var(--panel-bg))]",
+  info: "border-[color:var(--tone-info-border)] bg-[linear-gradient(180deg,var(--tone-info-soft),var(--panel-bg))]",
 } as const;
 
 export function DataCard({

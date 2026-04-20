@@ -14,7 +14,12 @@ import {
   type AccessUser,
 } from "./access";
 import { AWB_REGEX, FLIGHT_STATUS_LABELS, ROLE_LABELS, SHIPMENT_STATUS_LABELS } from "./constants";
-import { getFlightVisualMeta, getShipmentPriorityScore } from "./flight-meta";
+import {
+  getFlightVisualMeta,
+  getShipmentPriorityScore,
+  isAllowedFlightNumber,
+  normalizeFlightNumber,
+} from "./flight-meta";
 import { db } from "./prisma";
 import { deleteDocumentBlob } from "./storage";
 
@@ -209,8 +214,21 @@ function ensureShipmentManager(user: AccessUser) {
 
 function ensureFlightManager(user: AccessUser) {
   if (!canManageFlights(user)) {
-    throw new AccessError("Perubahan flight hanya untuk admin atau supervisor.", 403, "FLIGHT_MANAGER_ONLY");
+    throw new AccessError("Perubahan flight hanya untuk admin atau staff.", 403, "FLIGHT_MANAGER_ONLY");
   }
+}
+
+function ensureAllowedFlightNumber(flightNumber: string) {
+  const normalized = normalizeFlightNumber(flightNumber);
+  if (!isAllowedFlightNumber(normalized)) {
+    throw new AccessError(
+      "Format flight harus CODE-XXX/XXXX dengan kode maskapai yang tersedia.",
+      400,
+      "FLIGHT_CODE_NOT_ALLOWED",
+    );
+  }
+
+  return normalized;
 }
 
 function ensureAdmin(user: AccessUser) {
@@ -489,7 +507,7 @@ export async function getDashboardData(user: AccessUser) {
       holds,
     },
     flightsSummary: flightsToday.map((flight) => {
-      const meta = getFlightVisualMeta(flight.flightNumber, flight.aircraftType, flight.imageUrl);
+      const meta = getFlightVisualMeta(flight.flightNumber, flight.aircraftType);
       return {
         id: flight.id,
         flightNumber: flight.flightNumber,
@@ -516,7 +534,7 @@ export async function getDashboardData(user: AccessUser) {
         title: shipment.status === "hold" ? "Shipment tertahan" : "Dokumen perlu ditinjau",
         detail:
           shipment.status === "hold"
-            ? `Shipment ${shipment.awb} masih berstatus tertahan dan perlu penanganan operator.`
+            ? `Shipment ${shipment.awb} masih berstatus tertahan dan perlu penanganan tim operasional.`
             : `Shipment ${shipment.awb} memiliki status dokumen ${shipment.docStatus}.`,
       })),
     recentActivity: recentActivity.map((activity) => ({
@@ -1061,7 +1079,7 @@ export async function getRecentAwbSearches(user: AccessUser) {
 export async function inviteUser(input: {
   name: string;
   email: string;
-  role: "admin" | "operator" | "supervisor" | "customer";
+  role: "admin" | "staff" | "customer";
   station: string;
   customerAccountId?: string | null;
   invitedById: string;
@@ -1142,7 +1160,7 @@ export async function inviteUser(input: {
 export async function updateUserAccess(
   userId: string,
   input: {
-    role?: "admin" | "operator" | "supervisor" | "customer";
+    role?: "admin" | "staff" | "customer";
     status?: "active" | "invited" | "disabled";
     station?: string;
     customerAccountId?: string | null;
@@ -1371,7 +1389,7 @@ export async function getFlightBoardData(user: AccessUser, filters?: { status?: 
       departed: flights.filter((item) => item.status === "departed").length,
     },
     flights: flights.map((flight) => {
-      const meta = getFlightVisualMeta(flight.flightNumber, flight.aircraftType, flight.imageUrl);
+      const meta = getFlightVisualMeta(flight.flightNumber, flight.aircraftType);
       return {
         id: flight.id,
         flightNumber: flight.flightNumber,
@@ -1422,7 +1440,6 @@ export async function createFlight(input: {
   status: "on_time" | "delayed" | "departed";
   gate?: string | null;
   remarks?: string | null;
-  imageUrl?: string | null;
   actorUserId: string;
 }) {
   const actor = await getActorWithRelations(input.actorUserId);
@@ -1431,12 +1448,13 @@ export async function createFlight(input: {
   }
 
   ensureFlightManager(actor);
-  const meta = getFlightVisualMeta(input.flightNumber, input.aircraftType, input.imageUrl ?? undefined);
+  const normalizedFlightNumber = ensureAllowedFlightNumber(input.flightNumber);
+  const meta = getFlightVisualMeta(normalizedFlightNumber, input.aircraftType);
 
   const flight = await db.$transaction(async (tx) => {
     const created = await tx.flight.create({
       data: {
-        flightNumber: input.flightNumber.toUpperCase(),
+        flightNumber: normalizedFlightNumber,
         aircraftType: input.aircraftType,
         origin: input.origin.toUpperCase(),
         destination: input.destination.toUpperCase(),
@@ -1446,7 +1464,7 @@ export async function createFlight(input: {
         status: input.status,
         gate: input.gate || null,
         remarks: input.remarks || null,
-        imageUrl: input.imageUrl || meta.aircraftImageUrl,
+        imageUrl: meta.aircraftImageUrl,
       },
     });
 
@@ -1480,7 +1498,6 @@ export async function updateFlight(input: {
   status?: "on_time" | "delayed" | "departed";
   gate?: string | null;
   remarks?: string | null;
-  imageUrl?: string | null;
   archived?: boolean;
   actorUserId: string;
 }) {
@@ -1496,6 +1513,7 @@ export async function updateFlight(input: {
     select: {
       id: true,
       flightNumber: true,
+      aircraftType: true,
       origin: true,
       destination: true,
       archivedAt: true,
@@ -1506,11 +1524,15 @@ export async function updateFlight(input: {
     throw new AccessError("Flight tidak ditemukan.", 404, "FLIGHT_NOT_FOUND");
   }
 
+  const normalizedFlightNumber = ensureAllowedFlightNumber(input.flightNumber ?? current.flightNumber);
+  const nextAircraftType = input.aircraftType ?? current.aircraftType;
+  const meta = getFlightVisualMeta(normalizedFlightNumber, nextAircraftType);
+
   const updated = await db.$transaction(async (tx) => {
     const next = await tx.flight.update({
       where: { id: input.flightId },
       data: {
-        flightNumber: input.flightNumber?.toUpperCase(),
+        flightNumber: normalizedFlightNumber,
         aircraftType: input.aircraftType,
         origin: input.origin?.toUpperCase(),
         destination: input.destination?.toUpperCase(),
@@ -1520,7 +1542,7 @@ export async function updateFlight(input: {
         status: input.status,
         gate: input.gate,
         remarks: input.remarks,
-        imageUrl: input.imageUrl,
+        imageUrl: meta.aircraftImageUrl,
         archivedAt: input.archived === undefined ? undefined : input.archived ? new Date() : null,
       },
     });

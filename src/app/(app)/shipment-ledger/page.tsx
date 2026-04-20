@@ -6,6 +6,8 @@ import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, use
 import {
   Archive,
   Boxes,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   Clock3,
   FileText,
@@ -84,7 +86,7 @@ type ShipmentRow = {
 
 type LedgerPayload = {
   viewer: {
-    role: "admin" | "operator" | "supervisor" | "customer";
+    role: "admin" | "staff" | "customer";
     readOnly: boolean;
     customerAccountName: string | null;
   };
@@ -220,6 +222,7 @@ export default function ShipmentLedgerPage() {
   const [actionNotice, setActionNotice] = useState<string>("");
   const [form, setForm] = useState(blankForm);
   const [drawerDraft, setDrawerDraft] = useState(() => createDrawerDraft(null));
+  const [listPage, setListPage] = useState(1);
   const selectedIdRef = useRef<string | null>(null);
   const hasLoadedRef = useRef(false);
 
@@ -251,7 +254,7 @@ export default function ShipmentLedgerPage() {
   }, [deferredQuery, flight, sortBy, status]);
 
   const loadShipments = useCallback(
-    async (preferredShipmentId = selectedId, mode: "initial" | "refresh" = "refresh") => {
+    async (preferredShipmentId: string | null = selectedIdRef.current, mode: "initial" | "refresh" = "refresh") => {
       if (mode === "initial") {
         setLoading(true);
       } else {
@@ -267,7 +270,7 @@ export default function ShipmentLedgerPage() {
       setLoading(false);
       setRefreshing(false);
     },
-    [applyShipmentPayload, requestShipments, selectedId],
+    [applyShipmentPayload, requestShipments],
   );
 
   useEffect(() => {
@@ -275,32 +278,11 @@ export default function ShipmentLedgerPage() {
   }, [selectedId]);
 
   useEffect(() => {
-    let cancelled = false;
     const mode = hasLoadedRef.current ? "refresh" : "initial";
-
-    if (mode === "initial") {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
-
-    void requestShipments()
-      .then((payload) => {
-        if (!payload || cancelled) return;
-        applyShipmentPayload(payload, selectedIdRef.current);
-        setLastSyncedAt(new Date().toISOString());
-        hasLoadedRef.current = true;
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
-        setRefreshing(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [applyShipmentPayload, requestShipments]);
+    void loadShipments(selectedIdRef.current, mode).finally(() => {
+      hasLoadedRef.current = true;
+    });
+  }, [loadShipments]);
 
   useEffect(() => {
     if (!actionNotice) return;
@@ -348,6 +330,20 @@ export default function ShipmentLedgerPage() {
   const isReadOnly = data?.viewer.readOnly ?? false;
   const urgencyState = getUrgencyState(selectedShipment);
   const confidenceState = getConfidenceState(selectedShipment);
+  const listPageSize = 10;
+  const shipments = data?.shipments ?? [];
+  const totalPages = Math.max(1, Math.ceil(shipments.length / listPageSize));
+  const pageStart = (listPage - 1) * listPageSize;
+  const pagedShipments = shipments.slice(pageStart, pageStart + listPageSize);
+
+  useEffect(() => {
+    setListPage(1);
+  }, [deferredQuery, flight, sortBy, status]);
+
+  useEffect(() => {
+    if (listPage <= totalPages) return;
+    setListPage(totalPages);
+  }, [listPage, totalPages]);
 
   async function submitCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -438,6 +434,16 @@ export default function ShipmentLedgerPage() {
     if (response.ok) {
       setActionNotice(`Shipment ${selectedShipment.awb} berhasil diarsipkan.`);
       await loadShipments(null, "refresh");
+    }
+  }
+
+  function handlePageChange(nextPage: number) {
+    const clamped = Math.min(Math.max(nextPage, 1), totalPages);
+    setListPage(clamped);
+    const firstOnNextPage = shipments[(clamped - 1) * listPageSize] ?? null;
+
+    if (firstOnNextPage) {
+      handleSelectShipment(firstOnNextPage.id);
     }
   }
 
@@ -553,8 +559,8 @@ export default function ShipmentLedgerPage() {
         </div>
       ) : null}
 
-      <div className="page-grid-2">
-        <OpsPanel className="page-pane flex min-h-0 flex-col overflow-hidden p-0">
+      <div className="page-grid-2 split-pane-shell">
+        <OpsPanel className="page-pane split-pane-left flex min-h-0 flex-col overflow-hidden p-0">
           <div className="border-b border-[color:var(--border-soft)] p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -563,7 +569,7 @@ export default function ShipmentLedgerPage() {
                   Papan manifest aktif
                 </h2>
                 <p className="mt-2 text-sm leading-7 text-[color:var(--muted-fg)]">
-                  Identifier AWB, status, dokumen, dan update terakhir ditata agar review harian terasa lebih cepat.
+                  Daftar ringkas AWB. Detail lengkap dibaca di panel kanan.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -586,108 +592,98 @@ export default function ShipmentLedgerPage() {
               ))}
             </div>
           ) : (
-            <div className="min-h-0 flex-1 overflow-auto ops-scrollbar">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>AWB</th>
-                    <th>Shipment</th>
-                    <th>Rute / Flight</th>
-                    <th>Status</th>
-                    <th>Update</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.shipments ?? []).length ? (
-                    (data?.shipments ?? []).map((shipment) => {
-                      const isSelected = selectedShipment?.id === shipment.id;
-                      const needsAttention =
-                        shipment.status === "hold" ||
-                        shipment.docStatus.toLowerCase() !== "complete" ||
-                        shipment.readiness.toLowerCase() !== "ready";
+            <div className="min-h-0 flex-1 p-5">
+              {(data?.shipments ?? []).length ? (
+                <div className="space-y-3">
+                  {pagedShipments.map((shipment) => {
+                    const isSelected = selectedShipment?.id === shipment.id;
+                    const needsAttention =
+                      shipment.status === "hold" ||
+                      shipment.docStatus.toLowerCase() !== "complete" ||
+                      shipment.readiness.toLowerCase() !== "ready";
 
-                      return (
-                        <tr
-                          key={shipment.id}
-                          onClick={() => handleSelectShipment(shipment.id)}
-                          className={cn(
-                            "cursor-pointer transition-colors",
-                            isSelected ? "bg-[color:var(--brand-primary-soft)]" : "hover:bg-[rgba(0,82,204,0.05)]",
-                          )}
-                        >
-                          <td>
-                            <div className="flex items-start gap-3">
-                              <span
-                                className={cn(
-                                  "mt-0.5 h-12 w-1 rounded-full",
-                                  isSelected ? "bg-[color:var(--brand-primary)]" : "bg-transparent",
-                                )}
-                              />
-                              <div>
-                                <p className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{shipment.awb}</p>
-                                <p className="mt-2 text-xs text-[color:var(--muted-fg)]">
-                                  {shipment.customerAccountName || shipment.shipper}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td>
-                            <p className="font-semibold text-[color:var(--text-strong)]">{shipment.commodity}</p>
-                            <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
-                              {formatWeight(shipment.weightKg)} • {shipment.pieces} pcs
-                              {shipment.specialHandling ? ` • ${shipment.specialHandling}` : ""}
+                    return (
+                      <button
+                        key={shipment.id}
+                        type="button"
+                        onClick={() => handleSelectShipment(shipment.id)}
+                        className={cn(
+                          "w-full rounded-[22px] border px-4 py-4 text-left transition-colors",
+                          isSelected
+                            ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]"
+                            : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] hover:bg-[color:var(--brand-primary-soft)]",
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{shipment.awb}</p>
+                            <p className="mt-1 truncate text-sm font-semibold text-[color:var(--text-strong)]">{shipment.commodity}</p>
+                            <p className="mt-1 truncate text-xs text-[color:var(--muted-fg)]">
+                              {shipment.origin} {" -> "} {shipment.destination}
                             </p>
-                          </td>
-                          <td>
-                            <p className="font-semibold text-[color:var(--text-strong)]">
-                              {shipment.origin} &rarr; {shipment.destination}
+                            <p className="mt-1 truncate text-xs text-[color:var(--muted-fg)]">
+                              {shipment.customerAccountName || shipment.shipper}
                             </p>
-                            <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
-                              {shipment.flightNumber || "Belum assigned"}
-                            </p>
-                          </td>
-                          <td>
-                            <div className="flex flex-col items-start gap-2">
-                              <StatusBadge value={shipment.status} label={shipment.statusLabel} />
-                              <div className="flex flex-wrap gap-2 text-xs text-[color:var(--muted-fg)]">
-                                <span>{shipment.docStatus}</span>
-                                <span>•</span>
-                                <span>{shipment.readiness}</span>
-                                {needsAttention ? (
-                                  <>
-                                    <span>•</span>
-                                    <span className="font-semibold text-[color:var(--tone-warning)]">Butuh review</span>
-                                  </>
-                                ) : null}
-                              </div>
-                            </div>
-                          </td>
-                          <td>
-                            <p className="text-sm font-semibold text-[color:var(--text-strong)]">{formatRelativeShort(shipment.updatedAt)}</p>
-                            <p className="mt-1 text-xs text-[color:var(--muted-fg)]">{formatDateTime(shipment.updatedAt)}</p>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={5}>
-                        <EmptyState
-                          icon={PackageSearch}
-                          title="Tidak ada shipment yang cocok"
-                          copy="Ubah kata kunci atau filter untuk melihat shipment lain yang tersedia di manifest."
-                          className="m-4"
-                        />
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <StatusBadge value={shipment.status} label={shipment.statusLabel} />
+                            <p className="mt-2 text-xs text-[color:var(--muted-fg)]">{formatRelativeShort(shipment.updatedAt)}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted-fg)]">
+                          <span>{formatWeight(shipment.weightKg)}</span>
+                          <span>•</span>
+                          <span>{shipment.pieces} pcs</span>
+                          <span>•</span>
+                          <span>{shipment.flightNumber || "Belum assigned"}</span>
+                          {needsAttention ? (
+                            <>
+                              <span>•</span>
+                              <span className="font-semibold text-[color:var(--tone-warning)]">Butuh review</span>
+                            </>
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                  <div className="flex items-center justify-between gap-3 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 py-3">
+                    <button
+                      type="button"
+                      className="topbar-button"
+                      onClick={() => handlePageChange(listPage - 1)}
+                      disabled={listPage <= 1}
+                    >
+                      <ChevronLeft size={16} />
+                      Sebelumnya
+                    </button>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-fg)]">
+                      Halaman {listPage} / {totalPages}
+                    </p>
+                    <button
+                      type="button"
+                      className="topbar-button"
+                      onClick={() => handlePageChange(listPage + 1)}
+                      disabled={listPage >= totalPages}
+                    >
+                      Berikutnya
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState
+                  icon={PackageSearch}
+                  title="Tidak ada shipment yang cocok"
+                  copy="Ubah kata kunci atau filter untuk melihat shipment lain yang tersedia di manifest."
+                  className="m-0"
+                />
+              )}
             </div>
           )}
         </OpsPanel>
 
-        <OpsPanel className="page-pane flex min-h-0 flex-col overflow-hidden p-0">
+        <OpsPanel className="page-pane split-pane-right flex min-h-0 flex-col overflow-hidden p-0">
           {selectedShipment ? (
             <>
               <div className="border-b border-[color:var(--border-soft)] p-6">
@@ -1184,7 +1180,7 @@ export default function ShipmentLedgerPage() {
                     <label className="label">Catatan Operator</label>
                     <textarea
                       className="textarea-field ops-textarea-elevated"
-                      placeholder="Catatan operator"
+                      placeholder="Catatan staff"
                       value={form.notes}
                       onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
                     />

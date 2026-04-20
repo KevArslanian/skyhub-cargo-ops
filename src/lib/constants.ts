@@ -22,8 +22,7 @@ export const FLIGHT_STATUS_LABELS: Record<FlightStatus, string> = {
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Admin",
-  operator: "Operator",
-  supervisor: "Supervisor",
+  staff: "Staff Operasional",
   customer: "Pelanggan",
 };
 

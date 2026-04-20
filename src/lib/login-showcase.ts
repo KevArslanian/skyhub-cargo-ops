@@ -28,16 +28,10 @@ export const DEMO_LOGIN_ACCOUNTS = [
     description: "Kontrol penuh untuk konfigurasi, pengguna, audit, dan review state lintas modul.",
   },
   {
-    label: "Supervisor",
-    email: "supervisor@skyhub.test",
+    label: "Staff",
+    email: "staff@skyhub.test",
     password: "operator123",
-    description: "Monitoring flight readiness, review exception, dan pengawasan manifest aktif.",
-  },
-  {
-    label: "Operator",
-    email: "operator@skyhub.test",
-    password: "operator123",
-    description: "Workflow harian untuk ledger shipment, tracking AWB, dan tindakan operasional cepat.",
+    description: "Workflow harian untuk ledger shipment, tracking AWB, review exception, dan monitoring manifest aktif.",
   },
   {
     label: "Customer",
@@ -48,7 +42,7 @@ export const DEMO_LOGIN_ACCOUNTS = [
 ] as const;
 
 export const LOGIN_EDITORIAL_SUPPORT = [
-  "Manual scene switching tanpa autoplay agar operator tetap memegang kontrol visual.",
+  "Manual scene switching tanpa autoplay agar staff tetap memegang kontrol visual.",
   "Structured error mapping untuk kredensial, status akun, dan backend setup issue.",
   "Public preface dan access portal tetap dipisah agar hierarchy narasi brand tidak bercampur dengan auth form.",
 ] as const;
@@ -64,7 +58,7 @@ export const LOGIN_SUPPORT_METRICS: LoginFactItem[] = [
   },
   {
     label: "Demo personas",
-    value: "4 akun aktif untuk admin, supervisor, operator, customer",
+    value: "3 akun aktif untuk admin, staff, customer",
   },
 ];
 
@@ -82,7 +76,7 @@ export const LOGIN_CAPABILITY_CARDS = [
   {
     label: "Controlled Access",
     title: "Satu gate, scope berbeda untuk tiap persona.",
-    copy: "Admin, supervisor, operator, dan customer berbagi identitas visual yang sama dengan batas kerja yang jelas.",
+    copy: "Admin, staff operasional, dan customer berbagi identitas visual yang sama dengan batas kerja yang jelas.",
   },
 ] as const;
 
@@ -93,7 +87,7 @@ export const LOGIN_SHOWCASE_SCENES: LoginShowcaseScene[] = [
     eyebrow: "Editorial Access Deck",
     title: "Quiet authority for cargo operations access.",
     description:
-      "Scene pertama menempatkan login sebagai ritual masuk ke ruang kontrol yang tenang, premium, dan sangat terarah. Fokus utamanya bukan efek berlebihan, tetapi kesiapan operator untuk mulai bekerja.",
+      "Scene pertama menempatkan login sebagai ritual masuk ke ruang kontrol yang tenang, premium, dan sangat terarah. Fokus utamanya bukan efek berlebihan, tetapi kesiapan staff untuk mulai bekerja.",
     imageSrc: "/auth/login-scene-charter.svg",
     imageAlt: "Editorial aviation access scene with framed runway lighting and private lounge mood.",
     sceneTag: "Private-grade command entry",
@@ -122,11 +116,11 @@ export const LOGIN_SHOWCASE_SCENES: LoginShowcaseScene[] = [
     imageSrc: "/auth/login-scene-suite.svg",
     imageAlt: "Refined split-lounge scene blending executive operations mood and partner access atmosphere.",
     sceneTag: "Shared brand, separated scopes",
-    footerLeft: "Admin, supervisor, operator, and customer share one access language",
+    footerLeft: "Admin, staff, and customer share one access language",
     footerRight: "Scope dibedakan oleh role-based logic, bukan visual yang terpecah",
     filmNote: "Komposisi split memberi sinyal bahwa satu sistem melayani workflow berbeda tanpa kehilangan disiplin visual.",
     facts: [
-      { label: "Personas", value: "Admin, supervisor, operator, customer" },
+      { label: "Personas", value: "Admin, staff, customer" },
       { label: "Navigation tone", value: "Structured, manual, non-gimmicky" },
       { label: "Layout cue", value: "Split scene and anchored auth rail" },
     ],

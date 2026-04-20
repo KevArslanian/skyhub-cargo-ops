@@ -15,6 +15,12 @@ import {
   X,
 } from "lucide-react";
 import { formatDateTime, formatRelativeShort } from "@/lib/format";
+import {
+  AIRLINE_CODE_OPTIONS,
+  buildFlightNumber,
+  parseFlightNumberParts,
+  type SupportedAirlineCode,
+} from "@/lib/flight-meta";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 
@@ -64,7 +70,8 @@ type FlightBoardPayload = {
 type FlightRow = FlightBoardPayload["flights"][number];
 
 const blankForm = {
-  flightNumber: "",
+  airlineCode: "GA" as SupportedAirlineCode,
+  flightNumberSuffix: "",
   aircraftType: "",
   origin: "SOQ",
   destination: "CGK",
@@ -74,16 +81,32 @@ const blankForm = {
   status: "on_time",
   gate: "",
   remarks: "",
-  imageUrl: "",
 };
+
+type FlightFormState = typeof blankForm;
+
+function normalizeFlightNumberSuffix(value: string) {
+  return value.replace(/\D/g, "").slice(0, 4);
+}
+
+function isFlightNumberSuffixValid(value: string) {
+  return /^\d{3,4}$/.test(value);
+}
 
 function createFlightDraft(flight: FlightRow | null) {
   if (!flight) {
     return { ...blankForm };
   }
 
+  const parsed = parseFlightNumberParts(flight.flightNumber);
+  const airlineCode = parsed?.airlineCode;
+  const selectedCode = AIRLINE_CODE_OPTIONS.some((option) => option.code === airlineCode)
+    ? (airlineCode as SupportedAirlineCode)
+    : "GA";
+
   return {
-    flightNumber: flight.flightNumber,
+    airlineCode: selectedCode,
+    flightNumberSuffix: parsed?.numberPart ?? "",
     aircraftType: flight.aircraftType,
     origin: flight.origin,
     destination: flight.destination,
@@ -93,7 +116,6 @@ function createFlightDraft(flight: FlightRow | null) {
     status: flight.status,
     gate: flight.gate || "",
     remarks: flight.remarks || "",
-    imageUrl: flight.imageUrl || "",
   };
 }
 
@@ -114,6 +136,7 @@ export default function FlightBoardPage() {
   const [createForm, setCreateForm] = useState(() => ({ ...blankForm }));
   const [editDraft, setEditDraft] = useState(() => ({ ...blankForm }));
   const [notice, setNotice] = useState("");
+  const [noticeTone, setNoticeTone] = useState<"info" | "warning">("info");
 
   const applyFlightBoardPayload = useCallback(
     (payload: FlightBoardPayload, nextDate = date, preferredFlightId = selectedFlightId) => {
@@ -217,58 +240,105 @@ export default function FlightBoardPage() {
     return new Date(value).toISOString();
   }
 
+  async function resolveErrorMessage(response: Response, fallback: string) {
+    try {
+      const payload = (await response.json()) as { error?: string };
+      return payload.error || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function composeFlightNumber(form: FlightFormState) {
+    return buildFlightNumber(form.airlineCode, form.flightNumberSuffix);
+  }
+
   async function handleCreateFlight(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSaving(true);
 
-    const response = await fetch("/api/flights", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...createForm,
-        departureTime: toIso(createForm.departureTime),
-        arrivalTime: toIso(createForm.arrivalTime),
-        cargoCutoffTime: toIso(createForm.cargoCutoffTime),
-        gate: createForm.gate || null,
-        remarks: createForm.remarks || null,
-        imageUrl: createForm.imageUrl || null,
-      }),
-    });
-
-    if (response.ok) {
-      setCreateOpen(false);
-      setCreateForm({ ...blankForm });
-      setNotice("Flight berhasil dibuat.");
-      await loadFlightBoard();
+    if (!isFlightNumberSuffixValid(createForm.flightNumberSuffix)) {
+      setNoticeTone("warning");
+      setNotice("Nomor flight harus terdiri dari 3-4 digit.");
+      return;
     }
 
-    setSaving(false);
+    setSaving(true);
+
+    try {
+      const response = await fetch("/api/flights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flightNumber: composeFlightNumber(createForm),
+          aircraftType: createForm.aircraftType,
+          origin: createForm.origin,
+          destination: createForm.destination,
+          departureTime: toIso(createForm.departureTime),
+          arrivalTime: toIso(createForm.arrivalTime),
+          cargoCutoffTime: toIso(createForm.cargoCutoffTime),
+          status: createForm.status,
+          gate: createForm.gate || null,
+          remarks: createForm.remarks || null,
+        }),
+      });
+
+      if (response.ok) {
+        setCreateOpen(false);
+        setCreateForm({ ...blankForm });
+        setNoticeTone("info");
+        setNotice("Flight berhasil dibuat.");
+        await loadFlightBoard();
+      } else {
+        const errorMessage = await resolveErrorMessage(response, "Gagal membuat flight.");
+        setNoticeTone("warning");
+        setNotice(errorMessage);
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleSaveFlight() {
     if (!selectedFlight) return;
-    setSaving(true);
 
-    const response = await fetch(`/api/flights/${selectedFlight.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...editDraft,
-        departureTime: toIso(editDraft.departureTime),
-        arrivalTime: toIso(editDraft.arrivalTime),
-        cargoCutoffTime: toIso(editDraft.cargoCutoffTime),
-        gate: editDraft.gate || null,
-        remarks: editDraft.remarks || null,
-        imageUrl: editDraft.imageUrl || null,
-      }),
-    });
-
-    if (response.ok) {
-      setNotice("Perubahan flight berhasil disimpan.");
-      await loadFlightBoard();
+    if (!isFlightNumberSuffixValid(editDraft.flightNumberSuffix)) {
+      setNoticeTone("warning");
+      setNotice("Nomor flight harus terdiri dari 3-4 digit.");
+      return;
     }
 
-    setSaving(false);
+    setSaving(true);
+
+    try {
+      const response = await fetch(`/api/flights/${selectedFlight.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flightNumber: composeFlightNumber(editDraft),
+          aircraftType: editDraft.aircraftType,
+          origin: editDraft.origin,
+          destination: editDraft.destination,
+          departureTime: toIso(editDraft.departureTime),
+          arrivalTime: toIso(editDraft.arrivalTime),
+          cargoCutoffTime: toIso(editDraft.cargoCutoffTime),
+          status: editDraft.status,
+          gate: editDraft.gate || null,
+          remarks: editDraft.remarks || null,
+        }),
+      });
+
+      if (response.ok) {
+        setNoticeTone("info");
+        setNotice("Perubahan flight berhasil disimpan.");
+        await loadFlightBoard();
+      } else {
+        const errorMessage = await resolveErrorMessage(response, "Gagal memperbarui flight.");
+        setNoticeTone("warning");
+        setNotice(errorMessage);
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleArchiveFlight() {
@@ -281,8 +351,13 @@ export default function FlightBoardPage() {
     });
 
     if (response.ok) {
+      setNoticeTone("info");
       setNotice(`Flight ${selectedFlight.flightNumber} berhasil diarsipkan.`);
       await loadFlightBoard();
+    } else {
+      const errorMessage = await resolveErrorMessage(response, "Gagal mengarsipkan flight.");
+      setNoticeTone("warning");
+      setNotice(errorMessage);
     }
   }
 
@@ -354,7 +429,13 @@ export default function FlightBoardPage() {
       </FilterBar>
 
       {notice ? (
-        <div className="rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]">
+        <div
+          className={
+            noticeTone === "warning"
+              ? "rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-warning)]"
+              : "rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]"
+          }
+        >
           {notice}
         </div>
       ) : null}
@@ -550,8 +631,37 @@ export default function FlightBoardPage() {
                 <>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <label className="label">Nomor Flight</label>
-                      <input className="input-field" value={editDraft.flightNumber} onChange={(event) => setEditDraft((current) => ({ ...current, flightNumber: event.target.value }))} />
+                      <label className="label">Kode Maskapai</label>
+                      <select
+                        className="select-field"
+                        value={editDraft.airlineCode}
+                        onChange={(event) =>
+                          setEditDraft((current) => ({
+                            ...current,
+                            airlineCode: event.target.value as SupportedAirlineCode,
+                          }))
+                        }
+                      >
+                        {AIRLINE_CODE_OPTIONS.map((item) => (
+                          <option key={item.code} value={item.code}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label">Nomor Flight (3-4 digit)</label>
+                      <input
+                        className="input-field"
+                        value={editDraft.flightNumberSuffix}
+                        onChange={(event) =>
+                          setEditDraft((current) => ({
+                            ...current,
+                            flightNumberSuffix: normalizeFlightNumberSuffix(event.target.value),
+                          }))
+                        }
+                        placeholder="714"
+                      />
                     </div>
                     <div>
                       <label className="label">Jenis Pesawat</label>
@@ -588,10 +698,6 @@ export default function FlightBoardPage() {
                     <div>
                       <label className="label">Gate</label>
                       <input className="input-field" value={editDraft.gate} onChange={(event) => setEditDraft((current) => ({ ...current, gate: event.target.value }))} />
-                    </div>
-                    <div>
-                      <label className="label">Image URL</label>
-                      <input className="input-field" value={editDraft.imageUrl} onChange={(event) => setEditDraft((current) => ({ ...current, imageUrl: event.target.value }))} />
                     </div>
                   </div>
 
@@ -665,8 +771,37 @@ export default function FlightBoardPage() {
             <form className="mt-6 space-y-5" onSubmit={handleCreateFlight}>
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="label">Nomor Flight</label>
-                  <input className="input-field" value={createForm.flightNumber} onChange={(event) => setCreateForm((current) => ({ ...current, flightNumber: event.target.value }))} />
+                  <label className="label">Kode Maskapai</label>
+                  <select
+                    className="select-field"
+                    value={createForm.airlineCode}
+                    onChange={(event) =>
+                      setCreateForm((current) => ({
+                        ...current,
+                        airlineCode: event.target.value as SupportedAirlineCode,
+                      }))
+                    }
+                  >
+                    {AIRLINE_CODE_OPTIONS.map((item) => (
+                      <option key={item.code} value={item.code}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Nomor Flight (3-4 digit)</label>
+                  <input
+                    className="input-field"
+                    value={createForm.flightNumberSuffix}
+                    onChange={(event) =>
+                      setCreateForm((current) => ({
+                        ...current,
+                        flightNumberSuffix: normalizeFlightNumberSuffix(event.target.value),
+                      }))
+                    }
+                    placeholder="714"
+                  />
                 </div>
                 <div>
                   <label className="label">Jenis Pesawat</label>
@@ -703,10 +838,6 @@ export default function FlightBoardPage() {
                 <div>
                   <label className="label">Gate</label>
                   <input className="input-field" value={createForm.gate} onChange={(event) => setCreateForm((current) => ({ ...current, gate: event.target.value }))} />
-                </div>
-                <div>
-                  <label className="label">Image URL</label>
-                  <input className="input-field" value={createForm.imageUrl} onChange={(event) => setCreateForm((current) => ({ ...current, imageUrl: event.target.value }))} />
                 </div>
               </div>
               <div>

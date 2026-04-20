@@ -22,7 +22,7 @@ const cormorantGaramond = Cormorant_Garamond({
 
 export const metadata: Metadata = {
   title: APP_NAME,
-  description: `${APP_SUBTITLE} untuk pelacakan AWB, papan flight, dan dashboard operator.`,
+  description: `${APP_SUBTITLE} untuk pelacakan AWB, papan flight, dan dashboard staff operasional.`,
   icons: {
     icon: "/skyhub-mark-blue.svg",
     shortcut: "/skyhub-mark-blue.svg",

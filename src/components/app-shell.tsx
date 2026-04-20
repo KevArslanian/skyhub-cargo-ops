@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   Bell,
   ChevronDown,
@@ -34,7 +34,7 @@ type ShellProps = {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "operator" | "supervisor" | "customer";
+    role: "admin" | "staff" | "customer";
     station: string;
     customerAccountName?: string | null;
   };
@@ -93,6 +93,10 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [clock, setClock] = useState<Date | null>(null);
   const themePreference = shellSettings.theme === "dark" ? "dark" : "light";
   const activeTheme = mounted ? (resolvedTheme === "dark" ? "dark" : "light") : themePreference;
+  const sidebarWidth = collapsed ? "88px" : "min(284px, 24vw)";
+  const shellStyle = {
+    "--sidebar-width": sidebarWidth,
+  } as CSSProperties;
 
   const unreadCount = useMemo(() => notificationItems.filter((item) => !item.read).length, [notificationItems]);
 
@@ -264,18 +268,19 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
   return (
     <div
+      style={shellStyle}
       className={cn(
-        "min-h-screen overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)] lg:h-screen lg:overflow-hidden",
+        "min-h-screen overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
         shellSettings.compactRows && "compact-table",
       )}
     >
-      <div className="flex min-h-screen lg:h-screen">
+      <div className="flex min-h-screen">
         <div className={cn("fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm lg:hidden", mobileOpen ? "block" : "hidden")} onClick={() => setMobileOpen(false)} />
 
         <aside
           className={cn(
             "fixed inset-y-0 left-0 z-50 flex overflow-hidden border-r border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/98 backdrop-blur transition-all duration-200",
-            collapsed ? "w-[94px]" : "w-[284px]",
+            "w-[var(--sidebar-width)]",
             mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           )}
         >
@@ -453,21 +458,21 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
           </div>
         </aside>
 
-        <div className={cn("flex min-h-0 w-full flex-col transition-all duration-200 lg:ml-[284px] lg:h-screen", collapsed && "lg:ml-[94px]")}>
+        <div className="flex min-h-0 w-full flex-col transition-all duration-200 lg:ml-[var(--sidebar-width)]">
           <header className="sticky top-0 z-30 shrink-0 px-4 py-4 lg:px-8 lg:py-5">
             <div className="ops-panel flex flex-wrap items-center gap-3 px-4 py-4 lg:px-5">
               <button type="button" className="topbar-button lg:hidden" onClick={() => setMobileOpen(true)}>
                 <Menu size={18} />
               </button>
 
-              <div className="min-w-[200px]">
+              <div className="min-w-0 flex-[1_1_180px] sm:flex-[0_1_auto]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Ruang Kontrol</p>
                 <p className="mt-1 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
                   {activeNav.label}
                 </p>
               </div>
 
-              <form onSubmit={handleSearchSubmit} className="relative min-w-[260px] flex-1">
+              <form onSubmit={handleSearchSubmit} className="relative min-w-[180px] flex-[2_1_320px]">
                 <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
                 <input
                   value={search}
@@ -506,7 +511,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                 </button>
 
                 {notificationOpen ? (
-                  <div className="dropdown-panel right-0 top-14 w-[360px]">
+                  <div className="dropdown-panel right-0 top-14 w-[min(360px,calc(100vw-1.5rem))] sm:w-[360px]">
                     <div className="flex items-center justify-between border-b border-[color:var(--border-soft)] px-4 py-4">
                       <div>
                         <p className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
@@ -580,7 +585,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                 </button>
 
                 {avatarOpen ? (
-                  <div className="dropdown-panel right-0 top-14 w-[248px]">
+                  <div className="dropdown-panel right-0 top-14 w-[min(248px,calc(100vw-1.5rem))] sm:w-[248px]">
                     <div className="border-b border-[color:var(--border-soft)] px-4 py-4">
                       <p className="font-semibold text-[color:var(--text-strong)]">{user.email}</p>
                       <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
@@ -605,7 +610,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
             </div>
           </header>
 
-          <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 lg:overflow-hidden lg:px-8">
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 lg:px-8">
             <div className="h-full min-h-0">{children}</div>
           </main>
         </div>

@@ -3,7 +3,7 @@ import type { UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { INTRO_COOKIE, SESSION_COOKIE } from "@/lib/auth";
-import { isInternalOnlyPath } from "@/lib/access";
+import { isCustomerAllowedPath } from "@/lib/access";
 
 const secret = new TextEncoder().encode(process.env.SESSION_SECRET || "dev-secret-ekspedisi-petir");
 
@@ -31,14 +31,15 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const session = await getSession(request);
   const hasIntro = request.cookies.get(INTRO_COOKIE)?.value === "1";
+  const authenticatedHome = session?.role === "customer" ? "/awb-tracking" : "/dashboard";
 
   if (pathname === "/") {
-    return NextResponse.redirect(new URL(session ? "/dashboard" : "/about-us", request.url));
+    return NextResponse.redirect(new URL(session ? authenticatedHome : "/about-us", request.url));
   }
 
   if (pathname === "/about-us") {
     if (session) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return NextResponse.redirect(new URL(authenticatedHome, request.url));
     }
 
     return NextResponse.next();
@@ -46,7 +47,7 @@ export async function proxy(request: NextRequest) {
 
   if (pathname === "/login") {
     if (session) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return NextResponse.redirect(new URL(authenticatedHome, request.url));
     }
 
     if (!hasIntro) {
@@ -60,8 +61,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/about-us", request.url));
   }
 
-  if (session.role === "customer" && isInternalOnlyPath(pathname)) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  if (session.role === "customer" && !isCustomerAllowedPath(pathname)) {
+    return NextResponse.redirect(new URL("/awb-tracking", request.url));
   }
 
   return NextResponse.next();

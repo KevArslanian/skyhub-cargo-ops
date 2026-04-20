@@ -11,6 +11,7 @@
   --space-20: 20px;
   --space-24: 24px;
   --space-32: 32px;
+  --space-40: 40px;
   --app-bg: #eff4fa;
   --app-bg-alt: #e3ebf6;
   --app-fg: #12233d;
@@ -53,6 +54,7 @@
   --auth-navy-2: #1d345a;
   --auth-gold: #d8bf9d;
   --auth-glow: rgba(255, 241, 219, 0.8);
+  --shell-topbar-height: 92px;
 }
 
 @theme inline {
@@ -155,6 +157,7 @@ textarea {
   border-radius: var(--panel-radius);
   box-shadow: var(--shadow-soft);
   min-height: 0;
+  max-width: 100%;
 }
 
 .dark .ops-panel,
@@ -192,6 +195,7 @@ textarea {
   background: var(--panel-bg);
   box-shadow: var(--shadow-soft);
   max-height: min(480px, calc(100vh - 120px));
+  max-width: calc(100vw - 1rem);
 }
 
 .dark .dropdown-panel,
@@ -376,11 +380,13 @@ textarea {
   background: var(--panel-bg);
   box-shadow: var(--shadow-soft);
   min-height: 0;
+  max-width: 100%;
 }
 
 .data-table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 640px;
 }
 
 .data-table thead th {
@@ -405,6 +411,7 @@ textarea {
   border-top: 1px solid var(--border-soft);
   padding: 16px;
   vertical-align: top;
+  overflow-wrap: anywhere;
 }
 
 .data-table tbody tr {
@@ -493,7 +500,9 @@ textarea {
   display: flex;
   min-height: 0;
   flex-direction: column;
-  gap: 1rem;
+  gap: clamp(0.75rem, 1vw, 1rem);
+  width: 100%;
+  max-width: 100%;
 }
 
 .page-scroll {
@@ -502,7 +511,7 @@ textarea {
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
-  padding-right: 4px;
+  padding-right: 2px;
   padding-bottom: 12px;
 }
 
@@ -522,6 +531,20 @@ textarea {
   gap: 1rem;
   min-height: 0;
   align-items: stretch;
+  width: 100%;
+}
+
+.split-pane-shell {
+  display: grid;
+  gap: 1rem;
+  min-height: 0;
+  align-items: start;
+  width: 100%;
+}
+
+.split-pane-left,
+.split-pane-right {
+  min-height: 0;
 }
 
 .ops-tab-button {
@@ -858,6 +881,61 @@ input[type="checkbox"] {
   gap: 1rem;
 }
 
+.auth-min-shell {
+  position: relative;
+  z-index: 1;
+  margin: 0 auto;
+  width: min(1100px, calc(100% - 2rem));
+  padding: clamp(14px, 2vw, 24px) 0 clamp(18px, 2vw, 28px);
+}
+
+.auth-min-frame {
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 32px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.54));
+  box-shadow: 0 24px 70px rgba(11, 30, 52, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.auth-min-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(214, 202, 183, 0.7);
+  padding: clamp(14px, 2vw, 18px) clamp(16px, 2vw, 24px);
+}
+
+.auth-min-main {
+  padding: clamp(16px, 2.2vw, 28px);
+}
+
+.auth-min-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-min-card {
+  border-radius: 24px;
+  border: 1px solid rgba(216, 202, 183, 0.9);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 242, 233, 0.88));
+  box-shadow: 0 12px 30px rgba(11, 30, 52, 0.08);
+}
+
+.auth-min-muted {
+  color: #5f6674;
+}
+
+.auth-min-demo details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.auth-min-demo details > summary::-webkit-details-marker {
+  display: none;
+}
+
 .auth-atmosphere {
   position: relative;
   min-height: 100vh;
@@ -890,6 +968,46 @@ input[type="checkbox"] {
     linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: radial-gradient(circle at center, black 36%, transparent 86%);
+}
+
+.dark .auth-atmosphere {
+  background:
+    radial-gradient(circle at 14% 14%, rgba(52, 83, 130, 0.18), transparent 24%),
+    radial-gradient(circle at 86% 12%, rgba(30, 63, 106, 0.22), transparent 28%),
+    radial-gradient(circle at 20% 86%, rgba(0, 82, 204, 0.14), transparent 30%),
+    linear-gradient(180deg, #08152a 0%, #0b1a33 56%, #0f2442 100%);
+}
+
+.dark .auth-atmosphere::before {
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.04), transparent 42%),
+    radial-gradient(circle at 72% 22%, rgba(109, 167, 255, 0.1), transparent 18%);
+}
+
+.dark .auth-atmosphere::after {
+  opacity: 0.14;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}
+
+.dark .auth-min-frame {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)), var(--panel-bg);
+}
+
+.dark .auth-min-header {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark .auth-min-card {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01)), var(--panel-muted);
+  box-shadow: 0 12px 28px rgba(2, 12, 24, 0.4);
+}
+
+.dark .auth-min-muted {
+  color: var(--muted-fg);
 }
 
 .auth-editorial-shell {
@@ -1215,19 +1333,17 @@ input[type="checkbox"] {
 
 @media (min-width: 1280px) {
   .page-workspace {
-    height: 100%;
-    overflow: hidden;
+    min-height: 0;
   }
 
   .page-stack,
   .page-grid-2,
   .page-grid-3 {
-    overflow: hidden;
+    min-height: 0;
   }
 
   .dashboard-viewport {
-    height: calc(100vh - 158px);
-    overflow: hidden;
+    min-height: 0;
     gap: 0.9rem;
   }
 
@@ -1239,10 +1355,29 @@ input[type="checkbox"] {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .split-pane-left {
+    position: sticky;
+    top: calc(var(--shell-topbar-height) + 12px);
+    align-self: start;
+    max-height: calc(100vh - var(--shell-topbar-height) - 1.5rem);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .split-pane-right {
+    min-height: calc(100vh - var(--shell-topbar-height) - 1.5rem);
+    max-height: calc(100vh - var(--shell-topbar-height) - 1.5rem);
+    overflow: hidden;
+  }
+
+  .split-pane-right.page-scroll {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
   .dashboard-main {
-    flex: 1;
     display: grid;
-    grid-template-columns: minmax(0, 1.45fr) 360px;
+    grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.95fr);
     gap: 1rem;
   }
 
@@ -1254,7 +1389,7 @@ input[type="checkbox"] {
   .dashboard-split {
     flex: 1;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 290px;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 0.88fr);
     gap: 1rem;
     min-height: 0;
   }
@@ -1271,6 +1406,11 @@ input[type="checkbox"] {
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
     gap: 1rem;
     min-height: 0;
+  }
+
+  .auth-min-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
+    align-items: start;
   }
 
   .ops-snap-card {

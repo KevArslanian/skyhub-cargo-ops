@@ -143,7 +143,7 @@ export async function redirectAuthenticatedUserToDashboard() {
   const user = await getCurrentUser();
 
   if (user) {
-    redirect("/dashboard");
+    redirect(user.role === "customer" ? "/awb-tracking" : "/dashboard");
   }
 }
 
@@ -151,7 +151,7 @@ export async function requireIntroForLogin() {
   const user = await getCurrentUser();
 
   if (user) {
-    redirect("/dashboard");
+    redirect(user.role === "customer" ? "/awb-tracking" : "/dashboard");
   }
 
   const hasIntro = await hasIntroSeenCookie();

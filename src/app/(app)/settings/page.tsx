@@ -30,7 +30,7 @@ type SettingsPayload = {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "operator" | "supervisor" | "customer";
+    role: "admin" | "staff" | "customer";
     station: string;
     customerAccountId: string | null;
     customerAccountName: string | null;
@@ -54,7 +54,7 @@ type SettingsPayload = {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "operator" | "supervisor" | "customer";
+    role: "admin" | "staff" | "customer";
     station: string;
     status: "active" | "invited" | "disabled";
     customerAccountId: string | null;
@@ -130,7 +130,7 @@ function PreferenceToggleCard({
       className={cn(
         "flex w-full items-center justify-between gap-4 rounded-[24px] border px-4 py-4 transition-colors",
         checked
-          ? "border-[rgba(0,82,204,0.18)] bg-[linear-gradient(180deg,rgba(0,82,204,0.08),rgba(255,255,255,0.96))]"
+          ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]"
           : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]",
       )}
     >
@@ -184,7 +184,7 @@ function ThemePreviewCard({
       className={cn(
         "w-full rounded-[24px] border p-4 text-left transition-all",
         active
-          ? "border-[rgba(0,82,204,0.22)] bg-[linear-gradient(180deg,rgba(0,82,204,0.08),rgba(255,255,255,0.96))] shadow-[0_14px_28px_rgba(0,61,155,0.12)]"
+          ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] shadow-[0_14px_28px_rgba(0,61,155,0.12)]"
           : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] hover:border-[rgba(0,82,204,0.12)]",
       )}
     >
@@ -251,7 +251,7 @@ export default function SettingsPage() {
   const [inviteForm, setInviteForm] = useState({
     name: "",
     email: "",
-    role: "operator",
+    role: "staff",
     station: "SOQ",
     customerAccountId: "",
   });
@@ -395,7 +395,7 @@ export default function SettingsPage() {
     if (response.ok) {
       const payload = (await response.json()) as { user: SettingsPayload["users"][number] };
       setData((current) => (current ? { ...current, users: [...current.users, payload.user] } : current));
-      setInviteForm({ name: "", email: "", role: "operator", station: "SOQ", customerAccountId: "" });
+      setInviteForm({ name: "", email: "", role: "staff", station: "SOQ", customerAccountId: "" });
       setInviteOpen(false);
       setNotice("Pengguna berhasil dibuat dengan status diundang.");
     }
@@ -514,7 +514,7 @@ export default function SettingsPage() {
       ) : null}
 
       {!data ? (
-        <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
           <OpsPanel className="p-4">
             <SkeletonBlock className="h-32 w-full rounded-[24px]" />
             <div className="mt-4 space-y-3">
@@ -532,9 +532,9 @@ export default function SettingsPage() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
-          <OpsPanel className="page-pane p-4 xl:sticky xl:top-0">
-            <div className="rounded-[26px] border border-[color:var(--border-soft)] bg-[linear-gradient(180deg,rgba(0,82,204,0.08),rgba(255,255,255,0.96))] px-4 py-4">
+        <div className="grid gap-6 xl:grid-cols-[minmax(240px,300px)_minmax(0,1fr)] split-pane-shell split-pane-shell-settings">
+          <OpsPanel className="page-pane split-pane-left p-4">
+            <div className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
               <div className="flex items-start gap-4">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-[color:var(--brand-primary)] font-[family:var(--font-heading)] text-xl font-black tracking-[-0.04em] text-white">
                   {getInitials(draft.name || data.profile.name || "Sky Hub")}
@@ -564,7 +564,7 @@ export default function SettingsPage() {
                     className={cn(
                       "flex w-full items-center justify-between rounded-[22px] border px-4 py-4 text-left transition-colors",
                       active
-                        ? "border-[rgba(0,82,204,0.18)] bg-[linear-gradient(180deg,rgba(0,82,204,0.08),rgba(255,255,255,0.96))] text-[color:var(--brand-primary)]"
+                        ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]"
                         : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] hover:text-[color:var(--text-strong)]",
                     )}
                     onClick={() => setActiveTab(tab.label)}
@@ -594,11 +594,11 @@ export default function SettingsPage() {
             </div>
           </OpsPanel>
 
-          <div className="page-stack">
+          <div className="page-stack split-pane-right page-scroll">
             {activeTab === "Profil" ? (
               <>
                 <OpsPanel className="overflow-hidden p-0">
-                  <div className="grid gap-0 xl:grid-cols-[minmax(0,1.1fr)_320px]">
+                  <div className="grid gap-0 xl:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)]">
                     <div className="p-6">
                       <SectionHeader
                         title="Profil Pengguna"
@@ -638,7 +638,7 @@ export default function SettingsPage() {
                       <p className="ops-eyebrow">Akses Workspace</p>
                       <div className="mt-4 space-y-3">
                         <DataCard label="Peran" value={ROLE_LABELS[data.profile.role]} note="Hak akses saat ini" />
-                        <DataCard label="Stasiun aktif" value={draft.station} note="Digunakan sebagai konteks default operator" />
+                        <DataCard label="Stasiun aktif" value={draft.station} note="Digunakan sebagai konteks default staff operasional" />
                         <DataCard
                           label="Akun pelanggan"
                           value={data.profile.customerAccountName || "-"}
@@ -711,7 +711,7 @@ export default function SettingsPage() {
                   <OpsPanel className="p-5">
                     <SectionHeader
                       title="Workflow"
-                      subtitle="Kepadatan baris dan state sidebar dikelompokkan sebagai perilaku kerja operator."
+                      subtitle="Kepadatan baris dan state sidebar dikelompokkan sebagai perilaku kerja tim operasional."
                     />
                     <div className="mt-5 space-y-4">
                       <PreferenceToggleCard
@@ -792,7 +792,7 @@ export default function SettingsPage() {
                             type="number"
                             min={5}
                             max={60}
-                            className="input-field max-w-[140px]"
+                            className="input-field w-full sm:max-w-[140px]"
                             value={draft.refreshIntervalSeconds}
                             onChange={(event) =>
                               applyDraftPatch({ refreshIntervalSeconds: Number(event.target.value) })
@@ -873,8 +873,7 @@ export default function SettingsPage() {
                         value={inviteForm.role}
                         onChange={(event) => setInviteForm((current) => ({ ...current, role: event.target.value }))}
                       >
-                        <option value="operator">Operator</option>
-                        <option value="supervisor">Supervisor</option>
+                        <option value="staff">Staff Operasional</option>
                         <option value="admin">Admin</option>
                         <option value="customer">Pelanggan</option>
                       </select>
@@ -950,8 +949,7 @@ export default function SettingsPage() {
                                     )
                                   }
                                 >
-                                  <option value="operator">Operator</option>
-                                  <option value="supervisor">Supervisor</option>
+                                  <option value="staff">Staff Operasional</option>
                                   <option value="admin">Admin</option>
                                   <option value="customer">Pelanggan</option>
                                 </select>

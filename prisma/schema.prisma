@@ -12,8 +12,7 @@ datasource db {
 
 enum UserRole {
   admin
-  operator
-  supervisor
+  staff
   customer
 }
 
@@ -118,34 +117,34 @@ model Flight {
 }
 
 model Shipment {
-  id                String            @id @default(cuid())
-  awb               String            @unique
-  commodity         String
-  origin            String
-  destination       String
-  pieces            Int
-  weightKg          Float
-  volumeM3          Float?
-  specialHandling   String?
-  docStatus         String            @default("Complete")
-  readiness         String            @default("Ready")
-  shipper           String
-  consignee         String
-  forwarder         String
-  ownerName         String
-  notes             String?
-  status            ShipmentStatus
-  receivedAt        DateTime          @default(now())
-  archivedAt        DateTime?
-  updatedAt         DateTime          @updatedAt
-  flightId          String?
-  createdById       String?
+  id              String            @id @default(cuid())
+  awb             String            @unique
+  commodity       String
+  origin          String
+  destination     String
+  pieces          Int
+  weightKg        Float
+  volumeM3        Float?
+  specialHandling String?
+  docStatus       String            @default("Complete")
+  readiness       String            @default("Ready")
+  shipper         String
+  consignee       String
+  forwarder       String
+  ownerName       String
+  notes           String?
+  status          ShipmentStatus
+  receivedAt      DateTime          @default(now())
+  archivedAt      DateTime?
+  updatedAt       DateTime          @updatedAt
+  flightId        String?
+  createdById     String?
   customerAccountId String?
-  flight            Flight?           @relation(fields: [flightId], references: [id], onDelete: SetNull)
-  createdBy         User?             @relation("ShipmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  customerAccount   CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
-  trackingLogs      TrackingLog[]
-  documents         ShipmentDocument[]
+  flight          Flight?           @relation(fields: [flightId], references: [id], onDelete: SetNull)
+  createdBy       User?             @relation("ShipmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  customerAccount CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
+  trackingLogs    TrackingLog[]
+  documents       ShipmentDocument[]
 }
 
 model TrackingLog {
