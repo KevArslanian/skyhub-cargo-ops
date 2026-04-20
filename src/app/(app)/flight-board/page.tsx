@@ -61,6 +61,8 @@ type FlightBoardPayload = {
   }[];
 };
 
+type FlightRow = FlightBoardPayload["flights"][number];
+
 const blankForm = {
   flightNumber: "",
   aircraftType: "",
@@ -75,6 +77,30 @@ const blankForm = {
   imageUrl: "",
 };
 
+function createFlightDraft(flight: FlightRow | null) {
+  if (!flight) {
+    return { ...blankForm };
+  }
+
+  return {
+    flightNumber: flight.flightNumber,
+    aircraftType: flight.aircraftType,
+    origin: flight.origin,
+    destination: flight.destination,
+    departureTime: flight.departureTime.slice(0, 16),
+    arrivalTime: flight.arrivalTime.slice(0, 16),
+    cargoCutoffTime: flight.cargoCutoffTime.slice(0, 16),
+    status: flight.status,
+    gate: flight.gate || "",
+    remarks: flight.remarks || "",
+    imageUrl: flight.imageUrl || "",
+  };
+}
+
+function filterFlightsByDate(flights: FlightRow[], date: string) {
+  return flights.filter((flight) => flight.departureTime.slice(0, 10) === date);
+}
+
 export default function FlightBoardPage() {
   const [status, setStatus] = useState("all");
   const [query, setQuery] = useState("");
@@ -85,45 +111,63 @@ export default function FlightBoardPage() {
   const [saving, setSaving] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState(blankForm);
-  const [editDraft, setEditDraft] = useState(blankForm);
+  const [createForm, setCreateForm] = useState(() => ({ ...blankForm }));
+  const [editDraft, setEditDraft] = useState(() => ({ ...blankForm }));
   const [notice, setNotice] = useState("");
 
-  const loadFlightBoard = useCallback(async () => {
+  const applyFlightBoardPayload = useCallback(
+    (payload: FlightBoardPayload, nextDate = date, preferredFlightId = selectedFlightId) => {
+      const visibleFlights = filterFlightsByDate(payload.flights, nextDate);
+      const nextSelectedFlight =
+        visibleFlights.find((flight) => flight.id === preferredFlightId) ?? visibleFlights[0] ?? null;
+
+      setData(payload);
+      setLastUpdated(new Date().toISOString());
+      setSelectedFlightId(nextSelectedFlight?.id ?? null);
+      setEditDraft(createFlightDraft(nextSelectedFlight));
+    },
+    [date, selectedFlightId],
+  );
+
+  const requestFlightBoard = useCallback(async () => {
     const params = new URLSearchParams();
     if (status !== "all") params.set("status", status);
     if (query.trim()) params.set("query", query.trim());
     const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
-    if (!response.ok) return;
+    if (!response.ok) return null;
 
-    const payload = (await response.json()) as FlightBoardPayload;
-    setData(payload);
-    setLastUpdated(new Date().toISOString());
-    setSelectedFlightId((current) => current ?? payload.flights[0]?.id ?? null);
+    return (await response.json()) as FlightBoardPayload;
   }, [query, status]);
 
-  useEffect(() => {
-    void loadFlightBoard();
-  }, [loadFlightBoard]);
+  const loadFlightBoard = useCallback(
+    async (options?: { preferredDate?: string; preferredFlightId?: string | null }) => {
+      const payload = await requestFlightBoard();
+      if (!payload) return;
+
+      applyFlightBoardPayload(
+        payload,
+        options?.preferredDate ?? date,
+        options?.preferredFlightId ?? selectedFlightId,
+      );
+    },
+    [applyFlightBoardPayload, date, requestFlightBoard, selectedFlightId],
+  );
 
   useEffect(() => {
-    const selectedFlight = data?.flights.find((flight) => flight.id === selectedFlightId);
-    if (!selectedFlight) return;
+    let cancelled = false;
 
-    setEditDraft({
-      flightNumber: selectedFlight.flightNumber,
-      aircraftType: selectedFlight.aircraftType,
-      origin: selectedFlight.origin,
-      destination: selectedFlight.destination,
-      departureTime: selectedFlight.departureTime.slice(0, 16),
-      arrivalTime: selectedFlight.arrivalTime.slice(0, 16),
-      cargoCutoffTime: selectedFlight.cargoCutoffTime.slice(0, 16),
-      status: selectedFlight.status,
-      gate: selectedFlight.gate || "",
-      remarks: selectedFlight.remarks || "",
-      imageUrl: selectedFlight.imageUrl || "",
+    void requestFlightBoard().then((payload) => {
+      if (!payload || cancelled) {
+        return;
+      }
+
+      applyFlightBoardPayload(payload);
     });
-  }, [data?.flights, selectedFlightId]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyFlightBoardPayload, requestFlightBoard]);
 
   useEffect(() => {
     if (!notice) return;
@@ -133,14 +177,40 @@ export default function FlightBoardPage() {
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadFlightBoard();
-    setRefreshing(false);
+    try {
+      await loadFlightBoard();
+    } finally {
+      setRefreshing(false);
+    }
   }
 
+  const handleSelectFlight = useCallback(
+    (flightId: string) => {
+      const nextFlight = (data?.flights ?? []).find((flight) => flight.id === flightId) ?? null;
+      setSelectedFlightId(flightId);
+      setEditDraft(createFlightDraft(nextFlight));
+    },
+    [data?.flights],
+  );
+
+  const handleDateChange = useCallback(
+    (nextDate: string) => {
+      setDate(nextDate);
+      const visibleFlights = filterFlightsByDate(data?.flights ?? [], nextDate);
+      const nextSelectedFlight =
+        visibleFlights.find((flight) => flight.id === selectedFlightId) ?? visibleFlights[0] ?? null;
+
+      setSelectedFlightId(nextSelectedFlight?.id ?? null);
+      setEditDraft(createFlightDraft(nextSelectedFlight));
+    },
+    [data?.flights, selectedFlightId],
+  );
+
   function handleResetFilters() {
+    const nextDate = new Date().toISOString().slice(0, 10);
     setStatus("all");
     setQuery("");
-    setDate(new Date().toISOString().slice(0, 10));
+    handleDateChange(nextDate);
   }
 
   function toIso(value: string) {
@@ -167,7 +237,7 @@ export default function FlightBoardPage() {
 
     if (response.ok) {
       setCreateOpen(false);
-      setCreateForm(blankForm);
+      setCreateForm({ ...blankForm });
       setNotice("Flight berhasil dibuat.");
       await loadFlightBoard();
     }
@@ -218,10 +288,10 @@ export default function FlightBoardPage() {
 
   const visibleFlights = useMemo(() => {
     if (!data) return [];
-    return data.flights.filter((flight) => flight.departureTime.slice(0, 10) === date);
+    return filterFlightsByDate(data.flights, date);
   }, [data, date]);
 
-  const selectedFlight = visibleFlights.find((flight) => flight.id === selectedFlightId) ?? visibleFlights[0] ?? null;
+  const selectedFlight = visibleFlights.find((flight) => flight.id === selectedFlightId) ?? null;
   const nearCutoff = visibleFlights.filter((flight) => flight.status !== "departed").slice(0, 3);
 
   return (
@@ -278,7 +348,7 @@ export default function FlightBoardPage() {
           <label className="label">Tanggal</label>
           <div className="relative">
             <CalendarDays className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
-            <input type="date" className="input-field input-field-leading" value={date} onChange={(event) => setDate(event.target.value)} />
+            <input type="date" className="input-field input-field-leading" value={date} onChange={(event) => handleDateChange(event.target.value)} />
           </div>
         </div>
       </FilterBar>
@@ -296,7 +366,7 @@ export default function FlightBoardPage() {
               key={flight.id}
               type="button"
               className="ops-panel overflow-hidden text-left"
-              onClick={() => setSelectedFlightId(flight.id)}
+              onClick={() => handleSelectFlight(flight.id)}
             >
               <div className="relative h-44 overflow-hidden border-b border-[color:var(--border-soft)]">
                 <Image
@@ -373,7 +443,7 @@ export default function FlightBoardPage() {
                   visibleFlights.map((flight) => (
                     <tr
                       key={flight.id}
-                      onClick={() => setSelectedFlightId(flight.id)}
+                      onClick={() => handleSelectFlight(flight.id)}
                       className={selectedFlight?.id === flight.id ? "bg-[color:var(--brand-primary-soft)]" : "cursor-pointer"}
                     >
                       <td>

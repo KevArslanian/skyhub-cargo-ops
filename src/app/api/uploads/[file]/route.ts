@@ -22,25 +22,19 @@ function inferMimeType(fileName: string) {
 export async function GET(_request: Request, context: RouteContext<"/api/uploads/[file]">) {
   const { file } = await context.params;
   const safeFileName = path.basename(file);
+  const candidate = path.join("/tmp", "skyhub-uploads", safeFileName);
 
-  const candidates = [
-    path.join("/tmp", "skyhub-uploads", safeFileName),
-    path.join(/* turbopackIgnore: true */ process.cwd(), "public", "uploads", safeFileName),
-  ];
-
-  for (const candidate of candidates) {
-    try {
-      const content = await readFile(candidate);
-      return new Response(content, {
-        headers: {
-          "Cache-Control": "no-store",
-          "Content-Disposition": `inline; filename="${safeFileName}"`,
-          "Content-Type": inferMimeType(safeFileName),
-        },
-      });
-    } catch {
-      // Try the next candidate path.
-    }
+  try {
+    const content = await readFile(candidate);
+    return new Response(content, {
+      headers: {
+        "Cache-Control": "no-store",
+        "Content-Disposition": `inline; filename="${safeFileName}"`,
+        "Content-Type": inferMimeType(safeFileName),
+      },
+    });
+  } catch {
+    // Fall through to the not-found response.
   }
 
   return NextResponse.json({ error: "File tidak ditemukan." }, { status: 404 });

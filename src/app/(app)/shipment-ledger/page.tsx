@@ -85,6 +85,18 @@ type LedgerPayload = {
   customerAccounts: { id: string; name: string; code: string }[];
 };
 
+function createDrawerDraft(shipment: ShipmentRow | null) {
+  return {
+    status: shipment?.status ?? "received",
+    ownerName: shipment?.ownerName ?? "",
+    notes: shipment?.notes ?? "",
+    flightId: shipment?.flightId || "",
+    customerAccountId: shipment?.customerAccountId || "",
+    docStatus: shipment?.docStatus ?? "Complete",
+    readiness: shipment?.readiness ?? "Ready",
+  };
+}
+
 const blankForm = {
   awb: "",
   commodity: "",
@@ -115,19 +127,25 @@ export default function ShipmentLedgerPage() {
   const [saving, setSaving] = useState(false);
   const [actionNotice, setActionNotice] = useState<string>("");
   const [form, setForm] = useState(blankForm);
-  const [drawerDraft, setDrawerDraft] = useState({
-    status: "received",
-    ownerName: "",
-    notes: "",
-    flightId: "",
-    customerAccountId: "",
-    docStatus: "Complete",
-    readiness: "Ready",
-  });
+  const [drawerDraft, setDrawerDraft] = useState(() => createDrawerDraft(null));
 
   const deferredQuery = useDeferredValue(query);
 
-  const loadShipments = useCallback(async () => {
+  const applyShipmentPayload = useCallback(
+    (payload: LedgerPayload, preferredShipmentId = selectedId) => {
+      const nextSelectedShipment =
+        payload.shipments.find((shipment) => shipment.id === preferredShipmentId) ?? payload.shipments[0] ?? null;
+
+      startTransition(() => {
+        setData(payload);
+        setSelectedId(nextSelectedShipment?.id ?? null);
+        setDrawerDraft(createDrawerDraft(nextSelectedShipment));
+      });
+    },
+    [selectedId],
+  );
+
+  const requestShipments = useCallback(async () => {
     const params = new URLSearchParams();
     if (deferredQuery.trim()) params.set("query", deferredQuery.trim());
     if (status !== "all") params.set("status", status);
@@ -135,37 +153,36 @@ export default function ShipmentLedgerPage() {
     if (sortBy) params.set("sortBy", sortBy);
 
     const response = await fetch(`/api/shipments?${params.toString()}`, { cache: "no-store" });
-    if (!response.ok) return;
+    if (!response.ok) return null;
 
-    const payload = (await response.json()) as LedgerPayload;
-    startTransition(() => {
-      setData(payload);
-      const nextSelected =
-        payload.shipments.find((shipment) => shipment.id === selectedId)?.id ??
-        payload.shipments[0]?.id ??
-        null;
-      setSelectedId(nextSelected);
-    });
-  }, [deferredQuery, flight, selectedId, sortBy, status]);
+    return (await response.json()) as LedgerPayload;
+  }, [deferredQuery, flight, sortBy, status]);
 
-  useEffect(() => {
-    void loadShipments();
-  }, [loadShipments]);
+  const loadShipments = useCallback(
+    async (preferredShipmentId = selectedId) => {
+      const payload = await requestShipments();
+      if (!payload) return;
+
+      applyShipmentPayload(payload, preferredShipmentId);
+    },
+    [applyShipmentPayload, requestShipments, selectedId],
+  );
 
   useEffect(() => {
-    const selectedShipment = data?.shipments.find((shipment) => shipment.id === selectedId);
-    if (!selectedShipment) return;
+    let cancelled = false;
 
-    setDrawerDraft({
-      status: selectedShipment.status,
-      ownerName: selectedShipment.ownerName,
-      notes: selectedShipment.notes,
-      flightId: selectedShipment.flightId || "",
-      customerAccountId: selectedShipment.customerAccountId || "",
-      docStatus: selectedShipment.docStatus,
-      readiness: selectedShipment.readiness,
+    void requestShipments().then((payload) => {
+      if (!payload || cancelled) {
+        return;
+      }
+
+      applyShipmentPayload(payload);
     });
-  }, [data?.shipments, selectedId]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyShipmentPayload, requestShipments]);
 
   useEffect(() => {
     if (!actionNotice) return;
@@ -176,6 +193,15 @@ export default function ShipmentLedgerPage() {
   const selectedShipment = useMemo(
     () => data?.shipments.find((shipment) => shipment.id === selectedId) ?? null,
     [data, selectedId],
+  );
+
+  const handleSelectShipment = useCallback(
+    (shipmentId: string) => {
+      const nextShipment = (data?.shipments ?? []).find((shipment) => shipment.id === shipmentId) ?? null;
+      setSelectedId(shipmentId);
+      setDrawerDraft(createDrawerDraft(nextShipment));
+    },
+    [data?.shipments],
   );
 
   const totalWeight = useMemo(
@@ -211,7 +237,7 @@ export default function ShipmentLedgerPage() {
 
     if (response.ok) {
       setCreateOpen(false);
-      setForm(blankForm);
+      setForm({ ...blankForm });
       setActionNotice("Shipment berhasil dibuat.");
       await loadShipments();
     }
@@ -385,7 +411,7 @@ export default function ShipmentLedgerPage() {
                   (data?.shipments ?? []).map((shipment) => (
                     <tr
                       key={shipment.id}
-                      onClick={() => setSelectedId(shipment.id)}
+                      onClick={() => handleSelectShipment(shipment.id)}
                       className={selectedShipment?.id === shipment.id ? "bg-[color:var(--brand-primary-soft)]" : "cursor-pointer"}
                     >
                       <td className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{shipment.awb}</td>

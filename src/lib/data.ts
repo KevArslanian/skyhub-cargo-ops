@@ -219,24 +219,25 @@ function ensureAdmin(user: AccessUser) {
   }
 }
 
-function getUserFilters(user: AccessUser) {
+function getUserFilters(user: AccessUser): Pick<Prisma.UserFindManyArgs, "where" | "orderBy"> {
+  const orderBy: Prisma.UserFindManyArgs["orderBy"] = { createdAt: "asc" };
+
   if (user.role === "customer") {
     return {
       where: { id: user.id },
-      orderBy: { createdAt: "asc" as const },
+      orderBy,
     };
   }
 
   if (canManageUsers(user)) {
     return {
-      where: {},
-      orderBy: { createdAt: "asc" as const },
+      orderBy,
     };
   }
 
   return {
     where: { id: user.id },
-    orderBy: { createdAt: "asc" as const },
+    orderBy,
   };
 }
 

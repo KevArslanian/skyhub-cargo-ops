@@ -160,21 +160,45 @@ export default function DashboardPage() {
     refreshIntervalSeconds: 5,
   });
 
-  const loadDashboard = useCallback(async () => {
+  const requestDashboard = useCallback(async () => {
     const response = await fetch("/api/dashboard", { cache: "no-store" });
     if (!response.ok) {
-      return;
+      return null;
     }
 
-    const payload = (await response.json()) as DashboardData;
+    return (await response.json()) as DashboardData;
+  }, []);
+
+  const applyDashboardPayload = useCallback((payload: DashboardData) => {
     setData(payload);
     setLoading(false);
     setLastUpdated(new Date().toISOString());
   }, []);
 
+  const loadDashboard = useCallback(async () => {
+    const payload = await requestDashboard();
+    if (!payload) {
+      return;
+    }
+
+    applyDashboardPayload(payload);
+  }, [applyDashboardPayload, requestDashboard]);
+
   useEffect(() => {
-    void loadDashboard();
-  }, [loadDashboard]);
+    let cancelled = false;
+
+    void requestDashboard().then((payload) => {
+      if (!payload || cancelled) {
+        return;
+      }
+
+      applyDashboardPayload(payload);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyDashboardPayload, requestDashboard]);
 
   useEffect(() => {
     async function loadSettings() {
@@ -203,8 +227,11 @@ export default function DashboardPage() {
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadDashboard();
-    setRefreshing(false);
+    try {
+      await loadDashboard();
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   const isInShift = useMemo(() => {
