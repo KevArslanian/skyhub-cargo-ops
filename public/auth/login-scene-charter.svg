@@ -1,0 +1,58 @@
+<svg width="1600" height="960" viewBox="0 0 1600 960" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="86" y1="86" x2="1514" y2="890" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#12161F"/>
+      <stop offset="0.48" stop-color="#3D4654"/>
+      <stop offset="1" stop-color="#D8B88B"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1240 816) rotate(-125.438) scale(438.908 613.961)">
+      <stop stop-color="#F6D2A4" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#F6D2A4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wing" x1="940" y1="52" x2="764" y2="560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#191E26"/>
+      <stop offset="1" stop-color="#161D28" stop-opacity="0.82"/>
+    </linearGradient>
+    <linearGradient id="sea" x1="0" y1="760" x2="1600" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1C2230"/>
+      <stop offset="1" stop-color="#795F4A"/>
+    </linearGradient>
+    <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse">
+      <path d="M80 0H0V80" stroke="white" stroke-opacity="0.06"/>
+    </pattern>
+    <filter id="blurGlow" x="1007.17" y="520.171" width="480" height="419.658" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feGaussianBlur stdDeviation="46" result="effect1_foregroundBlur_1_1"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="960" fill="url(#bg)"/>
+  <rect width="1600" height="960" fill="url(#grid)"/>
+  <rect width="1600" height="960" fill="url(#sun)"/>
+
+  <path d="M60 694C233 648 340 617 450 561C575 497 653 423 724 327C777 257 817 187 862 52H1000C994 93 983 139 963 200C930 300 879 386 804 456C711 541 592 602 425 657C315 693 211 721 72 748L60 694Z" fill="url(#wing)"/>
+  <path d="M859 56L1007 56C991 178 962 271 915 361C878 432 825 496 757 558L629 620C712 540 770 464 814 380C856 299 831 169 859 56Z" fill="#0F141E" fill-opacity="0.76"/>
+  <path d="M0 760H1600V960H0V760Z" fill="url(#sea)"/>
+  <path d="M0 788C197 774 359 770 488 776C673 784 839 804 1032 802C1227 800 1416 771 1600 739V960H0V788Z" fill="#111722" fill-opacity="0.24"/>
+
+  <g opacity="0.7">
+    <rect x="118" y="104" width="140" height="18" rx="9" fill="white" fill-opacity="0.11"/>
+    <rect x="312" y="104" width="86" height="10" rx="5" fill="white" fill-opacity="0.18"/>
+    <rect x="422" y="104" width="86" height="10" rx="5" fill="white" fill-opacity="0.14"/>
+    <rect x="532" y="104" width="86" height="10" rx="5" fill="white" fill-opacity="0.14"/>
+    <rect x="642" y="104" width="86" height="10" rx="5" fill="white" fill-opacity="0.14"/>
+    <rect x="1238" y="100" width="126" height="26" rx="13" stroke="white" stroke-opacity="0.38"/>
+    <circle cx="1175" cy="112" r="12" stroke="white" stroke-opacity="0.34"/>
+  </g>
+
+  <g opacity="0.88">
+    <rect x="118" y="682" width="184" height="14" rx="7" fill="white" fill-opacity="0.16"/>
+    <rect x="1310" y="682" width="170" height="14" rx="7" fill="white" fill-opacity="0.16"/>
+    <path d="M313 689H1285" stroke="white" stroke-opacity="0.28" stroke-width="2"/>
+  </g>
+
+  <g filter="url(#blurGlow)">
+    <ellipse cx="1247.17" cy="730" rx="148" ry="89.8291" fill="#F9DDB8"/>
+  </g>
+</svg>

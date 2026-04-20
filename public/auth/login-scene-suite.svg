@@ -1,0 +1,60 @@
+<svg width="1600" height="960" viewBox="0 0 1600 960" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="leftBg" x1="0" y1="0" x2="812" y2="960" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1F2631"/>
+      <stop offset="1" stop-color="#734930"/>
+    </linearGradient>
+    <linearGradient id="rightBg" x1="812" y1="0" x2="1600" y2="960" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#46362C"/>
+      <stop offset="1" stop-color="#171A21"/>
+    </linearGradient>
+    <radialGradient id="leftGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(252 338) rotate(57.9953) scale(331.598 301.871)">
+      <stop stop-color="#D69256" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#D69256" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rightGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1215 310) rotate(52.3702) scale(412.467 372.771)">
+      <stop stop-color="#9C795D" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#9C795D" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="brick" width="96" height="48" patternUnits="userSpaceOnUse">
+      <path d="M0 1H96" stroke="#E38D56" stroke-opacity="0.34"/>
+      <path d="M0 47H96" stroke="#E38D56" stroke-opacity="0.34"/>
+      <path d="M0 0V48" stroke="#E38D56" stroke-opacity="0.22"/>
+      <path d="M48 0V48" stroke="#E38D56" stroke-opacity="0.22"/>
+      <path d="M24 24H72" stroke="#E38D56" stroke-opacity="0.18"/>
+    </pattern>
+  </defs>
+
+  <rect width="812" height="960" fill="url(#leftBg)"/>
+  <rect x="812" width="788" height="960" fill="url(#rightBg)"/>
+  <rect width="812" height="960" fill="url(#leftGlow)"/>
+  <rect x="812" width="788" height="960" fill="url(#rightGlow)"/>
+  <rect width="812" height="960" fill="url(#brick)" opacity="0.34"/>
+  <path d="M812 0V960" stroke="rgba(255,255,255,0.14)" stroke-width="2"/>
+
+  <rect x="128" y="92" width="552" height="114" rx="28" fill="white" fill-opacity="0.06"/>
+  <rect x="160" y="124" width="152" height="22" rx="11" fill="white" fill-opacity="0.14"/>
+  <rect x="332" y="124" width="212" height="12" rx="6" fill="white" fill-opacity="0.1"/>
+
+  <ellipse cx="312" cy="474" rx="154" ry="170" fill="#201C22" fill-opacity="0.62"/>
+  <path d="M226 636C237 565 255 507 280 462C301 423 335 396 374 387C408 380 444 385 476 399L518 418C466 468 439 541 438 636H226Z" fill="#111720" fill-opacity="0.9"/>
+  <path d="M308 329C350 329 384 364 384 409C384 450 352 482 312 482C272 482 240 450 240 409C240 364 274 329 308 329Z" fill="#D2B49B" fill-opacity="0.88"/>
+  <path d="M257 392C276 344 301 321 333 321C365 321 392 348 404 399C373 386 345 380 320 381C295 383 274 386 257 392Z" fill="#2C1F1A"/>
+  <circle cx="286" cy="404" r="9" stroke="#BFD3E7" stroke-width="4"/>
+  <circle cx="335" cy="404" r="9" stroke="#BFD3E7" stroke-width="4"/>
+  <path d="M294 404H327" stroke="#BFD3E7" stroke-width="3"/>
+  <path d="M196 744H584" stroke="#A66A43" stroke-opacity="0.64" stroke-width="3"/>
+
+  <path d="M1042 170C1088 106 1148 74 1217 74C1286 74 1346 106 1392 170L1442 240V706H992V240L1042 170Z" fill="#3A2D26" fill-opacity="0.7"/>
+  <path d="M1076 210C1108 162 1154 138 1217 138C1280 138 1326 162 1358 210L1385 250V650H1049V250L1076 210Z" fill="#211C1D" fill-opacity="0.88"/>
+  <rect x="1146" y="300" width="142" height="198" rx="16" fill="#8EA2A5" fill-opacity="0.44" stroke="#C8D4D1" stroke-opacity="0.45"/>
+  <path d="M1146 450C1180 418 1228 407 1288 418V498H1146V450Z" fill="#728E93" fill-opacity="0.66"/>
+  <path d="M1336 592C1373 592 1402 621 1402 658C1402 695 1373 724 1336 724H1295V592H1336Z" fill="#3E563E"/>
+  <path d="M1295 725C1277 671 1277 627 1295 592L1238 640L1241 707L1295 725Z" fill="#5A7656"/>
+  <path d="M1127 640C1127 600 1159 568 1199 568H1205V727H1199C1159 727 1127 695 1127 655V640Z" fill="#8D7A64"/>
+  <path d="M1090 585H1345" stroke="#99806A" stroke-opacity="0.35" stroke-width="3"/>
+  <circle cx="1217" cy="108" r="34" stroke="#A68C74" stroke-opacity="0.45" stroke-width="4"/>
+
+  <rect x="102" y="696" width="610" height="158" fill="url(#leftGlow)" fill-opacity="0.12"/>
+  <rect x="924" y="710" width="570" height="126" fill="url(#rightGlow)" fill-opacity="0.12"/>
+</svg>
