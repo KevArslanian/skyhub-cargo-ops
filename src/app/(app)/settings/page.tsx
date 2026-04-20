@@ -414,8 +414,8 @@ export default function SettingsPage() {
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
-        <OpsPanel className="p-4">
+      <div className="settings-layout grid gap-6 xl:grid-cols-[268px_minmax(0,1fr)]">
+        <OpsPanel className="settings-tab-rail p-4">
           <div className="space-y-3">
             {tabGroups.map((group) => (
               <div key={group.id} className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 py-3">
@@ -467,7 +467,7 @@ export default function SettingsPage() {
           </div>
         </OpsPanel>
 
-        <div className="space-y-6">
+        <div className="settings-content-scroll space-y-6">
           {activeTab === "Profile" ? (
             <div className="space-y-5">
               <div>

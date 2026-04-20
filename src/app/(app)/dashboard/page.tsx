@@ -307,7 +307,7 @@ export default function DashboardPage() {
           />
 
           <div className="dashboard-split mt-4">
-            <div className="dashboard-table-scroll table-shell">
+            <div className="dashboard-table-scroll ops-table-scroll ops-table-sticky table-shell">
               <table className="data-table">
                 <thead>
                   <tr>

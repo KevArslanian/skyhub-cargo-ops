@@ -17,7 +17,7 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <header className={cn("flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between", className)}>
+    <header className={cn("ops-page-header flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between", className)}>
       <div className="space-y-2">
         {eyebrow ? <p className="ops-eyebrow">{eyebrow}</p> : null}
         <h1 className="page-title">{title}</h1>

@@ -43,6 +43,8 @@ export default function AwbTrackingPage() {
   const searchParams = useSearchParams();
   const awbFromQuery = searchParams.get("awb") || "";
   const [awb, setAwb] = useState(awbFromQuery);
+  const [inputDirty, setInputDirty] = useState(false);
+  const awbInputValue = inputDirty ? awb : awbFromQuery;
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
@@ -56,10 +58,6 @@ export default function AwbTrackingPage() {
       .then((payload) => setRecentSearches(payload.searches || []))
       .catch(() => undefined);
   }, []);
-
-  useEffect(() => {
-    setAwb(awbFromQuery);
-  }, [awbFromQuery]);
 
   useEffect(() => {
     fetchRecentSearches();
@@ -108,6 +106,7 @@ export default function AwbTrackingPage() {
       return;
     }
     setError("");
+    setInputDirty(false);
     router.push(`/awb-tracking?awb=${encodeURIComponent(awb.trim())}`);
   }
 
@@ -138,7 +137,7 @@ export default function AwbTrackingPage() {
         subtitle="Input AWB, tampilkan timestamp pada setiap status wajib, dan gunakan state human-friendly saat data belum ditemukan."
       />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_320px]">
         <OpsPanel className="p-5">
           <SectionHeader title="AWB Lookup" subtitle="Query canonical memakai parameter `?awb=` agar hasil dapat dibagikan ulang dengan link yang sama." />
           <form onSubmit={handleSubmit} className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -146,7 +145,15 @@ export default function AwbTrackingPage() {
               <label className="label">Nomor AWB</label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
-                <input value={awb} onChange={(event) => setAwb(event.target.value)} className="input-field input-field-leading" placeholder="160-12345678" />
+                <input
+                  value={awbInputValue}
+                  onChange={(event) => {
+                    setAwb(event.target.value);
+                    setInputDirty(true);
+                  }}
+                  className="input-field input-field-leading"
+                  placeholder="160-12345678"
+                />
               </div>
               {error ? <p className="mt-2 text-sm text-[color:var(--tone-warning)]">{error}</p> : null}
             </div>
@@ -177,7 +184,7 @@ export default function AwbTrackingPage() {
           ) : null}
         </OpsPanel>
 
-        <OpsPanel className="p-5">
+        <OpsPanel className="ops-pane-scroll p-5">
           <SectionHeader title="Recent Searches" subtitle="Riwayat pencarian AWB operator aktif." />
           <div className="mt-5 space-y-3">
             {recentSearches.length ? (
@@ -257,7 +264,7 @@ export default function AwbTrackingPage() {
               ))}
             </div>
 
-            <div className="mt-8 space-y-4">
+            <div className="ops-pane-scroll mt-8 space-y-4">
               {shipment.trackingLogs.map((log, index) => (
                 <div key={log.id} className="grid grid-cols-[32px_1fr] gap-4">
                   <div className="flex flex-col items-center">

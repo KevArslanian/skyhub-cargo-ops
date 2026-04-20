@@ -31,6 +31,7 @@ export function StatusBadge({
 }) {
   return (
     <span
+      aria-label={label ?? value}
       className={cn(
         "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold uppercase tracking-[0.12em]",
         toneMap[value.toLowerCase()] || "border-[color:var(--border-strong)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)]",
