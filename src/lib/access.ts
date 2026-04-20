@@ -233,7 +233,13 @@ export function scopeFlightWhere(): Prisma.FlightWhereInput {
 
 export function scopeCustomerAccountWhere(user: AccessUser): Prisma.CustomerAccountWhereInput {
   if (user.role === "customer") {
-    return { id: assertCustomerAccountActive(user) };
+    const customerAccountId = assertCustomerAccountActive(user);
+
+    if (!customerAccountId) {
+      throw new AccessError("Akun pelanggan tidak aktif atau belum terhubung.", 403, "CUSTOMER_ACCOUNT_INACTIVE");
+    }
+
+    return { id: customerAccountId };
   }
 
   if (canManageCustomerAccounts(user)) {
