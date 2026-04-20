@@ -15,7 +15,14 @@ export type AccessUser = {
 };
 
 export type NavigationItem = {
-  href: string;
+  href:
+    | "/dashboard"
+    | "/shipment-ledger"
+    | "/awb-tracking"
+    | "/flight-board"
+    | "/activity-log"
+    | "/reports"
+    | "/settings";
   label: string;
   hint: string;
   groupId: "operasional" | "pemantauan" | "sistem";
