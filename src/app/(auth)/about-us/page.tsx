@@ -1,4 +1,4 @@
-import { ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import {
   COMPANY_ABOUT_COPY,
@@ -63,16 +63,6 @@ export default function AboutUsPage() {
                       <p className="text-sm leading-7 text-[#5e6676]">{item}</p>
                     </div>
                   ))}
-                </div>
-
-                <div className="mt-5 rounded-[20px] border border-[#d8ccba] bg-[#17315f] px-4 py-4 text-white">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck size={16} className="text-white/82" />
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/62">Portal Auth</p>
-                  </div>
-                  <p className="mt-3 text-sm leading-7 text-white/86">
-                    Halaman login dipisahkan khusus untuk autentikasi agar proses masuk tetap cepat dan fokus.
-                  </p>
                 </div>
 
                 <form action="/api/auth/intro" method="POST" className="mt-5">
