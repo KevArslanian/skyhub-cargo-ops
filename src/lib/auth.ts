@@ -1,13 +1,19 @@
 import { SignJWT, jwtVerify } from "jose";
 import type { Prisma, UserRole } from "@prisma/client";
 import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "./prisma";
+import { AUTH_BYPASS_ENABLED } from "./runtime-flags";
+import { assertRequiredServerEnv, readRequiredServerEnv } from "./server-env";
 
 export const SESSION_COOKIE = "ep_session";
 export const INTRO_COOKIE = "ep_intro_seen";
 
-const secret = new TextEncoder().encode(process.env.SESSION_SECRET || "dev-secret-ekspedisi-petir");
+assertRequiredServerEnv();
+
+const secret = new TextEncoder().encode(readRequiredServerEnv("SESSION_SECRET"));
+const CAPTURE_ROLE_HEADER = "x-skyhub-capture-role";
 
 export type SessionPayload = {
   userId: string;
@@ -27,6 +33,93 @@ export type CurrentUser = Prisma.UserGetPayload<{
     };
   };
 }>;
+
+async function resolveCaptureRoleOverride(): Promise<UserRole | null> {
+  if (!AUTH_BYPASS_ENABLED) {
+    return null;
+  }
+
+  const headerStore = await headers();
+  const role = headerStore.get(CAPTURE_ROLE_HEADER)?.trim().toLowerCase();
+
+  if (role === "admin" || role === "staff" || role === "customer") {
+    return role;
+  }
+
+  return null;
+}
+
+async function getBypassUser(preferredRole?: UserRole | null): Promise<CurrentUser | null> {
+  if (preferredRole) {
+    const scopedPreferred = await db.user.findFirst({
+      where: {
+        status: "active",
+        role: preferredRole,
+        ...(preferredRole === "customer"
+          ? {
+              customerAccount: {
+                is: {
+                  status: "active",
+                },
+              },
+            }
+          : {}),
+      },
+      orderBy: { createdAt: "asc" },
+      include: {
+        settings: true,
+        customerAccount: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (scopedPreferred) {
+      return scopedPreferred;
+    }
+  }
+
+  const preferredInternal = await db.user.findFirst({
+    where: {
+      status: "active",
+      role: { in: ["admin", "staff"] },
+    },
+    orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+    include: {
+      settings: true,
+      customerAccount: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+        },
+      },
+    },
+  });
+
+  if (preferredInternal) {
+    return preferredInternal;
+  }
+
+  return db.user.findFirst({
+    where: { status: "active" },
+    orderBy: { createdAt: "asc" },
+    include: {
+      settings: true,
+      customerAccount: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+        },
+      },
+    },
+  });
+}
 
 function getCookieBase(maxAge?: number) {
   return {
@@ -101,9 +194,19 @@ export async function getSessionPayload() {
 }
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
+  const captureRoleOverride = await resolveCaptureRoleOverride();
+
+  if (AUTH_BYPASS_ENABLED && captureRoleOverride) {
+    return getBypassUser(captureRoleOverride);
+  }
+
   const session = await getSessionPayload();
 
   if (!session?.userId) {
+    if (AUTH_BYPASS_ENABLED) {
+      return getBypassUser(captureRoleOverride);
+    }
+
     return null;
   }
 
@@ -123,6 +226,10 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 
   if (!user || user.status !== "active") {
     await clearSessionCookie();
+    if (AUTH_BYPASS_ENABLED) {
+      return getBypassUser(captureRoleOverride);
+    }
+
     return null;
   }
 

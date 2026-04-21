@@ -1,8 +1,11 @@
 import { PrismaClient } from "@prisma/client";
+import { assertRequiredServerEnv } from "./server-env";
 
 declare global {
   var prisma: PrismaClient | undefined;
 }
+
+assertRequiredServerEnv();
 
 export const db =
   global.prisma ||

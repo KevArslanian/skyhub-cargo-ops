@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@deltaoga/skyhub-print-center':
+        specifier: github:KevArslanian/skyhub-print-center#v1.1.1
+        version: https://codeload.github.com/KevArslanian/skyhub-print-center/tar.gz/c421a7441dca8d2071b464965a7187d345b02be5(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@prisma/client':
         specifier: ^6.16.1
         version: 6.16.1(prisma@6.16.1(typescript@5.9.3))(typescript@5.9.3)
@@ -154,6 +157,13 @@ packages:
   '@babel/types@7.29.0':
     resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
     engines: {node: '>=6.9.0'}
+
+  '@deltaoga/skyhub-print-center@https://codeload.github.com/KevArslanian/skyhub-print-center/tar.gz/c421a7441dca8d2071b464965a7187d345b02be5':
+    resolution: {tarball: https://codeload.github.com/KevArslanian/skyhub-print-center/tar.gz/c421a7441dca8d2071b464965a7187d345b02be5}
+    version: 1.0.0
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
 
   '@emnapi/core@1.9.2':
     resolution: {integrity: sha512-UC+ZhH3XtczQYfOlu3lNEkdW/p4dsJ1r/bP7H8+rhao3TTTMO1ATq/4DdIi23XuGoFY+Cz0JmCbdVl0hz9jZcA==}
@@ -2497,6 +2507,11 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
+
+  '@deltaoga/skyhub-print-center@https://codeload.github.com/KevArslanian/skyhub-print-center/tar.gz/c421a7441dca8d2071b464965a7187d345b02be5(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
 
   '@emnapi/core@1.9.2':
     dependencies:

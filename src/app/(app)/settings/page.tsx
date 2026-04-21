@@ -1,6 +1,4 @@
 "use client";
-
-import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
@@ -18,6 +16,7 @@ import {
 import {
   CUSTOMER_ACCOUNT_STATUS_LABELS,
   ROLE_LABELS,
+  ROLE_SCOPE_COPY,
   STATION_OPTIONS,
   USER_STATUS_LABELS,
 } from "@/lib/constants";
@@ -240,7 +239,6 @@ function ThemePreviewCard({
 }
 
 export default function SettingsPage() {
-  const { setTheme } = useTheme();
   const [data, setData] = useState<SettingsPayload | null>(null);
   const [draft, setDraft] = useState<SettingsDraft>(() => toDraft(null));
   const [activeTab, setActiveTab] = useState("Profil");
@@ -264,6 +262,7 @@ export default function SettingsPage() {
   });
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingUserDraft, setEditingUserDraft] = useState<SettingsPayload["users"][number] | null>(null);
+  const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editingAccountDraft, setEditingAccountDraft] =
     useState<SettingsPayload["customerAccounts"][number] | null>(null);
@@ -352,10 +351,6 @@ export default function SettingsPage() {
 
   function emitSettingsPreview(patch: Partial<SettingsDraft>) {
     window.dispatchEvent(new CustomEvent("skyhub:settings-preview", { detail: patch }));
-    if (patch.theme) {
-      window.dispatchEvent(new CustomEvent("skyhub:theme-change", { detail: patch.theme }));
-      setTheme(patch.theme);
-    }
   }
 
   function applyDraftPatch(patch: Partial<SettingsDraft>) {
@@ -429,6 +424,44 @@ export default function SettingsPage() {
       setEditingUserId(null);
       setEditingUserDraft(null);
       setNotice("Pengguna berhasil diperbarui.");
+    }
+  }
+
+  async function toggleUserStatus(userRow: SettingsPayload["users"][number]) {
+    setTogglingUserId(userRow.id);
+    const nextStatus = userRow.status === "active" ? "disabled" : "active";
+
+    try {
+      const response = await fetch(`/api/users/${userRow.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: userRow.role,
+          status: nextStatus,
+          station: userRow.station,
+          customerAccountId: userRow.role === "customer" ? userRow.customerAccountId : null,
+        }),
+      });
+
+      if (response.ok) {
+        const payload = (await response.json()) as { user: SettingsPayload["users"][number] };
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                users: current.users.map((item) => (item.id === payload.user.id ? payload.user : item)),
+              }
+            : current,
+        );
+        setNotice(nextStatus === "active" ? "Akun berhasil diaktifkan." : "Akun berhasil dinonaktifkan.");
+      } else {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        setNotice(payload?.error || "Gagal memperbarui status akun.");
+      }
+    } catch {
+      setNotice("Gagal memperbarui status akun.");
+    } finally {
+      setTogglingUserId(null);
     }
   }
 
@@ -638,7 +671,16 @@ export default function SettingsPage() {
                       <p className="ops-eyebrow">Akses Workspace</p>
                       <div className="mt-4 space-y-3">
                         <DataCard label="Peran" value={ROLE_LABELS[data.profile.role]} note="Hak akses saat ini" />
-                        <DataCard label="Stasiun aktif" value={draft.station} note="Digunakan sebagai konteks default staff operasional" />
+                        <DataCard
+                          label="Hak akses peran"
+                          value={data.profile.role === "admin" ? "Manajemen penuh" : data.profile.role === "staff" ? "Operasional internal" : "Portal pelanggan"}
+                          note={ROLE_SCOPE_COPY[data.profile.role]}
+                        />
+                        <DataCard
+                          label="Stasiun aktif"
+                          value={draft.station}
+                          note={data.profile.role === "staff" ? "Digunakan sebagai konteks default staff operasional." : "Konteks stasiun untuk workspace saat ini."}
+                        />
                         <DataCard
                           label="Akun pelanggan"
                           value={data.profile.customerAccountName || "-"}
@@ -853,6 +895,24 @@ export default function SettingsPage() {
                   />
                 </div>
 
+                <div className="mt-5 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
+                  <p className="label">Batas Akses Role</p>
+                  <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                    <div className="rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3">
+                      <p className="font-semibold text-[color:var(--text-strong)]">Admin</p>
+                      <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{ROLE_SCOPE_COPY.admin}</p>
+                    </div>
+                    <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-4 py-3">
+                      <p className="font-semibold text-[color:var(--text-strong)]">Staff Operasional</p>
+                      <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{ROLE_SCOPE_COPY.staff}</p>
+                    </div>
+                    <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-4 py-3">
+                      <p className="font-semibold text-[color:var(--text-strong)]">Pelanggan</p>
+                      <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{ROLE_SCOPE_COPY.customer}</p>
+                    </div>
+                  </div>
+                </div>
+
                 {inviteOpen ? (
                   <div className="mt-5 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
                     <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr_0.9fr_0.9fr_1fr_auto]">
@@ -954,9 +1014,10 @@ export default function SettingsPage() {
                                   <option value="customer">Pelanggan</option>
                                 </select>
                               ) : (
-                                <span className="font-medium text-[color:var(--text-strong)]">
-                                  {ROLE_LABELS[user.role]}
-                                </span>
+                                <div className="space-y-1">
+                                  <p className="font-medium text-[color:var(--text-strong)]">{ROLE_LABELS[user.role]}</p>
+                                  <p className="text-xs leading-5 text-[color:var(--muted-fg)]">{ROLE_SCOPE_COPY[user.role]}</p>
+                                </div>
                               )}
                             </td>
                             <td>
@@ -1024,7 +1085,24 @@ export default function SettingsPage() {
                                   <option value="disabled">Nonaktif</option>
                                 </select>
                               ) : (
-                                <StatusBadge value={user.status} label={USER_STATUS_LABELS[user.status]} />
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <StatusBadge value={user.status} label={USER_STATUS_LABELS[user.status]} />
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary h-8 px-3 text-xs"
+                                    onClick={() => toggleUserStatus(user)}
+                                    disabled={togglingUserId === user.id || user.id === data.profile.id}
+                                  >
+                                    {togglingUserId === user.id
+                                      ? "Memproses..."
+                                      : user.status === "active"
+                                        ? "Matikan"
+                                        : "Aktifkan"}
+                                  </button>
+                                  {user.id === data.profile.id ? (
+                                    <span className="text-xs text-[color:var(--muted-2)]">Akun Anda</span>
+                                  ) : null}
+                                </div>
                               )}
                             </td>
                             <td className="text-right">

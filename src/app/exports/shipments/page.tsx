@@ -1,10 +1,18 @@
-import Script from "next/script";
 import { requireUser } from "@/lib/auth";
 import { requireInternalUser } from "@/lib/access";
 import { listShipments } from "@/lib/data";
 import { formatDateTime } from "@/lib/format";
+import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
+import { PrintCenterLayout } from "@deltaoga/skyhub-print-center/layout";
 
 export const dynamic = "force-dynamic";
+
+function getShipmentTone(status: string): PrintChipTone {
+  if (status === "hold") return "warning";
+  if (status === "arrived") return "success";
+  if (status === "loaded_to_aircraft" || status === "departed") return "info";
+  return "neutral";
+}
 
 export default async function ShipmentsPrintPage({
   searchParams,
@@ -15,6 +23,7 @@ export default async function ShipmentsPrintPage({
   requireInternalUser(user);
   const params = await searchParams;
   const data = await listShipments(user, params);
+  const printedAt = new Date();
 
   const filterSummary = [
     params.query ? `Query: ${params.query}` : null,
@@ -25,73 +34,64 @@ export default async function ShipmentsPrintPage({
     .filter(Boolean)
     .join(" | ");
 
+  const statusCounters = data.shipments.reduce<Map<string, number>>((map, shipment) => {
+    map.set(shipment.statusLabel, (map.get(shipment.statusLabel) || 0) + 1);
+    return map;
+  }, new Map<string, number>());
+
+  const distributionChips = Array.from(statusCounters.entries())
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 4)
+    .map(([label, count]) => ({ label: `${count} ${label}`, tone: "neutral" as const }));
+
   return (
-    <div className="print-shell mx-auto max-w-6xl overflow-x-hidden bg-white p-8 text-black">
-      <Script id="print-shipments">{`window.addEventListener("load", () => window.print(), { once: true });`}</Script>
-
-      <style>{`
-        @media print {
-          body {
-            background: #fff !important;
-            color: #0b1d33 !important;
-          }
-
-          .print-shell {
-            max-width: none !important;
-            padding: 0 !important;
-          }
-
-          .print-table-wrap {
-            overflow: visible !important;
-          }
-
-          .print-table {
-            min-width: 0 !important;
-            width: 100% !important;
-          }
-
-          thead { display: table-header-group; }
-          tfoot { display: table-footer-group; }
-          tr, td, th { page-break-inside: avoid; }
-        }
-      `}</style>
-
-      <header className="rounded-[18px] border border-slate-200 bg-slate-50 px-5 py-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#003d9b]">SkyHub Print Center</p>
-        <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] text-[#0b1d33]">Ledger Shipment</h1>
-        <p className="mt-2 text-sm text-slate-600">Dicetak pada {formatDateTime(new Date().toISOString())}</p>
-        <p className="mt-2 text-xs text-slate-500">{filterSummary || "Tanpa filter tambahan"}</p>
-      </header>
-
-      <section className="print-table-wrap mt-5 w-full max-w-full overflow-x-auto overflow-y-hidden rounded-[18px] border border-slate-200">
-        <table className="print-table min-w-[920px] w-full border-collapse text-sm">
+    <PrintCenterLayout
+      scriptId="print-shipments"
+      documentTitle="Ledger Shipment"
+      documentSubtitle="Manifest Shipment Operasional"
+      printedAtLabel={formatDateTime(printedAt.toISOString())}
+      filterSummary={filterSummary}
+      summaryTitle={`Ringkasan • ${data.shipments.length} shipment`}
+      summarySubtitle="Distribusi status shipment pada filter aktif."
+      summaryChips={[
+        { label: `${data.shipments.length} Total`, tone: "info" },
+        ...distributionChips,
+      ]}
+      documentCode={buildPrintDocumentCode("SHIPMENTS", printedAt)}
+    >
+      <section className="print-table-wrap">
+        <table className="print-table min-w-[980px]">
           <thead>
-            <tr className="bg-slate-100 text-slate-700">
+            <tr>
               {["AWB", "Komoditas", "Rute", "Status", "Flight", "Update"].map((header) => (
-                <th key={header} className="border-b border-slate-200 px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.12em]">
-                  {header}
-                </th>
+                <th key={header}>{header}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {data.shipments.map((shipment) => (
-              <tr key={shipment.id} className="odd:bg-white even:bg-slate-50/45">
-                <td className="border-b border-slate-200 px-3 py-2 align-top whitespace-nowrap font-mono text-xs font-semibold text-[#003d9b]">{shipment.awb}</td>
-                <td className="border-b border-slate-200 px-3 py-2 align-top break-words">{shipment.commodity}</td>
-                <td className="border-b border-slate-200 px-3 py-2 align-top whitespace-nowrap">
-                  {shipment.origin}
-                  {" -> "}
-                  {shipment.destination}
+            {data.shipments.length ? (
+              data.shipments.map((shipment) => (
+                <tr key={shipment.id}>
+                  <td className="whitespace-nowrap font-mono text-xs font-semibold text-[#1d4ed8]">{shipment.awb}</td>
+                  <td>{shipment.commodity}</td>
+                  <td className="whitespace-nowrap">{shipment.origin}{" -> "}{shipment.destination}</td>
+                  <td>
+                    <span className={`print-badge print-badge-${getShipmentTone(shipment.status)}`}>{shipment.statusLabel}</span>
+                  </td>
+                  <td className="whitespace-nowrap">{shipment.flightNumber || "-"}</td>
+                  <td className="whitespace-nowrap">{formatDateTime(shipment.updatedAt)}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">
+                  Tidak ada data shipment untuk filter ini.
                 </td>
-                <td className="border-b border-slate-200 px-3 py-2 align-top break-words">{shipment.statusLabel}</td>
-                <td className="border-b border-slate-200 px-3 py-2 align-top whitespace-nowrap">{shipment.flightNumber || "-"}</td>
-                <td className="border-b border-slate-200 px-3 py-2 align-top whitespace-nowrap">{formatDateTime(shipment.updatedAt)}</td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </section>
-    </div>
+    </PrintCenterLayout>
   );
 }

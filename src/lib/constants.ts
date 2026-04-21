@@ -26,6 +26,12 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   customer: "Pelanggan",
 };
 
+export const ROLE_SCOPE_COPY: Record<UserRole, string> = {
+  admin: "Kelola pengguna, akun pelanggan, dan seluruh modul operasional.",
+  staff: "Kelola workflow operasional harian tanpa manajemen pengguna atau akun pelanggan.",
+  customer: "Akses pelacakan AWB, cetak, dan pelaporan isu sesuai akun pelanggan.",
+};
+
 export const USER_STATUS_LABELS: Record<UserStatus, string> = {
   active: "Aktif",
   invited: "Diundang",

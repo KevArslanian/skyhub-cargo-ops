@@ -45,7 +45,8 @@
   --bg-overlay-top: rgba(255, 255, 255, 0.45);
   --bg-overlay-bottom: rgba(255, 255, 255, 0);
   --grid-line: rgba(0, 61, 155, 0.035);
-  --grid-opacity: 0.45;
+  --layout-gap: clamp(1rem, 1.25vw, 1.25rem);
+  --grid-opacity: 0;
   --shadow-soft: 0 18px 50px rgba(11, 30, 52, 0.08);
   --shadow-strong: 0 18px 40px rgba(7, 23, 46, 0.16);
   --auth-cream: #f5eee4;
@@ -89,6 +90,7 @@
   --bg-overlay-top: rgba(7, 16, 32, 0.42);
   --bg-overlay-bottom: rgba(7, 16, 32, 0);
   --grid-line: rgba(109, 167, 255, 0.07);
+  --layout-gap: clamp(0.75rem, 1vw, 1rem);
   --grid-opacity: 0.55;
   --shadow-soft: 0 18px 48px rgba(0, 0, 0, 0.28);
   --shadow-strong: 0 18px 48px rgba(0, 0, 0, 0.35);
@@ -324,6 +326,25 @@ textarea {
   color: var(--muted-fg);
 }
 
+.shell-topbar-toolbar {
+  column-gap: 12px;
+  row-gap: 16px;
+}
+
+.dark .shell-topbar-toolbar {
+  row-gap: 12px;
+}
+
+.mobile-hamburger-trigger {
+  display: none;
+}
+
+@media (any-hover: none) and (any-pointer: coarse) {
+  .mobile-hamburger-trigger {
+    display: inline-flex;
+  }
+}
+
 .ops-eyebrow {
   font-size: 0.72rem;
   font-weight: 700;
@@ -383,6 +404,39 @@ textarea {
   max-width: 100%;
 }
 
+.table-shell,
+.ops-modal-panel,
+.ops-drawer-panel,
+.ops-scrollbar,
+.ops-shell-main-scroll,
+.flightboard-editor-detail-scroll,
+.split-pane-left,
+.dashboard-table-scroll,
+.dashboard-flight-scroll,
+.dashboard-alert-scroll,
+.dashboard-activity-scroll,
+.login-hero-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.table-shell::-webkit-scrollbar,
+.ops-modal-panel::-webkit-scrollbar,
+.ops-drawer-panel::-webkit-scrollbar,
+.ops-scrollbar::-webkit-scrollbar,
+.ops-shell-main-scroll::-webkit-scrollbar,
+.flightboard-editor-detail-scroll::-webkit-scrollbar,
+.split-pane-left::-webkit-scrollbar,
+.dashboard-table-scroll::-webkit-scrollbar,
+.dashboard-flight-scroll::-webkit-scrollbar,
+.dashboard-alert-scroll::-webkit-scrollbar,
+.dashboard-activity-scroll::-webkit-scrollbar,
+.login-hero-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -420,6 +474,26 @@ textarea {
 
 .data-table tbody tr:hover {
   background: var(--brand-primary-soft);
+}
+
+.data-table tbody tr.flight-manifest-row-active td {
+  border-top-color: rgba(0, 82, 204, 0.24);
+  background: rgba(0, 82, 204, 0.1);
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+
+.data-table tbody tr.flight-manifest-row-active td:first-child {
+  padding-left: 20px;
+}
+
+.data-table tbody tr.flight-manifest-row-active td:last-child {
+  padding-right: 20px;
+}
+
+.dark .data-table tbody tr.flight-manifest-row-active td {
+  border-top-color: rgba(139, 188, 255, 0.24);
+  background: rgba(139, 188, 255, 0.11);
 }
 
 .label {
@@ -500,7 +574,7 @@ textarea {
   display: flex;
   min-height: 0;
   flex-direction: column;
-  gap: clamp(0.75rem, 1vw, 1rem);
+  gap: var(--layout-gap);
   width: 100%;
   max-width: 100%;
 }
@@ -509,10 +583,16 @@ textarea {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
   padding-right: 2px;
   padding-bottom: 12px;
+}
+
+.page-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .page-pane {
@@ -525,10 +605,53 @@ textarea {
   flex: 1 1 auto;
 }
 
+.section-stack-gap {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.25rem, 1.9vw, 1.5rem);
+}
+
+.ledger-detail-scroll {
+  padding: 16px;
+}
+
+.ledger-info-grid,
+.ledger-form-grid {
+  display: grid;
+  gap: clamp(0.75rem, 1vw, 1rem);
+  min-height: 0;
+  min-width: 0;
+}
+
+.ledger-info-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: stretch;
+}
+
+.ledger-form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: start;
+}
+
+.ledger-info-grid > *,
+.ledger-form-grid > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+.ledger-section-card,
+.flight-manifest-panel-space {
+  padding: 16px;
+}
+
+.flight-manifest-table-space {
+  margin-top: 16px;
+}
+
 .page-grid-2,
 .page-grid-3 {
   display: grid;
-  gap: 1rem;
+  gap: var(--layout-gap);
   min-height: 0;
   align-items: stretch;
   width: 100%;
@@ -536,7 +659,7 @@ textarea {
 
 .split-pane-shell {
   display: grid;
-  gap: 1rem;
+  gap: var(--layout-gap);
   min-height: 0;
   align-items: start;
   width: 100%;
@@ -719,23 +842,14 @@ textarea {
 }
 
 .ops-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .ops-scrollbar::-webkit-scrollbar {
-  width: 10px;
-}
-
-.ops-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.ops-scrollbar::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background: linear-gradient(180deg, var(--border-strong), var(--border-soft));
-  background-clip: padding-box;
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .login-shell {
@@ -834,10 +948,12 @@ input[type="checkbox"] {
   filter: invert(1) brightness(1.15);
 }
 
-.dashboard-viewport {
+.dashboard-viewport,
+.flightboard-viewport {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-height: 0;
 }
 
 .dashboard-stats,
@@ -850,8 +966,59 @@ input[type="checkbox"] {
   min-height: 0;
 }
 
+.flightboard-main,
+.flightboard-main > *,
+.flightboard-pane,
+.flightboard-pane > * {
+  min-height: 0;
+}
+
+.flightboard-editor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(1rem, 1.6vw, 1.5rem);
+  min-height: 0;
+  width: 100%;
+}
+
+.flightboard-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 14;
+  background: var(--app-bg);
+  padding-bottom: 12px;
+}
+
+.flightboard-editor-list-pane,
+.flightboard-editor-detail-pane {
+  min-width: 0;
+  min-height: 0;
+}
+
+.flightboard-editor-detail-pane {
+  overflow: visible;
+}
+
+.flightboard-editor-detail-scroll {
+  min-height: 0;
+  overflow: visible;
+  max-height: none;
+}
+
 .dashboard-panel {
   overflow: hidden;
+}
+
+.flightboard-manifest-panel {
+  overflow: visible;
+}
+
+.flightboard-manifest-scroll {
+  min-height: 240px;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior: auto;
 }
 
 .dashboard-table-scroll,
@@ -859,6 +1026,20 @@ input[type="checkbox"] {
 .dashboard-alert-scroll,
 .dashboard-activity-scroll {
   min-height: 0;
+}
+
+.activity-log-workspace {
+  min-height: 0;
+}
+
+.activity-log-panel {
+  overflow: hidden;
+}
+
+.activity-log-scroll {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .about-shell {
@@ -1342,9 +1523,21 @@ input[type="checkbox"] {
     min-height: 0;
   }
 
-  .dashboard-viewport {
+  .dashboard-viewport,
+  .flightboard-viewport {
     min-height: 0;
+    height: 100%;
     gap: 0.9rem;
+  }
+
+  .ledger-detail-scroll,
+  .ledger-section-card,
+  .flight-manifest-panel-space {
+    padding: 24px;
+  }
+
+  .flight-manifest-table-space {
+    margin-top: 24px;
   }
 
   .page-grid-2 {
@@ -1376,6 +1569,8 @@ input[type="checkbox"] {
   }
 
   .dashboard-main {
+    flex: 1;
+    min-height: 0;
     display: grid;
     grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.95fr);
     gap: 1rem;
@@ -1401,11 +1596,66 @@ input[type="checkbox"] {
     overflow: auto;
   }
 
+  .activity-log-workspace {
+    height: 100%;
+  }
+
+  .activity-log-panel {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .activity-log-scroll {
+    max-height: clamp(320px, calc(100svh - var(--shell-topbar-height) - 24rem), 680px);
+  }
+
   .dashboard-side-stack {
     display: grid;
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
     gap: 1rem;
     min-height: 0;
+  }
+
+  .flightboard-main {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .flightboard-editor-layout.flightboard-editor-layout-active {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .flightboard-editor-layout.flightboard-editor-layout-active .flightboard-editor-list-pane,
+  .flightboard-editor-layout.flightboard-editor-layout-active .flightboard-editor-detail-pane {
+    max-height: none;
+  }
+
+  .flightboard-editor-layout.flightboard-editor-layout-active .flightboard-editor-detail-pane {
+    height: calc(100svh - var(--shell-topbar-height) - 2rem);
+    max-height: calc(100svh - var(--shell-topbar-height) - 2rem);
+    overflow: hidden;
+  }
+
+  .flightboard-editor-layout.flightboard-editor-layout-active .flightboard-editor-detail-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .flightboard-pane {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .flightboard-manifest-scroll {
+    min-height: 320px;
+    max-height: none;
+    overflow-y: visible;
   }
 
   .auth-min-grid {
@@ -1528,6 +1778,18 @@ input[type="checkbox"] {
   .login-company-teaser-grid,
   .login-company-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .ledger-detail-scroll,
+  .ledger-section-card,
+  .flight-manifest-panel-space {
+    padding: 20px;
+  }
+
+  .flight-manifest-table-space {
+    margin-top: 20px;
   }
 }
 

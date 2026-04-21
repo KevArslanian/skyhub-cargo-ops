@@ -1,11 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   CalendarDays,
   Clock3,
+  FileText,
   PlaneTakeoff,
   Plus,
   RefreshCw,
@@ -14,7 +16,7 @@ import {
   TowerControl,
   X,
 } from "lucide-react";
-import { formatDateTime, formatRelativeShort } from "@/lib/format";
+import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
 import {
   AIRLINE_CODE_OPTIONS,
   buildFlightNumber,
@@ -141,8 +143,9 @@ export default function FlightBoardPage() {
   const applyFlightBoardPayload = useCallback(
     (payload: FlightBoardPayload, nextDate = date, preferredFlightId = selectedFlightId) => {
       const visibleFlights = filterFlightsByDate(payload.flights, nextDate);
-      const nextSelectedFlight =
-        visibleFlights.find((flight) => flight.id === preferredFlightId) ?? visibleFlights[0] ?? null;
+      const nextSelectedFlight = preferredFlightId
+        ? visibleFlights.find((flight) => flight.id === preferredFlightId) ?? null
+        : null;
 
       setData(payload);
       setLastUpdated(new Date().toISOString());
@@ -220,8 +223,9 @@ export default function FlightBoardPage() {
     (nextDate: string) => {
       setDate(nextDate);
       const visibleFlights = filterFlightsByDate(data?.flights ?? [], nextDate);
-      const nextSelectedFlight =
-        visibleFlights.find((flight) => flight.id === selectedFlightId) ?? visibleFlights[0] ?? null;
+      const nextSelectedFlight = selectedFlightId
+        ? visibleFlights.find((flight) => flight.id === selectedFlightId) ?? null
+        : null;
 
       setSelectedFlightId(nextSelectedFlight?.id ?? null);
       setEditDraft(createFlightDraft(nextSelectedFlight));
@@ -233,6 +237,8 @@ export default function FlightBoardPage() {
     const nextDate = new Date().toISOString().slice(0, 10);
     setStatus("all");
     setQuery("");
+    setSelectedFlightId(null);
+    setEditDraft(createFlightDraft(null));
     handleDateChange(nextDate);
   }
 
@@ -368,36 +374,49 @@ export default function FlightBoardPage() {
 
   const selectedFlight = visibleFlights.find((flight) => flight.id === selectedFlightId) ?? null;
   const nearCutoff = visibleFlights.filter((flight) => flight.status !== "departed").slice(0, 3);
+  const flightExportQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    if (status !== "all") params.set("status", status);
+    if (query.trim()) params.set("query", query.trim());
+    if (date) params.set("date", date);
+    return params.toString();
+  }, [date, query, status]);
 
   return (
-    <div className="page-workspace">
-      <PageHeader
-        eyebrow="Pemantauan Keberangkatan"
-        title="Papan Flight"
-        subtitle="Pantau cutoff, keberangkatan, dan shipment terkait dalam layout split yang tetap stabil di desktop."
-        actions={
-          <>
-            <button type="button" className="topbar-button" onClick={handleRefresh}>
-              <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
-              <span>{refreshing ? "Memuat ulang..." : "Muat ulang"}</span>
-            </button>
-            <button type="button" className="topbar-button" onClick={handleResetFilters}>
-              <RotateCcw size={16} />
-              <span>Reset</span>
-            </button>
-            {data?.permissions.canManageFlights ? (
-              <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
-                <Plus size={16} />
-                Buat Flight
+    <div className="page-workspace flightboard-viewport">
+      <div className="flightboard-header-sticky">
+        <PageHeader
+          eyebrow="Pemantauan Keberangkatan"
+          title="Papan Flight"
+          subtitle="Pantau cutoff, keberangkatan, dan shipment terkait dalam layout split yang tetap stabil di desktop."
+          actions={
+            <>
+              <Link href={`/exports/flights?${flightExportQuery}`} className="btn btn-secondary">
+                <FileText size={16} />
+                Print Flight
+              </Link>
+              <button type="button" className="topbar-button" onClick={handleRefresh}>
+                <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
+                <span>{refreshing ? "Memuat ulang..." : "Muat ulang"}</span>
               </button>
-            ) : null}
-            <div className="topbar-button hidden xl:flex">
-              <Clock3 size={16} />
-              <span>{lastUpdated ? `Update ${formatRelativeShort(lastUpdated)}` : "Menunggu data"}</span>
-            </div>
-          </>
-        }
-      />
+              <button type="button" className="topbar-button" onClick={handleResetFilters}>
+                <RotateCcw size={16} />
+                <span>Reset</span>
+              </button>
+              {data?.permissions.canManageFlights ? (
+                <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+                  <Plus size={16} />
+                  Buat Flight
+                </button>
+              ) : null}
+              <div className="topbar-button hidden xl:flex">
+                <Clock3 size={16} />
+                <span>{lastUpdated ? `Update ${formatRelativeShort(lastUpdated)}` : "Menunggu data"}</span>
+              </div>
+            </>
+          }
+        />
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
         <StatCard label="Tepat Waktu" value={data?.summary.onTime ?? 0} note="Penerbangan yang masih sesuai jadwal." icon={PlaneTakeoff} tone="success" />
@@ -504,10 +523,15 @@ export default function FlightBoardPage() {
         )}
       </div>
 
-      <div className="page-grid-2">
-        <OpsPanel className="page-pane p-5">
+      <div className={cn("flightboard-main flightboard-editor-layout", selectedFlight ? "flightboard-editor-layout-active" : null)}>
+        <OpsPanel
+          className={cn(
+            "page-pane flightboard-pane flightboard-manifest-panel flight-manifest-panel-space",
+            selectedFlight ? "flightboard-editor-list-pane" : null,
+          )}
+        >
           <SectionHeader title="Manifest Flight" subtitle="Daftar flight yang sudah difilter dan siap dipilih untuk detail lebih lanjut." />
-          <div className="page-scroll mt-5 table-shell">
+          <div className="flightboard-manifest-scroll flight-manifest-table-space table-shell">
             <table className="data-table">
               <thead>
                 <tr>
@@ -525,7 +549,7 @@ export default function FlightBoardPage() {
                     <tr
                       key={flight.id}
                       onClick={() => handleSelectFlight(flight.id)}
-                      className={selectedFlight?.id === flight.id ? "bg-[color:var(--brand-primary-soft)]" : "cursor-pointer"}
+                      className={selectedFlight?.id === flight.id ? "flight-manifest-row-active cursor-pointer" : "flight-manifest-row cursor-pointer"}
                     >
                       <td>
                         <div className="flex items-center gap-3">
@@ -565,9 +589,9 @@ export default function FlightBoardPage() {
           </div>
         </OpsPanel>
 
-        <OpsPanel className="page-pane p-5">
-          {selectedFlight ? (
-            <div className="page-scroll space-y-5">
+        {selectedFlight ? (
+          <OpsPanel className="page-pane flightboard-pane flightboard-editor-detail-pane p-5">
+            <div className="flightboard-editor-detail-scroll space-y-5">
               <div className="overflow-hidden rounded-[26px] border border-[color:var(--border-soft)]">
                 <div className="relative h-56">
                   <Image
@@ -747,10 +771,8 @@ export default function FlightBoardPage() {
                 </div>
               ) : null}
             </div>
-          ) : (
-            <EmptyState icon={PlaneTakeoff} title="Pilih Flight" copy="Klik salah satu card atau baris flight untuk melihat detail dan manifest terkait." />
-          )}
-        </OpsPanel>
+          </OpsPanel>
+        ) : null}
       </div>
 
       {createOpen ? (

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -129,11 +130,6 @@ export default function AwbTrackingPage() {
     router.push(`/awb-tracking?awb=${encodeURIComponent(awb.trim())}`);
   }
 
-  function handlePrint() {
-    if (!shipment) return;
-    window.print();
-  }
-
   async function handleReportIssue() {
     if (!awbFromQuery) return;
     const response = await fetch("/api/awb/report-issue", {
@@ -183,10 +179,17 @@ export default function AwbTrackingPage() {
             </form>
 
             <div className="mt-4 flex flex-wrap gap-3">
-              <button type="button" className="btn btn-secondary" onClick={handlePrint} disabled={!shipment}>
-                <Printer size={16} />
-                Print
-              </button>
+              {shipment ? (
+                <Link href={`/exports/awb?awb=${encodeURIComponent(shipment.awb)}`} className="btn btn-secondary">
+                  <Printer size={16} />
+                  Print
+                </Link>
+              ) : (
+                <button type="button" className="btn btn-secondary" disabled>
+                  <Printer size={16} />
+                  Print
+                </button>
+              )}
               <button type="button" className="btn btn-warning" onClick={handleReportIssue} disabled={!awbFromQuery}>
                 <TriangleAlert size={16} />
                 Laporkan Isu

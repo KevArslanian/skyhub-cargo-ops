@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { FileBarChart2, FileText, ShieldCheck } from "lucide-react";
+import { FileBarChart2, FileText, Radar, ShieldCheck } from "lucide-react";
 import { OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 
 type DashboardMetrics = {
@@ -46,7 +46,7 @@ export default function ReportsPage() {
 
       <OpsPanel className="page-pane p-5">
         <SectionHeader title="Pusat Cetak" subtitle="Semua output menggunakan sumber data yang sama dengan modul operasional utama." />
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Link href="/exports/shipments" className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-5 py-5">
             <FileBarChart2 size={20} className="text-[color:var(--brand-primary)]" />
             <p className="mt-4 font-semibold text-[color:var(--text-strong)]">Shipment PDF / Print</p>
@@ -57,6 +57,34 @@ export default function ReportsPage() {
             <p className="mt-4 font-semibold text-[color:var(--text-strong)]">Log Aktivitas PDF / Print</p>
             <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">Versi formal untuk kebutuhan audit, supervisi, dan arsip cetak.</p>
           </Link>
+          <Link href="/exports/flights" className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-5 py-5">
+            <FileBarChart2 size={20} className="text-[color:var(--brand-primary)]" />
+            <p className="mt-4 font-semibold text-[color:var(--text-strong)]">Flight PDF / Print</p>
+            <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">Cetak manifest flight formal dengan status, cutoff, dan jumlah shipment.</p>
+          </Link>
+          <Link href="/exports/awb" className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-5 py-5">
+            <Radar size={20} className="text-[color:var(--brand-primary)]" />
+            <p className="mt-4 font-semibold text-[color:var(--text-strong)]">AWB PDF / Print</p>
+            <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">Cetak dokumen tracking AWB formal dengan menambahkan query `?awb=...`.</p>
+          </Link>
+        </div>
+
+        <div className="mt-6 rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
+          <p className="text-sm font-semibold text-[color:var(--text-strong)]">Link Print Terpisah (untuk ekstrak/copy)</p>
+          <div className="mt-3 grid gap-2 text-sm text-[color:var(--muted-fg)]">
+            <Link href="/exports/shipments" className="hover:text-[color:var(--brand-primary)]">
+              /exports/shipments
+            </Link>
+            <Link href="/exports/activity-log" className="hover:text-[color:var(--brand-primary)]">
+              /exports/activity-log
+            </Link>
+            <Link href="/exports/flights" className="hover:text-[color:var(--brand-primary)]">
+              /exports/flights?status=&query=&date=
+            </Link>
+            <Link href="/exports/awb?awb=160-10000399" className="hover:text-[color:var(--brand-primary)]">
+              /exports/awb?awb=
+            </Link>
+          </div>
         </div>
       </OpsPanel>
     </div>

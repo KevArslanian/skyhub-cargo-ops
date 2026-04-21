@@ -69,6 +69,7 @@ pnpm dev
 - Set `DATABASE_PROVIDER=postgresql`.
 - Arahkan `DATABASE_URL` ke connection string Neon pooled untuk runtime aplikasi.
 - Gunakan `DATABASE_URL_UNPOOLED` untuk migrasi bila workflow deployment Anda memerlukannya.
+- Wajib isi `DATABASE_PROVIDER`, `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, dan `SESSION_SECRET` pada environment `Production`, `Preview`, dan `Development` di Vercel.
 - Untuk migrasi dengan URL direct/unpooled, gunakan `pnpm db:migrate:unpooled`.
 - Untuk validasi final, gunakan `pnpm db:migrate`; `pnpm db:push` hanya cocok untuk scratch/local reset yang tidak menjadi source of truth migration.
 - Tidak ada fallback otomatis ke SQLite demo. Build, migrate, seed, dan runtime harus memakai `DATABASE_URL`.
@@ -90,3 +91,11 @@ Secrets yang wajib di GitHub:
 - `NEON_PREVIEW_DATABASE_URL_UNPOOLED`
 - `NEON_PRODUCTION_DATABASE_URL`
 - `NEON_PRODUCTION_DATABASE_URL_UNPOOLED`
+
+## Shared Print Package
+
+- Print Center shared UI sekarang berasal dari package eksternal: `@deltaoga/skyhub-print-center`.
+- Source package: [https://github.com/KevArslanian/skyhub-print-center](https://github.com/KevArslanian/skyhub-print-center)
+- Upgrade versi: update tag dependency `github:KevArslanian/skyhub-print-center#vX.Y.Z` lalu jalankan `pnpm install`.
+- Import pattern: util dari root package, komponen layout dari `@deltaoga/skyhub-print-center/layout`.
+- Asset default logo package: `/skyhub-mark-blue.svg` (bisa override via `brandMarkSrc`).

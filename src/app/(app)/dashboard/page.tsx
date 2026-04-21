@@ -270,7 +270,7 @@ export default function DashboardPage() {
 
   if (customerData) {
     return (
-      <div className="page-workspace">
+      <div className="page-workspace dashboard-viewport h-full min-h-0">
         <PageHeader
           eyebrow="Portal Pelanggan"
           title="Dashboard Pelanggan"
@@ -368,7 +368,7 @@ export default function DashboardPage() {
               <div className="page-scroll mt-4 space-y-3">
                 {customerData.actionItems.length ? (
                   customerData.actionItems.map((item) => (
-                    <div key={item.id} className="rounded-[22px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-4">
+                    <div key={item.id} className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="font-semibold text-[color:var(--tone-warning)]">{item.title}</p>
@@ -441,7 +441,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="page-workspace dashboard-viewport">
+    <div className="page-workspace dashboard-viewport h-full min-h-0">
       <PageHeader
         eyebrow="Kontrol Kargo"
         title="Dashboard Operator"
@@ -487,7 +487,7 @@ export default function DashboardPage() {
         <StatCard label="Perlu Tindakan" value={loading ? "..." : filteredAlerts.length} note="Alert hold, cutoff, atau validasi dokumen." icon={ShieldAlert} tone="warning" />
       </div>
 
-      <div className="dashboard-main">
+      <div className="dashboard-main flex-1">
         <OpsPanel className="dashboard-panel p-4 xl:p-5">
           <SectionHeader
             title="Papan Operasional"
@@ -561,8 +561,11 @@ export default function DashboardPage() {
                 <div className="mt-4 space-y-3">
                   {filteredFlights.length ? (
                     filteredFlights.map((flight) => (
-                      <div key={flight.id} className="overflow-hidden rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]">
-                        <div className="relative h-28 overflow-hidden border-b border-[color:var(--border-soft)]">
+                      <div
+                        key={flight.id}
+                        className="dashboard-flight-card overflow-hidden rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]"
+                      >
+                        <div className="dashboard-flight-card-hero relative h-[clamp(8.75rem,22vw,10rem)] min-h-[8.75rem] overflow-hidden border-b border-[color:var(--border-soft)]">
                           <Image
                             src={flight.imageUrl}
                             alt={flight.flightNumber}
@@ -571,32 +574,40 @@ export default function DashboardPage() {
                             className="object-cover"
                           />
                           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,38,0.08),rgba(8,20,38,0.72))]" />
-                          <div className="absolute left-3 top-3 flex items-center gap-2">
-                            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/92 p-1 shadow-sm">
-                              <Image
-                                src={flight.airlineLogoUrl}
-                                alt={flight.airlineName}
-                                width={32}
-                                height={32}
-                                sizes="32px"
-                                className="object-contain"
-                                style={{ height: "100%", width: "auto" }}
+                          <div className="absolute inset-0 flex flex-col justify-between p-3">
+                            <div className="flex items-start gap-2.5">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/92 p-1 shadow-sm">
+                                <Image
+                                  src={flight.airlineLogoUrl}
+                                  alt={flight.airlineName}
+                                  width={32}
+                                  height={32}
+                                  sizes="32px"
+                                  className="object-contain"
+                                  style={{ height: "100%", width: "auto" }}
+                                />
+                              </span>
+                              <div className="min-w-0 leading-tight">
+                                <p className="truncate text-xs font-semibold text-white">{flight.airlineName}</p>
+                                <p className="truncate text-[11px] text-white/72">{flight.aircraftType}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-end justify-between gap-3 pb-1">
+                              <div className="min-w-0">
+                                <p className="font-[family:var(--font-heading)] text-xl font-black leading-none tracking-[-0.04em] text-white">
+                                  {flight.flightNumber}
+                                </p>
+                                <p className="mt-1 truncate text-sm text-white/75">{flight.route}</p>
+                              </div>
+                              <StatusBadge
+                                value={flight.status}
+                                label={flight.statusLabel}
+                                className="shrink-0 border-white/20 bg-white/10 text-white"
                               />
-                            </span>
-                            <div>
-                              <p className="text-xs font-semibold text-white">{flight.airlineName}</p>
-                              <p className="text-[11px] text-white/70">{flight.aircraftType}</p>
                             </div>
-                          </div>
-                          <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-4 pb-4">
-                            <div>
-                              <p className="font-[family:var(--font-heading)] text-xl font-black tracking-[-0.04em] text-white">{flight.flightNumber}</p>
-                              <p className="text-sm text-white/75">{flight.route}</p>
-                            </div>
-                            <StatusBadge value={flight.status} label={flight.statusLabel} className="border-white/20 bg-white/10 text-white" />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 px-4 py-4 text-sm">
+                        <div className="grid grid-cols-2 items-start gap-x-4 gap-y-3 px-4 py-4 text-sm">
                           <div>
                             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Cutoff</p>
                             <p className="mt-1 font-semibold text-[color:var(--text-strong)]">{formatDateTime(flight.cargoCutoffTime)}</p>
@@ -632,7 +643,7 @@ export default function DashboardPage() {
             <div className="dashboard-alert-scroll mt-4 space-y-3">
               {filteredAlerts.length ? (
                 filteredAlerts.map((alert) => (
-                  <div key={alert.id} className="rounded-[24px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-4">
+                  <div key={alert.id} className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-[color:var(--tone-warning)]">{alert.title}</p>

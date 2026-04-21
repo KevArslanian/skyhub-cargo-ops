@@ -216,8 +216,19 @@ async function main() {
   await prisma.userSetting.deleteMany();
   await prisma.user.deleteMany();
   await prisma.customerAccount.deleteMany();
+  await prisma.systemKpi.deleteMany();
 
   const now = new Date();
+  await prisma.systemKpi.upsert({
+    where: { id: "global" },
+    update: {
+      platformUptime: 99.98,
+    },
+    create: {
+      id: "global",
+      platformUptime: 99.98,
+    },
+  });
 
   const accountSpecs = [
     {

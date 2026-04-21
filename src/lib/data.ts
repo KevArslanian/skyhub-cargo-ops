@@ -375,6 +375,128 @@ export async function getShellData(userId: string) {
   };
 }
 
+type InternalMetricsSnapshot = {
+  now: Date;
+  shipmentsToday: ShipmentRecord[];
+  flightsToday: Array<{
+    id: string;
+    flightNumber: string;
+    aircraftType: string;
+    origin: string;
+    destination: string;
+    departureTime: Date;
+    cargoCutoffTime: Date;
+    status: "on_time" | "delayed" | "departed";
+  }>;
+  onTime: number;
+  delayed: number;
+  departed: number;
+  holds: number;
+};
+
+async function getShipmentsWithDateFallback(scopedShipments: Prisma.ShipmentWhereInput) {
+  const now = new Date();
+
+  const todayShipments = await db.shipment.findMany({
+    where: {
+      ...scopedShipments,
+      receivedAt: {
+        gte: startOfDay(now),
+        lte: endOfDay(now),
+      },
+    },
+    include: shipmentInclude,
+    orderBy: [{ receivedAt: "desc" }],
+    take: 50,
+  });
+
+  if (todayShipments.length) {
+    return { now, shipmentsToday: todayShipments };
+  }
+
+  const latestShipment = await db.shipment.findFirst({
+    where: scopedShipments,
+    orderBy: { receivedAt: "desc" },
+    select: { receivedAt: true },
+  });
+
+  if (!latestShipment) {
+    return { now, shipmentsToday: [] as ShipmentRecord[] };
+  }
+
+  const fallbackShipments = await db.shipment.findMany({
+    where: {
+      ...scopedShipments,
+      receivedAt: {
+        gte: startOfDay(latestShipment.receivedAt),
+        lte: endOfDay(latestShipment.receivedAt),
+      },
+    },
+    include: shipmentInclude,
+    orderBy: [{ receivedAt: "desc" }],
+    take: 50,
+  });
+
+  return { now, shipmentsToday: fallbackShipments };
+}
+
+async function getInternalMetricsSnapshot(scopedShipments: Prisma.ShipmentWhereInput): Promise<InternalMetricsSnapshot> {
+  const [{ now, shipmentsToday }, flightsToday] = await Promise.all([
+    getShipmentsWithDateFallback(scopedShipments),
+    db.flight.findMany({
+      where: scopeFlightWhere(),
+      orderBy: { cargoCutoffTime: "asc" },
+      take: 24,
+      select: {
+        id: true,
+        flightNumber: true,
+        aircraftType: true,
+        origin: true,
+        destination: true,
+        departureTime: true,
+        cargoCutoffTime: true,
+        status: true,
+      },
+    }),
+  ]);
+
+  const onTime = flightsToday.filter((flight) => flight.status === "on_time").length;
+  const delayed = flightsToday.filter((flight) => flight.status === "delayed").length;
+  const departed = flightsToday.filter((flight) => flight.status === "departed").length;
+  const holds = shipmentsToday.filter((shipment) => shipment.status === "hold").length;
+
+  return {
+    now,
+    shipmentsToday,
+    flightsToday,
+    onTime,
+    delayed,
+    departed,
+    holds,
+  };
+}
+
+export async function getLandingMetricsData() {
+  const [snapshot, systemKpi] = await Promise.all([
+    getInternalMetricsSnapshot({ archivedAt: null }),
+    db.systemKpi.findUnique({
+      where: { id: "global" },
+      select: { platformUptime: true },
+    }),
+  ]);
+
+  const totalFlights = snapshot.flightsToday.length;
+  const onTimeAccuracy = totalFlights ? Number(((snapshot.onTime / totalFlights) * 100).toFixed(1)) : 0;
+
+  return {
+    shipmentsToday: snapshot.shipmentsToday.length,
+    activeFlights: totalFlights,
+    onTimeAccuracy,
+    platformUptime: Number((systemKpi?.platformUptime ?? 99.98).toFixed(2)),
+    generatedAt: snapshot.now.toISOString(),
+  };
+}
+
 export async function getDashboardData(user: AccessUser) {
   if (user.role === "customer") {
     const scopedWhere = scopeShipmentWhere(user);
@@ -434,27 +556,9 @@ export async function getDashboardData(user: AccessUser) {
     };
   }
 
-  const now = new Date();
   const scopedShipments = scopeShipmentWhere(user);
-
-  const [todayShipments, flightsToday, recentActivity] = await Promise.all([
-    db.shipment.findMany({
-      where: {
-        ...scopedShipments,
-        receivedAt: {
-          gte: startOfDay(now),
-          lte: endOfDay(now),
-        },
-      },
-      include: shipmentInclude,
-      orderBy: [{ receivedAt: "desc" }],
-      take: 50,
-    }),
-    db.flight.findMany({
-      where: scopeFlightWhere(),
-      orderBy: { cargoCutoffTime: "asc" },
-      take: 24,
-    }),
+  const [{ now, shipmentsToday, flightsToday, onTime, delayed, departed, holds }, recentActivity] = await Promise.all([
+    getInternalMetricsSnapshot(scopedShipments),
     db.activityLog.findMany({
       include: { user: true },
       orderBy: { createdAt: "desc" },
@@ -462,36 +566,7 @@ export async function getDashboardData(user: AccessUser) {
     }),
   ]);
 
-  let shipmentsToday = todayShipments;
-
-  if (!shipmentsToday.length) {
-    const latestShipment = await db.shipment.findFirst({
-      where: scopedShipments,
-      orderBy: { receivedAt: "desc" },
-      select: { receivedAt: true },
-    });
-
-    if (latestShipment) {
-      shipmentsToday = await db.shipment.findMany({
-        where: {
-          ...scopedShipments,
-          receivedAt: {
-            gte: startOfDay(latestShipment.receivedAt),
-            lte: endOfDay(latestShipment.receivedAt),
-          },
-        },
-        include: shipmentInclude,
-        orderBy: [{ receivedAt: "desc" }],
-        take: 50,
-      });
-    }
-  }
-
   const serializedShipments = shipmentsToday.map((shipment) => serializeShipment(shipment, user));
-  const onTime = flightsToday.filter((flight) => flight.status === "on_time").length;
-  const delayed = flightsToday.filter((flight) => flight.status === "delayed").length;
-  const departed = flightsToday.filter((flight) => flight.status === "departed").length;
-  const holds = shipmentsToday.filter((shipment) => shipment.status === "hold").length;
 
   return {
     variant: "internal" as const,
@@ -1179,6 +1254,7 @@ export async function updateUserAccess(
     select: {
       id: true,
       role: true,
+      status: true,
       customerAccountId: true,
       email: true,
     },
@@ -1189,6 +1265,26 @@ export async function updateUserAccess(
   }
 
   const nextRole = input.role ?? current.role;
+  const nextStatus = input.status ?? current.status;
+
+  if (current.id === actor.id && nextStatus === "disabled") {
+    throw new AccessError("Akun admin yang sedang dipakai tidak dapat dinonaktifkan.", 400, "SELF_DISABLE_NOT_ALLOWED");
+  }
+
+  if (current.role === "admin" && (nextRole !== "admin" || nextStatus !== "active")) {
+    const remainingActiveAdmin = await db.user.count({
+      where: {
+        id: { not: current.id },
+        role: "admin",
+        status: "active",
+      },
+    });
+
+    if (remainingActiveAdmin === 0) {
+      throw new AccessError("Minimal harus ada satu admin aktif di sistem.", 400, "LAST_ADMIN_PROTECTION");
+    }
+  }
+
   const resolvedCustomerAccount =
     nextRole === "customer"
       ? await validateCustomerAccount(input.customerAccountId ?? current.customerAccountId)
@@ -1203,7 +1299,7 @@ export async function updateUserAccess(
       where: { id: userId },
       data: {
         role: nextRole,
-        status: input.status,
+        status: nextStatus,
         station: input.station,
         customerAccountId: nextRole === "customer" ? resolvedCustomerAccount?.id ?? null : null,
       },

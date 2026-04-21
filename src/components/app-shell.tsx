@@ -117,9 +117,14 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   }, [settings]);
 
   useEffect(() => {
-    setTheme(themePreference);
-    setMounted(true);
-  }, [setTheme, themePreference]);
+    if (!mounted) {
+      setMounted(true);
+    }
+
+    if (resolvedTheme !== themePreference) {
+      setTheme(themePreference);
+    }
+  }, [mounted, resolvedTheme, setTheme, themePreference]);
 
   useEffect(() => {
     setCollapsed(shellSettings.sidebarCollapsed);
@@ -132,26 +137,13 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       if (!nextSettings) return;
 
       setShellSettings((current) => ({ ...current, ...nextSettings }));
-
-      if (nextSettings.theme) {
-        setTheme(nextSettings.theme);
-      }
-    }
-
-    function handleExternalThemeChange(event: Event) {
-      const customEvent = event as CustomEvent<"light" | "dark">;
-      const nextTheme = customEvent.detail;
-      if (!nextTheme) return;
-      setShellSettings((current) => ({ ...current, theme: nextTheme }));
     }
 
     window.addEventListener("skyhub:settings-preview", handleSettingsPreview as EventListener);
-    window.addEventListener("skyhub:theme-change", handleExternalThemeChange as EventListener);
     return () => {
       window.removeEventListener("skyhub:settings-preview", handleSettingsPreview as EventListener);
-      window.removeEventListener("skyhub:theme-change", handleExternalThemeChange as EventListener);
     };
-  }, [setTheme]);
+  }, []);
 
   useEffect(() => {
     function handleNotificationPreview(event: Event) {
@@ -270,11 +262,11 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
     <div
       style={shellStyle}
       className={cn(
-        "min-h-screen overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
+        "h-svh overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
         shellSettings.compactRows && "compact-table",
       )}
     >
-      <div className="flex min-h-screen">
+      <div className="flex h-full min-h-0">
         <div className={cn("fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm lg:hidden", mobileOpen ? "block" : "hidden")} onClick={() => setMobileOpen(false)} />
 
         <aside
@@ -460,8 +452,8 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
         <div className="flex min-h-0 w-full flex-col transition-all duration-200 lg:ml-[var(--sidebar-width)]">
           <header className="sticky top-0 z-30 shrink-0 px-4 py-4 lg:px-8 lg:py-5">
-            <div className="ops-panel flex flex-wrap items-center gap-3 px-4 py-4 lg:px-5">
-              <button type="button" className="topbar-button lg:hidden" onClick={() => setMobileOpen(true)}>
+            <div className="ops-panel shell-topbar-toolbar flex flex-wrap items-center px-4 py-4 lg:px-5">
+              <button type="button" className="topbar-button mobile-hamburger-trigger" onClick={() => setMobileOpen(true)}>
                 <Menu size={18} />
               </button>
 
@@ -610,7 +602,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
             </div>
           </header>
 
-          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 lg:px-8">
+          <main className="ops-shell-main-scroll min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 lg:px-8">
             <div className="h-full min-h-0">{children}</div>
           </main>
         </div>

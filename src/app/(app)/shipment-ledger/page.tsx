@@ -726,8 +726,8 @@ export default function ShipmentLedgerPage() {
                 </div>
               </div>
 
-              <div className="page-scroll flex-1 p-6">
-                <div className="grid gap-3 sm:grid-cols-2">
+              <div className="page-scroll ledger-detail-scroll flex-1">
+                <div className="ledger-info-grid">
                   <DataCard
                     label="Diterima"
                     value={formatDateTime(selectedShipment.receivedAt)}
@@ -756,15 +756,15 @@ export default function ShipmentLedgerPage() {
                   />
                 </div>
 
-                <div className="mt-6 space-y-6">
+                <div className="section-stack-gap mt-6">
                   {!isReadOnly ? (
-                    <div className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
+                    <div className="ledger-section-card rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
                       <SectionHeader
                         title="Review Operasional"
                         subtitle="Metadata dikelompokkan agar status action, assignment, dan ownership mudah direvisi."
-                        className="pb-5"
+                        className="pb-6"
                       />
-                      <div className="grid gap-4 pt-5 md:grid-cols-2">
+                      <div className="ledger-form-grid pt-6">
                         <div>
                           <label className="label">Status</label>
                           <select
@@ -862,7 +862,7 @@ export default function ShipmentLedgerPage() {
                         </div>
                       </div>
 
-                      <div className="ops-sticky-footer mt-5 flex flex-wrap gap-3 rounded-[22px] border border-[color:var(--border-soft)] bg-white/85 p-4 shadow-[0_-8px_24px_rgba(11,30,52,0.04)] backdrop-blur dark:bg-[color:var(--panel-bg)]/85">
+                      <div className="ops-sticky-footer mt-6 flex flex-wrap gap-3 rounded-[22px] border border-[color:var(--border-soft)] bg-white/85 p-5 shadow-[0_-8px_24px_rgba(11,30,52,0.04)] backdrop-blur dark:bg-[color:var(--panel-bg)]/85">
                         <button type="button" className="btn btn-primary flex-1" onClick={saveShipmentChanges} disabled={saving}>
                           <Save size={16} />
                           {saving ? "Menyimpan..." : "Simpan Perubahan"}
@@ -879,7 +879,7 @@ export default function ShipmentLedgerPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
+                    <div className="ledger-section-card rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
                       <SectionHeader
                         title="Ringkasan Pelanggan"
                         subtitle="Portal pelanggan menampilkan status, ringkasan dokumen, dan kronologi tanpa aksi edit."
@@ -904,7 +904,7 @@ export default function ShipmentLedgerPage() {
                   )}
 
                   {!isReadOnly ? (
-                    <div className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
+                    <div className="ledger-section-card rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
                       <SectionHeader
                         title="Dokumen Aktif"
                         subtitle="Upload dan penghapusan file tetap dekat dengan detail shipment yang sedang dipilih."
@@ -947,7 +947,7 @@ export default function ShipmentLedgerPage() {
                     </div>
                   ) : null}
 
-                  <div className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
+                  <div className="ledger-section-card rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
                     <SectionHeader
                       title="Tracking Timeline"
                       subtitle="Hubungan visual antara manifest board dan panel detail dijaga lewat event log yang tetap kronologis."

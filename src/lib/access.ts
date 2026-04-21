@@ -44,8 +44,15 @@ export class AccessError extends Error {
 
 export const INTERNAL_ROLES: UserRole[] = ["admin", "staff"];
 export const FLIGHT_MANAGER_ROLES: UserRole[] = ["admin", "staff"];
-export const INTERNAL_ONLY_ROUTE_PREFIXES = ["/flight-board", "/activity-log", "/reports", "/exports"];
-export const CUSTOMER_ALLOWED_ROUTE_PREFIXES = ["/awb-tracking"] as const;
+export const INTERNAL_ONLY_ROUTE_PREFIXES = [
+  "/flight-board",
+  "/activity-log",
+  "/reports",
+  "/exports/shipments",
+  "/exports/activity-log",
+  "/exports/flights",
+];
+export const CUSTOMER_ALLOWED_ROUTE_PREFIXES = ["/awb-tracking", "/exports/awb"] as const;
 export const PROTECTED_ROUTE_PREFIXES = [
   "/dashboard",
   "/shipment-ledger",

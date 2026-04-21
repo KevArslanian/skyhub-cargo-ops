@@ -20,6 +20,7 @@ function run(args) {
     const child = spawn(pnpmCmd, args, {
       stdio: "inherit",
       env,
+      shell: process.platform === "win32",
     });
 
     child.on("error", reject);

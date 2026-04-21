@@ -61,7 +61,7 @@ export default function ActivityLogPage() {
   if (userId !== "all") exportParams.set("userId", userId);
 
   return (
-    <div className="page-workspace">
+    <div className="page-workspace activity-log-workspace">
       <PageHeader
         eyebrow="Jejak Audit"
         title="Log Aktivitas"
@@ -108,9 +108,9 @@ export default function ActivityLogPage() {
         </Link>
       </FilterBar>
 
-      <OpsPanel className="page-pane p-5">
+      <OpsPanel className="page-pane activity-log-panel p-5">
         <SectionHeader title="Timeline Aktivitas" subtitle="Semua entri audit disusun dalam tabel padat untuk memudahkan review cepat saat shift berjalan." />
-        <div className="page-scroll mt-5 table-shell">
+        <div className="page-scroll activity-log-scroll mt-5 table-shell">
           <table className="data-table">
             <thead>
               <tr>

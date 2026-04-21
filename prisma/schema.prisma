@@ -172,6 +172,13 @@ model ShipmentDocument {
   shipment          Shipment           @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 }
 
+model SystemKpi {
+  id             String   @id @default("global")
+  platformUptime Float    @default(99.98)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 model ActivityLog {
   id          String   @id @default(cuid())
   userId      String?
