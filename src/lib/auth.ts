@@ -225,7 +225,6 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   });
 
   if (!user || user.status !== "active") {
-    await clearSessionCookie();
     if (AUTH_BYPASS_ENABLED) {
       return getBypassUser(captureRoleOverride);
     }
