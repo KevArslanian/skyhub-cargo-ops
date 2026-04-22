@@ -91,8 +91,8 @@ export default function AboutUsPage() {
 
   const [navSolid, setNavSolid] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [email, setEmail] = useState("staff@skyhub.test");
-  const [password, setPassword] = useState("operator123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<{ code?: LoginErrorCode; message: string } | null>(null);
   const [contactState, setContactState] = useState({ name: "", email: "", message: "" });
@@ -249,7 +249,7 @@ export default function AboutUsPage() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, remember: true }),
+        body: JSON.stringify({ email, password, remember: false }),
       });
 
       const payload = (await response.json()) as LoginResponse;

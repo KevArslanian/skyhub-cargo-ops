@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "./prisma";
-import { AUTH_BYPASS_ENABLED } from "./runtime-flags";
+import { AUTH_BYPASS_ENABLED, isTrustedDevBypassHost } from "./runtime-flags";
 import { assertRequiredServerEnv, readRequiredServerEnv } from "./server-env";
 
 export const SESSION_COOKIE = "ep_session";
@@ -14,6 +14,19 @@ assertRequiredServerEnv();
 
 const secret = new TextEncoder().encode(readRequiredServerEnv("SESSION_SECRET"));
 const CAPTURE_ROLE_HEADER = "x-skyhub-capture-role";
+
+function isProductionTestAccountEmail(email: string) {
+  return process.env.NODE_ENV === "production" && email.trim().toLowerCase().endsWith("@skyhub.test");
+}
+
+async function canUseAuthBypass() {
+  if (!AUTH_BYPASS_ENABLED) {
+    return false;
+  }
+
+  const headerStore = await headers();
+  return isTrustedDevBypassHost(headerStore.get("host"));
+}
 
 export type SessionPayload = {
   userId: string;
@@ -35,7 +48,7 @@ export type CurrentUser = Prisma.UserGetPayload<{
 }>;
 
 async function resolveCaptureRoleOverride(): Promise<UserRole | null> {
-  if (!AUTH_BYPASS_ENABLED) {
+  if (!(await canUseAuthBypass())) {
     return null;
   }
 
@@ -195,15 +208,16 @@ export async function getSessionPayload() {
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const captureRoleOverride = await resolveCaptureRoleOverride();
+  const bypassEnabled = await canUseAuthBypass();
 
-  if (AUTH_BYPASS_ENABLED && captureRoleOverride) {
+  if (bypassEnabled && captureRoleOverride) {
     return getBypassUser(captureRoleOverride);
   }
 
   const session = await getSessionPayload();
 
   if (!session?.userId) {
-    if (AUTH_BYPASS_ENABLED) {
+    if (bypassEnabled && captureRoleOverride) {
       return getBypassUser(captureRoleOverride);
     }
 
@@ -225,10 +239,18 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   });
 
   if (!user || user.status !== "active") {
-    if (AUTH_BYPASS_ENABLED) {
+    if (bypassEnabled && captureRoleOverride) {
       return getBypassUser(captureRoleOverride);
     }
 
+    return null;
+  }
+
+  if (isProductionTestAccountEmail(user.email)) {
+    return null;
+  }
+
+  if (user.role === "customer" && (!user.customerAccountId || !user.customerAccount || user.customerAccount.status !== "active")) {
     return null;
   }
 

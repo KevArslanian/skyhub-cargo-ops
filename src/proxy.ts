@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { INTRO_COOKIE, SESSION_COOKIE } from "@/lib/auth";
 import { isCustomerAllowedPath } from "@/lib/access";
-import { AUTH_BYPASS_ENABLED } from "@/lib/runtime-flags";
+import { AUTH_BYPASS_ENABLED, isTrustedDevBypassHost } from "@/lib/runtime-flags";
 
 const sessionSecret = process.env.SESSION_SECRET;
 
@@ -63,13 +63,11 @@ async function getSession(request: NextRequest) {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const captureRole = parseCaptureRole(request);
+  const bypassEnabled = AUTH_BYPASS_ENABLED && isTrustedDevBypassHost(request.headers.get("host"));
 
-  if (AUTH_BYPASS_ENABLED) {
+  if (bypassEnabled && captureRole) {
     const requestHeaders = new Headers(request.headers);
-
-    if (captureRole) {
-      requestHeaders.set(CAPTURE_ROLE_HEADER, captureRole);
-    }
+    requestHeaders.set(CAPTURE_ROLE_HEADER, captureRole);
 
     if (pathname === "/") {
       const bypassHome = captureRole === "customer" ? "/awb-tracking" : "/dashboard";

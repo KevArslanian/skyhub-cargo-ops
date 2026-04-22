@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { routeErrorResponse } from "@/lib/api";
+import { assertInternalApiAccess } from "@/lib/access";
 import { getSettingsData, updateSettings } from "@/lib/data";
 import { settingsUpdateSchema } from "@/lib/validators";
 
 export async function GET() {
   try {
     const user = await requireUser();
+    assertInternalApiAccess(user);
     const data = await getSettingsData(user.id);
     return NextResponse.json(data);
   } catch (error) {
@@ -17,6 +19,7 @@ export async function GET() {
 export async function PATCH(request: Request) {
   try {
     const user = await requireUser();
+    assertInternalApiAccess(user);
     const json = await request.json();
     const parsed = settingsUpdateSchema.safeParse(json);
 

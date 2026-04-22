@@ -21,7 +21,7 @@ import {
   normalizeFlightNumber,
 } from "./flight-meta";
 import { db } from "./prisma";
-import { deleteDocumentBlob } from "./storage";
+import { deleteDocumentBlob, getDocumentAccessUrl } from "./storage";
 
 const shipmentInclude = Prisma.validator<Prisma.ShipmentInclude>()({
   flight: true,
@@ -50,16 +50,24 @@ const flightBoardInclude = Prisma.validator<Prisma.FlightInclude>()({
 
 type ShipmentRecord = Prisma.ShipmentGetPayload<{ include: typeof shipmentInclude }>;
 
-function serializeTrackingLog(log: {
+function serializeTrackingLog(
+  log: {
   id: string;
   status: ShipmentStatus;
   message: string;
   location: string;
   actorName: string | null;
   createdAt: Date;
-}) {
+  },
+  user: AccessUser,
+) {
+  const customerView = user.role === "customer";
+
   return {
     ...log,
+    message: customerView ? `Status ${SHIPMENT_STATUS_LABELS[log.status]} telah tercatat.` : log.message,
+    location: customerView ? "Status Tracking" : log.location,
+    actorName: customerView ? null : log.actorName,
     label: SHIPMENT_STATUS_LABELS[log.status],
     createdAt: log.createdAt.toISOString(),
   };
@@ -96,24 +104,24 @@ function serializeShipment(shipment: ShipmentRecord, user: AccessUser) {
     pieces: shipment.pieces,
     weightKg: shipment.weightKg,
     volumeM3: shipment.volumeM3,
-    specialHandling: shipment.specialHandling,
+    specialHandling: isCustomer ? null : shipment.specialHandling,
     docStatus: shipment.docStatus,
     readiness: shipment.readiness,
     shipper: shipment.shipper,
     consignee: shipment.consignee,
     forwarder: shipment.forwarder,
-    ownerName: shipment.ownerName,
-    notes: shipment.notes ?? "",
+    ownerName: isCustomer ? "" : shipment.ownerName,
+    notes: isCustomer ? "" : shipment.notes ?? "",
     status: shipment.status,
     statusLabel: SHIPMENT_STATUS_LABELS[shipment.status],
     receivedAt: shipment.receivedAt.toISOString(),
     updatedAt: (latestTrackingTimestamp ?? shipment.updatedAt).toISOString(),
     flightId: shipment.flightId,
     flightNumber: shipment.flight?.flightNumber ?? null,
-    customerAccountId: shipment.customerAccountId,
+    customerAccountId: isCustomer ? null : shipment.customerAccountId,
     customerAccountName: shipment.customerAccount?.name ?? null,
     documentSummary,
-    trackingLogs: shipment.trackingLogs.map(serializeTrackingLog),
+    trackingLogs: shipment.trackingLogs.map((log) => serializeTrackingLog(log, user)),
     documents: isCustomer
       ? []
       : shipment.documents.map((document) => ({
@@ -121,7 +129,7 @@ function serializeShipment(shipment: ShipmentRecord, user: AccessUser) {
           fileName: document.fileName,
           mimeType: document.mimeType,
           fileSize: document.fileSize,
-          storageUrl: document.storageUrl,
+          storageUrl: getDocumentAccessUrl(document.storageKey, document.storageUrl) ?? document.storageUrl,
           createdAt: document.createdAt.toISOString(),
           blobCleanupStatus: document.blobCleanupStatus,
         })),
@@ -655,18 +663,30 @@ export async function listShipments(
     where.flight = { flightNumber: filters.flight };
   }
 
+  const canManageShipmentRecords = canManageShipments(user);
   const [shipments, flights, customerAccounts] = await Promise.all([
     db.shipment.findMany({
       where,
       include: shipmentInclude,
       orderBy: getShipmentOrderBy(filters?.sortBy),
     }),
-    db.flight.findMany({
-      where: scopeFlightWhere(),
-      orderBy: { cargoCutoffTime: "asc" },
-      select: { id: true, flightNumber: true },
-    }),
-    canManageShipments(user)
+    canManageShipmentRecords
+      ? db.flight.findMany({
+          where: scopeFlightWhere(),
+          orderBy: { cargoCutoffTime: "asc" },
+          select: { id: true, flightNumber: true },
+        })
+      : db.flight.findMany({
+          where: {
+            ...scopeFlightWhere(),
+            shipments: {
+              some: scopeShipmentWhere(user),
+            },
+          },
+          orderBy: { cargoCutoffTime: "asc" },
+          select: { id: true, flightNumber: true },
+        }),
+    canManageShipmentRecords
       ? db.customerAccount.findMany({
           where: { status: "active" },
           orderBy: { name: "asc" },
@@ -695,13 +715,32 @@ export async function listShipments(
       customerAccountName: user.customerAccount?.name ?? null,
     },
     permissions: {
-      canCreate: canManageShipments(user),
-      canEdit: canManageShipments(user),
+      canCreate: canManageShipmentRecords,
+      canEdit: canManageShipmentRecords,
     },
     shipments: serializedShipments,
     flights,
     customerAccounts,
   };
+}
+
+async function getShipmentDocumentMutationContext(userId: string, shipmentId: string) {
+  const actor = await getActorWithRelations(userId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  ensureShipmentManager(actor);
+  const shipment = await getShipmentRecordForMutation(shipmentId);
+  if (shipment.archivedAt) {
+    throw new AccessError("Shipment sudah diarsipkan.", 400, "SHIPMENT_ARCHIVED");
+  }
+
+  return { actor, shipment };
+}
+
+export async function assertShipmentDocumentUploadAllowed(userId: string, shipmentId: string) {
+  await getShipmentDocumentMutationContext(userId, shipmentId);
 }
 
 export async function createShipment(input: {
@@ -920,16 +959,7 @@ export async function addShipmentDocument(input: {
   storageKey?: string;
   userId: string;
 }) {
-  const actor = await getActorWithRelations(input.userId);
-  if (!actor) {
-    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
-  }
-
-  ensureShipmentManager(actor);
-  const shipment = await getShipmentRecordForMutation(input.shipmentId);
-  if (shipment.archivedAt) {
-    throw new AccessError("Shipment sudah diarsipkan.", 400, "SHIPMENT_ARCHIVED");
-  }
+  const { actor, shipment } = await getShipmentDocumentMutationContext(input.userId, input.shipmentId);
 
   const [document] = await db.$transaction([
     db.shipmentDocument.create({
@@ -960,9 +990,39 @@ export async function addShipmentDocument(input: {
     fileName: document.fileName,
     mimeType: document.mimeType,
     fileSize: document.fileSize,
-    storageUrl: document.storageUrl,
+    storageUrl: getDocumentAccessUrl(document.storageKey, document.storageUrl) ?? document.storageUrl,
     createdAt: document.createdAt.toISOString(),
   };
+}
+
+export async function getShipmentDocumentDownload(user: AccessUser, fileName: string) {
+  if (user.role === "customer") {
+    throw new AccessError("Dokumen tidak tersedia untuk akun pelanggan.", 404, "DOCUMENT_NOT_FOUND");
+  }
+
+  const document = await db.shipmentDocument.findFirst({
+    where: {
+      deletedAt: null,
+      OR: [
+        { storageKey: fileName },
+        { storageKey: { endsWith: `/${fileName}` } },
+        { storageUrl: { endsWith: `/${fileName}` } },
+      ],
+      shipment: scopeShipmentWhere(user),
+    },
+    select: {
+      fileName: true,
+      mimeType: true,
+      storageKey: true,
+      storageUrl: true,
+    },
+  });
+
+  if (!document) {
+    throw new AccessError("Dokumen tidak ditemukan.", 404, "DOCUMENT_NOT_FOUND");
+  }
+
+  return document;
 }
 
 export async function deleteShipmentDocument(input: {
@@ -1035,7 +1095,7 @@ export async function deleteShipmentDocument(input: {
         blobCleanupStatus: "deleted",
       },
     });
-  } catch (error) {
+  } catch {
     warning = "Dokumen berhasil disembunyikan, tetapi cleanup blob gagal. Tim internal perlu menindaklanjuti penyimpanan.";
 
     await db.$transaction(async (tx) => {
@@ -1053,10 +1113,7 @@ export async function deleteShipmentDocument(input: {
           targetType: "document",
           targetId: document.id,
           targetLabel: document.fileName,
-          description:
-            error instanceof Error
-              ? `Cleanup blob untuk ${document.fileName} gagal: ${error.message}`
-              : `Cleanup blob untuk ${document.fileName} gagal dan perlu ditangani manual.`,
+          description: `Cleanup blob untuk ${document.fileName} gagal dan perlu ditangani manual.`,
           level: "warning",
         },
       });
@@ -1137,7 +1194,10 @@ export async function getRecentAwbSearches(user: AccessUser) {
     ]),
   );
 
-  return searches.map((item) => ({
+  const visibleSearches =
+    user.role === "customer" ? searches.filter((item) => shipmentByAwb.has(item.awb)) : searches;
+
+  return visibleSearches.map((item) => ({
     id: item.id,
     awb: item.awb,
     createdAt: item.createdAt.toISOString(),
@@ -1165,6 +1225,7 @@ export async function inviteUser(input: {
   }
 
   ensureAdmin(actor);
+  const normalizedEmail = input.email.trim().toLowerCase();
 
   const customerAccount =
     input.role === "customer" ? await validateCustomerAccount(input.customerAccountId ?? null) : null;
@@ -1177,7 +1238,7 @@ export async function inviteUser(input: {
     const created = await tx.user.create({
       data: {
         name: input.name,
-        email: input.email,
+        email: normalizedEmail,
         passwordHash: "$2b$10$2nDaRkI6SQ7qN4uA.7Z0m.9pO5X2FdtYYG6iwSeNBY0d5hDOGOZaC",
         role: input.role,
         station: input.station,
@@ -1946,6 +2007,10 @@ export async function searchGlobal(user: AccessUser, query: string) {
   });
 
   if (shipment) {
+    if (user.role === "customer") {
+      return { path: `/awb-tracking?awb=${shipment.awb}`, label: shipment.awb, kind: "AWB" };
+    }
+
     return { path: `/shipment-ledger?query=${shipment.awb}`, label: shipment.awb, kind: "Shipment" };
   }
 

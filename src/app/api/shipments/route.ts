@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { routeErrorResponse } from "@/lib/api";
+import { assertInternalApiAccess } from "@/lib/access";
 import { createShipment, getShipmentByAwb, listShipments, rememberAwbSearch } from "@/lib/data";
 import { shipmentCreateSchema } from "@/lib/validators";
 
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ shipment });
     }
 
+    assertInternalApiAccess(user);
     const data = await listShipments(user, {
       query: searchParams.get("query") || undefined,
       status: searchParams.get("status") || undefined,

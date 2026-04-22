@@ -22,8 +22,8 @@ type FormErrors = {
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("staff@skyhub.test");
-  const [password, setPassword] = useState("operator123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
@@ -48,7 +48,7 @@ export default function LoginPage() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, remember: true }),
+        body: JSON.stringify({ email, password, remember: false }),
       });
 
       const payload = (await response.json()) as LoginResponse;
@@ -103,7 +103,7 @@ export default function LoginPage() {
                 className="input-field mt-2"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="staff@skyhub.test"
+                placeholder="nama@perusahaan.com"
               />
               {errors.email ? <p className="mt-2 text-sm text-[color:var(--tone-warning)]">{errors.email}</p> : null}
             </div>

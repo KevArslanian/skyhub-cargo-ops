@@ -190,6 +190,10 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   }, []);
 
   async function persistSettings(payload: Record<string, unknown>) {
+    if (user.role === "customer") {
+      return null;
+    }
+
     const response = await fetch("/api/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
