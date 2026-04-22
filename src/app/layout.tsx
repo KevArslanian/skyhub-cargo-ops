@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Manrope } from "next/font/google";
+import { Cormorant_Garamond, Inter, Manrope } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { APP_NAME, APP_SUBTITLE } from "@/lib/constants";
@@ -14,9 +14,15 @@ const manrope = Manrope({
   subsets: ["latin"],
 });
 
+const cormorantGaramond = Cormorant_Garamond({
+  variable: "--font-editorial",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
 export const metadata: Metadata = {
   title: APP_NAME,
-  description: `${APP_SUBTITLE} untuk tracking AWB, flight board, dan dashboard operator.`,
+  description: `${APP_SUBTITLE} untuk pelacakan AWB, papan flight, dan dashboard staff operasional.`,
   icons: {
     icon: "/skyhub-mark-blue.svg",
     shortcut: "/skyhub-mark-blue.svg",
@@ -34,9 +40,9 @@ export default function RootLayout({
       lang="id"
       suppressHydrationWarning
       data-scroll-behavior="smooth"
-      className={`${inter.variable} ${manrope.variable} h-full antialiased`}
+      className={`${inter.variable} ${manrope.variable} ${cormorantGaramond.variable} h-full antialiased`}
     >
-      <body className="h-full min-h-full overflow-hidden bg-[color:var(--app-bg)] font-[family:var(--font-body)] text-[color:var(--app-fg)]">
+      <body className="min-h-full bg-[color:var(--app-bg)] font-[family:var(--font-body)] text-[color:var(--app-fg)]">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

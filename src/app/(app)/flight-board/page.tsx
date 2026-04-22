@@ -1,22 +1,35 @@
 "use client";
 
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Archive,
   CalendarDays,
   Clock3,
+  FileText,
   PlaneTakeoff,
-  Radar,
+  Plus,
   RefreshCw,
   RotateCcw,
+  Save,
   TowerControl,
+  X,
 } from "lucide-react";
-import { formatDateTime, formatRelativeShort } from "@/lib/format";
+import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
+import {
+  AIRLINE_CODE_OPTIONS,
+  buildFlightNumber,
+  parseFlightNumberParts,
+  type SupportedAirlineCode,
+} from "@/lib/flight-meta";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 
 type FlightBoardPayload = {
+  permissions: {
+    canManageFlights: boolean;
+  };
   summary: {
     onTime: number;
     delayed: number;
@@ -44,6 +57,7 @@ type FlightBoardPayload = {
     registration: string;
     category: string;
     brandColor: string;
+    archivedAt: string | null;
     shipments: {
       id: string;
       awb: string;
@@ -55,108 +69,359 @@ type FlightBoardPayload = {
   }[];
 };
 
+type FlightRow = FlightBoardPayload["flights"][number];
+
+const blankForm = {
+  airlineCode: "GA" as SupportedAirlineCode,
+  flightNumberSuffix: "",
+  aircraftType: "",
+  origin: "SOQ",
+  destination: "CGK",
+  departureTime: new Date().toISOString().slice(0, 16),
+  arrivalTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().slice(0, 16),
+  cargoCutoffTime: new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16),
+  status: "on_time",
+  gate: "",
+  remarks: "",
+};
+
+type FlightFormState = typeof blankForm;
+
+function normalizeFlightNumberSuffix(value: string) {
+  return value.replace(/\D/g, "").slice(0, 4);
+}
+
+function isFlightNumberSuffixValid(value: string) {
+  return /^\d{3,4}$/.test(value);
+}
+
+function createFlightDraft(flight: FlightRow | null) {
+  if (!flight) {
+    return { ...blankForm };
+  }
+
+  const parsed = parseFlightNumberParts(flight.flightNumber);
+  const airlineCode = parsed?.airlineCode;
+  const selectedCode = AIRLINE_CODE_OPTIONS.some((option) => option.code === airlineCode)
+    ? (airlineCode as SupportedAirlineCode)
+    : "GA";
+
+  return {
+    airlineCode: selectedCode,
+    flightNumberSuffix: parsed?.numberPart ?? "",
+    aircraftType: flight.aircraftType,
+    origin: flight.origin,
+    destination: flight.destination,
+    departureTime: flight.departureTime.slice(0, 16),
+    arrivalTime: flight.arrivalTime.slice(0, 16),
+    cargoCutoffTime: flight.cargoCutoffTime.slice(0, 16),
+    status: flight.status,
+    gate: flight.gate || "",
+    remarks: flight.remarks || "",
+  };
+}
+
+function filterFlightsByDate(flights: FlightRow[], date: string) {
+  return flights.filter((flight) => flight.departureTime.slice(0, 10) === date);
+}
+
 export default function FlightBoardPage() {
-  const searchParams = useSearchParams();
-  const [status, setStatus] = useState(searchParams.get("status") || "all");
-  const [query, setQuery] = useState(searchParams.get("query") || "");
-  const [date, setDate] = useState(searchParams.get("date") || new Date().toISOString().slice(0, 10));
+  const [status, setStatus] = useState("all");
+  const [query, setQuery] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [data, setData] = useState<FlightBoardPayload | null>(null);
   const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState(() => ({ ...blankForm }));
+  const [editDraft, setEditDraft] = useState(() => ({ ...blankForm }));
+  const [notice, setNotice] = useState("");
+  const [noticeTone, setNoticeTone] = useState<"info" | "warning">("info");
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setStatus(searchParams.get("status") || "all");
-      setQuery(searchParams.get("query") || "");
-      setDate(searchParams.get("date") || new Date().toISOString().slice(0, 10));
-    }, 0);
+  const applyFlightBoardPayload = useCallback(
+    (payload: FlightBoardPayload, nextDate = date, preferredFlightId = selectedFlightId) => {
+      const visibleFlights = filterFlightsByDate(payload.flights, nextDate);
+      const nextSelectedFlight = preferredFlightId
+        ? visibleFlights.find((flight) => flight.id === preferredFlightId) ?? null
+        : null;
 
-    return () => window.clearTimeout(timer);
-  }, [searchParams]);
+      setData(payload);
+      setLastUpdated(new Date().toISOString());
+      setSelectedFlightId(nextSelectedFlight?.id ?? null);
+      setEditDraft(createFlightDraft(nextSelectedFlight));
+    },
+    [date, selectedFlightId],
+  );
 
-  const loadFlightBoard = useCallback(async () => {
+  const requestFlightBoard = useCallback(async () => {
     const params = new URLSearchParams();
     if (status !== "all") params.set("status", status);
     if (query.trim()) params.set("query", query.trim());
     const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
-    if (!response.ok) return;
-    const payload = (await response.json()) as FlightBoardPayload;
-    setData(payload);
-    setLastUpdated(new Date().toISOString());
-    setSelectedFlightId((current) => current ?? payload.flights[0]?.id ?? null);
+    if (!response.ok) return null;
+
+    return (await response.json()) as FlightBoardPayload;
   }, [query, status]);
+
+  const loadFlightBoard = useCallback(
+    async (options?: { preferredDate?: string; preferredFlightId?: string | null }) => {
+      const payload = await requestFlightBoard();
+      if (!payload) return;
+
+      applyFlightBoardPayload(
+        payload,
+        options?.preferredDate ?? date,
+        options?.preferredFlightId ?? selectedFlightId,
+      );
+    },
+    [applyFlightBoardPayload, date, requestFlightBoard, selectedFlightId],
+  );
 
   useEffect(() => {
-    let active = true;
+    let cancelled = false;
 
-    async function load() {
-      const params = new URLSearchParams();
-      if (status !== "all") params.set("status", status);
-      if (query.trim()) params.set("query", query.trim());
-      const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
-      if (!response.ok || !active) return;
-      const payload = (await response.json()) as FlightBoardPayload;
-      setData(payload);
-      setLastUpdated(new Date().toISOString());
-      setSelectedFlightId((current) => current ?? payload.flights[0]?.id ?? null);
-    }
+    void requestFlightBoard().then((payload) => {
+      if (!payload || cancelled) {
+        return;
+      }
 
-    void load();
+      applyFlightBoardPayload(payload);
+    });
+
     return () => {
-      active = false;
+      cancelled = true;
     };
-  }, [query, status]);
+  }, [applyFlightBoardPayload, requestFlightBoard]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(""), 2600);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadFlightBoard();
-    setRefreshing(false);
+    try {
+      await loadFlightBoard();
+    } finally {
+      setRefreshing(false);
+    }
   }
 
+  const handleSelectFlight = useCallback(
+    (flightId: string) => {
+      const nextFlight = (data?.flights ?? []).find((flight) => flight.id === flightId) ?? null;
+      setSelectedFlightId(flightId);
+      setEditDraft(createFlightDraft(nextFlight));
+    },
+    [data?.flights],
+  );
+
+  const handleDateChange = useCallback(
+    (nextDate: string) => {
+      setDate(nextDate);
+      const visibleFlights = filterFlightsByDate(data?.flights ?? [], nextDate);
+      const nextSelectedFlight = selectedFlightId
+        ? visibleFlights.find((flight) => flight.id === selectedFlightId) ?? null
+        : null;
+
+      setSelectedFlightId(nextSelectedFlight?.id ?? null);
+      setEditDraft(createFlightDraft(nextSelectedFlight));
+    },
+    [data?.flights, selectedFlightId],
+  );
+
   function handleResetFilters() {
+    const nextDate = new Date().toISOString().slice(0, 10);
     setStatus("all");
     setQuery("");
-    setDate(new Date().toISOString().slice(0, 10));
+    setSelectedFlightId(null);
+    setEditDraft(createFlightDraft(null));
+    handleDateChange(nextDate);
+  }
+
+  function toIso(value: string) {
+    return new Date(value).toISOString();
+  }
+
+  async function resolveErrorMessage(response: Response, fallback: string) {
+    try {
+      const payload = (await response.json()) as { error?: string };
+      return payload.error || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function composeFlightNumber(form: FlightFormState) {
+    return buildFlightNumber(form.airlineCode, form.flightNumberSuffix);
+  }
+
+  async function handleCreateFlight(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!isFlightNumberSuffixValid(createForm.flightNumberSuffix)) {
+      setNoticeTone("warning");
+      setNotice("Nomor flight harus terdiri dari 3-4 digit.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const response = await fetch("/api/flights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flightNumber: composeFlightNumber(createForm),
+          aircraftType: createForm.aircraftType,
+          origin: createForm.origin,
+          destination: createForm.destination,
+          departureTime: toIso(createForm.departureTime),
+          arrivalTime: toIso(createForm.arrivalTime),
+          cargoCutoffTime: toIso(createForm.cargoCutoffTime),
+          status: createForm.status,
+          gate: createForm.gate || null,
+          remarks: createForm.remarks || null,
+        }),
+      });
+
+      if (response.ok) {
+        setCreateOpen(false);
+        setCreateForm({ ...blankForm });
+        setNoticeTone("info");
+        setNotice("Flight berhasil dibuat.");
+        await loadFlightBoard();
+      } else {
+        const errorMessage = await resolveErrorMessage(response, "Gagal membuat flight.");
+        setNoticeTone("warning");
+        setNotice(errorMessage);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveFlight() {
+    if (!selectedFlight) return;
+
+    if (!isFlightNumberSuffixValid(editDraft.flightNumberSuffix)) {
+      setNoticeTone("warning");
+      setNotice("Nomor flight harus terdiri dari 3-4 digit.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const response = await fetch(`/api/flights/${selectedFlight.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flightNumber: composeFlightNumber(editDraft),
+          aircraftType: editDraft.aircraftType,
+          origin: editDraft.origin,
+          destination: editDraft.destination,
+          departureTime: toIso(editDraft.departureTime),
+          arrivalTime: toIso(editDraft.arrivalTime),
+          cargoCutoffTime: toIso(editDraft.cargoCutoffTime),
+          status: editDraft.status,
+          gate: editDraft.gate || null,
+          remarks: editDraft.remarks || null,
+        }),
+      });
+
+      if (response.ok) {
+        setNoticeTone("info");
+        setNotice("Perubahan flight berhasil disimpan.");
+        await loadFlightBoard();
+      } else {
+        const errorMessage = await resolveErrorMessage(response, "Gagal memperbarui flight.");
+        setNoticeTone("warning");
+        setNotice(errorMessage);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleArchiveFlight() {
+    if (!selectedFlight) return;
+
+    const response = await fetch(`/api/flights/${selectedFlight.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archived: true }),
+    });
+
+    if (response.ok) {
+      setNoticeTone("info");
+      setNotice(`Flight ${selectedFlight.flightNumber} berhasil diarsipkan.`);
+      await loadFlightBoard();
+    } else {
+      const errorMessage = await resolveErrorMessage(response, "Gagal mengarsipkan flight.");
+      setNoticeTone("warning");
+      setNotice(errorMessage);
+    }
   }
 
   const visibleFlights = useMemo(() => {
     if (!data) return [];
-    return data.flights.filter((flight) => flight.departureTime.slice(0, 10) === date);
+    return filterFlightsByDate(data.flights, date);
   }, [data, date]);
 
-  const selectedFlight = visibleFlights.find((flight) => flight.id === selectedFlightId) ?? visibleFlights[0] ?? null;
+  const selectedFlight = visibleFlights.find((flight) => flight.id === selectedFlightId) ?? null;
   const nearCutoff = visibleFlights.filter((flight) => flight.status !== "departed").slice(0, 3);
-  const selectedFlightToken = selectedFlight ? "selectedFlight" : "selectedFlight-none";
+  const flightExportQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    if (status !== "all") params.set("status", status);
+    if (query.trim()) params.set("query", query.trim());
+    if (date) params.set("date", date);
+    return params.toString();
+  }, [date, query, status]);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Departure Watch"
-        title="Flight Board"
-        subtitle="Pantau flight yang on-time, delayed, atau departed dengan cutoff terdekat, maskapai, gambar pesawat, dan shipment terkait dalam satu operator board."
-        actions={
-          <>
-            <button type="button" className="topbar-button" onClick={handleRefresh}>
-              <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
-              <span>{refreshing ? "Refreshing..." : "Refresh"}</span>
-            </button>
-            <button type="button" className="topbar-button" onClick={handleResetFilters}>
-              <RotateCcw size={16} />
-              <span>Reset Filter</span>
-            </button>
-            <div className="topbar-button hidden xl:flex">
-              <Clock3 size={16} />
-              <span>{lastUpdated ? `Update ${formatRelativeShort(lastUpdated)}` : "Menunggu data"}</span>
-            </div>
-          </>
-        }
-      />
+    <div className="page-workspace flightboard-viewport">
+      <div className="flightboard-header-sticky">
+        <PageHeader
+          eyebrow="Pemantauan Keberangkatan"
+          title="Papan Flight"
+          subtitle="Pantau cutoff, keberangkatan, dan shipment terkait dalam layout split yang tetap stabil di desktop."
+          actions={
+            <>
+              <Link href={`/exports/flights?${flightExportQuery}`} className="btn btn-secondary">
+                <FileText size={16} />
+                Print Flight
+              </Link>
+              <button type="button" className="topbar-button" onClick={handleRefresh}>
+                <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
+                <span>{refreshing ? "Memuat ulang..." : "Muat ulang"}</span>
+              </button>
+              <button type="button" className="topbar-button" onClick={handleResetFilters}>
+                <RotateCcw size={16} />
+                <span>Reset</span>
+              </button>
+              {data?.permissions.canManageFlights ? (
+                <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+                  <Plus size={16} />
+                  Buat Flight
+                </button>
+              ) : null}
+              <div className="topbar-button hidden xl:flex">
+                <Clock3 size={16} />
+                <span>{lastUpdated ? `Update ${formatRelativeShort(lastUpdated)}` : "Menunggu data"}</span>
+              </div>
+            </>
+          }
+        />
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <StatCard label="On-Time" value={data?.summary.onTime ?? 0} note="Penerbangan yang masih sesuai jadwal." icon={PlaneTakeoff} tone="success" />
-        <StatCard label="Delayed" value={data?.summary.delayed ?? 0} note="Flight yang berpotensi mengganggu slot muat." icon={Clock3} tone="warning" />
-        <StatCard label="Departed" value={data?.summary.departed ?? 0} note="Penerbangan yang sudah meninggalkan bandara." icon={Radar} tone="info" />
+        <StatCard label="Tepat Waktu" value={data?.summary.onTime ?? 0} note="Penerbangan yang masih sesuai jadwal." icon={PlaneTakeoff} tone="success" />
+        <StatCard label="Terlambat" value={data?.summary.delayed ?? 0} note="Flight yang berpotensi mengganggu slot muat." icon={Clock3} tone="warning" />
+        <StatCard label="Berangkat" value={data?.summary.departed ?? 0} note="Penerbangan yang sudah meninggalkan bandara." icon={TowerControl} tone="info" />
       </div>
 
       <FilterBar className="md:grid-cols-[1fr_180px_180px]">
@@ -168,19 +433,31 @@ export default function FlightBoardPage() {
           <label className="label">Status</label>
           <select className="select-field" value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="all">Semua</option>
-            <option value="on_time">On-Time</option>
-            <option value="delayed">Delayed</option>
-            <option value="departed">Departed</option>
+            <option value="on_time">Tepat Waktu</option>
+            <option value="delayed">Terlambat</option>
+            <option value="departed">Berangkat</option>
           </select>
         </div>
         <div>
           <label className="label">Tanggal</label>
           <div className="relative">
             <CalendarDays className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
-            <input type="date" className="input-field input-field-leading" value={date} onChange={(event) => setDate(event.target.value)} />
+            <input type="date" className="input-field input-field-leading" value={date} onChange={(event) => handleDateChange(event.target.value)} />
           </div>
         </div>
       </FilterBar>
+
+      {notice ? (
+        <div
+          className={
+            noticeTone === "warning"
+              ? "rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-warning)]"
+              : "rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]"
+          }
+        >
+          {notice}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {nearCutoff.length ? (
@@ -189,7 +466,7 @@ export default function FlightBoardPage() {
               key={flight.id}
               type="button"
               className="ops-panel overflow-hidden text-left"
-              onClick={() => setSelectedFlightId(flight.id)}
+              onClick={() => handleSelectFlight(flight.id)}
             >
               <div className="relative h-44 overflow-hidden border-b border-[color:var(--border-soft)]">
                 <Image
@@ -232,18 +509,8 @@ export default function FlightBoardPage() {
                     <p className="font-semibold text-[color:var(--text-strong)]">{formatDateTime(flight.cargoCutoffTime)}</p>
                   </div>
                   <div>
-                    <p className="label">Departure</p>
+                    <p className="label">Berangkat</p>
                     <p className="font-semibold text-[color:var(--text-strong)]">{formatDateTime(flight.departureTime)}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="label">Registrasi</p>
-                    <p className="font-semibold text-[color:var(--text-strong)]">{flight.registration}</p>
-                  </div>
-                  <div>
-                    <p className="label">Shipment</p>
-                    <p className="font-semibold text-[color:var(--text-strong)]">{flight.shipments.length} item</p>
                   </div>
                 </div>
               </div>
@@ -251,26 +518,27 @@ export default function FlightBoardPage() {
           ))
         ) : (
           <div className="lg:col-span-3">
-            <EmptyState
-              icon={TowerControl}
-              title="Tidak ada flight pada filter ini"
-              copy="Ubah kata kunci, status, atau tanggal untuk melihat flight board yang tersedia."
-            />
+            <EmptyState icon={TowerControl} title="Tidak ada flight pada filter ini" copy="Ubah kata kunci, status, atau tanggal untuk melihat flight yang tersedia." />
           </div>
         )}
       </div>
 
-      <div className="flight-board-layout grid gap-6 2xl:grid-cols-[minmax(0,1.5fr)_minmax(380px,1fr)]">
-        <OpsPanel className="p-5">
-          <SectionHeader title="Flight Manifest" subtitle="Daftar flight yang sudah difilter dan siap dipilih untuk detail lebih lanjut." />
-          <div className="ops-table-scroll ops-table-sticky table-shell mt-5">
+      <div className={cn("flightboard-main flightboard-editor-layout", selectedFlight ? "flightboard-editor-layout-active" : null)}>
+        <OpsPanel
+          className={cn(
+            "page-pane flightboard-pane flightboard-manifest-panel flight-manifest-panel-space",
+            selectedFlight ? "flightboard-editor-list-pane" : null,
+          )}
+        >
+          <SectionHeader title="Manifest Flight" subtitle="Daftar flight yang sudah difilter dan siap dipilih untuk detail lebih lanjut." />
+          <div className="flightboard-manifest-scroll flight-manifest-table-space table-shell">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Flight</th>
                   <th>Rute</th>
                   <th>Cutoff</th>
-                  <th>Departure</th>
+                  <th>Berangkat</th>
                   <th>Status</th>
                   <th>Shipment</th>
                 </tr>
@@ -280,8 +548,8 @@ export default function FlightBoardPage() {
                   visibleFlights.map((flight) => (
                     <tr
                       key={flight.id}
-                      onClick={() => setSelectedFlightId(flight.id)}
-                      className={selectedFlight?.id === flight.id ? "bg-[color:var(--brand-primary-soft)]" : "cursor-pointer"}
+                      onClick={() => handleSelectFlight(flight.id)}
+                      className={selectedFlight?.id === flight.id ? "flight-manifest-row-active cursor-pointer" : "flight-manifest-row cursor-pointer"}
                     >
                       <td>
                         <div className="flex items-center gap-3">
@@ -312,12 +580,7 @@ export default function FlightBoardPage() {
                 ) : (
                   <tr>
                     <td colSpan={6}>
-                      <EmptyState
-                        icon={PlaneTakeoff}
-                        title="Tidak ada data manifest"
-                        copy="Belum ada flight yang sesuai dengan tanggal dan filter yang dipilih."
-                        className="m-4"
-                      />
+                      <EmptyState icon={PlaneTakeoff} title="Tidak ada data manifest" copy="Belum ada flight yang sesuai dengan tanggal dan filter yang dipilih." className="m-4" />
                     </td>
                   </tr>
                 )}
@@ -326,10 +589,10 @@ export default function FlightBoardPage() {
           </div>
         </OpsPanel>
 
-        <OpsPanel className="ops-pane-scroll p-5">
-          {selectedFlight ? (
-            <div className="space-y-5">
-              <div data-selected-flight={selectedFlightToken} className="overflow-hidden rounded-[26px] border border-[color:var(--border-soft)]">
+        {selectedFlight ? (
+          <OpsPanel className="page-pane flightboard-pane flightboard-editor-detail-pane p-5">
+            <div className="flightboard-editor-detail-scroll space-y-5">
+              <div className="overflow-hidden rounded-[26px] border border-[color:var(--border-soft)]">
                 <div className="relative h-56">
                   <Image
                     src={selectedFlight.imageUrl}
@@ -359,7 +622,7 @@ export default function FlightBoardPage() {
                             <p className="text-xs text-white/74">{selectedFlight.airlineFullName}</p>
                           </div>
                         </div>
-                        <p className="ops-eyebrow !text-white/70">Selected Flight</p>
+                        <p className="ops-eyebrow !text-white/70">Flight Terpilih</p>
                         <h2 className="mt-1 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-white">{selectedFlight.flightNumber}</h2>
                         <p className="mt-2 text-sm text-white/74">{selectedFlight.route}</p>
                       </div>
@@ -375,26 +638,110 @@ export default function FlightBoardPage() {
                   <p className="font-semibold text-[color:var(--text-strong)]">{formatDateTime(selectedFlight.cargoCutoffTime)}</p>
                 </div>
                 <div className="ops-panel-muted p-4">
-                  <p className="label">Departure</p>
+                  <p className="label">Berangkat</p>
                   <p className="font-semibold text-[color:var(--text-strong)]">{formatDateTime(selectedFlight.departureTime)}</p>
                 </div>
                 <div className="ops-panel-muted p-4">
-                  <p className="label">Arrival</p>
+                  <p className="label">Tiba</p>
                   <p className="font-semibold text-[color:var(--text-strong)]">{formatDateTime(selectedFlight.arrivalTime)}</p>
                 </div>
                 <div className="ops-panel-muted p-4">
                   <p className="label">Gate</p>
                   <p className="font-semibold text-[color:var(--text-strong)]">{selectedFlight.gate || "-"}</p>
                 </div>
-                <div className="ops-panel-muted p-4">
-                  <p className="label">Registrasi</p>
-                  <p className="font-semibold text-[color:var(--text-strong)]">{selectedFlight.registration}</p>
-                </div>
-                <div className="ops-panel-muted p-4">
-                  <p className="label">Kategori</p>
-                  <p className="font-semibold text-[color:var(--text-strong)]">{selectedFlight.category}</p>
-                </div>
               </div>
+
+              {data?.permissions.canManageFlights ? (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="label">Kode Maskapai</label>
+                      <select
+                        className="select-field"
+                        value={editDraft.airlineCode}
+                        onChange={(event) =>
+                          setEditDraft((current) => ({
+                            ...current,
+                            airlineCode: event.target.value as SupportedAirlineCode,
+                          }))
+                        }
+                      >
+                        {AIRLINE_CODE_OPTIONS.map((item) => (
+                          <option key={item.code} value={item.code}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label">Nomor Flight (3-4 digit)</label>
+                      <input
+                        className="input-field"
+                        value={editDraft.flightNumberSuffix}
+                        onChange={(event) =>
+                          setEditDraft((current) => ({
+                            ...current,
+                            flightNumberSuffix: normalizeFlightNumberSuffix(event.target.value),
+                          }))
+                        }
+                        placeholder="714"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Jenis Pesawat</label>
+                      <input className="input-field" value={editDraft.aircraftType} onChange={(event) => setEditDraft((current) => ({ ...current, aircraftType: event.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="label">Asal</label>
+                      <input className="input-field" value={editDraft.origin} onChange={(event) => setEditDraft((current) => ({ ...current, origin: event.target.value.toUpperCase() }))} />
+                    </div>
+                    <div>
+                      <label className="label">Tujuan</label>
+                      <input className="input-field" value={editDraft.destination} onChange={(event) => setEditDraft((current) => ({ ...current, destination: event.target.value.toUpperCase() }))} />
+                    </div>
+                    <div>
+                      <label className="label">Berangkat</label>
+                      <input type="datetime-local" className="input-field" value={editDraft.departureTime} onChange={(event) => setEditDraft((current) => ({ ...current, departureTime: event.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="label">Tiba</label>
+                      <input type="datetime-local" className="input-field" value={editDraft.arrivalTime} onChange={(event) => setEditDraft((current) => ({ ...current, arrivalTime: event.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="label">Cargo Cutoff</label>
+                      <input type="datetime-local" className="input-field" value={editDraft.cargoCutoffTime} onChange={(event) => setEditDraft((current) => ({ ...current, cargoCutoffTime: event.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="label">Status</label>
+                      <select className="select-field" value={editDraft.status} onChange={(event) => setEditDraft((current) => ({ ...current, status: event.target.value }))}>
+                        <option value="on_time">Tepat Waktu</option>
+                        <option value="delayed">Terlambat</option>
+                        <option value="departed">Berangkat</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label">Gate</label>
+                      <input className="input-field" value={editDraft.gate} onChange={(event) => setEditDraft((current) => ({ ...current, gate: event.target.value }))} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="label">Catatan</label>
+                    <textarea className="textarea-field" value={editDraft.remarks} onChange={(event) => setEditDraft((current) => ({ ...current, remarks: event.target.value }))} />
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <button type="button" className="btn btn-primary flex-1" onClick={handleSaveFlight} disabled={saving}>
+                      <Save size={16} />
+                      {saving ? "Menyimpan..." : "Simpan Flight"}
+                    </button>
+                    <button type="button" className="btn btn-warning" onClick={handleArchiveFlight}>
+                      <Archive size={16} />
+                      Arsipkan
+                    </button>
+                  </div>
+                </>
+              ) : null}
 
               <div>
                 <p className="label">Shipment Terkait</p>
@@ -424,15 +771,113 @@ export default function FlightBoardPage() {
                 </div>
               ) : null}
             </div>
-          ) : (
-            <EmptyState
-              icon={PlaneTakeoff}
-              title="Pilih flight"
-              copy="Klik salah satu card atau baris flight untuk melihat detail maskapai, manifest, dan shipment terkait."
-            />
-          )}
-        </OpsPanel>
+          </OpsPanel>
+        ) : null}
       </div>
+
+      {createOpen ? (
+        <div className="ops-modal-backdrop" onClick={() => setCreateOpen(false)}>
+          <div className="ops-modal-panel" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 border-b border-[color:var(--border-soft)] pb-5">
+              <div>
+                <p className="ops-eyebrow">Buat Flight</p>
+                <h2 className="mt-2 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
+                  Tambah flight baru
+                </h2>
+              </div>
+              <button type="button" className="topbar-button" onClick={() => setCreateOpen(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form className="mt-6 space-y-5" onSubmit={handleCreateFlight}>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="label">Kode Maskapai</label>
+                  <select
+                    className="select-field"
+                    value={createForm.airlineCode}
+                    onChange={(event) =>
+                      setCreateForm((current) => ({
+                        ...current,
+                        airlineCode: event.target.value as SupportedAirlineCode,
+                      }))
+                    }
+                  >
+                    {AIRLINE_CODE_OPTIONS.map((item) => (
+                      <option key={item.code} value={item.code}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Nomor Flight (3-4 digit)</label>
+                  <input
+                    className="input-field"
+                    value={createForm.flightNumberSuffix}
+                    onChange={(event) =>
+                      setCreateForm((current) => ({
+                        ...current,
+                        flightNumberSuffix: normalizeFlightNumberSuffix(event.target.value),
+                      }))
+                    }
+                    placeholder="714"
+                  />
+                </div>
+                <div>
+                  <label className="label">Jenis Pesawat</label>
+                  <input className="input-field" value={createForm.aircraftType} onChange={(event) => setCreateForm((current) => ({ ...current, aircraftType: event.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Asal</label>
+                  <input className="input-field" value={createForm.origin} onChange={(event) => setCreateForm((current) => ({ ...current, origin: event.target.value.toUpperCase() }))} />
+                </div>
+                <div>
+                  <label className="label">Tujuan</label>
+                  <input className="input-field" value={createForm.destination} onChange={(event) => setCreateForm((current) => ({ ...current, destination: event.target.value.toUpperCase() }))} />
+                </div>
+                <div>
+                  <label className="label">Berangkat</label>
+                  <input type="datetime-local" className="input-field" value={createForm.departureTime} onChange={(event) => setCreateForm((current) => ({ ...current, departureTime: event.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Tiba</label>
+                  <input type="datetime-local" className="input-field" value={createForm.arrivalTime} onChange={(event) => setCreateForm((current) => ({ ...current, arrivalTime: event.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Cargo Cutoff</label>
+                  <input type="datetime-local" className="input-field" value={createForm.cargoCutoffTime} onChange={(event) => setCreateForm((current) => ({ ...current, cargoCutoffTime: event.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Status</label>
+                  <select className="select-field" value={createForm.status} onChange={(event) => setCreateForm((current) => ({ ...current, status: event.target.value }))}>
+                    <option value="on_time">Tepat Waktu</option>
+                    <option value="delayed">Terlambat</option>
+                    <option value="departed">Berangkat</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Gate</label>
+                  <input className="input-field" value={createForm.gate} onChange={(event) => setCreateForm((current) => ({ ...current, gate: event.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="label">Catatan</label>
+                <textarea className="textarea-field" value={createForm.remarks} onChange={(event) => setCreateForm((current) => ({ ...current, remarks: event.target.value }))} />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button type="button" className="btn btn-secondary" onClick={() => setCreateOpen(false)}>
+                  Batal
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? "Menyimpan..." : "Buat Flight"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

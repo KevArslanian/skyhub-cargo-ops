@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { routeErrorResponse } from "@/lib/api";
-import { assertInternalApiAccess } from "@/lib/access";
 import { createShipment, getShipmentByAwb, listShipments, rememberAwbSearch } from "@/lib/data";
 import { shipmentCreateSchema } from "@/lib/validators";
 
 export async function GET(request: Request) {
   try {
-    const user = await requireApiUser();
+    const user = await requireUser();
     const { searchParams } = new URL(request.url);
     const awb = searchParams.get("awb");
 
@@ -18,8 +17,6 @@ export async function GET(request: Request) {
       }
       return NextResponse.json({ shipment });
     }
-
-    assertInternalApiAccess(user);
 
     const data = await listShipments(user, {
       query: searchParams.get("query") || undefined,
@@ -36,8 +33,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireApiUser();
-    assertInternalApiAccess(user);
+    const user = await requireUser();
     const payload = await request.json();
     const parsed = shipmentCreateSchema.safeParse(payload);
 
@@ -49,6 +45,7 @@ export async function POST(request: Request) {
       ...parsed.data,
       volumeM3: parsed.data.volumeM3 ?? null,
       flightId: parsed.data.flightId ?? null,
+      customerAccountId: parsed.data.customerAccountId ?? null,
       userId: user.id,
       actorName: user.name,
     });

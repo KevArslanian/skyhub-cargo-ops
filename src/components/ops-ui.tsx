@@ -1,5 +1,3 @@
-"use client";
-
 import type { LucideIcon } from "lucide-react";
 import { cn, formatNumber } from "@/lib/format";
 
@@ -17,7 +15,7 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <header className={cn("ops-page-header flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between", className)}>
+    <header className={cn("flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between", className)}>
       <div className="space-y-2">
         {eyebrow ? <p className="ops-eyebrow">{eyebrow}</p> : null}
         <h1 className="page-title">{title}</h1>
@@ -111,8 +109,79 @@ export function StatCard({
   );
 }
 
+const dataCardToneClasses = {
+  default: "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]",
+  primary:
+    "border-[color:rgba(0,82,204,0.12)] bg-[linear-gradient(180deg,rgba(0,82,204,0.08),var(--panel-bg))]",
+  success:
+    "border-[color:var(--tone-success-border)] bg-[linear-gradient(180deg,var(--tone-success-soft),var(--panel-bg))]",
+  warning:
+    "border-[color:var(--tone-warning-border)] bg-[linear-gradient(180deg,var(--tone-warning-soft),var(--panel-bg))]",
+  danger:
+    "border-[color:var(--tone-danger-border)] bg-[linear-gradient(180deg,var(--tone-danger-soft),var(--panel-bg))]",
+  info: "border-[color:var(--tone-info-border)] bg-[linear-gradient(180deg,var(--tone-info-soft),var(--panel-bg))]",
+} as const;
+
+export function DataCard({
+  label,
+  value,
+  note,
+  meta,
+  icon: Icon,
+  tone = "default",
+  className,
+  valueClassName,
+  footer,
+}: {
+  label: string;
+  value: React.ReactNode;
+  note?: React.ReactNode;
+  meta?: React.ReactNode;
+  icon?: LucideIcon;
+  tone?: keyof typeof dataCardToneClasses;
+  className?: string;
+  valueClassName?: string;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <article
+      className={cn(
+        "rounded-[24px] border px-4 py-4 transition-transform duration-150 hover:-translate-y-[1px]",
+        dataCardToneClasses[tone],
+        className,
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">{label}</p>
+          <div
+            className={cn(
+              "mt-3 font-[family:var(--font-heading)] text-[1.45rem] font-black tracking-[-0.04em] text-[color:var(--text-strong)]",
+              valueClassName,
+            )}
+          >
+            {value}
+          </div>
+          {note ? <div className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{note}</div> : null}
+        </div>
+        {Icon ? (
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] border border-[color:var(--border-soft)] bg-white/65 text-[color:var(--brand-primary)] dark:bg-white/5">
+            <Icon size={18} />
+          </span>
+        ) : null}
+      </div>
+      {meta ? <div className="mt-4 border-t border-[color:var(--border-soft)] pt-3 text-xs text-[color:var(--muted-fg)]">{meta}</div> : null}
+      {footer ? <div className="mt-4">{footer}</div> : null}
+    </article>
+  );
+}
+
 export function FilterBar({ children, className }: { children: React.ReactNode; className?: string }) {
   return <div className={cn("ops-filter-bar", className)}>{children}</div>;
+}
+
+export function SkeletonBlock({ className }: { className?: string }) {
+  return <div aria-hidden="true" className={cn("ops-skeleton rounded-[20px]", className)} />;
 }
 
 export function EmptyState({

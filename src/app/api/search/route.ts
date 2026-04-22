@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { routeErrorResponse } from "@/lib/api";
 import { searchGlobal } from "@/lib/data";
 
 export async function GET(request: Request) {
   try {
-    const user = await requireApiUser();
+    const user = await requireUser();
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("query");
 

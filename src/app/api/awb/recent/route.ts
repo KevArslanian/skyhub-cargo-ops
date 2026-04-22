@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { routeErrorResponse } from "@/lib/api";
 import { getRecentAwbSearches } from "@/lib/data";
 
 export async function GET() {
   try {
-    const user = await requireApiUser();
-    const data = await getRecentAwbSearches(user.id);
+    const user = await requireUser();
+    const data = await getRecentAwbSearches(user);
     return NextResponse.json({ searches: data });
   } catch (error) {
-    return routeErrorResponse(error, "Gagal memuat riwayat AWB.");
+    return routeErrorResponse(error, "Gagal memuat pencarian AWB terbaru.");
   }
 }

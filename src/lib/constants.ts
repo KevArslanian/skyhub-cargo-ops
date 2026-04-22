@@ -1,72 +1,46 @@
-import type { FlightStatus, ShipmentStatus, UserRole } from "@prisma/client";
+import type { CustomerAccountStatus, FlightStatus, ShipmentStatus, UserRole, UserStatus } from "@prisma/client";
 
 export const APP_NAME = "SkyHub";
-export const APP_SUBTITLE = "Cargo Ops Control";
+export const APP_SUBTITLE = "Pusat Kendali Kargo";
 
-export const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/shipment-ledger", label: "Shipment Ledger" },
-  { href: "/awb-tracking", label: "AWB Tracking" },
-  { href: "/flight-board", label: "Flight Board" },
-  { href: "/activity-log", label: "Activity Log" },
-  { href: "/reports", label: "Reports" },
-  { href: "/settings", label: "Settings" },
-] as const;
-
-export const DEFAULT_ROUTE_BY_ROLE: Record<UserRole, string> = {
-  admin: "/dashboard",
-  supervisor: "/dashboard",
-  operator: "/dashboard",
-  customer: "/awb-tracking",
-};
-
-export function canAccessRoute(role: UserRole, pathname: string) {
-  if (pathname.startsWith("/awb-tracking")) {
-    return true;
-  }
-
-  if (role === "customer") {
-    return false;
-  }
-
-  if (pathname.startsWith("/settings")) {
-    return role === "supervisor" || role === "admin";
-  }
-
-  if (
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/shipment-ledger") ||
-    pathname.startsWith("/flight-board") ||
-    pathname.startsWith("/activity-log") ||
-    pathname.startsWith("/reports") ||
-    pathname.startsWith("/exports")
-  ) {
-    return role === "operator" || role === "supervisor" || role === "admin";
-  }
-
-  return role === "operator" || role === "supervisor" || role === "admin";
-}
+export const STATION_OPTIONS = ["CGK", "SUB", "DPS", "SOQ", "UPG", "BPN"] as const;
 
 export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
-  received: "Received",
-  sortation: "Sortation",
-  loaded_to_aircraft: "Loaded to Aircraft",
-  departed: "Departed",
-  arrived: "Arrived",
-  hold: "Hold",
+  received: "Diterima",
+  sortation: "Sortasi",
+  loaded_to_aircraft: "Muat ke Pesawat",
+  departed: "Berangkat",
+  arrived: "Tiba",
+  hold: "Tertahan",
 };
 
 export const FLIGHT_STATUS_LABELS: Record<FlightStatus, string> = {
-  on_time: "On-Time",
-  delayed: "Delayed",
-  departed: "Departed",
+  on_time: "Tepat Waktu",
+  delayed: "Terlambat",
+  departed: "Berangkat",
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Admin",
-  supervisor: "Supervisor",
-  operator: "Operator",
-  customer: "Customer",
+  staff: "Staff Operasional",
+  customer: "Pelanggan",
+};
+
+export const ROLE_SCOPE_COPY: Record<UserRole, string> = {
+  admin: "Kelola pengguna, akun pelanggan, dan seluruh modul operasional.",
+  staff: "Kelola workflow operasional harian tanpa manajemen pengguna atau akun pelanggan.",
+  customer: "Akses pelacakan AWB, cetak, dan pelaporan isu sesuai akun pelanggan.",
+};
+
+export const USER_STATUS_LABELS: Record<UserStatus, string> = {
+  active: "Aktif",
+  invited: "Diundang",
+  disabled: "Nonaktif",
+};
+
+export const CUSTOMER_ACCOUNT_STATUS_LABELS: Record<CustomerAccountStatus, string> = {
+  active: "Aktif",
+  disabled: "Nonaktif",
 };
 
 export const AWB_REGEX = /^\d{3}-\d{8}$/;

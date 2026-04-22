@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { routeErrorResponse } from "@/lib/api";
-import { assertInternalApiAccess } from "@/lib/access";
-import { updateShipment } from "@/lib/data";
+import { archiveShipment, updateShipment } from "@/lib/data";
 import { shipmentUpdateSchema } from "@/lib/validators";
 
 type RouteContext = {
@@ -11,8 +10,7 @@ type RouteContext = {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const user = await requireApiUser();
-    assertInternalApiAccess(user);
+    const user = await requireUser();
     const { id } = await context.params;
     const json = await request.json();
     const parsed = shipmentUpdateSchema.safeParse(json);
@@ -30,5 +28,17 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ shipment });
   } catch (error) {
     return routeErrorResponse(error, "Gagal memperbarui shipment.");
+  }
+}
+
+export async function DELETE(_: Request, context: RouteContext) {
+  try {
+    const user = await requireUser();
+    const { id } = await context.params;
+
+    await archiveShipment(id, true, user.id);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return routeErrorResponse(error, "Gagal mengarsipkan shipment.");
   }
 }

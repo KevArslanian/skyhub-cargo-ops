@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { routeErrorResponse } from "@/lib/api";
-import { assertRoles } from "@/lib/access";
 import { updateUserAccess } from "@/lib/data";
 import { userRoleUpdateSchema } from "@/lib/validators";
 
@@ -11,14 +10,13 @@ type RouteContext = {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const actor = await requireApiUser();
-    assertRoles(actor, ["admin"], "Manajemen user hanya untuk admin.", "ADMIN_ONLY");
+    const actor = await requireUser();
     const { id } = await context.params;
     const json = await request.json();
     const parsed = userRoleUpdateSchema.safeParse(json);
 
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message || "Perubahan user tidak valid." }, { status: 400 });
+      return NextResponse.json({ error: parsed.error.issues[0]?.message || "Perubahan pengguna tidak valid." }, { status: 400 });
     }
 
     const user = await updateUserAccess(id, {
@@ -28,6 +26,6 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({ user });
   } catch (error) {
-    return routeErrorResponse(error, "Gagal memperbarui user.");
+    return routeErrorResponse(error, "Gagal memperbarui pengguna.");
   }
 }

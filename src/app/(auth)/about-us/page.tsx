@@ -1,216 +1,851 @@
-import Link from "next/link";
+"use client";
+
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Building2,
-  ShieldCheck,
-  Workflow,
+  Clock3,
+  Mail,
+  MapPin,
+  Phone,
+  Plane,
+  Satellite,
+  Shield,
+  X,
 } from "lucide-react";
-import { BrandMark } from "@/components/brand-mark";
 import {
-  COMPANY_ABOUT_COPY,
-  COMPANY_CONTACT_ITEMS,
-  COMPANY_FACTS,
-  COMPANY_HERO_COPY,
-  COMPANY_HERO_HEADLINE,
-  COMPANY_OPERATOR_NOTE,
-} from "@/lib/company-profile";
+  getLoginErrorDetail,
+  LOGIN_ERROR_CODES,
+  type LoginErrorCode,
+  type LoginResponse,
+} from "@/lib/auth-login";
 
-const heroImage =
-  "https://images.unsplash.com/photo-1517479149777-5f3b1511d5ad?auto=format&fit=crop&w=1800&q=80";
+type CounterState = {
+  shipments: number;
+  flights: number;
+  accuracy: number;
+  uptime: number;
+};
+
+type LandingMetricsResponse = {
+  shipmentsToday: number;
+  activeFlights: number;
+  onTimeAccuracy: number;
+  platformUptime: number;
+  generatedAt: string;
+};
+
+const CAPABILITIES = [
+  {
+    icon: Satellite,
+    title: "Live Flight Board",
+    description: "Real-time status, cargo cutoffs, gate assignments across all active legs.",
+  },
+  {
+    icon: Plane,
+    title: "AWB Intelligence",
+    description: "Instant tracking, document vault, exception flagging, and predictive ETAs.",
+  },
+  {
+    icon: Shield,
+    title: "Exception Command",
+    description: "Automated hold detection and coordinated response for time-critical cargo.",
+  },
+] as const;
+
+const OPERATIONS = [
+  {
+    index: "01",
+    title: "RECEIPT & SORT",
+    duration: "0-45 min",
+    copy: "Warehouse intake, dimension capture, and initial manifest sync.",
+  },
+  {
+    index: "02",
+    title: "CUT-OFF WINDOW",
+    duration: "T-120 min",
+    copy: "Final cargo acceptance, ULD build, and flight assignment.",
+  },
+  {
+    index: "03",
+    title: "DEPARTURE",
+    duration: "Wheels Up",
+    copy: "Live departure confirmation and AWB status broadcast.",
+  },
+  {
+    index: "04",
+    title: "ARRIVAL & DELIVERY",
+    duration: "Post-Flight",
+    copy: "Customs clearance tracking and POD capture.",
+  },
+] as const;
 
 export default function AboutUsPage() {
+  const router = useRouter();
+  const plane1Ref = useRef<HTMLDivElement | null>(null);
+  const plane2Ref = useRef<HTMLDivElement | null>(null);
+  const plane3Ref = useRef<HTMLDivElement | null>(null);
+  const hasAnimatedCountersRef = useRef(false);
+
+  const [navSolid, setNavSolid] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [email, setEmail] = useState("staff@skyhub.test");
+  const [password, setPassword] = useState("operator123");
+  const [submitting, setSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState<{ code?: LoginErrorCode; message: string } | null>(null);
+  const [contactState, setContactState] = useState({ name: "", email: "", message: "" });
+  const [contactNotice, setContactNotice] = useState("");
+  const [counter, setCounter] = useState<CounterState>({
+    shipments: 0,
+    flights: 0,
+    accuracy: 0,
+    uptime: 0,
+  });
+
+  const resolvedLoginError = useMemo(() => {
+    if (!loginError) return null;
+    return getLoginErrorDetail(loginError.code, loginError.message);
+  }, [loginError]);
+
+  const startCounterAnimation = useCallback((target: CounterState) => {
+    if (hasAnimatedCountersRef.current) {
+      return;
+    }
+
+    hasAnimatedCountersRef.current = true;
+
+    const duration = 1800;
+    const startTime = performance.now();
+    const safetyTimer = window.setTimeout(() => {
+      setCounter(target);
+    }, duration + 120);
+
+    const step = (now: number) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      setCounter({
+        shipments: target.shipments * progress,
+        flights: target.flights * progress,
+        accuracy: target.accuracy * progress,
+        uptime: target.uptime * progress,
+      });
+
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+        return;
+      }
+
+      window.clearTimeout(safetyTimer);
+    };
+
+    window.requestAnimationFrame(step);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.add("premium-scrollbar-hidden");
+    document.body.classList.add("premium-scrollbar-hidden");
+    return () => {
+      document.documentElement.classList.remove("premium-scrollbar-hidden");
+      document.body.classList.remove("premium-scrollbar-hidden");
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      setNavSolid(currentY > 80);
+
+      if (plane1Ref.current) plane1Ref.current.style.transform = `translateY(${currentY * 0.08}px)`;
+      if (plane2Ref.current) plane2Ref.current.style.transform = `translateY(${currentY * 0.12}px)`;
+      if (plane3Ref.current) plane3Ref.current.style.transform = `translateY(${currentY * 0.06}px)`;
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const revealNodes = Array.from(document.querySelectorAll<HTMLElement>(".premium-reveal"));
+    const revealObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+            revealObserver.unobserve(entry.target);
+          }
+        }
+      },
+      { threshold: 0.15 },
+    );
+
+    for (const node of revealNodes) {
+      revealObserver.observe(node);
+    }
+
+    return () => revealObserver.disconnect();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLandingMetrics() {
+      try {
+        const response = await fetch("/api/public/landing-metrics", { cache: "no-store" });
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as LandingMetricsResponse;
+        const target: CounterState = {
+          shipments: Number(payload.shipmentsToday) || 0,
+          flights: Number(payload.activeFlights) || 0,
+          accuracy: Number(payload.onTimeAccuracy) || 0,
+          uptime: Number(payload.platformUptime) || 0,
+        };
+
+        if (cancelled) {
+          return;
+        }
+        startCounterAnimation(target);
+      } catch {
+        // Keep UI stable with zeroed counters when metrics endpoint is unavailable.
+      }
+    }
+
+    void loadLandingMetrics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [startCounterAnimation]);
+
+  useEffect(() => {
+    if (!contactNotice) return undefined;
+    const timer = window.setTimeout(() => setContactNotice(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [contactNotice]);
+
+  function scrollToId(id: string) {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!email.trim() || !password.trim()) {
+      setLoginError({
+        code: LOGIN_ERROR_CODES.INVALID_INPUT,
+        message: "Email dan password wajib diisi.",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    setLoginError(null);
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, remember: true }),
+      });
+
+      const payload = (await response.json()) as LoginResponse;
+      if (!response.ok) {
+        setLoginError({
+          code: payload.code,
+          message: payload.error || "Login gagal.",
+        });
+        return;
+      }
+
+      setModalOpen(false);
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      setLoginError({
+        code: LOGIN_ERROR_CODES.AUTH_UNAVAILABLE,
+        message: "Tidak dapat menjangkau layanan login saat ini.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleContactSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!contactState.name.trim() || !contactState.email.trim() || !contactState.message.trim()) {
+      setContactNotice("Lengkapi nama, email, dan pesan terlebih dahulu.");
+      return;
+    }
+
+    const subject = encodeURIComponent(`SkyHub Inquiry - ${contactState.name}`);
+    const body = encodeURIComponent(
+      `Name: ${contactState.name}\nEmail: ${contactState.email}\n\nMessage:\n${contactState.message}`,
+    );
+
+    window.location.href = `mailto:ops@skyhub.co?subject=${subject}&body=${body}`;
+    setContactNotice("Membuka email client...");
+  }
+
   return (
-    <div className="min-h-screen bg-[color:var(--app-bg)] text-[color:var(--app-fg)]">
-      <div className="about-shell">
-        <div className="about-frame">
-          <header className="panel flex flex-wrap items-center justify-between gap-4 px-6 py-5">
-            <BrandMark />
-            <div className="flex flex-wrap items-center gap-3">
-              <Link href="/login" className="btn btn-primary">
-                Login
-              </Link>
-            </div>
-          </header>
+    <div className="premium-landing bg-[#050505] text-white">
+      <nav className={`premium-nav ${navSolid ? "premium-nav-solid" : ""}`} id="navbar">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6">
+          <button type="button" className="flex items-center gap-3 text-left" onClick={() => scrollToId("hero")}>
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#0066ff66] bg-[#0066ff1a]">
+              <Image
+                src="/skyhub-logo-icon-clean.png"
+                alt="SkyHub"
+                width={34}
+                height={34}
+                className="premium-logo-plane"
+              />
+            </span>
+            <span>
+              <span className="block text-3xl font-semibold tracking-[-2px]">SKYHUB</span>
+              <span className="mt-[-4px] block text-[10px] tracking-[3.5px] text-white/50">CARGO OPS</span>
+            </span>
+          </button>
 
-          <section className="about-hero ops-panel-strong relative overflow-hidden px-7 py-7 lg:px-9 lg:py-9">
-            <div
-              className="absolute inset-0 bg-cover bg-center opacity-28"
-              style={{ backgroundImage: `url('${heroImage}')` }}
-            />
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(8,17,34,0.92),rgba(30,64,175,0.78),rgba(37,99,235,0.38))]" />
-            <div
-              className="absolute inset-0 opacity-30"
-              style={{
-                backgroundImage:
-                  "linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)",
-                backgroundSize: "42px 42px",
-              }}
-            />
-
-            <div className="about-hero-grid relative z-10">
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/70">
-                  SkyHub Company Profile
-                </p>
-                <h1 className="mt-5 max-w-[760px] font-[family:var(--font-heading)] text-[clamp(2.7rem,5vw,5rem)] font-black leading-[0.97] tracking-[-0.07em] text-white">
-                  Sistem cargo udara yang formal, stabil, dan siap dipakai untuk ritme operasional bandara.
-                </h1>
-                <p className="mt-6 max-w-[760px] text-[1rem] leading-8 text-white/82">{COMPANY_HERO_COPY}</p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="rounded-[28px] border border-white/14 bg-white/10 px-5 py-5 backdrop-blur-md">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
-                    Platform Focus
-                  </p>
-                  <p className="mt-3 font-[family:var(--font-heading)] text-[1.8rem] font-black tracking-[-0.05em] text-white">
-                    Cargo Ops Control
-                  </p>
-                  <p className="mt-2 text-sm leading-7 text-white/78">
-                    Monitoring shipment, manifest, flight board, dan audit log dalam satu control surface.
-                  </p>
-                </div>
-
-                <div className="rounded-[28px] border border-white/14 bg-white/10 px-5 py-5 backdrop-blur-md">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
-                    Why SkyHub
-                  </p>
-                  <p className="mt-3 text-sm leading-7 text-white/82">
-                    {COMPANY_HERO_HEADLINE} Desain dan alur sistem disusun agar operator tetap cepat membaca
-                    informasi penting walau bekerja panjang di depan monitor.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="about-content-grid">
-            <div className="panel px-6 py-6">
-              <p className="ops-eyebrow">About SkyHub</p>
-              <h2 className="mt-3 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
-                Company Profile
-              </h2>
-              <p className="mt-4 text-[0.98rem] leading-8 text-[color:var(--muted-fg)]">
-                {COMPANY_ABOUT_COPY}
-              </p>
-
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                <div className="ops-panel-muted px-5 py-5">
-                  <div className="flex items-start gap-3">
-                    <span className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-[16px] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary-2)]">
-                      <Workflow size={20} />
-                    </span>
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">
-                        Operational Model
-                      </p>
-                      <p className="mt-2 text-sm leading-7 text-[color:var(--muted-fg)]">
-                        SkyHub menyatukan lookup AWB, flight board, manifest control, dan alert audit untuk
-                        operator, supervisor, dan tim gudang udara.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="ops-panel-muted px-5 py-5">
-                  <div className="flex items-start gap-3">
-                    <span className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-[16px] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary-2)]">
-                      <ShieldCheck size={20} />
-                    </span>
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">
-                        Reliability
-                      </p>
-                      <p className="mt-2 text-sm leading-7 text-[color:var(--muted-fg)]">
-                        Antarmuka difokuskan pada keterbacaan, stabilitas, dan alur kerja cepat untuk kebutuhan
-                        decision making selama shift operasional.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="panel px-6 py-6">
-              <p className="ops-eyebrow">Company Facts</p>
-              <h2 className="mt-3 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
-                Cakupan dan layanan utama
-              </h2>
-              <div className="mt-6 grid gap-4">
-                {COMPANY_FACTS.map((item) => (
-                  <div key={item.label} className="ops-panel-muted px-5 py-5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">
-                      {item.label}
-                    </p>
-                    <p className="mt-3 text-sm leading-7 text-[color:var(--text-strong)]">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section className="panel px-6 py-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="ops-eyebrow">Contact Information</p>
-                <h2 className="mt-3 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
-                  Direktori contact terpadu
-                </h2>
-              </div>
-              <div className="inline-flex min-h-[44px] items-center gap-2 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 text-sm font-semibold text-[color:var(--muted-fg)]">
-                <Building2 size={16} />
-                SkyHub Operations Center
-              </div>
-            </div>
-
-            <div className="about-contact-grid mt-6">
-              {COMPANY_CONTACT_ITEMS.map(({ icon: Icon, label, value, href }) => {
-                const content = (
-                  <div className="ops-panel-muted h-full px-5 py-5 transition hover:-translate-y-[1px]">
-                    <div className="flex items-start gap-3">
-                      <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary-2)]">
-                        <Icon size={18} />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">
-                          {label}
-                        </p>
-                        <p className="mt-3 text-sm leading-7 text-[color:var(--text-strong)]">{value}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-
-                return href ? (
-                  <a
-                    key={label}
-                    href={href}
-                    target={href.startsWith("http") ? "_blank" : undefined}
-                    rel={href.startsWith("http") ? "noreferrer" : undefined}
-                  >
-                    {content}
-                  </a>
-                ) : (
-                  <div key={label}>{content}</div>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="panel flex flex-wrap items-center justify-between gap-4 px-6 py-6">
-            <div className="max-w-[860px]">
-              <p className="ops-eyebrow">Operator Note</p>
-              <p className="mt-4 text-[0.98rem] leading-8 text-[color:var(--muted-fg)]">{COMPANY_OPERATOR_NOTE}</p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/login" className="btn btn-primary">
-                Masuk ke login
-                <ArrowRight size={16} />
-              </Link>
-            </div>
-          </section>
+          <div className="hidden items-center gap-9 text-sm font-medium md:flex">
+            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("overview")}>
+              Overview
+            </button>
+            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("about")}>
+              About Us
+            </button>
+            <button
+              type="button"
+              className="transition hover:text-[#0066ff]"
+              onClick={() => scrollToId("capabilities")}
+            >
+              Capabilities
+            </button>
+            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("operations")}>
+              Operations
+            </button>
+            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("contact")}>
+              Contact
+            </button>
+          </div>
         </div>
-      </div>
+      </nav>
+
+      <section id="hero" className="relative flex min-h-screen items-center overflow-hidden pt-16">
+        <div id="overview" className="pointer-events-none absolute -top-16" />
+        <div className="premium-animated-grid absolute inset-0" />
+
+        <div className="pointer-events-none absolute right-12 top-16 hidden lg:block">
+          <div className="relative h-40 w-40 rounded-full border border-[#00a3ff4d]">
+            <div className="absolute inset-4 rounded-full border border-[#00a3ff33]" />
+            <div className="absolute inset-8 rounded-full border border-[#00a3ff1a]" />
+            <div className="premium-radar-sweep absolute inset-0 rounded-full border-t-2 border-[#00a3ff] [clip-path:polygon(50%_50%,100%_0,100%_100%)]" />
+          </div>
+        </div>
+
+        <div ref={plane1Ref} className="premium-parallax-plane left-[12%] top-[22%] text-5xl">
+          <Plane />
+        </div>
+        <div ref={plane2Ref} className="premium-parallax-plane left-[68%] top-[38%] text-4xl">
+          <Plane />
+        </div>
+        <div ref={plane3Ref} className="premium-parallax-plane left-[25%] top-[58%] text-[42px]">
+          <Plane />
+        </div>
+
+        <div className="relative z-10 mx-auto w-full max-w-5xl px-6 text-center">
+          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-5 py-1 text-xs tracking-[3px]">
+            <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#00a3ff]" />
+            LIVE • SOEDIRMAN CONTROL CENTER
+          </div>
+
+          <h1 className="mb-8 text-[78px] font-semibold leading-[0.88] tracking-[-0.05em] md:text-[110px]">
+            COMMAND
+            <br />
+            THE SKIES
+          </h1>
+
+          <p className="mx-auto mb-12 max-w-2xl text-2xl text-white/70">
+            Premium air cargo intelligence.
+            <br />
+            Real-time visibility. Mission-ready control.
+          </p>
+
+          <div className="flex flex-col justify-center gap-4 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => setModalOpen(true)}
+              className="premium-magnetic-btn group flex h-16 items-center justify-center gap-3 rounded-3xl bg-white px-14 text-lg font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white"
+            >
+              LOGIN
+              <ArrowRight className="transition group-hover:-rotate-45" />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToId("about")}
+              className="h-16 rounded-3xl border border-white/40 px-9 text-lg font-medium transition-all hover:bg-white/5"
+            >
+              Explore Platform
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="about" className="mx-auto max-w-7xl border-t border-white/10 px-6 py-24">
+        <div className="grid items-center gap-16 md:grid-cols-2">
+          <div className="premium-reveal">
+            <div className="mb-4 text-xs tracking-[4px] text-[#0066ff]">OUR STORY</div>
+            <h2 className="mb-8 text-6xl font-semibold leading-none tracking-tight">
+              Built for those who
+              <br />
+              command the skies.
+            </h2>
+
+            <div className="space-y-6 text-lg text-white/70">
+              <p>
+                SkyHub was founded in 2018 by a team of aviation veterans and technologists who believed that cargo
+                operations deserved better tools.
+              </p>
+              <p>
+                Today, we power some of the most demanding air cargo control rooms across Southeast Asia and beyond -
+                delivering clarity, speed, and reliability when it matters most.
+              </p>
+            </div>
+          </div>
+
+          <div className="premium-glass premium-reveal rounded-3xl border border-white/10 p-9">
+            <div className="mb-8 flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0066ff1a]">
+                <Building2 className="text-[#0066ff]" size={30} />
+              </div>
+              <div>
+                <div className="text-2xl font-semibold">SkyHub Headquarters</div>
+                <div className="text-sm text-white/60">Jakarta, Indonesia</div>
+              </div>
+            </div>
+
+            <div className="space-y-6 text-sm">
+              <div className="flex gap-4">
+                <div className="w-8 text-[#0066ff]">
+                  <MapPin size={20} />
+                </div>
+                <div>
+                  <div className="font-medium">Main Office</div>
+                  <div className="text-white/70">
+                    Jl. Kargo Internasional No. 12
+                    <br />
+                    Area Logistik Bandara, Jakarta 15126
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-8 text-[#0066ff]">
+                  <Phone size={20} />
+                </div>
+                <div>
+                  <div className="font-medium">Phone</div>
+                  <div className="text-white/70">+62 21 500 780</div>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-8 text-[#0066ff]">
+                  <Mail size={20} />
+                </div>
+                <div>
+                  <div className="font-medium">Email</div>
+                  <div className="text-white/70">ops@skyhub.co</div>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-8 text-[#0066ff]">
+                  <Clock3 size={20} />
+                </div>
+                <div>
+                  <div className="font-medium">Operating Hours</div>
+                  <div className="text-white/70">
+                    Monday - Friday, 08.00 - 20.00 WIB
+                    <br />
+                    24/7 Emergency Support
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="capabilities" className="border-y border-white/10 bg-black py-20">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="premium-reveal mb-16 text-center">
+            <div className="text-xs tracking-[4px] text-[#0066ff]">WHAT WE DELIVER</div>
+            <h3 className="mt-4 text-6xl font-semibold tracking-tight">Capabilities that define the edge.</h3>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {CAPABILITIES.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.title} className="premium-glass premium-tilt-card premium-reveal rounded-3xl p-9">
+                  <div className="mb-8 text-[#0066ff]">
+                    <Icon size={40} />
+                  </div>
+                  <h4 className="mb-4 text-3xl font-semibold">{item.title}</h4>
+                  <p className="text-white/70">{item.description}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section id="operations" className="mx-auto max-w-7xl px-6 py-24">
+        <div className="premium-reveal mb-12">
+          <div className="text-xs tracking-[4px] text-[#0066ff]">THE RHYTHM OF CARGO</div>
+          <h3 className="mt-3 text-6xl font-semibold tracking-tight">Operations that never sleep.</h3>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {OPERATIONS.map((item) => (
+            <div key={item.index} className="premium-glass premium-reveal rounded-3xl p-8">
+              <div className="text-xs text-white/50">{item.index}</div>
+              <div className="mb-2 mt-3 text-3xl font-semibold">{item.title}</div>
+              <div className="text-sm text-[#00a3ff]">{item.duration}</div>
+              <p className="mt-4 text-sm text-white/70">{item.copy}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="metrics" className="border-y border-white/10 bg-black py-20">
+        <div className="premium-reveal mx-auto max-w-7xl px-6 text-center">
+          <div className="text-xs tracking-[4px] text-[#0066ff]">PROVEN AT SCALE</div>
+          <h3 className="mt-4 text-6xl font-semibold tracking-tight">Numbers that matter.</h3>
+        </div>
+
+        <div className="mx-auto mt-16 grid max-w-7xl grid-cols-2 gap-px px-6 md:grid-cols-4">
+          <div className="premium-glass p-10 text-center">
+            <div className="text-5xl font-semibold md:text-7xl">{Math.floor(counter.shipments).toLocaleString()}</div>
+            <div className="mt-2 text-sm text-white/60">Shipments today</div>
+          </div>
+          <div className="premium-glass p-10 text-center">
+            <div className="text-5xl font-semibold md:text-7xl">{Math.floor(counter.flights).toLocaleString()}</div>
+            <div className="mt-2 text-sm text-white/60">Active flights</div>
+          </div>
+          <div className="premium-glass p-10 text-center">
+            <div className="text-5xl font-semibold md:text-7xl">{counter.accuracy.toFixed(1)}</div>
+            <div className="mt-2 text-sm text-white/60">On-time accuracy</div>
+          </div>
+          <div className="premium-glass p-10 text-center">
+            <div className="text-5xl font-semibold md:text-7xl">{counter.uptime.toFixed(2)}</div>
+            <div className="mt-2 text-sm text-white/60">Platform uptime</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="contact" className="mx-auto max-w-7xl px-6 py-24">
+        <div className="grid gap-16 md:grid-cols-2">
+          <div className="premium-reveal">
+            <div className="text-xs tracking-[4px] text-[#0066ff]">GET IN TOUCH</div>
+            <h3 className="mb-8 mt-3 text-6xl font-semibold tracking-tight">
+              Let&apos;s build the future of air cargo together.
+            </h3>
+
+            <div className="space-y-6 text-lg">
+              <div>
+                <div className="font-medium">General Inquiries</div>
+                <a href="mailto:info@skyhub.co" className="text-[#0066ff]">
+                  info@skyhub.co
+                </a>
+              </div>
+              <div>
+                <div className="font-medium">Operations Support</div>
+                <a href="mailto:ops@skyhub.co" className="text-[#0066ff]">
+                  ops@skyhub.co
+                </a>
+              </div>
+              <div>
+                <div className="font-medium">24/7 Emergency Line</div>
+                <a href="tel:+6221500780" className="text-[#0066ff]">
+                  +62 21 500 780
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div className="premium-glass premium-reveal rounded-3xl border border-white/10 p-9">
+            <form className="space-y-6" onSubmit={handleContactSubmit}>
+              <div>
+                <label className="text-xs tracking-widest text-white/60">YOUR NAME</label>
+                <input
+                  type="text"
+                  className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
+                  value={contactState.name}
+                  onChange={(event) => setContactState((current) => ({ ...current, name: event.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-xs tracking-widest text-white/60">EMAIL ADDRESS</label>
+                <input
+                  type="email"
+                  className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
+                  value={contactState.email}
+                  onChange={(event) => setContactState((current) => ({ ...current, email: event.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-xs tracking-widest text-white/60">MESSAGE</label>
+                <textarea
+                  rows={5}
+                  className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
+                  value={contactState.message}
+                  onChange={(event) => setContactState((current) => ({ ...current, message: event.target.value }))}
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full rounded-2xl bg-white py-4 font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white"
+              >
+                SEND MESSAGE
+              </button>
+              {contactNotice ? <p className="text-center text-sm text-[#66a8ff]">{contactNotice}</p> : null}
+            </form>
+          </div>
+        </div>
+      </section>
+
+      {modalOpen ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-6"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            className="premium-glass relative w-full max-w-md rounded-3xl border border-white/20 p-9"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="absolute right-6 top-6 text-white/60 transition hover:text-white"
+              aria-label="Close login modal"
+            >
+              <X size={22} />
+            </button>
+
+            <div className="mb-8 text-center">
+              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#0066ff66] bg-[#0066ff1a]">
+                <Image
+                  src="/skyhub-logo-icon-clean.png"
+                  alt="SkyHub logo"
+                  width={42}
+                  height={42}
+                  className="premium-logo-plane"
+                />
+              </div>
+              <div className="text-3xl font-semibold">SkyHub Command</div>
+              <div className="mt-1 text-sm text-white/50">Secure Operator Access</div>
+            </div>
+
+            <form className="space-y-5" onSubmit={handleLogin}>
+              <div>
+                <label className="mb-2 block text-xs tracking-widest text-white/60">EMAIL</label>
+                <input
+                  type="email"
+                  className="w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs tracking-widest text-white/60">PASSWORD</label>
+                <input
+                  type="password"
+                  className="w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </div>
+
+              {resolvedLoginError ? (
+                <div className="rounded-2xl border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3">
+                  <p className="text-sm font-semibold text-[color:var(--text-strong)]">{resolvedLoginError.title}</p>
+                  <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{resolvedLoginError.message}</p>
+                  {resolvedLoginError.note ? (
+                    <p className="mt-1 text-xs text-[color:var(--muted-fg)]">{resolvedLoginError.note}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <button
+                type="submit"
+                className="mt-2 w-full rounded-2xl bg-white py-4 font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+                disabled={submitting}
+              >
+                {submitting ? "LOGGING IN..." : "LOGIN"}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      <style jsx global>{`
+        html.premium-scrollbar-hidden,
+        body.premium-scrollbar-hidden {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+
+        html.premium-scrollbar-hidden::-webkit-scrollbar,
+        body.premium-scrollbar-hidden::-webkit-scrollbar {
+          width: 0;
+          height: 0;
+          display: none;
+        }
+      `}</style>
+
+      <style jsx>{`
+        .premium-landing {
+          min-height: 100vh;
+          overflow-x: hidden;
+          font-family: var(--font-body), "Inter", system-ui, sans-serif;
+        }
+
+        .premium-nav {
+          position: fixed;
+          inset: 0 0 auto 0;
+          z-index: 50;
+          padding: 1.25rem 0;
+          background: transparent;
+          transition: all 0.25s ease;
+        }
+
+        .premium-nav-solid {
+          background: rgba(5, 5, 5, 0.95);
+          box-shadow: 0 18px 30px rgba(0, 0, 0, 0.24);
+        }
+
+        .premium-glass {
+          background: rgba(10, 10, 12, 0.88);
+          backdrop-filter: blur(24px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .premium-reveal {
+          opacity: 0;
+          transform: translateY(50px);
+          transition: all 0.9s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .premium-reveal.visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        .premium-tilt-card {
+          transition:
+            transform 0.4s cubic-bezier(0.23, 1, 0.32, 1),
+            box-shadow 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .premium-tilt-card:hover {
+          transform: perspective(1200px) rotateX(7deg) rotateY(10deg) scale(1.02);
+          box-shadow: 0 40px 90px -25px rgba(0, 102, 255, 0.3);
+        }
+
+        .premium-magnetic-btn {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .premium-magnetic-btn::after {
+          content: "";
+          position: absolute;
+          top: -50%;
+          left: -100%;
+          width: 50%;
+          height: 200%;
+          background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+          transition: left 0.6s;
+        }
+
+        .premium-magnetic-btn:hover::after {
+          left: 280%;
+        }
+
+        .premium-logo-plane {
+          display: inline-block;
+          animation: premium-logo-float 3.2s ease-in-out infinite;
+        }
+
+        .premium-animated-grid {
+          background-image:
+            linear-gradient(rgba(0, 102, 255, 0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0, 102, 255, 0.04) 1px, transparent 1px);
+          background-size: 42px 42px;
+          animation: premium-grid-move 25s linear infinite;
+        }
+
+        .premium-radar-sweep {
+          animation: premium-radar 4.5s linear infinite;
+        }
+
+        .premium-parallax-plane {
+          position: absolute;
+          color: #0066ff;
+          filter: drop-shadow(0 0 18px #0066ff);
+          transition: transform 0.1s ease-out;
+          z-index: 1;
+          pointer-events: none;
+        }
+
+        @keyframes premium-logo-float {
+          0%,
+          100% {
+            transform: translateY(0) rotate(-7deg);
+          }
+
+          50% {
+            transform: translateY(-5px) rotate(-4deg);
+          }
+        }
+
+        @keyframes premium-grid-move {
+          0% {
+            background-position: 0 0;
+          }
+
+          100% {
+            background-position: 42px 42px;
+          }
+        }
+
+        @keyframes premium-radar {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .premium-reveal {
+            opacity: 1;
+            transform: none;
+            transition: none;
+          }
+
+          .premium-tilt-card,
+          .premium-magnetic-btn::after,
+          .premium-logo-plane,
+          .premium-animated-grid,
+          .premium-radar-sweep {
+            animation: none !important;
+            transition: none !important;
+            transform: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
