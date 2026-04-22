@@ -1,17 +1,25 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
+import { routeErrorResponse } from "@/lib/api";
+import { assertRoles } from "@/lib/access";
 import { getSettingsData, updateSettings } from "@/lib/data";
 import { settingsUpdateSchema } from "@/lib/validators";
 
 export async function GET() {
-  const user = await requireUser();
-  const data = await getSettingsData(user.id);
-  return NextResponse.json(data);
+  try {
+    const user = await requireApiUser();
+    assertRoles(user, ["admin", "supervisor"], "Akses settings dibatasi untuk supervisor atau admin.", "SETTINGS_ONLY");
+    const data = await getSettingsData(user.id);
+    return NextResponse.json(data);
+  } catch (error) {
+    return routeErrorResponse(error, "Gagal memuat pengaturan.");
+  }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
+    assertRoles(user, ["admin", "supervisor"], "Akses settings dibatasi untuk supervisor atau admin.", "SETTINGS_ONLY");
     const json = await request.json();
     const parsed = settingsUpdateSchema.safeParse(json);
 
@@ -22,9 +30,6 @@ export async function PATCH(request: Request) {
     const data = await updateSettings(user.id, parsed.data);
     return NextResponse.json(data);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gagal memperbarui settings." },
-      { status: 500 },
-    );
+    return routeErrorResponse(error, "Gagal memperbarui pengaturan.");
   }
 }

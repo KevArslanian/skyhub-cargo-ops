@@ -1,8 +1,67 @@
 import { Prisma, ShipmentStatus } from "@prisma/client";
 import { addMinutes, endOfDay, startOfDay } from "date-fns";
+import { AccessError, assertInternalApiAccess, canManageUsers, type AccessUser } from "./access";
 import { db } from "./prisma";
 import { AWB_REGEX, FLIGHT_STATUS_LABELS, SHIPMENT_STATUS_LABELS } from "./constants";
 import { getFlightVisualMeta, getShipmentPriorityScore } from "./flight-meta";
+import { getDocumentAccessUrl } from "./storage";
+
+const shipmentInclude = Prisma.validator<Prisma.ShipmentInclude>()({
+  flight: true,
+  trackingLogs: {
+    orderBy: { createdAt: "asc" },
+  },
+  documents: {
+    orderBy: { createdAt: "desc" },
+  },
+});
+
+type ShipmentRecord = Prisma.ShipmentGetPayload<{ include: typeof shipmentInclude }>;
+
+async function getAccessUser(userId: string): Promise<AccessUser | null> {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      role: true,
+      status: true,
+      station: true,
+    },
+  });
+
+  if (!user || user.status !== "active") {
+    return null;
+  }
+
+  return user;
+}
+
+async function requireAccessUser(userId: string) {
+  const user = await getAccessUser(userId);
+
+  if (!user) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  return user;
+}
+
+async function ensureFlightExists(flightId?: string | null) {
+  if (!flightId) {
+    return null;
+  }
+
+  const flight = await db.flight.findUnique({
+    where: { id: flightId },
+    select: { id: true },
+  });
+
+  if (!flight) {
+    throw new AccessError("Flight tidak ditemukan.", 400, "FLIGHT_INVALID");
+  }
+
+  return flight.id;
+}
 
 function serializeTrackingLog(log: {
   id: string;
@@ -11,29 +70,28 @@ function serializeTrackingLog(log: {
   location: string;
   actorName: string | null;
   createdAt: Date;
-}) {
+}, user: AccessUser) {
+  const customerView = user.role === "customer";
+
   return {
     ...log,
+    message: customerView ? `Status ${SHIPMENT_STATUS_LABELS[log.status]} telah tercatat.` : log.message,
+    location: customerView ? "Status Tracking" : log.location,
+    actorName: customerView ? null : log.actorName,
     label: SHIPMENT_STATUS_LABELS[log.status],
     createdAt: log.createdAt.toISOString(),
   };
 }
 
-function serializeShipment(
-  shipment: Prisma.ShipmentGetPayload<{
-    include: {
-      flight: true;
-      trackingLogs: true;
-      documents: true;
-    };
-  }>,
-) {
+function serializeShipment(shipment: ShipmentRecord, user: AccessUser) {
   const latestTrackingTimestamp = shipment.trackingLogs.reduce<Date | null>((latest, log) => {
     if (!latest || log.createdAt.getTime() > latest.getTime()) {
       return log.createdAt;
     }
     return latest;
   }, null);
+
+  const isCustomer = user.role === "customer";
 
   return {
     id: shipment.id,
@@ -44,14 +102,14 @@ function serializeShipment(
     pieces: shipment.pieces,
     weightKg: shipment.weightKg,
     volumeM3: shipment.volumeM3,
-    specialHandling: shipment.specialHandling,
+    specialHandling: isCustomer ? null : shipment.specialHandling,
     docStatus: shipment.docStatus,
     readiness: shipment.readiness,
     shipper: shipment.shipper,
     consignee: shipment.consignee,
-    forwarder: shipment.forwarder,
-    ownerName: shipment.ownerName,
-    notes: shipment.notes ?? "",
+    forwarder: isCustomer ? "" : shipment.forwarder,
+    ownerName: isCustomer ? "" : shipment.ownerName,
+    notes: isCustomer ? "" : shipment.notes ?? "",
     status: shipment.status,
     statusLabel: SHIPMENT_STATUS_LABELS[shipment.status],
     receivedAt: shipment.receivedAt.toISOString(),
@@ -60,15 +118,17 @@ function serializeShipment(
     flightNumber: shipment.flight?.flightNumber ?? null,
     trackingLogs: shipment.trackingLogs
       .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
-      .map(serializeTrackingLog),
-    documents: shipment.documents.map((document) => ({
-      id: document.id,
-      fileName: document.fileName,
-      mimeType: document.mimeType,
-      fileSize: document.fileSize,
-      storageUrl: document.storageUrl,
-      createdAt: document.createdAt.toISOString(),
-    })),
+      .map((log) => serializeTrackingLog(log, user)),
+    documents: isCustomer
+      ? []
+      : shipment.documents.map((document) => ({
+          id: document.id,
+          fileName: document.fileName,
+          mimeType: document.mimeType,
+          fileSize: document.fileSize,
+          storageUrl: getDocumentAccessUrl(document.storageKey, document.storageUrl) ?? document.storageUrl,
+          createdAt: document.createdAt.toISOString(),
+        })),
   };
 }
 
@@ -89,7 +149,7 @@ export async function getShellData(userId: string) {
     }),
   ]);
 
-  if (!user || !user.settings) {
+  if (!user || user.status !== "active" || !user.settings) {
     return null;
   }
 
@@ -124,7 +184,8 @@ export async function getShellData(userId: string) {
   };
 }
 
-export async function getDashboardData() {
+export async function getDashboardData(user: AccessUser) {
+  assertInternalApiAccess(user);
   const now = new Date();
   const [initialShipments, flightsToday, recentActivity] = await Promise.all([
     db.shipment.findMany({
@@ -134,11 +195,7 @@ export async function getDashboardData() {
           lte: endOfDay(now),
         },
       },
-      include: {
-        flight: true,
-        trackingLogs: true,
-        documents: true,
-      },
+      include: shipmentInclude,
       orderBy: { receivedAt: "desc" },
       take: 50,
     }),
@@ -169,11 +226,7 @@ export async function getDashboardData() {
             lte: endOfDay(latestShipment.receivedAt),
           },
         },
-        include: {
-          flight: true,
-          trackingLogs: true,
-          documents: true,
-        },
+        include: shipmentInclude,
         orderBy: { receivedAt: "desc" },
         take: 50,
       });
@@ -213,7 +266,7 @@ export async function getDashboardData() {
         brandColor: meta.brandColor,
       };
     }),
-    shipmentsToday: shipmentsToday.map(serializeShipment),
+    shipmentsToday: shipmentsToday.map((shipment) => serializeShipment(shipment, user)),
     alerts: shipmentsToday
       .filter((shipment) => shipment.status === "hold" || shipment.docStatus !== "Complete")
       .map((shipment) => ({
@@ -237,12 +290,13 @@ export async function getDashboardData() {
   };
 }
 
-export async function listShipments(filters?: {
+export async function listShipments(user: AccessUser, filters?: {
   query?: string;
   status?: string;
   flight?: string;
   sortBy?: string;
 }) {
+  assertInternalApiAccess(user);
   const where: Prisma.ShipmentWhereInput = {};
 
   if (filters?.query) {
@@ -272,11 +326,7 @@ export async function listShipments(filters?: {
   const [shipments, flights] = await Promise.all([
     db.shipment.findMany({
       where,
-      include: {
-        flight: true,
-        trackingLogs: true,
-        documents: true,
-      },
+      include: shipmentInclude,
       orderBy,
     }),
     db.flight.findMany({
@@ -285,7 +335,7 @@ export async function listShipments(filters?: {
     }),
   ]);
 
-  const serializedShipments = shipments.map(serializeShipment);
+  const serializedShipments = shipments.map((shipment) => serializeShipment(shipment, user));
 
   if (filters?.sortBy === "priority") {
     serializedShipments.sort((left, right) => {
@@ -333,7 +383,10 @@ export async function createShipment(input: {
   userId: string;
   actorName: string;
 }) {
+  const actor = await requireAccessUser(input.userId);
+  assertInternalApiAccess(actor);
   const awb = input.awb && AWB_REGEX.test(input.awb) ? input.awb : await generateUniqueAwb();
+  const flightId = await ensureFlightExists(input.flightId);
 
   const shipment = await db.$transaction(async (tx) => {
     const created = await tx.shipment.create({
@@ -354,8 +407,8 @@ export async function createShipment(input: {
         ownerName: input.ownerName,
         notes: input.notes || "",
         status: "received",
-        flightId: input.flightId || null,
-        createdById: input.userId,
+        flightId: flightId || null,
+        createdById: actor.id,
         trackingLogs: {
           create: {
             status: "received",
@@ -365,16 +418,12 @@ export async function createShipment(input: {
           },
         },
       },
-      include: {
-        flight: true,
-        trackingLogs: true,
-        documents: true,
-      },
+      include: shipmentInclude,
     });
 
     await tx.activityLog.create({
       data: {
-        userId: input.userId,
+        userId: actor.id,
         action: "Create Shipment",
         targetType: "shipment",
         targetId: created.id,
@@ -387,7 +436,7 @@ export async function createShipment(input: {
     return created;
   });
 
-  return serializeShipment(shipment);
+  return serializeShipment(shipment, actor);
 }
 
 export async function updateShipment(
@@ -396,16 +445,18 @@ export async function updateShipment(
     status?: ShipmentStatus;
     notes?: string;
     ownerName?: string;
-    userId: string;
-    actorName: string;
+  userId: string;
+  actorName: string;
   },
 ) {
+  const actor = await requireAccessUser(input.userId);
+  assertInternalApiAccess(actor);
   const current = await db.shipment.findUnique({
     where: { id: shipmentId },
   });
 
   if (!current) {
-    throw new Error("Shipment tidak ditemukan.");
+    throw new AccessError("Shipment tidak ditemukan.", 404, "SHIPMENT_NOT_FOUND");
   }
 
   const nextStatus = input.status ?? current.status;
@@ -418,11 +469,7 @@ export async function updateShipment(
         notes: input.notes ?? current.notes,
         ownerName: input.ownerName ?? current.ownerName,
       },
-      include: {
-        flight: true,
-        trackingLogs: true,
-        documents: true,
-      },
+      include: shipmentInclude,
     });
 
     if (nextStatus !== current.status) {
@@ -439,7 +486,7 @@ export async function updateShipment(
 
     await tx.activityLog.create({
       data: {
-        userId: input.userId,
+        userId: actor.id,
         action: nextStatus !== current.status ? "Update Status" : "Update Shipment",
         targetType: "shipment",
         targetId: shipmentId,
@@ -457,14 +504,10 @@ export async function updateShipment(
 
   const full = await db.shipment.findUniqueOrThrow({
     where: { id: updated.id },
-    include: {
-      flight: true,
-      trackingLogs: true,
-      documents: true,
-    },
+    include: shipmentInclude,
   });
 
-  return serializeShipment(full);
+  return serializeShipment(full, actor);
 }
 
 export async function addShipmentDocument(input: {
@@ -476,6 +519,21 @@ export async function addShipmentDocument(input: {
   storageKey?: string;
   userId: string;
 }) {
+  const actor = await requireAccessUser(input.userId);
+  assertInternalApiAccess(actor);
+
+  const shipment = await db.shipment.findUnique({
+    where: { id: input.shipmentId },
+    select: {
+      id: true,
+      awb: true,
+    },
+  });
+
+  if (!shipment) {
+    throw new AccessError("Shipment tidak ditemukan.", 404, "SHIPMENT_NOT_FOUND");
+  }
+
   const [document] = await db.$transaction([
     db.shipmentDocument.create({
       data: {
@@ -489,12 +547,12 @@ export async function addShipmentDocument(input: {
     }),
     db.activityLog.create({
       data: {
-        userId: input.userId,
+        userId: actor.id,
         action: "Upload Document",
         targetType: "document",
         targetId: input.shipmentId,
         targetLabel: input.fileName,
-        description: `${input.fileName} diunggah ke shipment ${input.shipmentId}.`,
+        description: `${input.fileName} diunggah ke shipment ${shipment.awb}.`,
         level: "success",
       },
     }),
@@ -505,22 +563,46 @@ export async function addShipmentDocument(input: {
     fileName: document.fileName,
     mimeType: document.mimeType,
     fileSize: document.fileSize,
-    storageUrl: document.storageUrl,
+    storageUrl: getDocumentAccessUrl(document.storageKey, document.storageUrl) ?? document.storageUrl,
     createdAt: document.createdAt.toISOString(),
   };
 }
 
-export async function getShipmentByAwb(awb: string) {
-  const shipment = await db.shipment.findUnique({
-    where: { awb },
-    include: {
-      flight: true,
-      trackingLogs: true,
-      documents: true,
+export async function getShipmentDocumentDownload(user: AccessUser, fileName: string) {
+  if (user.role === "customer") {
+    throw new AccessError("Dokumen tidak ditemukan.", 404, "DOCUMENT_NOT_FOUND");
+  }
+
+  const document = await db.shipmentDocument.findFirst({
+    where: {
+      OR: [
+        { storageKey: fileName },
+        { storageKey: { endsWith: `/${fileName}` } },
+        { storageUrl: { endsWith: `/${fileName}` } },
+      ],
+    },
+    select: {
+      fileName: true,
+      mimeType: true,
+      storageKey: true,
+      storageUrl: true,
     },
   });
 
-  return shipment ? serializeShipment(shipment) : null;
+  if (!document) {
+    throw new AccessError("Dokumen tidak ditemukan.", 404, "DOCUMENT_NOT_FOUND");
+  }
+
+  return document;
+}
+
+export async function getShipmentByAwb(user: AccessUser, awb: string) {
+  const shipment = await db.shipment.findUnique({
+    where: { awb },
+    include: shipmentInclude,
+  });
+
+  return shipment ? serializeShipment(shipment, user) : null;
 }
 
 export async function rememberAwbSearch(userId: string, awb: string) {
@@ -564,11 +646,17 @@ export async function inviteUser(input: {
   station: string;
   invitedById: string;
 }) {
+  const actor = await requireAccessUser(input.invitedById);
+
+  if (!canManageUsers(actor)) {
+    throw new AccessError("Manajemen user hanya untuk admin.", 403, "ADMIN_ONLY");
+  }
+
   const user = await db.$transaction(async (tx) => {
     const created = await tx.user.create({
       data: {
         name: input.name,
-        email: input.email,
+        email: input.email.trim().toLowerCase(),
         passwordHash: "$2b$10$2nDaRkI6SQ7qN4uA.7Z0m.9pO5X2FdtYYG6iwSeNBY0d5hDOGOZaC",
         role: input.role,
         station: input.station,
@@ -599,7 +687,7 @@ export async function inviteUser(input: {
 
     await tx.activityLog.create({
       data: {
-        userId: input.invitedById,
+        userId: actor.id,
         action: "Invite User",
         targetType: "user",
         targetId: created.id,
@@ -624,6 +712,12 @@ export async function updateUserAccess(
     actorUserId: string;
   },
 ) {
+  const actor = await requireAccessUser(input.actorUserId);
+
+  if (!canManageUsers(actor)) {
+    throw new AccessError("Manajemen user hanya untuk admin.", 403, "ADMIN_ONLY");
+  }
+
   const user = await db.$transaction(async (tx) => {
     const updated = await tx.user.update({
       where: { id: userId },
@@ -644,7 +738,7 @@ export async function updateUserAccess(
 
     await tx.activityLog.create({
       data: {
-        userId: input.actorUserId,
+        userId: actor.id,
         action: "Update User Role",
         targetType: "user",
         targetId: updated.id,
@@ -660,7 +754,8 @@ export async function updateUserAccess(
   return user;
 }
 
-export async function getFlightBoardData(filters?: { status?: string; query?: string }) {
+export async function getFlightBoardData(user: AccessUser, filters?: { status?: string; query?: string }) {
+  assertInternalApiAccess(user);
   const where: Prisma.FlightWhereInput = {};
 
   if (filters?.status && filters.status !== "all") {
@@ -679,11 +774,7 @@ export async function getFlightBoardData(filters?: { status?: string; query?: st
     where,
     include: {
       shipments: {
-        include: {
-          trackingLogs: true,
-          documents: true,
-          flight: true,
-        },
+        include: shipmentInclude,
       },
     },
     orderBy: { cargoCutoffTime: "asc" },
@@ -719,13 +810,14 @@ export async function getFlightBoardData(filters?: { status?: string; query?: st
         registration: meta.registration,
         category: meta.category,
         brandColor: meta.brandColor,
-        shipments: flight.shipments.map(serializeShipment),
+        shipments: flight.shipments.map((shipment) => serializeShipment(shipment, user)),
       };
     }),
   };
 }
 
-export async function listActivityLogs(filters?: { query?: string; action?: string; userId?: string }) {
+export async function listActivityLogs(user: AccessUser, filters?: { query?: string; action?: string; userId?: string }) {
+  assertInternalApiAccess(user);
   const where: Prisma.ActivityLogWhereInput = {};
 
   if (filters?.query) {
@@ -774,22 +866,25 @@ export async function listActivityLogs(filters?: { query?: string; action?: stri
 }
 
 export async function getSettingsData(userId: string) {
+  const actor = await requireAccessUser(userId);
   const [user, users] = await Promise.all([
     db.user.findUniqueOrThrow({
       where: { id: userId },
       include: { settings: true },
     }),
-    db.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        station: true,
-        status: true,
-      },
-      orderBy: { createdAt: "asc" },
-    }),
+    actor.role === "admin" || actor.role === "supervisor"
+      ? db.user.findMany({
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            station: true,
+            status: true,
+          },
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -919,12 +1014,16 @@ export async function reportAwbIssue(userId: string, awb: string) {
   return { success: true };
 }
 
-export async function searchGlobal(query: string) {
+export async function searchGlobal(user: AccessUser, query: string) {
   if (AWB_REGEX.test(query)) {
     const shipment = await db.shipment.findUnique({ where: { awb: query } });
     if (shipment) {
       return { path: `/awb-tracking?awb=${shipment.awb}`, label: shipment.awb, kind: "AWB" };
     }
+  }
+
+  if (user.role === "customer") {
+    return null;
   }
 
   const flight = await db.flight.findFirst({

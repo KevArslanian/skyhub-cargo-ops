@@ -8,6 +8,7 @@ import { BrandMark } from "@/components/brand-mark";
 type LoginPayload = {
   error?: string;
   redirectTo?: string;
+  code?: string;
 };
 
 export default function LoginPage() {
@@ -33,22 +34,27 @@ export default function LoginPage() {
     setSubmitting(true);
     setErrors({});
 
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, remember: true }),
-    });
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, remember: true }),
+      });
 
-    const payload = (await response.json()) as LoginPayload;
+      const payload = (await response.json()) as LoginPayload;
 
-    if (!response.ok) {
-      setErrors({ form: payload.error || "Login gagal." });
+      if (!response.ok) {
+        setErrors({ form: payload.error || "Login gagal." });
+        return;
+      }
+
+      router.push(payload.redirectTo || "/dashboard");
+      router.refresh();
+    } catch {
+      setErrors({ form: "Tidak dapat menjangkau layanan login saat ini." });
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    router.push(payload.redirectTo || "/dashboard");
-    router.refresh();
   }
 
   return (
@@ -73,10 +79,12 @@ export default function LoginPage() {
                 <div>
                   <label className="label">Email / Account</label>
                   <input
+                    type="email"
+                    autoComplete="username"
                     className="input-field"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    placeholder="operator@skyhub.test"
+                    placeholder="nama@perusahaan.com"
                   />
                   {errors.email ? <p className="mt-2 text-sm text-[color:var(--tone-warning)]">{errors.email}</p> : null}
                 </div>
@@ -87,6 +95,7 @@ export default function LoginPage() {
                     <input
                       className="input-field input-field-trailing"
                       type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       placeholder="Masukkan password"

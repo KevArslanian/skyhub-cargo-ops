@@ -160,7 +160,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
   useEffect(() => {
     if (pathname && !canAccessRoute(user.role, pathname)) {
-      const fallback = user.role === "customer" ? "/reports" : "/dashboard";
+      const fallback = user.role === "customer" ? "/awb-tracking" : "/dashboard";
       router.replace(fallback);
     }
   }, [pathname, router, user.role]);
@@ -292,7 +292,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
   async function handleSignOut() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    router.push("/about-us");
     router.refresh();
   }
 

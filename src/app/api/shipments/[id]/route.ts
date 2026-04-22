@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
+import { routeErrorResponse } from "@/lib/api";
+import { assertInternalApiAccess } from "@/lib/access";
 import { updateShipment } from "@/lib/data";
 import { shipmentUpdateSchema } from "@/lib/validators";
 
@@ -9,10 +11,8 @@ type RouteContext = {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const user = await requireUser();
-    if (user.role === "customer") {
-      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
-    }
+    const user = await requireApiUser();
+    assertInternalApiAccess(user);
     const { id } = await context.params;
     const json = await request.json();
     const parsed = shipmentUpdateSchema.safeParse(json);
@@ -29,9 +29,6 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({ shipment });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gagal memperbarui shipment." },
-      { status: 500 },
-    );
+    return routeErrorResponse(error, "Gagal memperbarui shipment.");
   }
 }

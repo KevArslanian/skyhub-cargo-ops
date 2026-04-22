@@ -1,41 +1,43 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
+import { routeErrorResponse } from "@/lib/api";
+import { assertInternalApiAccess } from "@/lib/access";
 import { createShipment, getShipmentByAwb, listShipments, rememberAwbSearch } from "@/lib/data";
 import { shipmentCreateSchema } from "@/lib/validators";
 
 export async function GET(request: Request) {
-  const user = await requireUser();
-  const { searchParams } = new URL(request.url);
-  const awb = searchParams.get("awb");
+  try {
+    const user = await requireApiUser();
+    const { searchParams } = new URL(request.url);
+    const awb = searchParams.get("awb");
 
-  if (awb) {
-    const shipment = await getShipmentByAwb(awb);
-    if (shipment) {
-      await rememberAwbSearch(user.id, awb);
+    if (awb) {
+      const shipment = await getShipmentByAwb(user, awb);
+      if (shipment) {
+        await rememberAwbSearch(user.id, awb);
+      }
+      return NextResponse.json({ shipment });
     }
-    return NextResponse.json({ shipment });
+
+    assertInternalApiAccess(user);
+
+    const data = await listShipments(user, {
+      query: searchParams.get("query") || undefined,
+      status: searchParams.get("status") || undefined,
+      flight: searchParams.get("flight") || undefined,
+      sortBy: searchParams.get("sortBy") || undefined,
+    });
+
+    return NextResponse.json(data);
+  } catch (error) {
+    return routeErrorResponse(error, "Gagal memuat shipment.");
   }
-
-  if (user.role === "customer") {
-    return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
-  }
-
-  const data = await listShipments({
-    query: searchParams.get("query") || undefined,
-    status: searchParams.get("status") || undefined,
-    flight: searchParams.get("flight") || undefined,
-    sortBy: searchParams.get("sortBy") || undefined,
-  });
-
-  return NextResponse.json(data);
 }
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser();
-    if (user.role === "customer") {
-      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
-    }
+    const user = await requireApiUser();
+    assertInternalApiAccess(user);
     const payload = await request.json();
     const parsed = shipmentCreateSchema.safeParse(payload);
 
@@ -53,9 +55,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ shipment });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gagal membuat shipment." },
-      { status: 500 },
-    );
+    return routeErrorResponse(error, "Gagal membuat shipment.");
   }
 }

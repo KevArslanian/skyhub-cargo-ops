@@ -1,23 +1,25 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
+import { routeErrorResponse } from "@/lib/api";
+import { assertRoles } from "@/lib/access";
 import { getSettingsData, inviteUser } from "@/lib/data";
 import { inviteUserSchema } from "@/lib/validators";
 
 export async function GET() {
-  const user = await requireUser();
-  if (user.role !== "admin" && user.role !== "supervisor") {
-    return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+  try {
+    const user = await requireApiUser();
+    assertRoles(user, ["admin"], "Manajemen user hanya untuk admin.", "ADMIN_ONLY");
+    const settings = await getSettingsData(user.id);
+    return NextResponse.json({ users: settings.users });
+  } catch (error) {
+    return routeErrorResponse(error, "Gagal memuat user.");
   }
-  const settings = await getSettingsData(user.id);
-  return NextResponse.json({ users: settings.users });
 }
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser();
-    if (user.role !== "admin" && user.role !== "supervisor") {
-      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
-    }
+    const user = await requireApiUser();
+    assertRoles(user, ["admin"], "Manajemen user hanya untuk admin.", "ADMIN_ONLY");
     const json = await request.json();
     const parsed = inviteUserSchema.safeParse(json);
 
@@ -32,9 +34,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ user: invited });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gagal mengundang user." },
-      { status: 500 },
-    );
+    return routeErrorResponse(error, "Gagal mengundang user.");
   }
 }

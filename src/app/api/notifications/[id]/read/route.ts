@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
+import { routeErrorResponse } from "@/lib/api";
 import { markNotificationRead } from "@/lib/data";
 
 type RouteContext = {
@@ -7,8 +8,12 @@ type RouteContext = {
 };
 
 export async function POST(_: Request, context: RouteContext) {
-  const user = await requireUser();
-  const { id } = await context.params;
-  await markNotificationRead(user.id, id);
-  return NextResponse.json({ success: true });
+  try {
+    const user = await requireApiUser();
+    const { id } = await context.params;
+    await markNotificationRead(user.id, id);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return routeErrorResponse(error, "Gagal menandai notifikasi.");
+  }
 }

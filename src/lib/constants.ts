@@ -17,27 +17,34 @@ export const DEFAULT_ROUTE_BY_ROLE: Record<UserRole, string> = {
   admin: "/dashboard",
   supervisor: "/dashboard",
   operator: "/dashboard",
-  customer: "/reports",
+  customer: "/awb-tracking",
 };
 
 export function canAccessRoute(role: UserRole, pathname: string) {
-  if (pathname.startsWith("/dashboard") || pathname.startsWith("/awb-tracking")) {
+  if (pathname.startsWith("/awb-tracking")) {
     return true;
   }
 
   if (role === "customer") {
-    return pathname.startsWith("/reports") || pathname.startsWith("/settings");
+    return false;
   }
 
-  if (role === "operator") {
-    return !pathname.startsWith("/settings");
+  if (pathname.startsWith("/settings")) {
+    return role === "supervisor" || role === "admin";
   }
 
-  if (role === "supervisor" || role === "admin") {
-    return true;
+  if (
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/shipment-ledger") ||
+    pathname.startsWith("/flight-board") ||
+    pathname.startsWith("/activity-log") ||
+    pathname.startsWith("/reports") ||
+    pathname.startsWith("/exports")
+  ) {
+    return role === "operator" || role === "supervisor" || role === "admin";
   }
 
-  return false;
+  return role === "operator" || role === "supervisor" || role === "admin";
 }
 
 export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {

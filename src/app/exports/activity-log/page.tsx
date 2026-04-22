@@ -10,9 +10,9 @@ export default async function ActivityLogPrintPage({
 }: {
   searchParams: Promise<{ query?: string; action?: string; userId?: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const params = await searchParams;
-  const data = await listActivityLogs(params);
+  const data = await listActivityLogs(user, params);
 
   return (
     <div className="mx-auto max-w-6xl bg-white p-8 text-black">

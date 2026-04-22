@@ -10,9 +10,9 @@ export default async function ShipmentsPrintPage({
 }: {
   searchParams: Promise<{ query?: string; status?: string; flight?: string; sortBy?: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const params = await searchParams;
-  const data = await listShipments(params);
+  const data = await listShipments(user, params);
 
   return (
     <div className="mx-auto max-w-6xl bg-white p-8 text-black">

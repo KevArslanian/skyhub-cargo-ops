@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
+import { routeErrorResponse } from "@/lib/api";
+import { assertInternalApiAccess } from "@/lib/access";
 import { reportAwbIssue } from "@/lib/data";
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser();
-    if (user.role === "customer") {
-      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
-    }
+    const user = await requireApiUser();
+    assertInternalApiAccess(user);
     const { awb } = (await request.json()) as { awb?: string };
 
     if (!awb) {
@@ -17,9 +17,6 @@ export async function POST(request: Request) {
     await reportAwbIssue(user.id, awb);
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gagal melaporkan isu." },
-      { status: 500 },
-    );
+    return routeErrorResponse(error, "Gagal melaporkan isu.");
   }
 }
