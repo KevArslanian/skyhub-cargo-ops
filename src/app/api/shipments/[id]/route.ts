@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { routeErrorResponse } from "@/lib/api";
+import { routeErrorResponse, validationErrorResponse } from "@/lib/api";
 import { archiveShipment, updateShipment } from "@/lib/data";
 import { shipmentUpdateSchema } from "@/lib/validators";
 
@@ -16,7 +16,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const parsed = shipmentUpdateSchema.safeParse(json);
 
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message || "Perubahan shipment tidak valid." }, { status: 400 });
+      return validationErrorResponse(parsed.error, "Perubahan shipment tidak valid.");
     }
 
     const shipment = await updateShipment(id, {

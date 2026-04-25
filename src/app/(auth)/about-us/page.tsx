@@ -526,7 +526,7 @@ export default function AboutUsPage() {
           <h3 className="mt-4 text-6xl font-semibold tracking-tight">Numbers that matter.</h3>
         </div>
 
-        <div className="mx-auto mt-16 grid max-w-7xl grid-cols-2 gap-px px-6 md:grid-cols-4">
+        <div className="mx-auto mt-16 grid max-w-7xl grid-cols-1 gap-px px-6 sm:grid-cols-2 md:grid-cols-4">
           <div className="premium-glass p-10 text-center">
             <div className="text-5xl font-semibold md:text-7xl">{Math.floor(counter.shipments).toLocaleString()}</div>
             <div className="mt-2 text-sm text-white/60">Shipments today</div>
@@ -709,8 +709,32 @@ export default function AboutUsPage() {
       <style jsx>{`
         .premium-landing {
           min-height: 100vh;
+          max-width: 100%;
           overflow-x: hidden;
           font-family: var(--font-body), "Inter", system-ui, sans-serif;
+        }
+
+        .premium-landing *,
+        .premium-landing *::before,
+        .premium-landing *::after {
+          min-width: 0;
+        }
+
+        .premium-landing section,
+        .premium-landing .premium-glass {
+          max-width: 100%;
+          overflow-wrap: anywhere;
+        }
+
+        .premium-landing h1,
+        .premium-landing h2,
+        .premium-landing h3,
+        .premium-landing h4,
+        .premium-landing p,
+        .premium-landing button,
+        .premium-landing a {
+          max-width: 100%;
+          overflow-wrap: anywhere;
         }
 
         .premium-nav {
@@ -799,6 +823,36 @@ export default function AboutUsPage() {
           transition: transform 0.1s ease-out;
           z-index: 1;
           pointer-events: none;
+        }
+
+        @media (max-width: 640px) {
+          .premium-nav {
+            padding: 0.85rem 0;
+          }
+
+          .premium-landing h1 {
+            font-size: 3.5rem;
+            line-height: 0.92;
+          }
+
+          .premium-landing h2,
+          .premium-landing h3 {
+            font-size: 2.75rem;
+            line-height: 1;
+          }
+
+          .premium-landing h4 {
+            font-size: 1.65rem;
+            line-height: 1.12;
+          }
+
+          .premium-landing .premium-glass {
+            padding: 1.5rem;
+          }
+
+          .premium-magnetic-btn {
+            padding-inline: 2rem;
+          }
         }
 
         @keyframes premium-logo-float {

@@ -52,8 +52,19 @@ export async function GET(_request: Request, context: RouteContext<"/api/uploads
     const document = await getShipmentDocumentDownload(user, safeFileName);
     const mimeType = document.mimeType || inferMimeType(document.fileName);
     const headers = buildDocumentHeaders(document.fileName, mimeType);
+    const referencesBlob = Boolean(document.storageKey || /^https?:\/\//.test(document.storageUrl));
 
-    if (process.env.BLOB_READ_WRITE_TOKEN && (document.storageKey || /^https?:\/\//.test(document.storageUrl))) {
+    if (process.env.NODE_ENV === "production" && !process.env.BLOB_READ_WRITE_TOKEN && referencesBlob) {
+      return NextResponse.json(
+        {
+          error: "Penyimpanan dokumen production belum dikonfigurasi.",
+          code: "BLOB_TOKEN_REQUIRED",
+        },
+        { status: 503 },
+      );
+    }
+
+    if (process.env.BLOB_READ_WRITE_TOKEN && referencesBlob) {
       const blobTargets = [
         document.storageKey ? { target: document.storageKey, access: "private" as const } : null,
         /^https?:\/\//.test(document.storageUrl) ? { target: document.storageUrl, access: "private" as const } : null,

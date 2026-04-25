@@ -79,6 +79,9 @@ model User {
   recentAwbSearches RecentAwbSearch[]
   createdShipments  Shipment[]        @relation("ShipmentCreator")
   customerAccount   CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
+
+  @@index([role, status])
+  @@index([customerAccountId])
 }
 
 model UserSetting {
@@ -114,6 +117,10 @@ model Flight {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   shipments       Shipment[]
+
+  @@index([archivedAt, status])
+  @@index([departureTime])
+  @@index([cargoCutoffTime])
 }
 
 model Shipment {
@@ -145,6 +152,13 @@ model Shipment {
   customerAccount CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
   trackingLogs    TrackingLog[]
   documents       ShipmentDocument[]
+
+  @@index([archivedAt, updatedAt])
+  @@index([archivedAt, receivedAt])
+  @@index([archivedAt, status, updatedAt])
+  @@index([customerAccountId, archivedAt, updatedAt])
+  @@index([flightId, archivedAt])
+  @@index([createdById])
 }
 
 model TrackingLog {
@@ -156,6 +170,8 @@ model TrackingLog {
   actorName  String?
   createdAt  DateTime       @default(now())
   shipment   Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, createdAt])
 }
 
 model ShipmentDocument {
@@ -170,6 +186,8 @@ model ShipmentDocument {
   blobCleanupStatus BlobCleanupStatus?
   createdAt         DateTime           @default(now())
   shipment          Shipment           @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, deletedAt])
 }
 
 model SystemKpi {
@@ -190,6 +208,10 @@ model ActivityLog {
   level       String   @default("info")
   createdAt   DateTime @default(now())
   user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
 }
 
 model Notification {
@@ -202,6 +224,8 @@ model Notification {
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
 }
 
 model RecentAwbSearch {
@@ -210,4 +234,7 @@ model RecentAwbSearch {
   awb       String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([awb])
 }

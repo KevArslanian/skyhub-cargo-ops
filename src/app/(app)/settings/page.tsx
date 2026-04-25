@@ -127,7 +127,7 @@ function PreferenceToggleCard({
   return (
     <label
       className={cn(
-        "flex w-full items-center justify-between gap-4 rounded-[24px] border px-4 py-4 transition-colors",
+        "flex w-full min-w-0 max-w-full items-center justify-between gap-4 rounded-[24px] border px-4 py-4 transition-colors",
         checked
           ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]"
           : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]",
@@ -181,14 +181,14 @@ function ThemePreviewCard({
       type="button"
       onClick={onSelect}
       className={cn(
-        "w-full rounded-[24px] border p-4 text-left transition-all",
+        "w-full min-w-0 max-w-full rounded-[24px] border p-4 text-left transition-all",
         active
           ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] shadow-[0_14px_28px_rgba(0,61,155,0.12)]"
           : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] hover:border-[rgba(0,82,204,0.12)]",
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">{label}</p>
           <p className="mt-2 font-semibold text-[color:var(--text-strong)]">{title}</p>
           <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{description}</p>
@@ -216,7 +216,7 @@ function ThemePreviewCard({
           </div>
           <div className="h-2 w-16 rounded-full bg-current/15" />
         </div>
-        <div className="mt-3 grid grid-cols-[1.1fr_0.9fr] gap-3">
+        <div className="mt-3 grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-3">
           <div className={cn("rounded-[16px] p-3", isDark ? "bg-[#122840]" : "bg-[#eff4fa]")}>
             <div className="h-2 w-14 rounded-full bg-current/15" />
             <div className="mt-3 h-6 w-24 rounded-full bg-current/12" />
@@ -595,20 +595,20 @@ export default function SettingsPage() {
                     key={tab.label}
                     type="button"
                     className={cn(
-                      "flex w-full items-center justify-between rounded-[22px] border px-4 py-4 text-left transition-colors",
+                      "flex w-full min-w-0 items-center justify-between gap-3 rounded-[22px] border px-4 py-4 text-left transition-colors",
                       active
                         ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]"
                         : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] hover:text-[color:var(--text-strong)]",
                     )}
                     onClick={() => setActiveTab(tab.label)}
                   >
-                    <span className="flex items-center gap-3">
+                    <span className="flex min-w-0 items-center gap-3">
                       <span className="inline-flex h-10 w-10 items-center justify-center rounded-[16px] border border-[color:var(--border-soft)] bg-white/70 dark:bg-white/[0.04]">
                         <Icon size={18} />
                       </span>
-                      <span>
-                        <span className="block font-semibold">{tab.label}</span>
-                        <span className="block text-xs text-[color:var(--muted-2)]">{tab.note}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold">{tab.label}</span>
+                        <span className="block truncate text-xs text-[color:var(--muted-2)]">{tab.note}</span>
                       </span>
                     </span>
                     <ChevronRight size={16} />
@@ -631,7 +631,7 @@ export default function SettingsPage() {
             {activeTab === "Profil" ? (
               <>
                 <OpsPanel className="overflow-hidden p-0">
-                  <div className="grid gap-0 xl:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)]">
+                  <div className="grid gap-0 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
                     <div className="p-6">
                       <SectionHeader
                         title="Profil Pengguna"
@@ -692,8 +692,8 @@ export default function SettingsPage() {
                 </OpsPanel>
 
                 <div className="sticky bottom-0 z-10 rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/92 px-5 py-4 shadow-[0_14px_34px_rgba(11,30,52,0.10)] backdrop-blur">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
                       <p className="font-semibold text-[color:var(--text-strong)]">
                         {hasDraftChanges ? "Perubahan profil belum disimpan" : "Profil sudah sinkron"}
                       </p>
@@ -848,8 +848,8 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="sticky bottom-0 z-10 rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/92 px-5 py-4 shadow-[0_14px_34px_rgba(11,30,52,0.10)] backdrop-blur">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
                       <p className="font-semibold text-[color:var(--text-strong)]">
                         {hasDraftChanges ? "Preferensi belum disimpan" : "Semua preferensi sinkron"}
                       </p>
@@ -915,7 +915,7 @@ export default function SettingsPage() {
 
                 {inviteOpen ? (
                   <div className="mt-5 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
-                    <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr_0.9fr_0.9fr_1fr_auto]">
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1fr)_auto]">
                       <input
                         className="input-field"
                         placeholder="Nama"
@@ -1181,7 +1181,7 @@ export default function SettingsPage() {
 
                 {customerAccountOpen ? (
                   <div className="mt-5 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
-                    <div className="grid gap-4 lg:grid-cols-[0.7fr_1.2fr_1fr_1fr_1fr_auto]">
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
                       <input
                         className="input-field"
                         placeholder="Kode"

@@ -75,7 +75,7 @@ export default function ActivityLogPage() {
         <StatCard label="Galat" value={levels.error} note="Kejadian gagal atau exception log yang tercatat." icon={ShieldAlert} tone="danger" />
       </div>
 
-      <FilterBar className="xl:grid-cols-[1fr_220px_220px_auto]">
+      <FilterBar className="xl:grid-cols-[minmax(0,1fr)_minmax(0,220px)_minmax(0,220px)_auto]">
         <div>
           <label className="label">Cari log</label>
           <input className="input-field" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="AWB, deskripsi, target..." />

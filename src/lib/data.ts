@@ -140,6 +140,20 @@ function getShipmentOrderBy(sortBy?: string): Prisma.ShipmentOrderByWithRelation
   return [{ updatedAt: "desc" }];
 }
 
+function assertFlightScheduleOrder(input: { cargoCutoffTime: Date; departureTime: Date; arrivalTime: Date }) {
+  if (input.cargoCutoffTime.getTime() > input.departureTime.getTime()) {
+    throw new AccessError(
+      "Cargo cutoff harus sebelum atau sama dengan waktu berangkat.",
+      400,
+      "INVALID_FLIGHT_SCHEDULE",
+    );
+  }
+
+  if (input.departureTime.getTime() > input.arrivalTime.getTime()) {
+    throw new AccessError("Waktu tiba harus setelah atau sama dengan waktu berangkat.", 400, "INVALID_FLIGHT_SCHEDULE");
+  }
+}
+
 async function getActorWithRelations(userId: string) {
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -1574,6 +1588,10 @@ export async function createFlight(input: {
   ensureFlightManager(actor);
   const normalizedFlightNumber = ensureAllowedFlightNumber(input.flightNumber);
   const meta = getFlightVisualMeta(normalizedFlightNumber, input.aircraftType);
+  const departureTime = new Date(input.departureTime);
+  const arrivalTime = new Date(input.arrivalTime);
+  const cargoCutoffTime = new Date(input.cargoCutoffTime);
+  assertFlightScheduleOrder({ cargoCutoffTime, departureTime, arrivalTime });
 
   const flight = await db.$transaction(async (tx) => {
     const created = await tx.flight.create({
@@ -1582,9 +1600,9 @@ export async function createFlight(input: {
         aircraftType: input.aircraftType,
         origin: input.origin.toUpperCase(),
         destination: input.destination.toUpperCase(),
-        departureTime: new Date(input.departureTime),
-        arrivalTime: new Date(input.arrivalTime),
-        cargoCutoffTime: new Date(input.cargoCutoffTime),
+        departureTime,
+        arrivalTime,
+        cargoCutoffTime,
         status: input.status,
         gate: input.gate || null,
         remarks: input.remarks || null,
@@ -1640,6 +1658,9 @@ export async function updateFlight(input: {
       aircraftType: true,
       origin: true,
       destination: true,
+      departureTime: true,
+      arrivalTime: true,
+      cargoCutoffTime: true,
       archivedAt: true,
     },
   });
@@ -1651,6 +1672,10 @@ export async function updateFlight(input: {
   const normalizedFlightNumber = ensureAllowedFlightNumber(input.flightNumber ?? current.flightNumber);
   const nextAircraftType = input.aircraftType ?? current.aircraftType;
   const meta = getFlightVisualMeta(normalizedFlightNumber, nextAircraftType);
+  const departureTime = input.departureTime ? new Date(input.departureTime) : current.departureTime;
+  const arrivalTime = input.arrivalTime ? new Date(input.arrivalTime) : current.arrivalTime;
+  const cargoCutoffTime = input.cargoCutoffTime ? new Date(input.cargoCutoffTime) : current.cargoCutoffTime;
+  assertFlightScheduleOrder({ cargoCutoffTime, departureTime, arrivalTime });
 
   const updated = await db.$transaction(async (tx) => {
     const next = await tx.flight.update({
@@ -1660,9 +1685,9 @@ export async function updateFlight(input: {
         aircraftType: input.aircraftType,
         origin: input.origin?.toUpperCase(),
         destination: input.destination?.toUpperCase(),
-        departureTime: input.departureTime ? new Date(input.departureTime) : undefined,
-        arrivalTime: input.arrivalTime ? new Date(input.arrivalTime) : undefined,
-        cargoCutoffTime: input.cargoCutoffTime ? new Date(input.cargoCutoffTime) : undefined,
+        departureTime: input.departureTime ? departureTime : undefined,
+        arrivalTime: input.arrivalTime ? arrivalTime : undefined,
+        cargoCutoffTime: input.cargoCutoffTime ? cargoCutoffTime : undefined,
         status: input.status,
         gate: input.gate,
         remarks: input.remarks,

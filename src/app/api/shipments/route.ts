@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { routeErrorResponse } from "@/lib/api";
+import { routeErrorResponse, validationErrorResponse } from "@/lib/api";
 import { createShipment, getShipmentByAwb, listShipments, rememberAwbSearch } from "@/lib/data";
-import { shipmentCreateSchema } from "@/lib/validators";
+import { awbSearchSchema, shipmentCreateSchema, shipmentListQuerySchema } from "@/lib/validators";
 
 export async function GET(request: Request) {
   try {
@@ -10,20 +10,27 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const awb = searchParams.get("awb");
 
-    if (awb) {
-      const shipment = await getShipmentByAwb(user, awb);
+    if (awb !== null) {
+      const parsedAwb = awbSearchSchema.safeParse({ awb });
+
+      if (!parsedAwb.success) {
+        return validationErrorResponse(parsedAwb.error, "AWB tidak valid.");
+      }
+
+      const shipment = await getShipmentByAwb(user, parsedAwb.data.awb);
       if (shipment) {
-        await rememberAwbSearch(user.id, awb);
+        await rememberAwbSearch(user.id, parsedAwb.data.awb);
       }
       return NextResponse.json({ shipment });
     }
 
-    const data = await listShipments(user, {
-      query: searchParams.get("query") || undefined,
-      status: searchParams.get("status") || undefined,
-      flight: searchParams.get("flight") || undefined,
-      sortBy: searchParams.get("sortBy") || undefined,
-    });
+    const parsedQuery = shipmentListQuerySchema.safeParse(Object.fromEntries(searchParams));
+
+    if (!parsedQuery.success) {
+      return validationErrorResponse(parsedQuery.error, "Filter shipment tidak valid.");
+    }
+
+    const data = await listShipments(user, parsedQuery.data);
 
     return NextResponse.json(data);
   } catch (error) {
@@ -38,7 +45,7 @@ export async function POST(request: Request) {
     const parsed = shipmentCreateSchema.safeParse(payload);
 
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message || "Input shipment tidak valid." }, { status: 400 });
+      return validationErrorResponse(parsed.error, "Input shipment tidak valid.");
     }
 
     const shipment = await createShipment({

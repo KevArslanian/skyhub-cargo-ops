@@ -647,7 +647,7 @@ export default function ShipmentLedgerPage() {
                     );
                   })}
 
-                  <div className="flex items-center justify-between gap-3 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 py-3">
                     <button
                       type="button"
                       className="topbar-button"
@@ -831,23 +831,30 @@ export default function ShipmentLedgerPage() {
                         </div>
                         <div>
                           <label className="label">Status Dokumen</label>
-                          <input
-                            className="input-field"
+                          <select
+                            className="select-field"
                             value={drawerDraft.docStatus}
                             onChange={(event) =>
                               setDrawerDraft((current) => ({ ...current, docStatus: event.target.value }))
                             }
-                          />
+                          >
+                            <option value="Complete">Complete</option>
+                            <option value="Partial">Partial</option>
+                            <option value="Review">Review</option>
+                          </select>
                         </div>
                         <div>
                           <label className="label">Kesiapan</label>
-                          <input
-                            className="input-field"
+                          <select
+                            className="select-field"
                             value={drawerDraft.readiness}
                             onChange={(event) =>
                               setDrawerDraft((current) => ({ ...current, readiness: event.target.value }))
                             }
-                          />
+                          >
+                            <option value="Ready">Ready</option>
+                            <option value="Pending">Pending</option>
+                          </select>
                         </div>
                         <div className="md:col-span-2">
                           <label className="label">Catatan Review</label>
@@ -1188,7 +1195,7 @@ export default function ShipmentLedgerPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3">
+              <div className="flex flex-wrap justify-end gap-3">
                 <button type="button" className="btn btn-secondary" onClick={() => setCreateOpen(false)}>
                   Batal
                 </button>

@@ -122,11 +122,29 @@ async function getBypassUser(preferredRole?: UserRole | null): Promise<CurrentUs
   });
 }
 
+function shouldUseSecureCookies() {
+  if (process.env.NODE_ENV === "production") {
+    return true;
+  }
+
+  const override = process.env.AUTH_COOKIE_SECURE?.trim().toLowerCase();
+
+  if (override === "true" || override === "1") {
+    return true;
+  }
+
+  if (override === "false" || override === "0") {
+    return false;
+  }
+
+  return false;
+}
+
 function getCookieBase(maxAge?: number) {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureCookies(),
     path: "/",
     ...(typeof maxAge === "number" ? { maxAge } : {}),
   };

@@ -2,6 +2,60 @@ import { z } from "zod";
 import { AWB_REGEX } from "./constants";
 import { FLIGHT_NUMBER_REGEX } from "./flight-meta";
 
+export const shipmentStatusSchema = z.enum(["received", "sortation", "loaded_to_aircraft", "departed", "arrived", "hold"]);
+export const flightStatusSchema = z.enum(["on_time", "delayed", "departed"]);
+export const shipmentDocStatusSchema = z.enum(["Complete", "Partial", "Review"]);
+export const shipmentReadinessSchema = z.enum(["Ready", "Pending"]);
+
+const optionalAwbSchema = z
+  .string()
+  .trim()
+  .optional()
+  .default("")
+  .refine((value) => !value || AWB_REGEX.test(value), {
+    message: "Format AWB harus XXX-XXXXXXXX.",
+  });
+
+const optionalPositiveVolumeSchema = z.preprocess(
+  (value) => (value === "" || value === undefined ? undefined : value),
+  z.coerce.number().positive("Volume harus lebih dari 0.").optional().nullable(),
+);
+
+function validateFlightDateOrder<T extends { cargoCutoffTime?: string; departureTime?: string; arrivalTime?: string }>(
+  value: T,
+  context: z.RefinementCtx,
+) {
+  const providedDateFields = [value.cargoCutoffTime, value.departureTime, value.arrivalTime].filter(Boolean).length;
+  const cutoff = value.cargoCutoffTime ? new Date(value.cargoCutoffTime).getTime() : null;
+  const departure = value.departureTime ? new Date(value.departureTime).getTime() : null;
+  const arrival = value.arrivalTime ? new Date(value.arrivalTime).getTime() : null;
+
+  if (providedDateFields > 0 && providedDateFields < 3) {
+    context.addIssue({
+      code: "custom",
+      path: ["departureTime"],
+      message: "Cargo cutoff, waktu berangkat, dan waktu tiba harus dikirim bersama.",
+    });
+    return;
+  }
+
+  if (cutoff !== null && departure !== null && cutoff > departure) {
+    context.addIssue({
+      code: "custom",
+      path: ["cargoCutoffTime"],
+      message: "Cargo cutoff harus sebelum atau sama dengan waktu berangkat.",
+    });
+  }
+
+  if (departure !== null && arrival !== null && departure > arrival) {
+    context.addIssue({
+      code: "custom",
+      path: ["arrivalTime"],
+      message: "Waktu tiba harus setelah atau sama dengan waktu berangkat.",
+    });
+  }
+}
+
 export const loginSchema = z.object({
   email: z.email({ message: "Masukkan email yang valid." }),
   password: z.string().min(6, "Password minimal 6 karakter."),
@@ -9,13 +63,13 @@ export const loginSchema = z.object({
 });
 
 export const shipmentCreateSchema = z.object({
-  awb: z.string().trim().optional().default(""),
+  awb: optionalAwbSchema,
   commodity: z.string().trim().min(2, "Komoditas wajib diisi."),
   origin: z.string().trim().min(3),
   destination: z.string().trim().min(3),
   pieces: z.coerce.number().int().positive("Pieces harus lebih dari 0."),
   weightKg: z.coerce.number().positive("Berat harus lebih dari 0."),
-  volumeM3: z.coerce.number().optional().nullable(),
+  volumeM3: optionalPositiveVolumeSchema,
   specialHandling: z.string().trim().optional().default(""),
   shipper: z.string().trim().min(2),
   consignee: z.string().trim().min(2),
@@ -27,15 +81,13 @@ export const shipmentCreateSchema = z.object({
 });
 
 export const shipmentUpdateSchema = z.object({
-  status: z
-    .enum(["received", "sortation", "loaded_to_aircraft", "departed", "arrived", "hold"])
-    .optional(),
+  status: shipmentStatusSchema.optional(),
   notes: z.string().trim().optional(),
   ownerName: z.string().trim().optional(),
   flightId: z.string().trim().optional().nullable(),
   customerAccountId: z.string().trim().optional().nullable(),
-  docStatus: z.string().trim().optional(),
-  readiness: z.string().trim().optional(),
+  docStatus: shipmentDocStatusSchema.optional(),
+  readiness: shipmentReadinessSchema.optional(),
 });
 
 export const shipmentArchiveSchema = z.object({
@@ -113,10 +165,10 @@ export const flightCreateSchema = z.object({
   departureTime: z.string().datetime({ offset: true }),
   arrivalTime: z.string().datetime({ offset: true }),
   cargoCutoffTime: z.string().datetime({ offset: true }),
-  status: z.enum(["on_time", "delayed", "departed"]),
+  status: flightStatusSchema,
   gate: z.string().trim().optional().nullable(),
   remarks: z.string().trim().optional().nullable(),
-});
+}).superRefine(validateFlightDateOrder);
 
 export const flightUpdateSchema = z.object({
   flightNumber: z
@@ -133,8 +185,28 @@ export const flightUpdateSchema = z.object({
   departureTime: z.string().datetime({ offset: true }).optional(),
   arrivalTime: z.string().datetime({ offset: true }).optional(),
   cargoCutoffTime: z.string().datetime({ offset: true }).optional(),
-  status: z.enum(["on_time", "delayed", "departed"]).optional(),
+  status: flightStatusSchema.optional(),
   gate: z.string().trim().optional().nullable(),
   remarks: z.string().trim().optional().nullable(),
   archived: z.boolean().optional(),
+}).superRefine(validateFlightDateOrder);
+
+export const shipmentListQuerySchema = z.object({
+  query: z.string().trim().optional(),
+  status: z.union([shipmentStatusSchema, z.literal("all")]).optional(),
+  flight: z
+    .string()
+    .trim()
+    .transform((value) => value.toUpperCase())
+    .refine((value) => value === "ALL" || FLIGHT_NUMBER_REGEX.test(value), {
+      message: "Filter flight harus berisi nomor flight valid.",
+    })
+    .transform((value) => (value === "ALL" ? "all" : value))
+    .optional(),
+  sortBy: z.enum(["updated", "received", "priority"]).optional(),
+});
+
+export const flightListQuerySchema = z.object({
+  query: z.string().trim().optional(),
+  status: z.union([flightStatusSchema, z.literal("all")]).optional(),
 });

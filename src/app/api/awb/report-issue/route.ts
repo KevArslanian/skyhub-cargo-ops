@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { routeErrorResponse } from "@/lib/api";
+import { routeErrorResponse, validationErrorResponse } from "@/lib/api";
 import { reportAwbIssue } from "@/lib/data";
+import { awbSearchSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const { awb } = (await request.json()) as { awb?: string };
+    const json = await request.json();
+    const parsed = awbSearchSchema.safeParse(json);
 
-    if (!awb) {
-      return NextResponse.json({ error: "AWB wajib diisi." }, { status: 400 });
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error, "AWB tidak valid.");
     }
 
-    await reportAwbIssue(user, awb);
+    await reportAwbIssue(user, parsed.data.awb);
     return NextResponse.json({ success: true });
   } catch (error) {
     return routeErrorResponse(error, "Gagal melaporkan isu.");
