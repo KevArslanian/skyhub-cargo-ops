@@ -1092,7 +1092,7 @@ input[type="checkbox"] {
 .flightboard-viewport {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: clamp(1rem, 1.4vw, 1.35rem);
   min-height: 0;
   min-width: 0;
   max-width: 100%;
@@ -1166,6 +1166,7 @@ input[type="checkbox"] {
   min-width: 0;
   max-width: 100%;
   overflow: visible;
+  scroll-margin-top: calc(var(--shell-topbar-height) + 1rem);
 }
 
 .flightboard-manifest-scroll {
@@ -1708,9 +1709,9 @@ input[type="checkbox"] {
 
   .dashboard-viewport,
   .flightboard-viewport {
-    min-height: 0;
-    height: 100%;
-    gap: 0.9rem;
+    min-height: 100%;
+    height: auto;
+    gap: clamp(1rem, 1.2vw, 1.4rem);
   }
 
   .ledger-detail-scroll,
@@ -1800,8 +1801,9 @@ input[type="checkbox"] {
   }
 
   .flightboard-main {
-    flex: 1;
+    flex: 0 0 auto;
     min-height: 0;
+    margin-top: clamp(0.25rem, 0.8vw, 0.75rem);
   }
 
   .flightboard-editor-layout.flightboard-editor-layout-active {
@@ -1815,8 +1817,7 @@ input[type="checkbox"] {
   }
 
   .flightboard-editor-layout.flightboard-editor-layout-active .flightboard-editor-detail-pane {
-    height: calc(100svh - var(--shell-topbar-height) - 2rem);
-    max-height: calc(100svh - var(--shell-topbar-height) - 2rem);
+    max-height: max(520px, calc(100svh - var(--shell-topbar-height) - 2rem));
     overflow: hidden;
   }
 

@@ -121,8 +121,16 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       setMounted(true);
     }
 
-    if (resolvedTheme !== themePreference) {
-      setTheme(themePreference);
+    const storedTheme = window.localStorage.getItem("theme");
+    const storedPreference = storedTheme === "dark" || storedTheme === "light" ? storedTheme : null;
+    const nextPreference = storedPreference ?? themePreference;
+
+    if (storedPreference && storedPreference !== themePreference) {
+      setShellSettings((current) => ({ ...current, theme: storedPreference }));
+    }
+
+    if (resolvedTheme !== nextPreference) {
+      setTheme(nextPreference);
     }
   }, [mounted, resolvedTheme, setTheme, themePreference]);
 
@@ -137,13 +145,17 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       if (!nextSettings) return;
 
       setShellSettings((current) => ({ ...current, ...nextSettings }));
+      if (nextSettings.theme === "dark" || nextSettings.theme === "light") {
+        window.localStorage.setItem("theme", nextSettings.theme);
+        setTheme(nextSettings.theme);
+      }
     }
 
     window.addEventListener("skyhub:settings-preview", handleSettingsPreview as EventListener);
     return () => {
       window.removeEventListener("skyhub:settings-preview", handleSettingsPreview as EventListener);
     };
-  }, []);
+  }, [setTheme]);
 
   useEffect(() => {
     function handleNotificationPreview(event: Event) {
@@ -251,6 +263,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   async function handleThemeToggle() {
     const nextTheme = activeTheme === "dark" ? "light" : "dark";
     setShellSettings((current) => ({ ...current, theme: nextTheme }));
+    window.localStorage.setItem("theme", nextTheme);
     setTheme(nextTheme);
     const persisted = await persistSettings({ theme: nextTheme });
     if (persisted) {

@@ -21,6 +21,15 @@ import {
   type LoginErrorCode,
   type LoginResponse,
 } from "@/lib/auth-login";
+import {
+  COMPANY_ABOUT_COPY,
+  COMPANY_CONTACT_ITEMS,
+  COMPANY_HERO_COPY,
+  COMPANY_HERO_HEADLINE,
+  COMPANY_SUPPORT_TIMELINE,
+  COMPANY_SWIPE_CARDS,
+} from "@/lib/company-profile";
+import { APP_CANONICAL_URL, APP_NAME } from "@/lib/constants";
 
 type CounterState = {
   shipments: number;
@@ -37,50 +46,44 @@ type LandingMetricsResponse = {
   generatedAt: string;
 };
 
-const CAPABILITIES = [
+const capabilityCard = COMPANY_SWIPE_CARDS.find((card) => card.id === "fokus");
+const CAPABILITIES = capabilityCard?.highlights?.slice(0, 3) ?? [
   {
     icon: Satellite,
     title: "Live Flight Board",
-    description: "Real-time status, cargo cutoffs, gate assignments across all active legs.",
+    description: "Status flight, cutoff kargo, dan assignment terlihat dari sumber data operasional yang sama.",
   },
   {
     icon: Plane,
     title: "AWB Intelligence",
-    description: "Instant tracking, document vault, exception flagging, and predictive ETAs.",
+    description: "Tracking AWB, dokumen, exception, dan status readiness tetap dekat ke konteks shipment.",
   },
   {
     icon: Shield,
     title: "Exception Command",
-    description: "Automated hold detection and coordinated response for time-critical cargo.",
+    description: "Hold, dokumen incomplete, dan alert operasional disatukan untuk respons cepat.",
   },
-] as const;
+];
 
-const OPERATIONS = [
-  {
-    index: "01",
-    title: "RECEIPT & SORT",
-    duration: "0-45 min",
-    copy: "Warehouse intake, dimension capture, and initial manifest sync.",
-  },
-  {
-    index: "02",
-    title: "CUT-OFF WINDOW",
-    duration: "T-120 min",
-    copy: "Final cargo acceptance, ULD build, and flight assignment.",
-  },
-  {
-    index: "03",
-    title: "DEPARTURE",
-    duration: "Wheels Up",
-    copy: "Live departure confirmation and AWB status broadcast.",
-  },
-  {
-    index: "04",
-    title: "ARRIVAL & DELIVERY",
-    duration: "Post-Flight",
-    copy: "Customs clearance tracking and POD capture.",
-  },
-] as const;
+const OPERATIONS = COMPANY_SUPPORT_TIMELINE.map((item) => ({
+  index: item.label,
+  title: item.title.toUpperCase(),
+  duration: item.label === "01" ? "Intake" : item.label === "02" ? "Manifest" : item.label === "03" ? "Monitor" : "Audit",
+  copy: item.description,
+}));
+
+function getContact(label: string) {
+  return COMPANY_CONTACT_ITEMS.find((item) => item.label === label);
+}
+
+const officeContact = getContact("Kantor");
+const addressContact = getContact("Alamat");
+const phoneContact = getContact("Telepon");
+const opsEmailContact = getContact("Email operasional");
+const infoEmailContact = getContact("Email umum");
+const supportEmailContact = getContact("Email dukungan");
+const hoursContact = getContact("Jam operasional");
+const supportPathContact = getContact("Support path");
 
 export default function AboutUsPage() {
   const router = useRouter();
@@ -287,7 +290,7 @@ export default function AboutUsPage() {
       `Name: ${contactState.name}\nEmail: ${contactState.email}\n\nMessage:\n${contactState.message}`,
     );
 
-    window.location.href = `mailto:ops@skyhub.co?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:${opsEmailContact?.value ?? "ops@skyhub.co"}?subject=${subject}&body=${body}`;
     setContactNotice("Membuka email client...");
   }
 
@@ -306,7 +309,7 @@ export default function AboutUsPage() {
               />
             </span>
             <span>
-              <span className="block text-3xl font-semibold tracking-[-2px]">SKYHUB</span>
+              <span className="block text-3xl font-semibold tracking-[-2px]">{APP_NAME.toUpperCase()}</span>
               <span className="mt-[-4px] block text-[10px] tracking-[3.5px] text-white/50">CARGO OPS</span>
             </span>
           </button>
@@ -363,17 +366,11 @@ export default function AboutUsPage() {
             LIVE • SOEDIRMAN CONTROL CENTER
           </div>
 
-          <h1 className="mb-8 text-[78px] font-semibold leading-[0.88] tracking-[-0.05em] md:text-[110px]">
-            COMMAND
-            <br />
-            THE SKIES
+          <h1 className="mb-8 text-[64px] font-semibold leading-[0.92] tracking-[-0.05em] md:text-[92px]">
+            {COMPANY_HERO_HEADLINE}
           </h1>
 
-          <p className="mx-auto mb-12 max-w-2xl text-2xl text-white/70">
-            Premium air cargo intelligence.
-            <br />
-            Real-time visibility. Mission-ready control.
-          </p>
+          <p className="mx-auto mb-12 max-w-3xl text-2xl text-white/70">{COMPANY_HERO_COPY}</p>
 
           <div className="flex flex-col justify-center gap-4 sm:flex-row">
             <button
@@ -407,12 +404,11 @@ export default function AboutUsPage() {
 
             <div className="space-y-6 text-lg text-white/70">
               <p>
-                SkyHub was founded in 2018 by a team of aviation veterans and technologists who believed that cargo
-                operations deserved better tools.
+                {COMPANY_ABOUT_COPY}
               </p>
               <p>
-                Today, we power some of the most demanding air cargo control rooms across Southeast Asia and beyond -
-                delivering clarity, speed, and reliability when it matters most.
+                Semua angka, kontak, capability, dan rhythm operasional di halaman ini memakai sumber profil yang sama
+                dengan pusat laporan dan modul operasional, sehingga konteks yang dibaca asdos tetap konsisten.
               </p>
             </div>
           </div>
@@ -423,7 +419,7 @@ export default function AboutUsPage() {
                 <Building2 className="text-[#0066ff]" size={30} />
               </div>
               <div>
-                <div className="text-2xl font-semibold">SkyHub Headquarters</div>
+                <div className="text-2xl font-semibold">{officeContact?.value ?? "SkyHub Operations Center"}</div>
                 <div className="text-sm text-white/60">Jakarta, Indonesia</div>
               </div>
             </div>
@@ -434,12 +430,8 @@ export default function AboutUsPage() {
                   <MapPin size={20} />
                 </div>
                 <div>
-                  <div className="font-medium">Main Office</div>
-                  <div className="text-white/70">
-                    Jl. Kargo Internasional No. 12
-                    <br />
-                    Area Logistik Bandara, Jakarta 15126
-                  </div>
+                  <div className="font-medium">{addressContact?.label ?? "Alamat"}</div>
+                  <div className="text-white/70">{addressContact?.value ?? "-"}</div>
                 </div>
               </div>
               <div className="flex gap-4">
@@ -447,8 +439,8 @@ export default function AboutUsPage() {
                   <Phone size={20} />
                 </div>
                 <div>
-                  <div className="font-medium">Phone</div>
-                  <div className="text-white/70">+62 21 500 780</div>
+                  <div className="font-medium">{phoneContact?.label ?? "Telepon"}</div>
+                  <div className="text-white/70">{phoneContact?.value ?? "-"}</div>
                 </div>
               </div>
               <div className="flex gap-4">
@@ -456,8 +448,8 @@ export default function AboutUsPage() {
                   <Mail size={20} />
                 </div>
                 <div>
-                  <div className="font-medium">Email</div>
-                  <div className="text-white/70">ops@skyhub.co</div>
+                  <div className="font-medium">{opsEmailContact?.label ?? "Email operasional"}</div>
+                  <div className="text-white/70">{opsEmailContact?.value ?? "-"}</div>
                 </div>
               </div>
               <div className="flex gap-4">
@@ -465,11 +457,11 @@ export default function AboutUsPage() {
                   <Clock3 size={20} />
                 </div>
                 <div>
-                  <div className="font-medium">Operating Hours</div>
+                  <div className="font-medium">{hoursContact?.label ?? "Jam operasional"}</div>
                   <div className="text-white/70">
-                    Monday - Friday, 08.00 - 20.00 WIB
+                    {hoursContact?.value ?? "-"}
                     <br />
-                    24/7 Emergency Support
+                    {supportPathContact?.value ?? "24 jam monitoring support untuk eskalasi operasional"}
                   </div>
                 </div>
               </div>
@@ -482,7 +474,7 @@ export default function AboutUsPage() {
         <div className="mx-auto max-w-7xl px-6">
           <div className="premium-reveal mb-16 text-center">
             <div className="text-xs tracking-[4px] text-[#0066ff]">WHAT WE DELIVER</div>
-            <h3 className="mt-4 text-6xl font-semibold tracking-tight">Capabilities that define the edge.</h3>
+            <h3 className="mt-4 text-6xl font-semibold tracking-tight">{capabilityCard?.title ?? "Capabilities that define the edge."}</h3>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -556,21 +548,27 @@ export default function AboutUsPage() {
 
             <div className="space-y-6 text-lg">
               <div>
-                <div className="font-medium">General Inquiries</div>
-                <a href="mailto:info@skyhub.co" className="text-[#0066ff]">
-                  info@skyhub.co
+                <div className="font-medium">{infoEmailContact?.label ?? "Email umum"}</div>
+                <a href={infoEmailContact?.href ?? "mailto:info@skyhub.co"} className="text-[#0066ff]">
+                  {infoEmailContact?.value ?? "info@skyhub.co"}
                 </a>
               </div>
               <div>
-                <div className="font-medium">Operations Support</div>
-                <a href="mailto:ops@skyhub.co" className="text-[#0066ff]">
-                  ops@skyhub.co
+                <div className="font-medium">{opsEmailContact?.label ?? "Email operasional"}</div>
+                <a href={opsEmailContact?.href ?? "mailto:ops@skyhub.co"} className="text-[#0066ff]">
+                  {opsEmailContact?.value ?? "ops@skyhub.co"}
                 </a>
               </div>
               <div>
-                <div className="font-medium">24/7 Emergency Line</div>
-                <a href="tel:+6221500780" className="text-[#0066ff]">
-                  +62 21 500 780
+                <div className="font-medium">{supportEmailContact?.label ?? "Email dukungan"}</div>
+                <a href={supportEmailContact?.href ?? "mailto:support@skyhub.co"} className="text-[#0066ff]">
+                  {supportEmailContact?.value ?? "support@skyhub.co"}
+                </a>
+              </div>
+              <div>
+                <div className="font-medium">Link resmi aplikasi</div>
+                <a href={APP_CANONICAL_URL} className="text-[#0066ff]">
+                  {APP_CANONICAL_URL}
                 </a>
               </div>
             </div>

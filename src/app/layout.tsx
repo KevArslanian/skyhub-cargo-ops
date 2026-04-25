@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter, Manrope } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { APP_NAME, APP_SUBTITLE } from "@/lib/constants";
+import { APP_CANONICAL_URL, APP_NAME, APP_SUBTITLE } from "@/lib/constants";
 
 const inter = Inter({
   variable: "--font-body",
@@ -21,8 +21,19 @@ const cormorantGaramond = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_CANONICAL_URL),
   title: APP_NAME,
   description: `${APP_SUBTITLE} untuk pelacakan AWB, papan flight, dan dashboard staff operasional.`,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: APP_NAME,
+    description: `${APP_SUBTITLE} untuk pelacakan AWB, papan flight, dan dashboard staff operasional.`,
+    url: APP_CANONICAL_URL,
+    siteName: APP_NAME,
+    type: "website",
+  },
   icons: {
     icon: "/skyhub-mark-blue.svg",
     shortcut: "/skyhub-mark-blue.svg",

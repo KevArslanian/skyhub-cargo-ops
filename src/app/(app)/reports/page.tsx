@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { FileBarChart2, FileText, Radar, ShieldCheck } from "lucide-react";
+import { FileBarChart2, FileText, Gauge, Radar, ShieldCheck } from "lucide-react";
 import { OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { APP_CANONICAL_URL, absoluteAppUrl } from "@/lib/constants";
 
 type DashboardMetrics = {
   metrics: {
@@ -16,16 +17,28 @@ type DashboardMetrics = {
   };
 };
 
+type LandingMetrics = {
+  shipmentsToday: number;
+  activeFlights: number;
+  onTimeAccuracy: number;
+  platformUptime: number;
+  generatedAt: string;
+};
+
 export default function ReportsPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics["metrics"] | null>(null);
+  const [landingMetrics, setLandingMetrics] = useState<LandingMetrics | null>(null);
 
   useEffect(() => {
-    fetch("/api/dashboard")
-      .then((response) => response.json())
-      .then((payload) => {
-        if (payload.variant === "internal") {
-          setMetrics(payload.metrics);
+    void Promise.all([
+      fetch("/api/dashboard").then((response) => response.json()),
+      fetch("/api/public/landing-metrics", { cache: "no-store" }).then((response) => response.json()),
+    ])
+      .then(([dashboardPayload, landingPayload]) => {
+        if (dashboardPayload.variant === "internal") {
+          setMetrics(dashboardPayload.metrics);
         }
+        setLandingMetrics(landingPayload);
       })
       .catch(() => undefined);
   }, []);
@@ -35,13 +48,18 @@ export default function ReportsPage() {
       <PageHeader
         eyebrow="Pusat Laporan"
         title="Laporan"
-        subtitle="Ruang cetak formal untuk ledger shipment dan log aktivitas dengan sumber data yang sama seperti modul operasional."
+        subtitle={`Ruang cetak formal dengan sumber data yang sama seperti About Us, dashboard, dan link production ${APP_CANONICAL_URL}.`}
       />
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <StatCard label="Shipment Harian" value={metrics?.shipmentsToday ?? 0} note="Ringkasan volume kargo yang masuk hari ini." icon={FileBarChart2} tone="primary" />
-        <StatCard label="Flight Tepat Waktu" value={metrics?.onTime ?? 0} note="Dipakai untuk melihat performa operasional hari berjalan." icon={ShieldCheck} tone="success" />
+        <StatCard label="Shipment Harian" value={landingMetrics?.shipmentsToday ?? metrics?.shipmentsToday ?? 0} note="Sinkron dengan metrik About Us." icon={FileBarChart2} tone="primary" />
+        <StatCard label="Flight Aktif" value={landingMetrics?.activeFlights ?? metrics?.activeFlights ?? 0} note="Diambil dari snapshot operasional yang sama." icon={ShieldCheck} tone="success" />
         <StatCard label="Isu Terbuka" value={metrics?.holds ?? 0} note="Shipment tertahan atau exception yang masih perlu review." icon={FileText} tone="warning" />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <StatCard label="Akurasi Tepat Waktu" value={`${landingMetrics?.onTimeAccuracy?.toFixed(1) ?? "0.0"}%`} note="Sama dengan angka About Us." icon={Gauge} tone="success" />
+        <StatCard label="Link Production" value={APP_CANONICAL_URL.replace("https://", "")} note="Gunakan link ini untuk pengumpulan asdos." icon={Radar} tone="info" />
       </div>
 
       <OpsPanel className="page-pane p-5">
@@ -65,25 +83,25 @@ export default function ReportsPage() {
           <Link href="/exports/awb" className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-5 py-5">
             <Radar size={20} className="text-[color:var(--brand-primary)]" />
             <p className="mt-4 font-semibold text-[color:var(--text-strong)]">AWB PDF / Print</p>
-            <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">Cetak dokumen tracking AWB formal dengan menambahkan query `?awb=...`.</p>
+            <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">Cetak dokumen tracking AWB formal dengan menambahkan query ?awb=...</p>
           </Link>
         </div>
 
         <div className="mt-6 rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
-          <p className="text-sm font-semibold text-[color:var(--text-strong)]">Link Print Terpisah (untuk ekstrak/copy)</p>
+          <p className="text-sm font-semibold text-[color:var(--text-strong)]">Link Print Terpisah (wajib domain production)</p>
           <div className="mt-3 grid gap-2 text-sm text-[color:var(--muted-fg)]">
-            <Link href="/exports/shipments" className="hover:text-[color:var(--brand-primary)]">
-              /exports/shipments
-            </Link>
-            <Link href="/exports/activity-log" className="hover:text-[color:var(--brand-primary)]">
-              /exports/activity-log
-            </Link>
-            <Link href="/exports/flights" className="hover:text-[color:var(--brand-primary)]">
-              /exports/flights?status=&query=&date=
-            </Link>
-            <Link href="/exports/awb?awb=160-10000399" className="hover:text-[color:var(--brand-primary)]">
-              /exports/awb?awb=
-            </Link>
+            <a href={absoluteAppUrl("/exports/shipments")} className="hover:text-[color:var(--brand-primary)]">
+              {absoluteAppUrl("/exports/shipments")}
+            </a>
+            <a href={absoluteAppUrl("/exports/activity-log")} className="hover:text-[color:var(--brand-primary)]">
+              {absoluteAppUrl("/exports/activity-log")}
+            </a>
+            <a href={absoluteAppUrl("/exports/flights?status=&query=&date=")} className="hover:text-[color:var(--brand-primary)]">
+              {absoluteAppUrl("/exports/flights?status=&query=&date=")}
+            </a>
+            <a href={absoluteAppUrl("/exports/awb?awb=")} className="hover:text-[color:var(--brand-primary)]">
+              {absoluteAppUrl("/exports/awb?awb=")}
+            </a>
           </div>
         </div>
       </OpsPanel>
