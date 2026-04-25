@@ -29,9 +29,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*-server.err.log
+*-server.out.log
 /.next-dev.log
 /.next-dev.err.log
 /.codex
+
+# test artifacts
+/test-results/
 
 # env files (can opt-in for committing if needed)
 .env*

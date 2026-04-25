@@ -96,16 +96,23 @@
   --shadow-strong: 0 18px 48px rgba(0, 0, 0, 0.35);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
 html {
+  max-width: 100%;
+  overflow-x: hidden;
   scroll-behavior: smooth;
 }
 
 body {
+  margin: 0;
   min-height: 100vh;
+  max-width: 100%;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at top right, var(--bg-orb-1), transparent 26%),
     radial-gradient(circle at left center, var(--bg-orb-2), transparent 24%),
@@ -132,11 +139,20 @@ a {
   text-decoration: none;
 }
 
+img,
+picture,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
 button,
 input,
 select,
 textarea {
   font: inherit;
+  min-width: 0;
 }
 
 :focus-visible {
@@ -159,7 +175,9 @@ textarea {
   border-radius: var(--panel-radius);
   box-shadow: var(--shadow-soft);
   min-height: 0;
+  min-width: 0;
   max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .dark .ops-panel,
@@ -173,6 +191,9 @@ textarea {
   background: var(--panel-muted);
   border-radius: var(--card-radius);
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .dark .ops-panel-muted,
@@ -187,6 +208,9 @@ textarea {
   border-radius: var(--panel-radius);
   box-shadow: var(--shadow-strong);
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .dropdown-panel {
@@ -198,6 +222,8 @@ textarea {
   box-shadow: var(--shadow-soft);
   max-height: min(480px, calc(100vh - 120px));
   max-width: calc(100vw - 1rem);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .dark .dropdown-panel,
@@ -211,6 +237,8 @@ textarea {
 .select-field,
 .textarea-field {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border: 1px solid var(--border-soft);
   background: var(--panel-muted);
   color: var(--text-strong);
@@ -256,12 +284,29 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
   border-radius: var(--control-radius);
   padding: 0 18px;
   min-height: 46px;
   font-size: 0.92rem;
   font-weight: 700;
+  text-align: center;
+  white-space: normal;
   transition: transform 0.16s ease, opacity 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.btn > svg,
+.topbar-button > svg,
+.ops-tab-button > svg {
+  flex: 0 0 auto;
+}
+
+.btn > span,
+.topbar-button > span,
+.ops-tab-button > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .btn:hover {
@@ -317,18 +362,30 @@ textarea {
 .topbar-button {
   display: inline-flex;
   min-height: 44px;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   border-radius: 16px;
   border: 1px solid var(--border-soft);
   background: var(--panel-bg);
   padding: 0 14px;
   color: var(--muted-fg);
+  text-align: center;
+  white-space: normal;
 }
 
 .shell-topbar-toolbar {
+  width: 100%;
+  min-width: 0;
   column-gap: 12px;
   row-gap: 16px;
+}
+
+.shell-topbar-toolbar > *,
+.shell-topbar-search {
+  min-width: 0;
 }
 
 .dark .shell-topbar-toolbar {
@@ -359,12 +416,16 @@ textarea {
   font-weight: 900;
   letter-spacing: -0.05em;
   color: var(--text-strong);
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .page-subtitle {
   color: var(--muted-fg);
   font-size: 0.96rem;
   line-height: 1.7;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .metric-card {
@@ -373,6 +434,9 @@ textarea {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.98)), var(--panel-bg);
   padding: 22px;
   box-shadow: var(--shadow-soft);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .dark .metric-card {
@@ -381,6 +445,7 @@ textarea {
 
 .ops-filter-bar {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   border: 1px solid var(--border-soft);
   border-radius: var(--panel-radius);
@@ -388,6 +453,13 @@ textarea {
   padding: 18px;
   box-shadow: var(--shadow-soft);
   min-height: 88px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ops-filter-bar > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .dark .ops-filter-bar {
@@ -401,7 +473,10 @@ textarea {
   background: var(--panel-bg);
   box-shadow: var(--shadow-soft);
   min-height: 0;
+  min-width: 0;
+  width: 100%;
   max-width: 100%;
+  overscroll-behavior-x: contain;
 }
 
 .table-shell,
@@ -441,6 +516,12 @@ textarea {
   width: 100%;
   border-collapse: collapse;
   min-width: 640px;
+}
+
+.data-table th,
+.data-table td {
+  min-width: 0;
+  max-width: min(32rem, 70vw);
 }
 
 .data-table thead th {
@@ -573,14 +654,23 @@ textarea {
 .page-stack {
   display: flex;
   min-height: 0;
+  min-width: 0;
   flex-direction: column;
   gap: var(--layout-gap);
   width: 100%;
   max-width: 100%;
 }
 
+.page-workspace > *,
+.page-stack > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .page-scroll {
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   overflow: auto;
   overscroll-behavior: contain;
   -ms-overflow-style: none;
@@ -598,6 +688,8 @@ textarea {
 .page-pane {
   display: flex;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   flex-direction: column;
 }
 
@@ -609,6 +701,13 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: clamp(1.25rem, 1.9vw, 1.5rem);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.section-stack-gap > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .ledger-detail-scroll {
@@ -642,6 +741,8 @@ textarea {
 .ledger-section-card,
 .flight-manifest-panel-space {
   padding: 16px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .flight-manifest-table-space {
@@ -653,26 +754,45 @@ textarea {
   display: grid;
   gap: var(--layout-gap);
   min-height: 0;
+  min-width: 0;
   align-items: stretch;
   width: 100%;
+  max-width: 100%;
+}
+
+.page-grid-2 > *,
+.page-grid-3 > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .split-pane-shell {
   display: grid;
   gap: var(--layout-gap);
   min-height: 0;
+  min-width: 0;
   align-items: start;
   width: 100%;
+  max-width: 100%;
+}
+
+.split-pane-shell > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .split-pane-left,
 .split-pane-right {
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .ops-tab-button {
   display: inline-flex;
   min-height: 42px;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
@@ -682,12 +802,26 @@ textarea {
   font-size: 0.88rem;
   font-weight: 700;
   color: var(--muted-fg);
+  text-align: center;
+  white-space: normal;
 }
 
 .ops-tab-button-active {
   background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-2));
   border-color: transparent;
   color: white;
+}
+
+.segmented-control {
+  min-width: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.segmented-control::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .ops-modal-backdrop {
@@ -705,6 +839,7 @@ textarea {
 .ops-modal-panel {
   width: 100%;
   max-width: 1100px;
+  min-width: 0;
   max-height: 88vh;
   overflow-y: auto;
   border: 1px solid var(--border-soft);
@@ -718,6 +853,7 @@ textarea {
   height: 100%;
   width: 100%;
   max-width: 480px;
+  min-width: 0;
   overflow-y: auto;
   border-left: 1px solid var(--border-soft);
   background: var(--panel-bg);
@@ -770,6 +906,8 @@ textarea {
 .ops-snap-track {
   display: flex;
   gap: var(--space-16);
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scroll-padding-inline: var(--space-16);
@@ -784,6 +922,8 @@ textarea {
   scroll-snap-align: start;
   scroll-snap-stop: always;
   flex: 0 0 min(86vw, 560px);
+  min-width: 0;
+  max-width: 100%;
   touch-action: pan-y pinch-zoom;
   transition:
     transform 0.18s ease,
@@ -954,6 +1094,9 @@ input[type="checkbox"] {
   flex-direction: column;
   gap: 1rem;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .dashboard-stats,
@@ -964,6 +1107,8 @@ input[type="checkbox"] {
 .dashboard-side-stack,
 .dashboard-side-stack > * {
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .flightboard-main,
@@ -971,6 +1116,8 @@ input[type="checkbox"] {
 .flightboard-pane,
 .flightboard-pane > * {
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .flightboard-editor-layout {
@@ -978,13 +1125,17 @@ input[type="checkbox"] {
   grid-template-columns: minmax(0, 1fr);
   gap: clamp(1rem, 1.6vw, 1.5rem);
   min-height: 0;
+  min-width: 0;
   width: 100%;
+  max-width: 100%;
 }
 
 .flightboard-header-sticky {
   position: sticky;
   top: 0;
   z-index: 14;
+  min-width: 0;
+  max-width: 100%;
   background: var(--app-bg);
   padding-bottom: 12px;
 }
@@ -1006,15 +1157,21 @@ input[type="checkbox"] {
 }
 
 .dashboard-panel {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
 }
 
 .flightboard-manifest-panel {
+  min-width: 0;
+  max-width: 100%;
   overflow: visible;
 }
 
 .flightboard-manifest-scroll {
   min-height: 240px;
+  min-width: 0;
+  max-width: 100%;
   max-height: none;
   overflow-x: auto;
   overflow-y: visible;
@@ -1026,24 +1183,40 @@ input[type="checkbox"] {
 .dashboard-alert-scroll,
 .dashboard-activity-scroll {
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dashboard-flight-card,
+.dashboard-flight-card-hero {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .activity-log-workspace {
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .activity-log-panel {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
 }
 
 .activity-log-scroll {
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   overflow: auto;
   overscroll-behavior: contain;
 }
 
 .about-shell {
   min-height: 100vh;
+  max-width: 100%;
+  overflow-x: clip;
   padding: 1.25rem;
 }
 
@@ -1051,6 +1224,7 @@ input[type="checkbox"] {
   margin: 0 auto;
   display: flex;
   max-width: 1440px;
+  min-width: 0;
   flex-direction: column;
   gap: 1.25rem;
 }
@@ -1060,6 +1234,15 @@ input[type="checkbox"] {
 .about-contact-grid {
   display: grid;
   gap: 1rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.about-hero-grid > *,
+.about-content-grid > *,
+.about-contact-grid > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .auth-min-shell {
@@ -1805,6 +1988,54 @@ input[type="checkbox"] {
   .auth-stage-media,
   .about-stage-media {
     min-height: 380px;
+  }
+}
+
+@media (max-width: 640px) {
+  .btn,
+  .topbar-button,
+  .ops-tab-button {
+    min-height: 42px;
+    padding-inline: 12px;
+  }
+
+  .metric-card,
+  .ops-filter-bar,
+  .ops-modal-panel,
+  .ops-drawer-panel {
+    padding: 16px;
+  }
+
+  .ops-filter-bar {
+    gap: 12px;
+    min-height: 0;
+  }
+
+  .data-table {
+    min-width: 560px;
+  }
+
+  .ledger-info-grid,
+  .ledger-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ledger-section-card,
+  .flight-manifest-panel-space {
+    padding: 16px;
+  }
+
+  .ops-modal-backdrop {
+    padding: 10px;
+  }
+
+  .ops-modal-panel {
+    max-width: calc(100vw - 20px);
+    border-radius: 24px;
+  }
+
+  .ops-snap-card {
+    flex-basis: min(100%, calc(100vw - 2rem));
   }
 }
 

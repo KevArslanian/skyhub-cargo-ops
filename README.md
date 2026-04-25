@@ -74,7 +74,7 @@ pnpm dev
 - Untuk validasi final, gunakan `pnpm db:migrate`; `pnpm db:push` hanya cocok untuk scratch/local reset yang tidak menjadi source of truth migration.
 - Tidak ada fallback otomatis ke SQLite demo. Build, migrate, seed, dan runtime harus memakai `DATABASE_URL`.
 - `BLOB_READ_WRITE_TOKEN` opsional saat local. Jika kosong, upload dokumen memakai fallback lokal ke `public/uploads`.
-- Di production tanpa `BLOB_READ_WRITE_TOKEN`, upload dokumen fallback ke runtime storage `/tmp` dan disajikan melalui route handler.
+- Di production, `BLOB_READ_WRITE_TOKEN` wajib diisi. Upload/download/delete dokumen akan menolak operasi dengan status `503` jika token Blob belum dikonfigurasi.
 - Output PDF tetap menggunakan print view browser agar ringan dan konsisten dengan data operasional.
 
 ## Auto-Migration (GitHub Actions + Neon)

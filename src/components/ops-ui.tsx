@@ -15,13 +15,13 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <header className={cn("flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between", className)}>
-      <div className="space-y-2">
+    <header className={cn("flex min-w-0 max-w-full flex-col gap-4 xl:flex-row xl:items-end xl:justify-between", className)}>
+      <div className="min-w-0 space-y-2">
         {eyebrow ? <p className="ops-eyebrow">{eyebrow}</p> : null}
         <h1 className="page-title">{title}</h1>
         <p className="page-subtitle max-w-3xl">{subtitle}</p>
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-3">{actions}</div> : null}
+      {actions ? <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3 xl:justify-end">{actions}</div> : null}
     </header>
   );
 }
@@ -37,7 +37,7 @@ export function OpsPanel({
 }) {
   const toneClass =
     tone === "muted" ? "ops-panel-muted" : tone === "strong" ? "ops-panel-strong" : "ops-panel";
-  return <section className={cn(toneClass, className)}>{children}</section>;
+  return <section className={cn(toneClass, "min-w-0 max-w-full", className)}>{children}</section>;
 }
 
 export function SectionHeader({
@@ -52,14 +52,14 @@ export function SectionHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col gap-3 border-b border-[color:var(--border-soft)] pb-4 xl:flex-row xl:items-end xl:justify-between", className)}>
-      <div>
+    <div className={cn("flex min-w-0 max-w-full flex-col gap-3 border-b border-[color:var(--border-soft)] pb-4 xl:flex-row xl:items-end xl:justify-between", className)}>
+      <div className="min-w-0">
         <h2 className="text-[1.25rem] font-[family:var(--font-heading)] font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
           {title}
         </h2>
         {subtitle ? <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">{subtitle}</p> : null}
       </div>
-      {action}
+      {action ? <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3 xl:justify-end">{action}</div> : null}
     </div>
   );
 }
@@ -90,16 +90,16 @@ export function StatCard({
   const renderedValue = typeof value === "number" ? formatNumber(value) : value;
 
   return (
-    <article className={cn("metric-card", className)}>
+    <article className={cn("metric-card min-w-0 max-w-full", className)}>
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">{label}</p>
-          <p className="mt-4 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
+          <p className="mt-4 break-words font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
             {renderedValue}
           </p>
         </div>
         {Icon ? (
-          <div className={cn("inline-flex h-11 w-11 items-center justify-center rounded-2xl", statToneClasses[tone])}>
+          <div className={cn("inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl", statToneClasses[tone])}>
             <Icon size={18} />
           </div>
         ) : null}
@@ -146,7 +146,7 @@ export function DataCard({
   return (
     <article
       className={cn(
-        "rounded-[24px] border px-4 py-4 transition-transform duration-150 hover:-translate-y-[1px]",
+        "min-w-0 max-w-full rounded-[24px] border px-4 py-4 transition-transform duration-150 hover:-translate-y-[1px]",
         dataCardToneClasses[tone],
         className,
       )}
@@ -156,7 +156,7 @@ export function DataCard({
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">{label}</p>
           <div
             className={cn(
-              "mt-3 font-[family:var(--font-heading)] text-[1.45rem] font-black tracking-[-0.04em] text-[color:var(--text-strong)]",
+              "mt-3 break-words font-[family:var(--font-heading)] text-[1.45rem] font-black tracking-[-0.04em] text-[color:var(--text-strong)]",
               valueClassName,
             )}
           >
@@ -170,8 +170,8 @@ export function DataCard({
           </span>
         ) : null}
       </div>
-      {meta ? <div className="mt-4 border-t border-[color:var(--border-soft)] pt-3 text-xs text-[color:var(--muted-fg)]">{meta}</div> : null}
-      {footer ? <div className="mt-4">{footer}</div> : null}
+      {meta ? <div className="mt-4 min-w-0 border-t border-[color:var(--border-soft)] pt-3 text-xs text-[color:var(--muted-fg)]">{meta}</div> : null}
+      {footer ? <div className="mt-4 min-w-0">{footer}</div> : null}
     </article>
   );
 }

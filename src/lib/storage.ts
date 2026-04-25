@@ -20,6 +20,24 @@ const DOCUMENT_UPLOAD_SPECS = {
 
 export const MAX_DOCUMENT_UPLOAD_BYTES = 15 * 1024 * 1024;
 
+function hasBlobToken() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+function isProductionWithoutBlobToken() {
+  return process.env.NODE_ENV === "production" && !hasBlobToken();
+}
+
+function assertProductionBlobTokenConfigured() {
+  if (isProductionWithoutBlobToken()) {
+    throw new AccessError(
+      "Penyimpanan dokumen production belum dikonfigurasi. Isi BLOB_READ_WRITE_TOKEN sebelum mengunggah atau menghapus dokumen.",
+      503,
+      "BLOB_TOKEN_REQUIRED",
+    );
+  }
+}
+
 function getDocumentExtension(fileName: string) {
   return path.extname(fileName).slice(1).toLowerCase();
 }
@@ -78,7 +96,7 @@ function sanitizeFileName(fileName: string) {
 export async function storeDocument(file: File, options?: { contentType?: string }) {
   const safeName = `${Date.now()}-${sanitizeFileName(file.name)}`;
 
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
+  if (hasBlobToken()) {
     const uploaded = await put(`ekspedisi-petir/${safeName}`, file, {
       access: "private",
       addRandomSuffix: false,
@@ -90,6 +108,8 @@ export async function storeDocument(file: File, options?: { contentType?: string
       key: uploaded.pathname,
     };
   }
+
+  assertProductionBlobTokenConfigured();
 
   const uploadDir =
     process.env.NODE_ENV === "production"
@@ -127,7 +147,7 @@ function getLocalUploadFileName(storageKey?: string | null, storageUrl?: string 
 }
 
 export async function deleteDocumentBlob(input: { storageKey?: string | null; storageUrl?: string | null }) {
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
+  if (hasBlobToken()) {
     const target = input.storageKey || input.storageUrl;
 
     if (!target) {
@@ -136,6 +156,10 @@ export async function deleteDocumentBlob(input: { storageKey?: string | null; st
 
     await del(target);
     return;
+  }
+
+  if (isProductionWithoutBlobToken() && (input.storageKey || /^https?:\/\//.test(input.storageUrl ?? ""))) {
+    assertProductionBlobTokenConfigured();
   }
 
   const fileName = getLocalUploadFileName(input.storageKey, input.storageUrl);

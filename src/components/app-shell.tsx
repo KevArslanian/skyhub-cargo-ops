@@ -262,17 +262,17 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
     <div
       style={shellStyle}
       className={cn(
-        "h-svh overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
+        "h-svh w-full min-w-0 overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
         shellSettings.compactRows && "compact-table",
       )}
     >
-      <div className="flex h-full min-h-0">
+      <div className="flex h-full min-h-0 min-w-0">
         <div className={cn("fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm lg:hidden", mobileOpen ? "block" : "hidden")} onClick={() => setMobileOpen(false)} />
 
         <aside
           className={cn(
             "fixed inset-y-0 left-0 z-50 flex overflow-hidden border-r border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/98 backdrop-blur transition-all duration-200",
-            "w-[var(--sidebar-width)]",
+            "w-[var(--sidebar-width)] max-w-[calc(100vw-1rem)]",
             mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           )}
         >
@@ -450,21 +450,24 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
           </div>
         </aside>
 
-        <div className="flex min-h-0 w-full flex-col transition-all duration-200 lg:ml-[var(--sidebar-width)]">
-          <header className="sticky top-0 z-30 shrink-0 px-4 py-4 lg:px-8 lg:py-5">
-            <div className="ops-panel shell-topbar-toolbar flex flex-wrap items-center px-4 py-4 lg:px-5">
-              <button type="button" className="topbar-button mobile-hamburger-trigger" onClick={() => setMobileOpen(true)}>
+        <div className="flex min-h-0 min-w-0 w-full flex-col transition-all duration-200 lg:ml-[var(--sidebar-width)]">
+          <header className="sticky top-0 z-30 min-w-0 shrink-0 px-3 py-3 sm:px-4 sm:py-4 lg:px-8 lg:py-5">
+            <div className="ops-panel shell-topbar-toolbar flex min-w-0 flex-wrap items-center px-4 py-4 lg:px-5">
+              <button type="button" className="topbar-button mobile-hamburger-trigger shrink-0" onClick={() => setMobileOpen(true)}>
                 <Menu size={18} />
               </button>
 
-              <div className="min-w-0 flex-[1_1_180px] sm:flex-[0_1_auto]">
+              <div className="min-w-0 flex-[1_1_140px] sm:flex-[0_1_auto]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Ruang Kontrol</p>
                 <p className="mt-1 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
                   {activeNav.label}
                 </p>
               </div>
 
-              <form onSubmit={handleSearchSubmit} className="relative min-w-[180px] flex-[2_1_320px]">
+              <form
+                onSubmit={handleSearchSubmit}
+                className="shell-topbar-search relative order-last min-w-0 flex-[1_1_100%] sm:order-none sm:flex-[1_1_240px] lg:flex-[2_1_320px]"
+              >
                 <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
                 <input
                   value={search}
@@ -474,11 +477,11 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                 />
               </form>
 
-              <div className="topbar-button hidden xl:flex">
+              <div className="topbar-button hidden min-w-0 max-w-[320px] xl:flex">
                 <div className="h-2.5 w-2.5 rounded-full bg-[color:var(--tone-success)]" />
-                <div>
+                <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Sinkron</p>
-                  <p className="text-sm font-semibold text-[color:var(--text-strong)]">{clock ? formatDateTime(clock) : "Sinkronisasi waktu"}</p>
+                  <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">{clock ? formatDateTime(clock) : "Sinkronisasi waktu"}</p>
                 </div>
               </div>
 
@@ -490,7 +493,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               <div className="relative">
                 <button
                   type="button"
-                  className="topbar-button relative overflow-visible pr-5 sm:pr-8"
+                  className="topbar-button relative shrink-0 overflow-visible pr-5 sm:pr-8"
                   onClick={() => setNotificationOpen((value) => !value)}
                 >
                   <Bell size={18} />
@@ -559,7 +562,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               <div className="relative">
                 <button
                   type="button"
-                  className="inline-flex h-11 items-center gap-3 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-3"
+                  className="inline-flex h-11 max-w-full min-w-0 items-center gap-3 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-3"
                   onClick={() => setAvatarOpen((value) => !value)}
                 >
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand-primary),var(--brand-primary-2))] text-sm font-black text-white">
@@ -569,9 +572,9 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                       .join("")
                       .slice(0, 2)}
                   </div>
-                  <div className="hidden text-left sm:block">
-                    <p className="text-sm font-semibold text-[color:var(--text-strong)]">{user.name}</p>
-                    <p className="text-xs text-[color:var(--muted-fg)]">{ROLE_LABELS[user.role]}</p>
+                  <div className="hidden min-w-0 max-w-[140px] text-left sm:block">
+                    <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">{user.name}</p>
+                    <p className="truncate text-xs text-[color:var(--muted-fg)]">{ROLE_LABELS[user.role]}</p>
                   </div>
                   <ChevronDown size={16} className="hidden sm:block text-[color:var(--muted-fg)]" />
                 </button>
@@ -602,8 +605,8 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
             </div>
           </header>
 
-          <main className="ops-shell-main-scroll min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 lg:px-8">
-            <div className="h-full min-h-0">{children}</div>
+          <main className="ops-shell-main-scroll min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip px-3 pb-6 sm:px-4 lg:px-8">
+            <div className="h-full min-h-0 min-w-0 max-w-full">{children}</div>
           </main>
         </div>
       </div>

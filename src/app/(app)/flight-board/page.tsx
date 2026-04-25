@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   CalendarDays,
@@ -95,6 +95,12 @@ function isFlightNumberSuffixValid(value: string) {
   return /^\d{3,4}$/.test(value);
 }
 
+function toDateInputValue(value: string | Date = new Date()) {
+  const date = new Date(value);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
+}
+
 function createFlightDraft(flight: FlightRow | null) {
   if (!flight) {
     return { ...blankForm };
@@ -122,13 +128,25 @@ function createFlightDraft(flight: FlightRow | null) {
 }
 
 function filterFlightsByDate(flights: FlightRow[], date: string) {
-  return flights.filter((flight) => flight.departureTime.slice(0, 10) === date);
+  return flights.filter((flight) => toDateInputValue(flight.departureTime) === date);
+}
+
+function resolveDefaultFlightBoardDate(flights: FlightRow[], preferredDate: string) {
+  if (!flights.length || filterFlightsByDate(flights, preferredDate).length) {
+    return preferredDate;
+  }
+
+  const latestFlight = flights.reduce((latestFlight, flight) =>
+    flight.departureTime > latestFlight.departureTime ? flight : latestFlight,
+  );
+
+  return toDateInputValue(latestFlight.departureTime);
 }
 
 export default function FlightBoardPage() {
   const [status, setStatus] = useState("all");
   const [query, setQuery] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => toDateInputValue());
   const [data, setData] = useState<FlightBoardPayload | null>(null);
   const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -139,6 +157,7 @@ export default function FlightBoardPage() {
   const [editDraft, setEditDraft] = useState(() => ({ ...blankForm }));
   const [notice, setNotice] = useState("");
   const [noticeTone, setNoticeTone] = useState<"info" | "warning">("info");
+  const initialDateResolvedRef = useRef(false);
 
   const applyFlightBoardPayload = useCallback(
     (payload: FlightBoardPayload, nextDate = date, preferredFlightId = selectedFlightId) => {
@@ -187,13 +206,16 @@ export default function FlightBoardPage() {
         return;
       }
 
-      applyFlightBoardPayload(payload);
+      const nextDate = initialDateResolvedRef.current ? date : resolveDefaultFlightBoardDate(payload.flights, date);
+      initialDateResolvedRef.current = true;
+      setDate(nextDate);
+      applyFlightBoardPayload(payload, nextDate);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [applyFlightBoardPayload, requestFlightBoard]);
+  }, [applyFlightBoardPayload, date, requestFlightBoard]);
 
   useEffect(() => {
     if (!notice) return;
@@ -234,12 +256,14 @@ export default function FlightBoardPage() {
   );
 
   function handleResetFilters() {
-    const nextDate = new Date().toISOString().slice(0, 10);
+    const nextDate = toDateInputValue();
+    const nextBoardDate = resolveDefaultFlightBoardDate(data?.flights ?? [], nextDate);
+    initialDateResolvedRef.current = false;
     setStatus("all");
     setQuery("");
     setSelectedFlightId(null);
     setEditDraft(createFlightDraft(null));
-    handleDateChange(nextDate);
+    handleDateChange(nextBoardDate);
   }
 
   function toIso(value: string) {
@@ -424,7 +448,7 @@ export default function FlightBoardPage() {
         <StatCard label="Berangkat" value={data?.summary.departed ?? 0} note="Penerbangan yang sudah meninggalkan bandara." icon={TowerControl} tone="info" />
       </div>
 
-      <FilterBar className="md:grid-cols-[1fr_180px_180px]">
+      <FilterBar className="md:grid-cols-[minmax(0,1fr)_minmax(0,180px)_minmax(0,180px)]">
         <div>
           <label className="label">Cari Flight</label>
           <input className="input-field" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="GA-714, SJ-182, atau CGK" />

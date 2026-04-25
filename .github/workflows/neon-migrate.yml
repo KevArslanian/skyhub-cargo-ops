@@ -1,6 +1,10 @@
 name: Neon Prisma Migrations
 
 on:
+  pull_request:
+  push:
+    branches:
+      - "**"
   workflow_dispatch:
 
 concurrency:
@@ -38,7 +42,7 @@ jobs:
         run: pnpm db:migrate:unpooled
 
   production-migrate:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

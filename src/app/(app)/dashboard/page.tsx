@@ -448,13 +448,13 @@ export default function DashboardPage() {
         subtitle="Ringkasan shift, status flight, papan manifest, dan alert operasional dalam satu layar kontrol desktop yang stabil."
         actions={
           <>
-            <div className="inline-flex rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-1 shadow-[var(--shadow-soft)]">
+            <div className="segmented-control inline-flex max-w-full overflow-x-auto rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-1 shadow-[var(--shadow-soft)]">
               {(["Pagi", "Siang", "Malam"] as const).map((option) => (
                 <button
                   key={option}
                   type="button"
                   className={cn(
-                    "rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+                    "shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
                     shift === option ? "bg-[color:var(--brand-primary)] text-white" : "text-[color:var(--muted-fg)]",
                   )}
                   onClick={() => setShift(option)}

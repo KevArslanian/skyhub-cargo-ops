@@ -35,6 +35,24 @@ function isPublicApiPath(pathname: string) {
   return PUBLIC_API_PATHS.has(pathname);
 }
 
+function isMutatingMethod(method: string) {
+  return method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
+}
+
+function isSameOriginRequest(request: NextRequest) {
+  const origin = request.headers.get("origin");
+
+  if (!origin) {
+    return true;
+  }
+
+  try {
+    return new URL(origin).origin === request.nextUrl.origin;
+  } catch {
+    return false;
+  }
+}
+
 function parseCaptureRole(request: NextRequest): UserRole | null {
   const role = request.nextUrl.searchParams.get("capture")?.trim().toLowerCase();
 
@@ -63,6 +81,16 @@ async function getSession(request: NextRequest) {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const captureRole = parseCaptureRole(request);
+
+  if (isApiPath(pathname) && isMutatingMethod(request.method) && !isSameOriginRequest(request)) {
+    return NextResponse.json(
+      {
+        error: "Permintaan ditolak karena origin tidak sesuai.",
+        code: "CSRF_ORIGIN_MISMATCH",
+      },
+      { status: 403 },
+    );
+  }
 
   if (AUTH_BYPASS_ENABLED) {
     const requestHeaders = new Headers(request.headers);
