@@ -3,6 +3,7 @@ import type { Prisma, UserRole } from "@prisma/client";
 import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { AccessError } from "./access";
 import { db } from "./prisma";
 import { AUTH_BYPASS_ENABLED } from "./runtime-flags";
 import { assertRequiredServerEnv, readRequiredServerEnv } from "./server-env";
@@ -240,6 +241,16 @@ export async function requireUser() {
 
   if (!user) {
     redirect("/about-us");
+  }
+
+  return user;
+}
+
+export async function requireApiUser() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    throw new AccessError("Autentikasi diperlukan. Silakan login terlebih dahulu.", 401, "UNAUTHENTICATED");
   }
 
   return user;

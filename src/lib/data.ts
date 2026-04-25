@@ -21,7 +21,7 @@ import {
   normalizeFlightNumber,
 } from "./flight-meta";
 import { db } from "./prisma";
-import { deleteDocumentBlob } from "./storage";
+import { deleteDocumentBlob, getDocumentAccessUrl } from "./storage";
 
 const shipmentInclude = Prisma.validator<Prisma.ShipmentInclude>()({
   flight: true,
@@ -121,7 +121,7 @@ function serializeShipment(shipment: ShipmentRecord, user: AccessUser) {
           fileName: document.fileName,
           mimeType: document.mimeType,
           fileSize: document.fileSize,
-          storageUrl: document.storageUrl,
+          storageUrl: getDocumentAccessUrl(document.storageKey, document.storageUrl) ?? document.storageUrl,
           createdAt: document.createdAt.toISOString(),
           blobCleanupStatus: document.blobCleanupStatus,
         })),
@@ -960,9 +960,37 @@ export async function addShipmentDocument(input: {
     fileName: document.fileName,
     mimeType: document.mimeType,
     fileSize: document.fileSize,
-    storageUrl: document.storageUrl,
+    storageUrl: getDocumentAccessUrl(document.storageKey, document.storageUrl) ?? document.storageUrl,
     createdAt: document.createdAt.toISOString(),
   };
+}
+
+export async function getShipmentDocumentDownload(user: AccessUser, fileName: string) {
+  if (user.role === "customer") {
+    throw new AccessError("Dokumen tidak ditemukan.", 404, "DOCUMENT_NOT_FOUND");
+  }
+
+  const document = await db.shipmentDocument.findFirst({
+    where: {
+      deletedAt: null,
+      shipment: {
+        archivedAt: null,
+      },
+      OR: [{ storageKey: fileName }, { storageKey: { endsWith: `/${fileName}` } }, { storageUrl: { endsWith: `/${fileName}` } }],
+    },
+    select: {
+      fileName: true,
+      mimeType: true,
+      storageKey: true,
+      storageUrl: true,
+    },
+  });
+
+  if (!document) {
+    throw new AccessError("Dokumen tidak ditemukan.", 404, "DOCUMENT_NOT_FOUND");
+  }
+
+  return document;
 }
 
 export async function deleteShipmentDocument(input: {

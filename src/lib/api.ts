@@ -12,9 +12,11 @@ export function routeErrorResponse(error: unknown, fallbackMessage: string) {
     );
   }
 
+  console.error("[route-error]", error);
+
   return NextResponse.json(
     {
-      error: error instanceof Error ? error.message : fallbackMessage,
+      error: fallbackMessage,
     },
     { status: 500 },
   );
