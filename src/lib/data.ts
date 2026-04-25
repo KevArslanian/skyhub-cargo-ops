@@ -408,6 +408,8 @@ type InternalMetricsSnapshot = {
   holds: number;
 };
 
+const DASHBOARD_SHIPMENT_LIMIT = 120;
+
 async function getShipmentsWithDateFallback(scopedShipments: Prisma.ShipmentWhereInput) {
   const now = new Date();
 
@@ -421,11 +423,27 @@ async function getShipmentsWithDateFallback(scopedShipments: Prisma.ShipmentWher
     },
     include: shipmentInclude,
     orderBy: [{ receivedAt: "desc" }],
-    take: 120,
+    take: DASHBOARD_SHIPMENT_LIMIT,
   });
 
-  if (todayShipments.length) {
+  if (todayShipments.length >= DASHBOARD_SHIPMENT_LIMIT) {
     return { now, shipmentsToday: todayShipments };
+  }
+
+  if (todayShipments.length) {
+    const contextualShipments = await db.shipment.findMany({
+      where: {
+        ...scopedShipments,
+        id: {
+          notIn: todayShipments.map((shipment) => shipment.id),
+        },
+      },
+      include: shipmentInclude,
+      orderBy: [{ receivedAt: "desc" }],
+      take: DASHBOARD_SHIPMENT_LIMIT - todayShipments.length,
+    });
+
+    return { now, shipmentsToday: [...todayShipments, ...contextualShipments] };
   }
 
   const latestShipment = await db.shipment.findFirst({
@@ -448,7 +466,7 @@ async function getShipmentsWithDateFallback(scopedShipments: Prisma.ShipmentWher
     },
     include: shipmentInclude,
     orderBy: [{ receivedAt: "desc" }],
-    take: 120,
+    take: DASHBOARD_SHIPMENT_LIMIT,
   });
 
   return { now, shipmentsToday: fallbackShipments };
