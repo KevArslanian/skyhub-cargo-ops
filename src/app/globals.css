@@ -1194,6 +1194,10 @@ input[type="checkbox"] {
   max-width: 100%;
 }
 
+.dashboard-panel .ops-empty {
+  padding: 28px 18px;
+}
+
 .activity-log-workspace {
   min-height: 0;
   min-width: 0;
@@ -1753,10 +1757,11 @@ input[type="checkbox"] {
   }
 
   .dashboard-main {
-    flex: 1;
+    flex: 0 0 auto;
     min-height: 0;
     display: grid;
     grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.95fr);
+    align-items: start;
     gap: 1rem;
   }
 
@@ -1766,9 +1771,9 @@ input[type="checkbox"] {
   }
 
   .dashboard-split {
-    flex: 1;
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(240px, 0.88fr);
+    align-items: start;
     gap: 1rem;
     min-height: 0;
   }
@@ -1778,6 +1783,16 @@ input[type="checkbox"] {
   .dashboard-alert-scroll,
   .dashboard-activity-scroll {
     overflow: auto;
+  }
+
+  .dashboard-table-scroll {
+    max-height: clamp(320px, calc(100svh - var(--shell-topbar-height) - 26rem), 620px);
+  }
+
+  .dashboard-flight-scroll,
+  .dashboard-alert-scroll,
+  .dashboard-activity-scroll {
+    max-height: clamp(260px, calc(100svh - var(--shell-topbar-height) - 22rem), 560px);
   }
 
   .activity-log-workspace {
@@ -1795,7 +1810,8 @@ input[type="checkbox"] {
 
   .dashboard-side-stack {
     display: grid;
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-content: start;
     gap: 1rem;
     min-height: 0;
   }

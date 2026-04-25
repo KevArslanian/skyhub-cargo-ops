@@ -421,7 +421,7 @@ async function getShipmentsWithDateFallback(scopedShipments: Prisma.ShipmentWher
     },
     include: shipmentInclude,
     orderBy: [{ receivedAt: "desc" }],
-    take: 50,
+    take: 120,
   });
 
   if (todayShipments.length) {
@@ -448,7 +448,7 @@ async function getShipmentsWithDateFallback(scopedShipments: Prisma.ShipmentWher
     },
     include: shipmentInclude,
     orderBy: [{ receivedAt: "desc" }],
-    take: 50,
+    take: 120,
   });
 
   return { now, shipmentsToday: fallbackShipments };
@@ -460,7 +460,7 @@ async function getInternalMetricsSnapshot(scopedShipments: Prisma.ShipmentWhereI
     db.flight.findMany({
       where: scopeFlightWhere(),
       orderBy: { cargoCutoffTime: "asc" },
-      take: 24,
+      take: 48,
       select: {
         id: true,
         flightNumber: true,

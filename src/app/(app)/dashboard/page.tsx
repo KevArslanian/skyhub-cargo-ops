@@ -125,7 +125,21 @@ type DashboardSettingsPayload = {
   } | null;
 };
 
-function getCurrentShift(): "Pagi" | "Siang" | "Malam" {
+type ShiftName = "Pagi" | "Siang" | "Malam";
+type ShiftScopedItem<T extends object> = T & {
+  shiftLabel: ShiftName;
+  isFallbackContext: boolean;
+};
+
+const SHIFT_OPTIONS: readonly ShiftName[] = ["Pagi", "Siang", "Malam"];
+
+function getShiftFromHour(hour: number): ShiftName {
+  if (hour >= 6 && hour < 14) return "Pagi";
+  if (hour >= 14 && hour < 22) return "Siang";
+  return "Malam";
+}
+
+function getCurrentShift(): ShiftName {
   const hour = Number(
     new Intl.DateTimeFormat("en-GB", {
       hour: "2-digit",
@@ -134,9 +148,7 @@ function getCurrentShift(): "Pagi" | "Siang" | "Malam" {
     }).format(new Date()),
   );
 
-  if (hour >= 6 && hour < 14) return "Pagi";
-  if (hour >= 14 && hour < 22) return "Siang";
-  return "Malam";
+  return getShiftFromHour(hour);
 }
 
 function getOpsHour(value: string) {
@@ -149,12 +161,77 @@ function getOpsHour(value: string) {
   );
 }
 
+function getShiftForTimestamp(value: string): ShiftName {
+  return getShiftFromHour(getOpsHour(value));
+}
+
+function buildShiftPartition<T extends object>(
+  items: readonly T[],
+  activeShift: ShiftName,
+  limit: number,
+  getTimestamp: (item: T) => string,
+) {
+  const scopedItems: ShiftScopedItem<T>[] = items.map((item) => {
+    const shiftLabel = getShiftForTimestamp(getTimestamp(item));
+    return {
+      ...item,
+      shiftLabel,
+      isFallbackContext: shiftLabel !== activeShift,
+    };
+  });
+
+  const shiftMatched = scopedItems.filter((item) => !item.isFallbackContext);
+  const fallbackContext = scopedItems.filter((item) => item.isFallbackContext);
+
+  return {
+    shiftMatched,
+    fallbackContext,
+    displayed: [...shiftMatched, ...fallbackContext].slice(0, limit),
+  };
+}
+
+function getFallbackCount(items: readonly { isFallbackContext: boolean }[]) {
+  return items.filter((item) => item.isFallbackContext).length;
+}
+
+function appendFallbackNote(note: string, fallbackCount: number) {
+  return fallbackCount ? `${note} +${fallbackCount} konteks terbaru lintas shift.` : note;
+}
+
+function ShiftContextBadge({
+  isFallbackContext,
+  shiftLabel,
+  className,
+  onImage = false,
+}: {
+  isFallbackContext: boolean;
+  shiftLabel: ShiftName;
+  className?: string;
+  onImage?: boolean;
+}) {
+  if (!isFallbackContext) return null;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+        onImage
+          ? "border-white/24 bg-white/12 text-white shadow-sm backdrop-blur"
+          : "border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] text-[color:var(--muted-fg)]",
+        className,
+      )}
+    >
+      Luar shift - {shiftLabel}
+    </span>
+  );
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [shift, setShift] = useState<"Pagi" | "Siang" | "Malam">(getCurrentShift);
+  const [shift, setShift] = useState<ShiftName>(getCurrentShift);
   const [refreshSettings, setRefreshSettings] = useState({
     autoRefresh: true,
     refreshIntervalSeconds: 5,
@@ -234,39 +311,58 @@ export default function DashboardPage() {
     }
   }
 
-  const isInShift = useMemo(() => {
-    return (value: string) => {
-      const hour = getOpsHour(value);
-      if (shift === "Pagi") return hour >= 6 && hour < 14;
-      if (shift === "Siang") return hour >= 14 && hour < 22;
-      return hour >= 22 || hour < 6;
-    };
-  }, [shift]);
-
   const internalData = data?.variant === "internal" ? data : null;
   const customerData = data?.variant === "customer" ? data : null;
 
-  const filteredShipments = useMemo(
-    () => (internalData?.shipmentsToday ?? []).filter((shipment) => isInShift(shipment.receivedAt)).slice(0, 10),
-    [internalData?.shipmentsToday, isInShift],
+  const shipmentShift = useMemo(
+    () => buildShiftPartition(internalData?.shipmentsToday ?? [], shift, 10, (shipment) => shipment.receivedAt),
+    [internalData?.shipmentsToday, shift],
   );
 
-  const filteredFlights = useMemo(
-    () => (internalData?.flightsSummary ?? []).filter((flight) => isInShift(flight.departureTime)).slice(0, 6),
-    [internalData?.flightsSummary, isInShift],
+  const flightShift = useMemo(
+    () => buildShiftPartition(internalData?.flightsSummary ?? [], shift, 6, (flight) => flight.departureTime),
+    [internalData?.flightsSummary, shift],
   );
 
-  const filteredActivities = useMemo(
-    () => (internalData?.recentActivity ?? []).filter((activity) => isInShift(activity.createdAt)).slice(0, 8),
-    [internalData?.recentActivity, isInShift],
+  const activityShift = useMemo(
+    () => buildShiftPartition(internalData?.recentActivity ?? [], shift, 8, (activity) => activity.createdAt),
+    [internalData?.recentActivity, shift],
   );
 
-  const filteredAlerts = useMemo(() => {
-    const awbs = new Set(filteredShipments.map((shipment) => shipment.awb));
-    return (internalData?.alerts ?? []).filter((alert) => awbs.has(alert.awb)).slice(0, 4);
-  }, [filteredShipments, internalData?.alerts]);
+  const alertShift = useMemo(() => {
+    const shipmentShiftByAwb = new Map(
+      (internalData?.shipmentsToday ?? []).map((shipment) => [shipment.awb, getShiftForTimestamp(shipment.receivedAt)]),
+    );
+    const scopedAlerts = (internalData?.alerts ?? []).flatMap((alert) => {
+      const shiftLabel = shipmentShiftByAwb.get(alert.awb);
+      if (!shiftLabel) return [];
+      return [
+        {
+          ...alert,
+          shiftLabel,
+          isFallbackContext: shiftLabel !== shift,
+        },
+      ];
+    });
+    const shiftMatched = scopedAlerts.filter((alert) => !alert.isFallbackContext);
+    const fallbackContext = scopedAlerts.filter((alert) => alert.isFallbackContext);
 
-  const activeLoaded = filteredShipments.filter((shipment) => shipment.status === "loaded_to_aircraft").length;
+    return {
+      shiftMatched,
+      fallbackContext,
+      displayed: [...shiftMatched, ...fallbackContext].slice(0, 4),
+    };
+  }, [internalData?.alerts, internalData?.shipmentsToday, shift]);
+
+  const filteredShipments = shipmentShift.displayed;
+  const filteredFlights = flightShift.displayed;
+  const filteredActivities = activityShift.displayed;
+  const filteredAlerts = alertShift.displayed;
+  const shipmentFallbackCount = getFallbackCount(filteredShipments);
+  const flightFallbackCount = getFallbackCount(filteredFlights);
+  const alertFallbackCount = getFallbackCount(filteredAlerts);
+  const activeLoaded = shipmentShift.shiftMatched.filter((shipment) => shipment.status === "loaded_to_aircraft").length;
+  const activeFlightSummary = `${flightShift.shiftMatched.filter((flight) => flight.status === "on_time").length} tepat waktu, ${flightShift.shiftMatched.filter((flight) => flight.status === "delayed").length} terlambat.`;
 
   if (customerData) {
     return (
@@ -449,7 +545,7 @@ export default function DashboardPage() {
         actions={
           <>
             <div className="segmented-control inline-flex max-w-full overflow-x-auto rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-1 shadow-[var(--shadow-soft)]">
-              {(["Pagi", "Siang", "Malam"] as const).map((option) => (
+              {SHIFT_OPTIONS.map((option) => (
                 <button
                   key={option}
                   type="button"
@@ -481,10 +577,10 @@ export default function DashboardPage() {
       />
 
       <div className="dashboard-stats grid gap-3 xl:grid-cols-4">
-        <StatCard label="Kargo Masuk" value={loading ? "..." : filteredShipments.length} note={`Manifest aktif pada shift ${shift.toLowerCase()}.`} icon={Boxes} tone="primary" />
-        <StatCard label="Flight Aktif" value={loading ? "..." : filteredFlights.length} note={`${filteredFlights.filter((flight) => flight.status === "on_time").length} tepat waktu, ${filteredFlights.filter((flight) => flight.status === "delayed").length} terlambat.`} icon={PlaneTakeoff} tone="info" />
-        <StatCard label="Sudah Muat" value={loading ? "..." : activeLoaded} note="Shipment yang sudah siap berangkat ke pesawat." icon={PackageCheck} tone="success" />
-        <StatCard label="Perlu Tindakan" value={loading ? "..." : filteredAlerts.length} note="Alert hold, cutoff, atau validasi dokumen." icon={ShieldAlert} tone="warning" />
+        <StatCard label="Kargo Masuk" value={loading ? "..." : shipmentShift.shiftMatched.length} note={appendFallbackNote(`Manifest aktif pada shift ${shift.toLowerCase()}.`, shipmentFallbackCount)} icon={Boxes} tone="primary" />
+        <StatCard label="Flight Aktif" value={loading ? "..." : flightShift.shiftMatched.length} note={appendFallbackNote(activeFlightSummary, flightFallbackCount)} icon={PlaneTakeoff} tone="info" />
+        <StatCard label="Sudah Muat" value={loading ? "..." : activeLoaded} note={appendFallbackNote("Shipment shift aktif yang sudah siap berangkat ke pesawat.", shipmentFallbackCount)} icon={PackageCheck} tone="success" />
+        <StatCard label="Perlu Tindakan" value={loading ? "..." : alertShift.shiftMatched.length} note={appendFallbackNote("Alert hold, cutoff, atau validasi dokumen pada shift aktif.", alertFallbackCount)} icon={ShieldAlert} tone="warning" />
       </div>
 
       <div className="dashboard-main flex-1">
@@ -528,7 +624,14 @@ export default function DashboardPage() {
                           <StatusBadge value={shipment.status} label={shipment.statusLabel} />
                         </td>
                         <td>{shipment.flightNumber ?? "-"}</td>
-                        <td className="text-sm text-[color:var(--muted-fg)]">{formatRelativeShort(shipment.updatedAt)}</td>
+                        <td className="text-sm text-[color:var(--muted-fg)]">
+                          <p>{formatRelativeShort(shipment.updatedAt)}</p>
+                          <ShiftContextBadge
+                            isFallbackContext={shipment.isFallbackContext}
+                            shiftLabel={shipment.shiftLabel}
+                            className="mt-2"
+                          />
+                        </td>
                       </tr>
                     ))
                   ) : (
@@ -598,6 +701,12 @@ export default function DashboardPage() {
                                   {flight.flightNumber}
                                 </p>
                                 <p className="mt-1 truncate text-sm text-white/75">{flight.route}</p>
+                                <ShiftContextBadge
+                                  isFallbackContext={flight.isFallbackContext}
+                                  shiftLabel={flight.shiftLabel}
+                                  className="mt-2"
+                                  onImage
+                                />
                               </div>
                               <StatusBadge
                                 value={flight.status}
@@ -619,6 +728,11 @@ export default function DashboardPage() {
                           <div className="col-span-2">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Berangkat</p>
                             <p className="mt-1 font-semibold text-[color:var(--text-strong)]">{formatDateTime(flight.departureTime)}</p>
+                            <ShiftContextBadge
+                              isFallbackContext={flight.isFallbackContext}
+                              shiftLabel={flight.shiftLabel}
+                              className="mt-2"
+                            />
                           </div>
                         </div>
                         {flight.cutoffAtRisk ? (
@@ -654,6 +768,11 @@ export default function DashboardPage() {
                     <Link href={`/awb-tracking?awb=${alert.awb}`} className="mt-4 inline-flex text-sm font-semibold text-[color:var(--brand-primary)]">
                       Buka pelacakan
                     </Link>
+                    <ShiftContextBadge
+                      isFallbackContext={alert.isFallbackContext}
+                      shiftLabel={alert.shiftLabel}
+                      className="mt-3"
+                    />
                   </div>
                 ))
               ) : (
@@ -685,6 +804,11 @@ export default function DashboardPage() {
                     </div>
                     <p className="mt-3 text-sm leading-6">{activity.description}</p>
                     <p className="mt-3 text-xs text-[color:var(--muted-2)]">{activity.userName} | {formatDateTime(activity.createdAt)}</p>
+                    <ShiftContextBadge
+                      isFallbackContext={activity.isFallbackContext}
+                      shiftLabel={activity.shiftLabel}
+                      className="mt-3"
+                    />
                   </div>
                 ))
               ) : (
