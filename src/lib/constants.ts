@@ -2,6 +2,12 @@ import type { CustomerAccountStatus, FlightStatus, ShipmentStatus, UserRole, Use
 
 export const APP_NAME = "SkyHub";
 export const APP_SUBTITLE = "Pusat Kendali Kargo";
+export const APP_CANONICAL_URL = "https://skyhub-cargo-ops.vercel.app";
+
+export function absoluteAppUrl(path = "/") {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${APP_CANONICAL_URL}${normalizedPath}`;
+}
 
 export const STATION_OPTIONS = ["CGK", "SUB", "DPS", "SOQ", "UPG", "BPN"] as const;
 

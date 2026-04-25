@@ -25,6 +25,7 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
+import { APP_CANONICAL_URL } from "@/lib/constants";
 
 export type CompanyContactItem = {
   icon: LucideIcon;
@@ -193,9 +194,9 @@ export const COMPANY_OPERATIONAL_CONTACT_ITEMS: CompanyContactItem[] = [
 export const COMPANY_DIGITAL_ITEMS: CompanyContactItem[] = [
   {
     icon: Globe2,
-    label: "Website",
-    value: "www.skyhub.co",
-    href: "https://www.skyhub.co",
+    label: "Portal resmi",
+    value: APP_CANONICAL_URL,
+    href: APP_CANONICAL_URL,
   },
   {
     icon: AtSign,

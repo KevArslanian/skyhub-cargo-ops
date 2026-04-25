@@ -327,9 +327,36 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
     await expect(page.locator("h1").first()).toBeVisible();
   }
 
-  const shipments = await page.request.get(apiUrl("/api/shipments"));
-  expect(shipments.status()).toBe(200);
-  const firstAwb = (await shipments.json()).shipments[0]?.awb;
+  await page.goto(apiUrl("/reports"));
+  await expect(page.getByText("https://skyhub-cargo-ops.vercel.app").first()).toBeVisible();
+
+  await page.goto(apiUrl("/dashboard"));
+  const isDark = await page.locator("html").evaluate((element) => element.classList.contains("dark"));
+  if (!isDark) {
+    await page.getByRole("button", { name: /Gelap/ }).click();
+    await expect(page.locator("html")).toHaveClass(/dark/);
+  }
+  await page.goto(apiUrl("/flight-board"));
+  await page.goBack();
+  await expect(page.locator("html")).toHaveClass(/dark/);
+
+  const requestedAwb = `160-${uniqueSuffix()}`;
+  const trackingShipment = await page.request.post(apiUrl("/api/shipments"), {
+    data: {
+      awb: requestedAwb,
+      commodity: "QA Tracking Cargo",
+      origin: "CGK",
+      destination: "DPS",
+      pieces: 1,
+      weightKg: 8,
+      shipper: "QA Shipper",
+      consignee: "QA Consignee",
+      forwarder: "QA Forwarder",
+      ownerName: "QA Owner",
+    },
+  });
+  expect(trackingShipment.status()).toBe(200);
+  const firstAwb = (await trackingShipment.json()).shipment.awb;
   expect(firstAwb).toBeTruthy();
 
   await page.goto(apiUrl(`/awb-tracking?awb=${encodeURIComponent(firstAwb)}`));
