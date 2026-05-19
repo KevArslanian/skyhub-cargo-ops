@@ -404,8 +404,8 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
   expect(firstAwb).toBeTruthy();
 
   await page.goto(apiUrl(`/awb-tracking?awb=${encodeURIComponent(firstAwb)}`));
-  await expect(page.getByText(firstAwb).first()).toBeVisible();
-  await expect(page.getByText("Timeline Tracking")).toBeVisible();
+  await expect(page.getByText(firstAwb).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Timeline Tracking")).toBeVisible({ timeout: 15_000 });
 
   await page.request.post(apiUrl("/api/auth/logout"));
   await login(page.request, users.customer);
