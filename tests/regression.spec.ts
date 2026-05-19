@@ -95,6 +95,49 @@ test("@api validation rejects invalid inputs", async ({ request }) => {
   expect(invalidSchedule.status()).toBe(400);
 });
 
+test("@api flight search and pagination follow unguided chapter 10 requirements", async ({ request }) => {
+  await login(request, users.staff);
+
+  const firstPage = await request.get(apiUrl("/api/flights?page=1&pageSize=3"));
+  expect(firstPage.status()).toBe(200);
+  const firstPayload = await firstPage.json();
+  expect(firstPayload.pagination).toMatchObject({
+    page: 1,
+    pageSize: 3,
+  });
+  expect(firstPayload.pagination.totalItems).toBeGreaterThanOrEqual(firstPayload.flights.length);
+  expect(firstPayload.pagination.totalPages).toBeGreaterThanOrEqual(1);
+  expect(firstPayload.flights.length).toBeLessThanOrEqual(3);
+
+  const search = await request.get(apiUrl("/api/flights?query=CGK&page=1&pageSize=5"));
+  expect(search.status()).toBe(200);
+  const searchPayload = await search.json();
+  expect(searchPayload.pagination.page).toBe(1);
+  expect(searchPayload.flights.length).toBeLessThanOrEqual(5);
+
+  const emptyDate = await request.get(apiUrl("/api/flights?date=2099-01-01&page=1&pageSize=5"));
+  expect(emptyDate.status()).toBe(200);
+  const emptyDatePayload = await emptyDate.json();
+  expect(emptyDatePayload.pagination).toMatchObject({
+    page: 1,
+    pageSize: 5,
+    totalItems: 0,
+    totalPages: 1,
+  });
+  expect(emptyDatePayload.flights).toHaveLength(0);
+
+  const boundedPage = await request.get(apiUrl("/api/flights?page=9999&pageSize=3"));
+  expect(boundedPage.status()).toBe(200);
+  const boundedPayload = await boundedPage.json();
+  expect(boundedPayload.pagination.page).toBeLessThanOrEqual(boundedPayload.pagination.totalPages);
+
+  const invalidPage = await request.get(apiUrl("/api/flights?page=0"));
+  expect(invalidPage.status()).toBe(400);
+
+  const invalidPageSize = await request.get(apiUrl("/api/flights?pageSize=51"));
+  expect(invalidPageSize.status()).toBe(400);
+});
+
 test("@crud shipment CRUD, document upload, notification update, and archive work", async ({ request }) => {
   await login(request, users.staff);
 

@@ -209,4 +209,12 @@ export const shipmentListQuerySchema = z.object({
 export const flightListQuerySchema = z.object({
   query: z.string().trim().optional(),
   status: z.union([flightStatusSchema, z.literal("all")]).optional(),
+  date: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  shift: z.enum(["all", "pagi", "siang", "malam"]).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(50).optional(),
 });

@@ -140,6 +140,72 @@ function getShipmentOrderBy(sortBy?: string): Prisma.ShipmentOrderByWithRelation
   return [{ updatedAt: "desc" }];
 }
 
+type FlightBoardShift = "all" | "pagi" | "siang" | "malam";
+
+type FlightDateInterval = {
+  start: Date;
+  end: Date;
+};
+
+function formatOpsDate(value: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Makassar",
+    year: "numeric",
+  }).formatToParts(value);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
+function addOpsDays(dateValue: string, days: number) {
+  const date = new Date(`${dateValue}T00:00:00+08:00`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return formatOpsDate(date);
+}
+
+function toOpsDateTime(dateValue: string, timeValue: string) {
+  return new Date(`${dateValue}T${timeValue}+08:00`);
+}
+
+function getFlightDateIntervals(date?: string, shift: FlightBoardShift = "all"): FlightDateInterval[] | undefined {
+  if (!date) return undefined;
+
+  if (shift === "pagi") {
+    return [{ start: toOpsDateTime(date, "06:00:00.000"), end: toOpsDateTime(date, "14:00:00.000") }];
+  }
+
+  if (shift === "siang") {
+    return [{ start: toOpsDateTime(date, "14:00:00.000"), end: toOpsDateTime(date, "22:00:00.000") }];
+  }
+
+  if (shift === "malam") {
+    return [{ start: toOpsDateTime(date, "22:00:00.000"), end: toOpsDateTime(addOpsDays(date, 1), "06:00:00.000") }];
+  }
+
+  return [{ start: toOpsDateTime(date, "00:00:00.000"), end: toOpsDateTime(addOpsDays(date, 1), "00:00:00.000") }];
+}
+
+function appendFlightDateFilter(where: Prisma.FlightWhereInput, intervals?: FlightDateInterval[]) {
+  if (!intervals?.length) return;
+
+  const filter =
+    intervals.length === 1
+      ? { departureTime: { gte: intervals[0].start, lt: intervals[0].end } }
+      : {
+          OR: intervals.map((interval) => ({
+            departureTime: { gte: interval.start, lt: interval.end },
+          })),
+        };
+
+  const existingAnd = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
+  where.AND = [...existingAnd, filter];
+}
+
 function assertFlightScheduleOrder(input: { cargoCutoffTime: Date; departureTime: Date; arrivalTime: Date }) {
   if (input.cargoCutoffTime.getTime() > input.departureTime.getTime()) {
     throw new AccessError(
@@ -1510,7 +1576,10 @@ export async function updateCustomerAccount(input: {
   return serializeCustomerAccount(account);
 }
 
-export async function getFlightBoardData(user: AccessUser, filters?: { status?: string; query?: string }) {
+export async function getFlightBoardData(
+  user: AccessUser,
+  filters?: { status?: string; query?: string; date?: string; shift?: FlightBoardShift; page?: number; pageSize?: number },
+) {
   if (!isInternalRole(user.role)) {
     throw new AccessError("Halaman flight hanya untuk pengguna internal.", 403, "INTERNAL_ROUTE_ONLY");
   }
@@ -1529,20 +1598,51 @@ export async function getFlightBoardData(user: AccessUser, filters?: { status?: 
     ];
   }
 
-  const flights = await db.flight.findMany({
-    where,
-    include: flightBoardInclude,
-    orderBy: { cargoCutoffTime: "asc" },
-  });
+  appendFlightDateFilter(where, getFlightDateIntervals(filters?.date, filters?.shift));
+
+  const requestedPageSize = filters?.pageSize ?? 8;
+  const pageSize = Math.min(Math.max(requestedPageSize, 1), 50);
+  const totalItems = await db.flight.count({ where });
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const page = Math.min(Math.max(filters?.page ?? 1, 1), totalPages);
+
+  const [flights, statusCounts] = await Promise.all([
+    db.flight.findMany({
+      where,
+      include: flightBoardInclude,
+      orderBy: { cargoCutoffTime: "asc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    db.flight.groupBy({
+      by: ["status"],
+      where,
+      _count: { _all: true },
+    }),
+  ]);
+
+  const summary = statusCounts.reduce(
+    (current, item) => ({
+      ...current,
+      [item.status]: item._count._all,
+    }),
+    {} as Record<string, number>,
+  );
 
   return {
     permissions: {
       canManageFlights: canManageFlights(user),
     },
     summary: {
-      onTime: flights.filter((item) => item.status === "on_time").length,
-      delayed: flights.filter((item) => item.status === "delayed").length,
-      departed: flights.filter((item) => item.status === "departed").length,
+      onTime: summary.on_time ?? 0,
+      delayed: summary.delayed ?? 0,
+      departed: summary.departed ?? 0,
+    },
+    pagination: {
+      page,
+      pageSize,
+      totalItems,
+      totalPages,
     },
     flights: flights.map((flight) => {
       const meta = getFlightVisualMeta(flight.flightNumber, flight.aircraftType);
