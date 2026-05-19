@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { FileBarChart2, FileText, Gauge, Radar, ShieldCheck } from "lucide-react";
 import { OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
-import { APP_CANONICAL_URL, absoluteAppUrl } from "@/lib/constants";
 
 type DashboardMetrics = {
   metrics: {
@@ -48,7 +47,7 @@ export default function ReportsPage() {
       <PageHeader
         eyebrow="Pusat Laporan"
         title="Laporan"
-        subtitle={`Ruang cetak formal dengan sumber data yang sama seperti About Us, dashboard, dan link production ${APP_CANONICAL_URL}.`}
+        subtitle="Ruang cetak formal dengan sumber data yang sama seperti About Us, dashboard, dan modul operasional utama."
       />
 
       <div className="grid gap-4 xl:grid-cols-3">
@@ -59,7 +58,7 @@ export default function ReportsPage() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         <StatCard label="Akurasi Tepat Waktu" value={`${landingMetrics?.onTimeAccuracy?.toFixed(1) ?? "0.0"}%`} note="Sama dengan angka About Us." icon={Gauge} tone="success" />
-        <StatCard label="Link Production" value={APP_CANONICAL_URL.replace("https://", "")} note="Gunakan link ini untuk pengumpulan asdos." icon={Radar} tone="info" />
+        <StatCard label="Ketersediaan Platform" value={`${landingMetrics?.platformUptime?.toFixed(1) ?? "0.0"}%`} note="Ringkasan stabilitas layanan operasional." icon={Radar} tone="info" />
       </div>
 
       <OpsPanel className="page-pane p-5">
@@ -88,19 +87,19 @@ export default function ReportsPage() {
         </div>
 
         <div className="mt-6 rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
-          <p className="text-sm font-semibold text-[color:var(--text-strong)]">Link Print Terpisah (wajib domain production)</p>
+          <p className="text-sm font-semibold text-[color:var(--text-strong)]">Rute Print Terpisah</p>
           <div className="mt-3 grid gap-2 text-sm text-[color:var(--muted-fg)]">
-            <a href={absoluteAppUrl("/exports/shipments")} className="hover:text-[color:var(--brand-primary)]">
-              {absoluteAppUrl("/exports/shipments")}
+            <a href="/exports/shipments" className="hover:text-[color:var(--brand-primary)]">
+              /exports/shipments
             </a>
-            <a href={absoluteAppUrl("/exports/activity-log")} className="hover:text-[color:var(--brand-primary)]">
-              {absoluteAppUrl("/exports/activity-log")}
+            <a href="/exports/activity-log" className="hover:text-[color:var(--brand-primary)]">
+              /exports/activity-log
             </a>
-            <a href={absoluteAppUrl("/exports/flights?status=&query=&date=")} className="hover:text-[color:var(--brand-primary)]">
-              {absoluteAppUrl("/exports/flights?status=&query=&date=")}
+            <a href="/exports/flights?status=&query=&date=" className="hover:text-[color:var(--brand-primary)]">
+              /exports/flights?status=&query=&date=
             </a>
-            <a href={absoluteAppUrl("/exports/awb?awb=")} className="hover:text-[color:var(--brand-primary)]">
-              {absoluteAppUrl("/exports/awb?awb=")}
+            <a href="/exports/awb?awb=" className="hover:text-[color:var(--brand-primary)]">
+              /exports/awb?awb=
             </a>
           </div>
         </div>

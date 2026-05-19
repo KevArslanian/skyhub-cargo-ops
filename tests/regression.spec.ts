@@ -371,7 +371,8 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
   }
 
   await page.goto(apiUrl("/reports"));
-  await expect(page.getByText("https://skyhub-cargo-ops.vercel.app").first()).toBeVisible();
+  await expect(page.getByText("Rute Print Terpisah")).toBeVisible();
+  await expect(page.getByText("Link Production")).toHaveCount(0);
 
   await page.goto(apiUrl("/dashboard"));
   const isDark = await page.locator("html").evaluate((element) => element.classList.contains("dark"));
