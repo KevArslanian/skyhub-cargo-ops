@@ -34,6 +34,8 @@ yarn-error.log*
 /.next-dev.log
 /.next-dev.err.log
 /.codex
+/.claude/
+/.playwright-mcp/
 
 # test artifacts
 /test-results/
@@ -47,8 +49,13 @@ yarn-error.log*
 
 # local data
 /prisma/dev.db
+/prisma/seed.db
 /public/uploads
 /output
+
+# agent planning artifacts
+/docs/superpowers/
+AGENTS.md
 
 # typescript
 *.tsbuildinfo
