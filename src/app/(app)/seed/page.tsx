@@ -70,6 +70,38 @@ export default async function SeedPage() {
             <p className="text-[color:var(--muted-fg)]">System KPI</p>
             <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.systemKpi}</p>
           </div>
+          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
+            <p className="text-[color:var(--muted-fg)]">City</p>
+            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.city}</p>
+          </div>
+          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
+            <p className="text-[color:var(--muted-fg)]">Airport</p>
+            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.airport}</p>
+          </div>
+          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
+            <p className="text-[color:var(--muted-fg)]">Aircraft</p>
+            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.aircraft}</p>
+          </div>
+          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
+            <p className="text-[color:var(--muted-fg)]">Commodity</p>
+            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.commodity}</p>
+          </div>
+          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
+            <p className="text-[color:var(--muted-fg)]">Tariff</p>
+            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.tariff}</p>
+          </div>
+          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
+            <p className="text-[color:var(--muted-fg)]">Cargo Item</p>
+            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.cargoItem}</p>
+          </div>
+          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
+            <p className="text-[color:var(--muted-fg)]">Shipment Detail</p>
+            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.shipmentDetail}</p>
+          </div>
+          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
+            <p className="text-[color:var(--muted-fg)]">Shipment Item</p>
+            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.shipmentItem}</p>
+          </div>
         </div>
       </OpsPanel>
     </div>
