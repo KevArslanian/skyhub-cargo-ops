@@ -22,6 +22,45 @@ const ROUTES = [
   { origin: "SOQ", destination: "PNK" },
 ] as const;
 
+const CITY_SPECS = [
+  { code: "SOQ", name: "Sorong", province: "Papua Barat Daya" },
+  { code: "CGK", name: "Tangerang", province: "Banten" },
+  { code: "SUB", name: "Surabaya", province: "Jawa Timur" },
+  { code: "DPS", name: "Denpasar", province: "Bali" },
+  { code: "UPG", name: "Makassar", province: "Sulawesi Selatan" },
+  { code: "BPN", name: "Balikpapan", province: "Kalimantan Timur" },
+  { code: "KNO", name: "Deli Serdang", province: "Sumatera Utara" },
+  { code: "PLM", name: "Palembang", province: "Sumatera Selatan" },
+  { code: "PNK", name: "Pontianak", province: "Kalimantan Barat" },
+  { code: "BDO", name: "Bandung", province: "Jawa Barat" },
+] as const;
+
+const AIRPORT_SPECS = [
+  { code: "SOQ", name: "Domine Eduard Osok" },
+  { code: "CGK", name: "Soekarno-Hatta" },
+  { code: "SUB", name: "Juanda" },
+  { code: "DPS", name: "I Gusti Ngurah Rai" },
+  { code: "UPG", name: "Sultan Hasanuddin" },
+  { code: "BPN", name: "Sultan Aji Muhammad Sulaiman Sepinggan" },
+  { code: "KNO", name: "Kualanamu" },
+  { code: "PLM", name: "Sultan Mahmud Badaruddin II" },
+  { code: "PNK", name: "Supadio" },
+  { code: "BDO", name: "Husein Sastranegara" },
+] as const;
+
+const AIRCRAFT_SPECS = [
+  { registration: "PK-SHA", airlineCode: "GA", type: "Boeing 737-800F", capacityKg: 18500 },
+  { registration: "PK-SHB", airlineCode: "JT", type: "Boeing 737-900ER", capacityKg: 17200 },
+  { registration: "PK-SHC", airlineCode: "ID", type: "Airbus A320 Cargo", capacityKg: 16000 },
+  { registration: "PK-SHD", airlineCode: "QG", type: "Airbus A320neo", capacityKg: 15800 },
+  { registration: "PK-SHE", airlineCode: "SJ", type: "Boeing 737-500", capacityKg: 12400 },
+  { registration: "PK-SHF", airlineCode: "IU", type: "Boeing 737-800", capacityKg: 17000 },
+  { registration: "PK-SHG", airlineCode: "IN", type: "ATR 72 Cargo", capacityKg: 7500 },
+  { registration: "PK-SHH", airlineCode: "TR", type: "Boeing 737 MAX 8", capacityKg: 18000 },
+  { registration: "PK-SHI", airlineCode: "8B", type: "Airbus A321P2F", capacityKg: 27000 },
+  { registration: "PK-SHJ", airlineCode: "IP", type: "Boeing 737-400F", capacityKg: 19000 },
+] as const;
+
 const COMMODITIES = [
   "Elektronik Konsumer",
   "Produk Farmasi",
@@ -35,6 +74,27 @@ const COMMODITIES = [
   "Chemical Samples",
   "Komoditas Pangan",
   "Retail Display Kit",
+] as const;
+
+const COMMODITY_SPECS = COMMODITIES.map((name, index) => ({
+  code: `CMD-${String(index + 1).padStart(2, "0")}`,
+  name,
+  category: index % 3 === 0 ? "High Value" : index % 3 === 1 ? "Temperature Control" : "General Cargo",
+}));
+
+const CARGO_ITEM_SPECS = [
+  "Smartphone Retail Pack",
+  "Vaksin Klinik",
+  "Lobster Chilled Box",
+  "Router BTS",
+  "Bearing Mesin",
+  "Dokumen Tender",
+  "Tas Fashion",
+  "Brosur Promosi",
+  "Monitor Pasien",
+  "Sample Laboratorium",
+  "Kopi Kemasan",
+  "Display Acrylic",
 ] as const;
 
 const SHIPPERS = [
@@ -211,24 +271,98 @@ async function main() {
   await prisma.activityLog.deleteMany();
   await prisma.shipmentDocument.deleteMany();
   await prisma.trackingLog.deleteMany();
+  await prisma.shipmentItem.deleteMany();
+  await prisma.shipmentDetail.deleteMany();
   await prisma.shipment.deleteMany();
   await prisma.flight.deleteMany();
   await prisma.userSetting.deleteMany();
   await prisma.user.deleteMany();
   await prisma.customerAccount.deleteMany();
+  await prisma.cargoItem.deleteMany();
+  await prisma.tariff.deleteMany();
+  await prisma.commodity.deleteMany();
+  await prisma.aircraft.deleteMany();
+  await prisma.airport.deleteMany();
+  await prisma.city.deleteMany();
   await prisma.systemKpi.deleteMany();
 
   const now = new Date();
-  await prisma.systemKpi.upsert({
-    where: { id: "global" },
-    update: {
-      platformUptime: 99.98,
-    },
-    create: {
-      id: "global",
-      platformUptime: 99.98,
-    },
-  });
+  for (let index = 0; index < 10; index += 1) {
+    await prisma.systemKpi.create({
+      data: {
+        id: index === 0 ? "global" : `kpi-${String(index).padStart(2, "0")}`,
+        platformUptime: Number((99.9 - index * 0.03).toFixed(2)),
+      },
+    });
+  }
+
+  const cities = [] as Awaited<ReturnType<typeof prisma.city.create>>[];
+  for (const spec of CITY_SPECS) {
+    cities.push(await prisma.city.create({ data: spec }));
+  }
+
+  const cityByCode = new Map(cities.map((city) => [city.code, city]));
+  const airports = [] as Awaited<ReturnType<typeof prisma.airport.create>>[];
+  for (const spec of AIRPORT_SPECS) {
+    const city = cityByCode.get(spec.code);
+    if (!city) throw new Error(`Missing city for airport ${spec.code}`);
+    airports.push(
+      await prisma.airport.create({
+        data: {
+          ...spec,
+          cityId: city.id,
+        },
+      }),
+    );
+  }
+
+  const airportByCode = new Map(airports.map((airport) => [airport.code, airport]));
+
+  const aircraft = [] as Awaited<ReturnType<typeof prisma.aircraft.create>>[];
+  for (const spec of AIRCRAFT_SPECS) {
+    aircraft.push(await prisma.aircraft.create({ data: spec }));
+  }
+
+  const commodities = [] as Awaited<ReturnType<typeof prisma.commodity.create>>[];
+  for (const spec of COMMODITY_SPECS) {
+    commodities.push(await prisma.commodity.create({ data: spec }));
+  }
+
+  const cargoItems = [] as Awaited<ReturnType<typeof prisma.cargoItem.create>>[];
+  for (let index = 0; index < CARGO_ITEM_SPECS.length; index += 1) {
+    cargoItems.push(
+      await prisma.cargoItem.create({
+        data: {
+          sku: `ITEM-${String(index + 1).padStart(3, "0")}`,
+          name: CARGO_ITEM_SPECS[index]!,
+          commodityId: pick(commodities, index).id,
+          unit: index % 4 === 0 ? "box" : "pcs",
+        },
+      }),
+    );
+  }
+
+  const tariffs = [] as Awaited<ReturnType<typeof prisma.tariff.create>>[];
+  for (let index = 0; index < 10; index += 1) {
+    const route = pick([...ROUTES, { origin: "SOQ", destination: "BDO" }, { origin: "CGK", destination: "SOQ" }], index);
+    const originAirport = airportByCode.get(route.origin);
+    const destinationAirport = airportByCode.get(route.destination);
+    if (!originAirport || !destinationAirport) {
+      throw new Error(`Missing tariff airport for ${route.origin}-${route.destination}`);
+    }
+    tariffs.push(
+      await prisma.tariff.create({
+        data: {
+          code: `TRF-${route.origin}-${route.destination}`,
+          originAirportId: originAirport.id,
+          destinationAirportId: destinationAirport.id,
+          serviceType: index % 2 === 0 ? "Regular" : "Priority",
+          pricePerKg: 18000 + index * 1250,
+          minimumCharge: 250000 + index * 15000,
+        },
+      }),
+    );
+  }
 
   const accountSpecs = [
     {
@@ -261,6 +395,54 @@ async function main() {
       contactName: "Bagus Hidayat",
       contactEmail: "ops@metroline.test",
       contactPhone: "+62-811-7000-426",
+      status: "active" as const,
+    },
+    {
+      code: "BALIEXP",
+      name: "PT Bali Express Logistik",
+      contactName: "Kadek Pramana",
+      contactEmail: "cargo@baliexpress.test",
+      contactPhone: "+62-811-7000-527",
+      status: "active" as const,
+    },
+    {
+      code: "KALTIMSUP",
+      name: "PT Kaltim Supply Chain",
+      contactName: "Maya Lestari",
+      contactEmail: "ops@kaltimsupply.test",
+      contactPhone: "+62-811-7000-628",
+      status: "active" as const,
+    },
+    {
+      code: "MEDANHUB",
+      name: "PT Medan Hub Cargo",
+      contactName: "Fadli Akbar",
+      contactEmail: "control@medanhub.test",
+      contactPhone: "+62-811-7000-729",
+      status: "active" as const,
+    },
+    {
+      code: "SUMSELGO",
+      name: "PT Sumsel Go Freight",
+      contactName: "Rani Puspita",
+      contactEmail: "ops@sumselgo.test",
+      contactPhone: "+62-811-7000-830",
+      status: "active" as const,
+    },
+    {
+      code: "PONTILOG",
+      name: "PT Pontianak Logistik Prima",
+      contactName: "Arman Yusuf",
+      contactEmail: "dispatch@pontilog.test",
+      contactPhone: "+62-811-7000-931",
+      status: "active" as const,
+    },
+    {
+      code: "BANDUNGX",
+      name: "PT Bandung Xpress Cargo",
+      contactName: "Sari Permata",
+      contactEmail: "ops@bandungx.test",
+      contactPhone: "+62-811-7001-032",
       status: "active" as const,
     },
   ];
@@ -414,6 +596,100 @@ async function main() {
         },
       },
     }),
+    prisma.user.create({
+      data: {
+        name: "Aldi Saputra",
+        email: "staff3@skyhub.test",
+        passwordHash: PASSWORD_HASH,
+        role: UserRole.staff,
+        station: "CGK",
+        settings: {
+          create: {
+            theme: "light",
+            compactRows: true,
+            sidebarCollapsed: false,
+            cutoffAlert: true,
+            exceptionAlert: true,
+            soundAlert: false,
+            emailDigest: false,
+            autoRefresh: true,
+            refreshIntervalSeconds: 10,
+            timezone: "Asia/Makassar",
+          },
+        },
+      },
+    }),
+    prisma.user.create({
+      data: {
+        name: "Laras Wibowo",
+        email: "staff4@skyhub.test",
+        passwordHash: PASSWORD_HASH,
+        role: UserRole.staff,
+        station: "SUB",
+        settings: {
+          create: {
+            theme: "dark",
+            compactRows: false,
+            sidebarCollapsed: false,
+            cutoffAlert: true,
+            exceptionAlert: true,
+            soundAlert: true,
+            emailDigest: false,
+            autoRefresh: true,
+            refreshIntervalSeconds: 12,
+            timezone: "Asia/Makassar",
+          },
+        },
+      },
+    }),
+    prisma.user.create({
+      data: {
+        name: "Teguh Santoso",
+        email: "customer2@skyhub.test",
+        passwordHash: PASSWORD_HASH,
+        role: UserRole.customer,
+        station: "CGK",
+        customerAccountId: customerAccounts[1]!.id,
+        settings: {
+          create: {
+            theme: "light",
+            compactRows: false,
+            sidebarCollapsed: false,
+            cutoffAlert: true,
+            exceptionAlert: true,
+            soundAlert: false,
+            emailDigest: true,
+            autoRefresh: true,
+            refreshIntervalSeconds: 15,
+            timezone: "Asia/Makassar",
+          },
+        },
+      },
+    }),
+    prisma.user.create({
+      data: {
+        name: "Citra Melati",
+        email: "customer3@skyhub.test",
+        passwordHash: PASSWORD_HASH,
+        role: UserRole.customer,
+        station: "DPS",
+        customerAccountId: customerAccounts[2]!.id,
+        settings: {
+          create: {
+            theme: "light",
+            compactRows: true,
+            sidebarCollapsed: true,
+            cutoffAlert: true,
+            exceptionAlert: true,
+            soundAlert: false,
+            emailDigest: true,
+            autoRefresh: true,
+            refreshIntervalSeconds: 20,
+            timezone: "Asia/Makassar",
+          },
+        },
+      },
+    }),
   ]);
 
   const [admin, staffPrimary, staffSecondary, customer, invitedStaff, disabledStaff] = users;
@@ -424,6 +700,12 @@ async function main() {
     const numberPart = String(index % 3 === 0 ? 1000 + index : 700 + index);
     const flightNumber = buildFlightNumber(airlineCode, numberPart);
     const route = pick(ROUTES, index);
+    const routeOriginAirport = airportByCode.get(route.origin);
+    const routeDestinationAirport = airportByCode.get(route.destination);
+    const routeAircraft = pick(aircraft, index);
+    if (!routeOriginAirport || !routeDestinationAirport) {
+      throw new Error(`Missing flight airport for ${route.origin}-${route.destination}`);
+    }
 
     const dayOffset = Math.floor(index / 8) - 2;
     const baseDay = addDays(now, dayOffset);
@@ -458,7 +740,7 @@ async function main() {
       await prisma.flight.create({
         data: {
           flightNumber,
-          aircraftType: meta.aircraftType,
+          aircraftType: routeAircraft.type || meta.aircraftType,
           origin: route.origin,
           destination: route.destination,
           departureTime,
@@ -468,6 +750,9 @@ async function main() {
           gate,
           remarks,
           imageUrl: meta.aircraftImageUrl,
+          aircraftId: routeAircraft.id,
+          originAirportId: routeOriginAirport.id,
+          destinationAirportId: routeDestinationAirport.id,
         },
       }),
     );
@@ -501,6 +786,10 @@ async function main() {
     const ownerName = pick(OWNER_NAMES, index);
     const createdById = index % 9 === 0 ? admin.id : index % 2 === 0 ? staffPrimary.id : staffSecondary.id;
     const customerAccount = index % 2 === 0 ? pick(customerAccounts, index) : null;
+    const commodityMaster = pick(commodities, index);
+    const tariff = pick(tariffs, index);
+    const firstCargoItem = pick(cargoItems, index);
+    const secondCargoItem = pick(cargoItems, index + 3);
 
     const receivedAt = subHours(now, (index % 72) + Math.floor(index / 100) * 8);
     const docStatus = determineDocumentStatus(index, status);
@@ -519,7 +808,7 @@ async function main() {
     const shipment = await prisma.shipment.create({
       data: {
         awb,
-        commodity: pick(COMMODITIES, index),
+        commodity: commodityMaster.name,
         origin: flight.origin,
         destination: flight.destination,
         pieces: 2 + (index % 23),
@@ -542,7 +831,33 @@ async function main() {
         flightId: flight.id,
         createdById,
         customerAccountId: customerAccount?.id ?? null,
+        commodityId: commodityMaster.id,
+        originAirportId: flight.originAirportId,
+        destinationAirportId: flight.destinationAirportId,
+        tariffId: tariff.id,
         receivedAt,
+        detail: {
+          create: {
+            serviceLevel: index % 2 === 0 ? "Regular" : "Priority",
+            packagingType: index % 3 === 0 ? "Thermal Box" : index % 3 === 1 ? "Carton" : "Pallet",
+            insuranceValue: 500000 + index * 7500,
+            declaredValue: 1000000 + index * 12500,
+          },
+        },
+        shipmentItems: {
+          create: [
+            {
+              cargoItemId: firstCargoItem.id,
+              quantity: 1 + (index % 6),
+              declaredValue: 250000 + index * 5000,
+            },
+            {
+              cargoItemId: secondCargoItem.id,
+              quantity: 2 + (index % 4),
+              declaredValue: 175000 + index * 3500,
+            },
+          ],
+        },
         trackingLogs: {
           create: trackingLogs,
         },
