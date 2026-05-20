@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
@@ -34,6 +35,12 @@ type FlightBoardPayload = {
     onTime: number;
     delayed: number;
     departed: number;
+  };
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
   };
   flights: {
     id: string;
@@ -143,10 +150,20 @@ function resolveDefaultFlightBoardDate(flights: FlightRow[], preferredDate: stri
   return toDateInputValue(latestFlight.departureTime);
 }
 
+function parsePageParam(value: string | null) {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
 export default function FlightBoardPage() {
-  const [status, setStatus] = useState("all");
-  const [query, setQuery] = useState("");
-  const [date, setDate] = useState(() => toDateInputValue());
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [status, setStatus] = useState(() => searchParams.get("status") || "all");
+  const [query, setQuery] = useState(() => searchParams.get("query") || "");
+  const [appliedQuery, setAppliedQuery] = useState(() => searchParams.get("query") || "");
+  const [date, setDate] = useState(() => searchParams.get("date") || toDateInputValue());
+  const [page, setPage] = useState(() => parsePageParam(searchParams.get("page")));
   const [data, setData] = useState<FlightBoardPayload | null>(null);
   const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -158,6 +175,50 @@ export default function FlightBoardPage() {
   const [notice, setNotice] = useState("");
   const [noticeTone, setNoticeTone] = useState<"info" | "warning">("info");
   const initialDateResolvedRef = useRef(false);
+  const latestUrlParamsRef = useRef(searchParams.toString());
+
+  const replaceFlightBoardUrl = useCallback(
+    (next: { status?: string; query?: string; date?: string; page?: number }) => {
+      const params = new URLSearchParams(searchParams);
+      const nextStatus = next.status ?? status;
+      const nextQuery = next.query ?? query;
+      const nextDate = next.date ?? date;
+      const nextPage = next.page ?? page;
+
+      if (nextStatus && nextStatus !== "all") params.set("status", nextStatus);
+      else params.delete("status");
+
+      if (nextQuery.trim()) params.set("query", nextQuery.trim());
+      else params.delete("query");
+
+      if (nextDate) params.set("date", nextDate);
+      else params.delete("date");
+
+      if (nextPage > 1) params.set("page", String(nextPage));
+      else params.delete("page");
+
+      const nextQueryString = params.toString();
+      if (nextQueryString !== latestUrlParamsRef.current) {
+        latestUrlParamsRef.current = nextQueryString;
+        router.replace(nextQueryString ? `${pathname}?${nextQueryString}` : pathname, { scroll: false });
+      }
+    },
+    [date, page, pathname, query, router, searchParams, status],
+  );
+
+  useEffect(() => {
+    if (query === appliedQuery) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setAppliedQuery(query);
+      setPage(1);
+      replaceFlightBoardUrl({ query, page: 1 });
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [appliedQuery, query, replaceFlightBoardUrl]);
 
   const applyFlightBoardPayload = useCallback(
     (payload: FlightBoardPayload, nextDate = date, preferredFlightId = selectedFlightId) => {
@@ -167,6 +228,7 @@ export default function FlightBoardPage() {
         : null;
 
       setData(payload);
+      setPage(payload.pagination.page);
       setLastUpdated(new Date().toISOString());
       setSelectedFlightId(nextSelectedFlight?.id ?? null);
       setEditDraft(createFlightDraft(nextSelectedFlight));
@@ -174,19 +236,22 @@ export default function FlightBoardPage() {
     [date, selectedFlightId],
   );
 
-  const requestFlightBoard = useCallback(async () => {
+  const requestFlightBoard = useCallback(async (options?: { includeDate?: boolean; page?: number }) => {
     const params = new URLSearchParams();
     if (status !== "all") params.set("status", status);
-    if (query.trim()) params.set("query", query.trim());
+    if (appliedQuery.trim()) params.set("query", appliedQuery.trim());
+    if (options?.includeDate ?? initialDateResolvedRef.current) params.set("date", date);
+    params.set("page", String(options?.page ?? page));
+    params.set("pageSize", "8");
     const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
     if (!response.ok) return null;
 
     return (await response.json()) as FlightBoardPayload;
-  }, [query, status]);
+  }, [appliedQuery, date, page, status]);
 
   const loadFlightBoard = useCallback(
     async (options?: { preferredDate?: string; preferredFlightId?: string | null }) => {
-      const payload = await requestFlightBoard();
+      const payload = await requestFlightBoard({ includeDate: true });
       if (!payload) return;
 
       applyFlightBoardPayload(
@@ -201,7 +266,7 @@ export default function FlightBoardPage() {
   useEffect(() => {
     let cancelled = false;
 
-    void requestFlightBoard().then((payload) => {
+    void requestFlightBoard({ includeDate: initialDateResolvedRef.current }).then((payload) => {
       if (!payload || cancelled) {
         return;
       }
@@ -209,13 +274,28 @@ export default function FlightBoardPage() {
       const nextDate = initialDateResolvedRef.current ? date : resolveDefaultFlightBoardDate(payload.flights, date);
       initialDateResolvedRef.current = true;
       setDate(nextDate);
+      replaceFlightBoardUrl({ date: nextDate, page: payload.pagination.page });
       applyFlightBoardPayload(payload, nextDate);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [applyFlightBoardPayload, date, requestFlightBoard]);
+  }, [applyFlightBoardPayload, date, replaceFlightBoardUrl, requestFlightBoard]);
+
+  useEffect(() => {
+    const nextParams = searchParams.toString();
+    if (nextParams === latestUrlParamsRef.current) {
+      return;
+    }
+
+    latestUrlParamsRef.current = nextParams;
+    setStatus(searchParams.get("status") || "all");
+    setQuery(searchParams.get("query") || "");
+    setAppliedQuery(searchParams.get("query") || "");
+    setDate(searchParams.get("date") || toDateInputValue());
+    setPage(parsePageParam(searchParams.get("page")));
+  }, [searchParams]);
 
   useEffect(() => {
     if (!notice) return;
@@ -244,7 +324,9 @@ export default function FlightBoardPage() {
   const handleDateChange = useCallback(
     (nextDate: string) => {
       setDate(nextDate);
-      const visibleFlights = filterFlightsByDate(data?.flights ?? [], nextDate);
+      setPage(1);
+      replaceFlightBoardUrl({ date: nextDate, page: 1 });
+      const visibleFlights = data?.flights ?? [];
       const nextSelectedFlight = selectedFlightId
         ? visibleFlights.find((flight) => flight.id === selectedFlightId) ?? null
         : null;
@@ -252,7 +334,25 @@ export default function FlightBoardPage() {
       setSelectedFlightId(nextSelectedFlight?.id ?? null);
       setEditDraft(createFlightDraft(nextSelectedFlight));
     },
-    [data?.flights, selectedFlightId],
+    [data?.flights, replaceFlightBoardUrl, selectedFlightId],
+  );
+
+  const handleQueryChange = useCallback(
+    (nextQuery: string) => {
+      setQuery(nextQuery);
+      setPage(1);
+      replaceFlightBoardUrl({ query: nextQuery, page: 1 });
+    },
+    [replaceFlightBoardUrl],
+  );
+
+  const handleStatusChange = useCallback(
+    (nextStatus: string) => {
+      setStatus(nextStatus);
+      setPage(1);
+      replaceFlightBoardUrl({ status: nextStatus, page: 1 });
+    },
+    [replaceFlightBoardUrl],
   );
 
   function handleResetFilters() {
@@ -261,8 +361,10 @@ export default function FlightBoardPage() {
     initialDateResolvedRef.current = false;
     setStatus("all");
     setQuery("");
+    setPage(1);
     setSelectedFlightId(null);
     setEditDraft(createFlightDraft(null));
+    replaceFlightBoardUrl({ status: "all", query: "", date: nextBoardDate, page: 1 });
     handleDateChange(nextBoardDate);
   }
 
@@ -401,10 +503,10 @@ export default function FlightBoardPage() {
   const flightExportQuery = useMemo(() => {
     const params = new URLSearchParams();
     if (status !== "all") params.set("status", status);
-    if (query.trim()) params.set("query", query.trim());
+    if (appliedQuery.trim()) params.set("query", appliedQuery.trim());
     if (date) params.set("date", date);
     return params.toString();
-  }, [date, query, status]);
+  }, [appliedQuery, date, status]);
 
   return (
     <div className="page-workspace flightboard-viewport">
@@ -451,11 +553,11 @@ export default function FlightBoardPage() {
       <FilterBar className="md:grid-cols-[minmax(0,1fr)_minmax(0,180px)_minmax(0,180px)]">
         <div>
           <label className="label">Cari Flight</label>
-          <input className="input-field" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="GA-714, SJ-182, atau CGK" />
+          <input className="input-field" value={query} onChange={(event) => handleQueryChange(event.target.value)} placeholder="GA-714, SJ-182, atau CGK" />
         </div>
         <div>
           <label className="label">Status</label>
-          <select className="select-field" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <select className="select-field" value={status} onChange={(event) => handleStatusChange(event.target.value)}>
             <option value="all">Semua</option>
             <option value="on_time">Tepat Waktu</option>
             <option value="delayed">Terlambat</option>
