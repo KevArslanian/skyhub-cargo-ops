@@ -10,6 +10,27 @@ export function absoluteAppUrl(path = "/") {
 }
 
 export const STATION_OPTIONS = ["CGK", "SUB", "DPS", "SOQ", "UPG", "BPN"] as const;
+export const AIRCRAFT_TYPE_OPTIONS = [
+  "Airbus A320-200",
+  "Airbus A320neo",
+  "Airbus A330-300",
+  "ATR 72-600",
+  "Boeing 737-500F",
+  "Boeing 737-800F",
+  "Boeing 737-900ER",
+] as const;
+export const CARGO_MODE_OPTIONS = ["Darat", "Udara", "Laut"] as const;
+export const SERVICE_TYPE_OPTIONS = ["Biasa", "Cepat", "VVIP"] as const;
+export const VEHICLE_TYPE_OPTIONS = ["Truk Box", "Pesawat", "Kapal Cargo"] as const;
+export const VEHICLE_STATUS_OPTIONS = ["Aktif", "Maintenance", "Nonaktif"] as const;
+export const GOODS_STATUS_OPTIONS = [
+  "Diproses",
+  "Dalam Pengiriman",
+  "Sampai Tujuan",
+  "Pending",
+  "Selesai",
+] as const;
+export const TRANSACTION_STATUS_OPTIONS = ["Pending", "Lunas", "Belum Lunas", "Selesai"] as const;
 
 export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
   received: "Diterima",

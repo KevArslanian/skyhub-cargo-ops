@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
+import { AIRCRAFT_TYPE_OPTIONS, STATION_OPTIONS } from "@/lib/constants";
 import {
   AIRLINE_CODE_OPTIONS,
   buildFlightNumber,
@@ -951,15 +952,48 @@ export default function FlightBoardPage() {
                     </div>
                     <div>
                       <label className="label">Jenis Pesawat</label>
-                      <input className="input-field" value={editDraft.aircraftType} onChange={(event) => setEditDraft((current) => ({ ...current, aircraftType: event.target.value }))} />
+                      <select
+                        className="select-field"
+                        value={editDraft.aircraftType}
+                        onChange={(event) => setEditDraft((current) => ({ ...current, aircraftType: event.target.value }))}
+                      >
+                        {!AIRCRAFT_TYPE_OPTIONS.includes(editDraft.aircraftType as (typeof AIRCRAFT_TYPE_OPTIONS)[number]) ? (
+                          <option value={editDraft.aircraftType}>{editDraft.aircraftType}</option>
+                        ) : null}
+                        {AIRCRAFT_TYPE_OPTIONS.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="label">Asal</label>
-                      <input className="input-field" value={editDraft.origin} onChange={(event) => setEditDraft((current) => ({ ...current, origin: event.target.value.toUpperCase() }))} />
+                      <select
+                        className="select-field"
+                        value={editDraft.origin}
+                        onChange={(event) => setEditDraft((current) => ({ ...current, origin: event.target.value }))}
+                      >
+                        {STATION_OPTIONS.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="label">Tujuan</label>
-                      <input className="input-field" value={editDraft.destination} onChange={(event) => setEditDraft((current) => ({ ...current, destination: event.target.value.toUpperCase() }))} />
+                      <select
+                        className="select-field"
+                        value={editDraft.destination}
+                        onChange={(event) => setEditDraft((current) => ({ ...current, destination: event.target.value }))}
+                      >
+                        {STATION_OPTIONS.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="label">Berangkat</label>
@@ -1089,15 +1123,45 @@ export default function FlightBoardPage() {
                 </div>
                 <div>
                   <label className="label">Jenis Pesawat</label>
-                  <input className="input-field" value={createForm.aircraftType} onChange={(event) => setCreateForm((current) => ({ ...current, aircraftType: event.target.value }))} />
+                  <select
+                    className="select-field"
+                    value={createForm.aircraftType}
+                    onChange={(event) => setCreateForm((current) => ({ ...current, aircraftType: event.target.value }))}
+                  >
+                    {AIRCRAFT_TYPE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="label">Asal</label>
-                  <input className="input-field" value={createForm.origin} onChange={(event) => setCreateForm((current) => ({ ...current, origin: event.target.value.toUpperCase() }))} />
+                  <select
+                    className="select-field"
+                    value={createForm.origin}
+                    onChange={(event) => setCreateForm((current) => ({ ...current, origin: event.target.value }))}
+                  >
+                    {STATION_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="label">Tujuan</label>
-                  <input className="input-field" value={createForm.destination} onChange={(event) => setCreateForm((current) => ({ ...current, destination: event.target.value.toUpperCase() }))} />
+                  <select
+                    className="select-field"
+                    value={createForm.destination}
+                    onChange={(event) => setCreateForm((current) => ({ ...current, destination: event.target.value }))}
+                  >
+                    {STATION_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="label">Berangkat</label>

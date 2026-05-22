@@ -22,6 +22,15 @@ import {
   X,
 } from "lucide-react";
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
+import {
+  CARGO_MODE_OPTIONS,
+  GOODS_STATUS_OPTIONS,
+  SERVICE_TYPE_OPTIONS,
+  STATION_OPTIONS,
+  TRANSACTION_STATUS_OPTIONS,
+  VEHICLE_STATUS_OPTIONS,
+  VEHICLE_TYPE_OPTIONS,
+} from "@/lib/constants";
 import { StatusBadge } from "@/components/status-badge";
 import {
   DataCard,
@@ -400,6 +409,15 @@ export default function ShipmentLedgerPage() {
     setListPage(totalPages);
   }, [listPage, totalPages]);
 
+  async function resolveErrorMessage(response: Response, fallback: string) {
+    try {
+      const payload = (await response.json()) as { error?: string };
+      return payload.error || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
   async function submitCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -432,6 +450,8 @@ export default function ShipmentLedgerPage() {
       }
       setActionNotice("Shipment berhasil dibuat.");
       void loadShipments(payload.shipment?.id ?? selectedId, "refresh");
+    } else {
+      setActionNotice(await resolveErrorMessage(response, "Gagal membuat shipment."));
     }
 
     setSaving(false);
@@ -468,6 +488,8 @@ export default function ShipmentLedgerPage() {
       }
       setActionNotice("Perubahan shipment berhasil disimpan.");
       void loadShipments(selectedShipment.id, "refresh");
+    } else {
+      setActionNotice(await resolveErrorMessage(response, "Gagal menyimpan shipment."));
     }
 
     setSaving(false);
@@ -524,6 +546,8 @@ export default function ShipmentLedgerPage() {
       setSelectedId(null);
       setActionNotice(`Shipment ${selectedShipment.awb} berhasil dihapus dari database.`);
       void loadShipments(null, "refresh");
+    } else {
+      setActionNotice(await resolveErrorMessage(response, "Gagal menghapus shipment."));
     }
   }
 
@@ -937,9 +961,11 @@ export default function ShipmentLedgerPage() {
                               setDrawerDraft((current) => ({ ...current, cargoMode: event.target.value }))
                             }
                           >
-                            <option value="Darat">Darat</option>
-                            <option value="Udara">Udara</option>
-                            <option value="Laut">Laut</option>
+                            {CARGO_MODE_OPTIONS.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <div>
@@ -964,26 +990,38 @@ export default function ShipmentLedgerPage() {
                         </div>
                         <div>
                           <label className="label">Kota Asal</label>
-                          <input
-                            className="input-field"
+                          <select
+                            className="select-field"
                             value={drawerDraft.origin}
                             onChange={(event) =>
-                              setDrawerDraft((current) => ({ ...current, origin: event.target.value.toUpperCase() }))
+                              setDrawerDraft((current) => ({ ...current, origin: event.target.value }))
                             }
-                          />
+                          >
+                            {STATION_OPTIONS.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="label">Kota Tujuan</label>
-                          <input
-                            className="input-field"
+                          <select
+                            className="select-field"
                             value={drawerDraft.destination}
                             onChange={(event) =>
                               setDrawerDraft((current) => ({
                                 ...current,
-                                destination: event.target.value.toUpperCase(),
+                                destination: event.target.value,
                               }))
                             }
-                          />
+                          >
+                            {STATION_OPTIONS.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="label">Berat Barang</label>
@@ -1017,9 +1055,11 @@ export default function ShipmentLedgerPage() {
                               setDrawerDraft((current) => ({ ...current, serviceType: event.target.value }))
                             }
                           >
-                            <option value="Biasa">Biasa</option>
-                            <option value="Cepat">Cepat</option>
-                            <option value="VVIP">VVIP</option>
+                            {SERVICE_TYPE_OPTIONS.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <div>
@@ -1045,13 +1085,19 @@ export default function ShipmentLedgerPage() {
                         </div>
                         <div>
                           <label className="label">Jenis Kendaraan</label>
-                          <input
-                            className="input-field"
+                          <select
+                            className="select-field"
                             value={drawerDraft.vehicleType}
                             onChange={(event) =>
                               setDrawerDraft((current) => ({ ...current, vehicleType: event.target.value }))
                             }
-                          />
+                          >
+                            {VEHICLE_TYPE_OPTIONS.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="label">Kode Kendaraan</label>
@@ -1089,9 +1135,11 @@ export default function ShipmentLedgerPage() {
                               setDrawerDraft((current) => ({ ...current, vehicleStatus: event.target.value }))
                             }
                           >
-                            <option value="Aktif">Aktif</option>
-                            <option value="Maintenance">Maintenance</option>
-                            <option value="Nonaktif">Nonaktif</option>
+                            {VEHICLE_STATUS_OPTIONS.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <div>
@@ -1103,11 +1151,11 @@ export default function ShipmentLedgerPage() {
                               setDrawerDraft((current) => ({ ...current, goodsStatus: event.target.value }))
                             }
                           >
-                            <option value="Diproses">Diproses</option>
-                            <option value="Dalam Pengiriman">Dalam Pengiriman</option>
-                            <option value="Sampai Tujuan">Sampai Tujuan</option>
-                            <option value="Pending">Pending</option>
-                            <option value="Selesai">Selesai</option>
+                            {GOODS_STATUS_OPTIONS.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <div>
@@ -1119,10 +1167,11 @@ export default function ShipmentLedgerPage() {
                               setDrawerDraft((current) => ({ ...current, transactionStatus: event.target.value }))
                             }
                           >
-                            <option value="Pending">Pending</option>
-                            <option value="Belum Lunas">Belum Lunas</option>
-                            <option value="Lunas">Lunas</option>
-                            <option value="Selesai">Selesai</option>
+                            {TRANSACTION_STATUS_OPTIONS.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <div>
@@ -1391,9 +1440,11 @@ export default function ShipmentLedgerPage() {
                       value={form.cargoMode}
                       onChange={(event) => setForm((current) => ({ ...current, cargoMode: event.target.value }))}
                     >
-                      <option value="Darat">Darat</option>
-                      <option value="Udara">Udara</option>
-                      <option value="Laut">Laut</option>
+                      {CARGO_MODE_OPTIONS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -1422,25 +1473,31 @@ export default function ShipmentLedgerPage() {
                 <div className="mt-5 grid gap-4 md:grid-cols-4">
                   <div>
                     <label className="label">Asal</label>
-                    <input
-                      className="input-field"
-                      placeholder="Bandara asal"
+                    <select
+                      className="select-field"
                       value={form.origin}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, origin: event.target.value.toUpperCase() }))
-                      }
-                    />
+                      onChange={(event) => setForm((current) => ({ ...current, origin: event.target.value }))}
+                    >
+                      {STATION_OPTIONS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="label">Tujuan</label>
-                    <input
-                      className="input-field"
-                      placeholder="Bandara tujuan"
+                    <select
+                      className="select-field"
                       value={form.destination}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, destination: event.target.value.toUpperCase() }))
-                      }
-                    />
+                      onChange={(event) => setForm((current) => ({ ...current, destination: event.target.value }))}
+                    >
+                      {STATION_OPTIONS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="label">Pieces</label>
@@ -1477,9 +1534,11 @@ export default function ShipmentLedgerPage() {
                       value={form.serviceType}
                       onChange={(event) => setForm((current) => ({ ...current, serviceType: event.target.value }))}
                     >
-                      <option value="Biasa">Biasa</option>
-                      <option value="Cepat">Cepat</option>
-                      <option value="VVIP">VVIP</option>
+                      {SERVICE_TYPE_OPTIONS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -1520,11 +1579,17 @@ export default function ShipmentLedgerPage() {
                   </div>
                   <div>
                     <label className="label">Jenis Kendaraan</label>
-                    <input
-                      className="input-field"
+                    <select
+                      className="select-field"
                       value={form.vehicleType}
                       onChange={(event) => setForm((current) => ({ ...current, vehicleType: event.target.value }))}
-                    />
+                    >
+                      {VEHICLE_TYPE_OPTIONS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="label">Kode Kendaraan</label>
@@ -1554,9 +1619,11 @@ export default function ShipmentLedgerPage() {
                       value={form.vehicleStatus}
                       onChange={(event) => setForm((current) => ({ ...current, vehicleStatus: event.target.value }))}
                     >
-                      <option value="Aktif">Aktif</option>
-                      <option value="Maintenance">Maintenance</option>
-                      <option value="Nonaktif">Nonaktif</option>
+                      {VEHICLE_STATUS_OPTIONS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -1566,11 +1633,11 @@ export default function ShipmentLedgerPage() {
                       value={form.goodsStatus}
                       onChange={(event) => setForm((current) => ({ ...current, goodsStatus: event.target.value }))}
                     >
-                      <option value="Diproses">Diproses</option>
-                      <option value="Dalam Pengiriman">Dalam Pengiriman</option>
-                      <option value="Sampai Tujuan">Sampai Tujuan</option>
-                      <option value="Pending">Pending</option>
-                      <option value="Selesai">Selesai</option>
+                      {GOODS_STATUS_OPTIONS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -1582,10 +1649,11 @@ export default function ShipmentLedgerPage() {
                         setForm((current) => ({ ...current, transactionStatus: event.target.value }))
                       }
                     >
-                      <option value="Pending">Pending</option>
-                      <option value="Belum Lunas">Belum Lunas</option>
-                      <option value="Lunas">Lunas</option>
-                      <option value="Selesai">Selesai</option>
+                      {TRANSACTION_STATUS_OPTIONS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
