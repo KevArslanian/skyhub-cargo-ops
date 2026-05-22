@@ -242,7 +242,7 @@ export default function FlightBoardPage() {
     if (appliedQuery.trim()) params.set("query", appliedQuery.trim());
     if (options?.includeDate ?? initialDateResolvedRef.current) params.set("date", date);
     params.set("page", String(options?.page ?? page));
-    params.set("pageSize", "8");
+    params.set("pageSize", "10");
     const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
     if (!response.ok) return null;
 
