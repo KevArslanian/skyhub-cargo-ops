@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Archive,
   CalendarDays,
   Clock3,
   FileText,
@@ -415,11 +414,23 @@ export default function FlightBoardPage() {
       });
 
       if (response.ok) {
+        const payload = (await response.json()) as { flight: FlightRow };
+        const nextDate = toDateInputValue(payload.flight.departureTime);
+        const nextQuery = payload.flight.flightNumber;
         setCreateOpen(false);
         setCreateForm({ ...blankForm });
+        setDate(nextDate);
+        setQuery(nextQuery);
+        setAppliedQuery(nextQuery);
+        setPage(1);
+        replaceFlightBoardUrl({ date: nextDate, query: nextQuery, page: 1 });
         setNoticeTone("info");
         setNotice("Flight berhasil dibuat.");
-        await loadFlightBoard();
+        await loadFlightBoardWithParams({
+          date: nextDate,
+          query: nextQuery,
+          preferredFlightId: payload.flight.id,
+        });
       } else {
         const errorMessage = await resolveErrorMessage(response, "Gagal membuat flight.");
         setNoticeTone("warning");
@@ -460,9 +471,18 @@ export default function FlightBoardPage() {
       });
 
       if (response.ok) {
+        const payload = (await response.json()) as { flight: FlightRow };
+        const nextDate = toDateInputValue(payload.flight.departureTime);
+        setDate(nextDate);
+        setPage(1);
+        replaceFlightBoardUrl({ date: nextDate, page: 1 });
         setNoticeTone("info");
         setNotice("Perubahan flight berhasil disimpan.");
-        await loadFlightBoard();
+        await loadFlightBoardWithParams({
+          date: nextDate,
+          query: appliedQuery,
+          preferredFlightId: payload.flight.id,
+        });
       } else {
         const errorMessage = await resolveErrorMessage(response, "Gagal memperbarui flight.");
         setNoticeTone("warning");
@@ -473,21 +493,34 @@ export default function FlightBoardPage() {
     }
   }
 
-  async function handleArchiveFlight() {
+  async function loadFlightBoardWithParams(input: { date: string; query?: string; preferredFlightId?: string | null }) {
+    const params = new URLSearchParams();
+    if (status !== "all") params.set("status", status);
+    if (input.query?.trim()) params.set("query", input.query.trim());
+    params.set("date", input.date);
+    params.set("page", "1");
+    params.set("pageSize", "10");
+
+    const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
+    if (!response.ok) return;
+
+    const payload = (await response.json()) as FlightBoardPayload;
+    applyFlightBoardPayload(payload, input.date, input.preferredFlightId ?? null);
+  }
+
+  async function handleDeleteFlight() {
     if (!selectedFlight) return;
 
     const response = await fetch(`/api/flights/${selectedFlight.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ archived: true }),
+      method: "DELETE",
     });
 
     if (response.ok) {
       setNoticeTone("info");
-      setNotice(`Flight ${selectedFlight.flightNumber} berhasil diarsipkan.`);
+      setNotice(`Flight ${selectedFlight.flightNumber} berhasil dihapus dari database.`);
       await loadFlightBoard();
     } else {
-      const errorMessage = await resolveErrorMessage(response, "Gagal mengarsipkan flight.");
+      const errorMessage = await resolveErrorMessage(response, "Gagal menghapus flight.");
       setNoticeTone("warning");
       setNotice(errorMessage);
     }
@@ -861,9 +894,9 @@ export default function FlightBoardPage() {
                       <Save size={16} />
                       {saving ? "Menyimpan..." : "Simpan Flight"}
                     </button>
-                    <button type="button" className="btn btn-warning" onClick={handleArchiveFlight}>
-                      <Archive size={16} />
-                      Arsipkan
+                    <button type="button" className="btn btn-warning" onClick={handleDeleteFlight}>
+                      <X size={16} />
+                      Hapus
                     </button>
                   </div>
                 </>

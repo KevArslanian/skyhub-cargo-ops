@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { routeErrorResponse, validationErrorResponse } from "@/lib/api";
-import { updateFlight } from "@/lib/data";
+import { deleteFlight, updateFlight } from "@/lib/data";
 import { flightUpdateSchema } from "@/lib/validators";
 
 type RouteContext = {
@@ -28,5 +28,17 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ flight });
   } catch (error) {
     return routeErrorResponse(error, "Gagal memperbarui flight.");
+  }
+}
+
+export async function DELETE(_: Request, context: RouteContext) {
+  try {
+    const user = await requireUser();
+    const { id } = await context.params;
+
+    await deleteFlight(id, user.id);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return routeErrorResponse(error, "Gagal menghapus flight.");
   }
 }

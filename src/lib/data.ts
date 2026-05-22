@@ -2375,6 +2375,45 @@ export async function updateFlight(input: {
   return updated;
 }
 
+export async function deleteFlight(flightId: string, actorUserId: string) {
+  const actor = await getActorWithRelations(actorUserId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  ensureFlightManager(actor);
+
+  const current = await db.flight.findUnique({
+    where: { id: flightId },
+    select: {
+      id: true,
+      flightNumber: true,
+    },
+  });
+
+  if (!current) {
+    throw new AccessError("Flight tidak ditemukan.", 404, "FLIGHT_NOT_FOUND");
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.flight.delete({
+      where: { id: flightId },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.id,
+        action: "Hapus Flight",
+        targetType: "flight",
+        targetId: flightId,
+        targetLabel: current.flightNumber,
+        description: `Flight ${current.flightNumber} dihapus dari database.`,
+        level: "warning",
+      },
+    });
+  });
+}
+
 export async function listActivityLogs(
   user: AccessUser,
   filters?: { query?: string; action?: string; userId?: string },

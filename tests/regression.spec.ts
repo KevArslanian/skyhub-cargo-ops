@@ -275,10 +275,16 @@ test("@crud flight create, update, and archive work", async ({ request }) => {
   });
   expect(flightUpdate.status()).toBe(200);
 
-  const archive = await request.patch(apiUrl(`/api/flights/${flight.id}`), {
-    data: { archived: true },
-  });
-  expect(archive.status()).toBe(200);
+  const searchAfterUpdate = await request.get(apiUrl(`/api/flights?query=${encodeURIComponent(flightNumber)}&page=1&pageSize=5`));
+  expect(searchAfterUpdate.status()).toBe(200);
+  expect((await searchAfterUpdate.json()).flights.some((item: { flightNumber: string }) => item.flightNumber === flightNumber)).toBe(true);
+
+  const deleteFlight = await request.delete(apiUrl(`/api/flights/${flight.id}`));
+  expect(deleteFlight.status()).toBe(200);
+
+  const searchAfterDelete = await request.get(apiUrl(`/api/flights?query=${encodeURIComponent(flightNumber)}&page=1&pageSize=5`));
+  expect(searchAfterDelete.status()).toBe(200);
+  expect((await searchAfterDelete.json()).flights.some((item: { flightNumber: string }) => item.flightNumber === flightNumber)).toBe(false);
 });
 
 test("@crud settings update and restore works", async ({ request }) => {
