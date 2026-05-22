@@ -1807,6 +1807,10 @@ input[type="checkbox"] {
     align-items: stretch;
   }
 
+  .alerts-viewport > :not(.alerts-content-grid) {
+    flex: 0 0 auto;
+  }
+
   .alerts-panel {
     overflow: hidden;
   }
@@ -1829,6 +1833,8 @@ input[type="checkbox"] {
 
   .alerts-filter-bar {
     gap: 12px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 220px) minmax(0, 220px) auto;
+    align-items: end;
     padding: 12px;
   }
 
