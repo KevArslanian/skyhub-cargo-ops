@@ -44,7 +44,11 @@ function buildDocumentHeaders(fileName: string, mimeType: string) {
   };
 }
 
-export async function GET(_request: Request, context: RouteContext<"/api/uploads/[file]">) {
+type RouteContext = {
+  params: Promise<{ file: string }>;
+};
+
+export async function GET(_request: Request, context: RouteContext) {
   try {
     const user = await requireApiUser();
     const { file } = await context.params;
