@@ -19,6 +19,7 @@ export type NavigationItem = {
     | "/dashboard"
     | "/shipment-ledger"
     | "/awb-tracking"
+    | "/alerts"
     | "/flight-board"
     | "/activity-log"
     | "/reports"
@@ -46,6 +47,7 @@ export const INTERNAL_ROLES: UserRole[] = ["admin", "staff"];
 export const FLIGHT_MANAGER_ROLES: UserRole[] = ["admin", "staff"];
 export const INTERNAL_ONLY_ROUTE_PREFIXES = [
   "/flight-board",
+  "/alerts",
   "/activity-log",
   "/reports",
   "/exports/shipments",
@@ -58,6 +60,7 @@ export const PROTECTED_ROUTE_PREFIXES = [
   "/shipment-ledger",
   "/awb-tracking",
   "/flight-board",
+  "/alerts",
   "/activity-log",
   "/reports",
   "/settings",
@@ -93,6 +96,14 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     href: "/flight-board",
     label: "Papan Penerbangan",
     hint: "Cutoff dan manifest flight",
+    groupId: "pemantauan",
+    groupLabel: "Pemantauan",
+    roles: ["admin", "staff"],
+  },
+  {
+    href: "/alerts",
+    label: "Alert Center",
+    hint: "Exception dan eskalasi",
     groupId: "pemantauan",
     groupLabel: "Pemantauan",
     roles: ["admin", "staff"],
