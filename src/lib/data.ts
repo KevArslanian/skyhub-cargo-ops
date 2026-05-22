@@ -475,6 +475,87 @@ type InternalMetricsSnapshot = {
 };
 
 const DASHBOARD_SHIPMENT_LIMIT = 120;
+const ALERT_LOOKBACK_LIMIT = 120;
+const ACTIVE_STALE_STATUSES = new Set<ShipmentStatus>([
+  ShipmentStatus.received,
+  ShipmentStatus.sortation,
+  ShipmentStatus.loaded_to_aircraft,
+]);
+const FLIGHT_READY_SHIPMENT_STATUSES = new Set<ShipmentStatus>([
+  ShipmentStatus.loaded_to_aircraft,
+  ShipmentStatus.departed,
+  ShipmentStatus.arrived,
+]);
+
+type AlertSeverity = "critical" | "warning" | "info";
+
+function getAlertAgeMinutes(from: Date, now: Date) {
+  return Math.max(0, Math.round((now.getTime() - from.getTime()) / 60000));
+}
+
+function getAlertPriority(severity: AlertSeverity) {
+  if (severity === "critical") return 0;
+  if (severity === "warning") return 1;
+  return 2;
+}
+
+function getAlertTone(severity: AlertSeverity) {
+  if (severity === "critical") return "error";
+  if (severity === "warning") return "warning";
+  return "info";
+}
+
+function createShipmentAlert(input: {
+  shipment: ShipmentRecord;
+  now: Date;
+  kind: string;
+  title: string;
+  detail: string;
+  severity: AlertSeverity;
+  recommendation: string;
+  triggeredAt?: Date;
+}) {
+  const triggeredAt = input.triggeredAt ?? input.shipment.updatedAt;
+
+  return {
+    id: `${input.kind}-${input.shipment.id}`,
+    kind: input.kind,
+    title: input.title,
+    detail: input.detail,
+    severity: input.severity,
+    tone: getAlertTone(input.severity),
+    entityType: "shipment",
+    entityLabel: input.shipment.awb,
+    href: `/awb-tracking?awb=${input.shipment.awb}`,
+    route: serializeRoute(input.shipment.origin, input.shipment.destination),
+    station: input.shipment.origin,
+    ownerName: input.shipment.ownerName,
+    statusLabel: SHIPMENT_STATUS_LABELS[input.shipment.status],
+    recommendedAction: input.recommendation,
+    triggeredAt: triggeredAt.toISOString(),
+    ageMinutes: getAlertAgeMinutes(triggeredAt, input.now),
+  };
+}
+
+function buildConditionCheck(input: {
+  id: string;
+  label: string;
+  count: number;
+  threshold: number;
+  normalCopy: string;
+  actionCopy: string;
+  mechanism: string;
+}) {
+  return {
+    id: input.id,
+    label: input.label,
+    count: input.count,
+    status: input.count > input.threshold ? "action" : "normal",
+    statusLabel: input.count > input.threshold ? "Butuh tindakan" : "Normal",
+    detail: input.count > input.threshold ? input.actionCopy : input.normalCopy,
+    mechanism: input.mechanism,
+  };
+}
 
 async function getShipmentsWithDateFallback(scopedShipments: Prisma.ShipmentWhereInput) {
   const now = new Date();
@@ -592,6 +673,346 @@ export async function getLandingMetricsData() {
     onTimeAccuracy,
     platformUptime: Number((systemKpi?.platformUptime ?? 99.98).toFixed(2)),
     generatedAt: snapshot.now.toISOString(),
+  };
+}
+
+export async function getAlertCenterData(user: AccessUser) {
+  if (!isInternalRole(user.role)) {
+    throw new AccessError("Alert center hanya untuk pengguna internal.", 403, "INTERNAL_ROUTE_ONLY");
+  }
+
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+  const scopedShipments = scopeShipmentWhere(user);
+
+  const [shipments, unassignedShipments, flights, notificationCount] = await Promise.all([
+    db.shipment.findMany({
+      where: {
+        ...scopedShipments,
+        OR: [
+          { status: ShipmentStatus.hold },
+          { docStatus: { not: "Complete" } },
+          { readiness: { not: "Ready" } },
+          {
+            status: { in: [ShipmentStatus.received, ShipmentStatus.sortation, ShipmentStatus.loaded_to_aircraft] },
+            updatedAt: { lt: staleBefore },
+          },
+        ],
+      },
+      include: shipmentInclude,
+      orderBy: [{ updatedAt: "desc" }],
+      take: ALERT_LOOKBACK_LIMIT,
+    }),
+    db.shipment.findMany({
+      where: {
+        ...scopedShipments,
+        flightId: null,
+        status: { in: [ShipmentStatus.received, ShipmentStatus.sortation, ShipmentStatus.loaded_to_aircraft, ShipmentStatus.hold] },
+      },
+      include: shipmentInclude,
+      orderBy: [{ updatedAt: "desc" }],
+      take: 30,
+    }),
+    db.flight.findMany({
+      where: scopeFlightWhere(),
+      include: {
+        aircraft: {
+          select: {
+            capacityKg: true,
+            registration: true,
+          },
+        },
+        shipments: {
+          where: { archivedAt: null },
+          select: {
+            id: true,
+            awb: true,
+            status: true,
+            docStatus: true,
+            readiness: true,
+            weightKg: true,
+          },
+        },
+      },
+      orderBy: { cargoCutoffTime: "asc" },
+      take: ALERT_LOOKBACK_LIMIT,
+    }),
+    db.notification.count({
+      where: {
+        userId: user.id,
+        read: false,
+      },
+    }),
+  ]);
+
+  const alerts: Array<ReturnType<typeof createShipmentAlert>> = [];
+
+  for (const shipment of shipments) {
+    if (shipment.status === ShipmentStatus.hold) {
+      const ageMinutes = getAlertAgeMinutes(shipment.updatedAt, now);
+      alerts.push(
+        createShipmentAlert({
+          shipment,
+          now,
+          kind: "shipment-hold",
+          title: "Shipment tertahan",
+          detail: `AWB ${shipment.awb} masih hold di rute ${serializeRoute(shipment.origin, shipment.destination)}.`,
+          severity: ageMinutes >= 240 ? "critical" : "warning",
+          recommendation: "Tentukan alasan hold, PIC review, dan batas waktu release sebelum manifest ditutup.",
+        }),
+      );
+    }
+
+    if (shipment.docStatus.toLowerCase() !== "complete") {
+      alerts.push(
+        createShipmentAlert({
+          shipment,
+          now,
+          kind: "document-gate",
+          title: "Dokumen belum lengkap",
+          detail: `Dokumen AWB ${shipment.awb} berstatus ${shipment.docStatus}; shipment belum aman untuk proses akhir.`,
+          severity: shipment.status === ShipmentStatus.loaded_to_aircraft ? "critical" : "warning",
+          recommendation: "Minta dokumen pendukung, tandai hasil review, lalu ubah readiness setelah valid.",
+        }),
+      );
+    }
+
+    if (shipment.readiness.toLowerCase() !== "ready") {
+      alerts.push(
+        createShipmentAlert({
+          shipment,
+          now,
+          kind: "readiness-gate",
+          title: "Readiness pending",
+          detail: `Readiness AWB ${shipment.awb} masih ${shipment.readiness}; shipment perlu clearance operasional.`,
+          severity: "warning",
+          recommendation: "Cek label, dokumen, special handling, dan assignment flight sebelum muat.",
+        }),
+      );
+    }
+
+    if (
+      ACTIVE_STALE_STATUSES.has(shipment.status) &&
+      shipment.updatedAt < staleBefore
+    ) {
+      alerts.push(
+        createShipmentAlert({
+          shipment,
+          now,
+          kind: "stale-update",
+          title: "Update terlalu lama",
+          detail: `AWB ${shipment.awb} belum bergerak lebih dari 6 jam pada status ${SHIPMENT_STATUS_LABELS[shipment.status]}.`,
+          severity: "info",
+          recommendation: "Minta scan checkpoint terbaru atau tandai alasan keterlambatan di catatan shipment.",
+        }),
+      );
+    }
+  }
+
+  for (const shipment of unassignedShipments) {
+    alerts.push(
+      createShipmentAlert({
+        shipment,
+        now,
+        kind: "unassigned-flight",
+        title: "Belum masuk flight",
+        detail: `AWB ${shipment.awb} belum punya assignment flight meski masih aktif di gudang.`,
+        severity: shipment.status === ShipmentStatus.hold ? "warning" : "info",
+        recommendation: "Pasangkan ke flight tersedia atau pindahkan ke hold dengan alasan operasional yang jelas.",
+      }),
+    );
+  }
+
+  for (const flight of flights) {
+    const meta = getFlightVisualMeta(flight.flightNumber, flight.aircraftType);
+    const route = serializeRoute(flight.origin, flight.destination);
+    const pendingShipments = flight.shipments.filter(
+      (shipment) =>
+        !FLIGHT_READY_SHIPMENT_STATUSES.has(shipment.status) ||
+        shipment.docStatus.toLowerCase() !== "complete" ||
+        shipment.readiness.toLowerCase() !== "ready",
+    );
+    const minutesToCutoff = Math.round((flight.cargoCutoffTime.getTime() - now.getTime()) / 60000);
+    const activeWeight = flight.shipments.reduce((sum, shipment) => sum + shipment.weightKg, 0);
+    const capacityKg = flight.aircraft?.capacityKg ?? null;
+    const loadRatio = capacityKg ? activeWeight / capacityKg : 0;
+    const triggeredAt = flight.updatedAt;
+
+    if (flight.status === "delayed") {
+      alerts.push({
+        id: `flight-delay-${flight.id}`,
+        kind: "flight-delay",
+        title: "Flight terlambat",
+        detail: `${flight.flightNumber} ${route} terlambat; manifest perlu sinkron dengan slot baru.`,
+        severity: "warning",
+        tone: "warning",
+        entityType: "flight",
+        entityLabel: flight.flightNumber,
+        href: `/flight-board?query=${flight.flightNumber}`,
+        route,
+        station: flight.origin,
+        ownerName: meta.airlineName,
+        statusLabel: FLIGHT_STATUS_LABELS[flight.status],
+        recommendedAction: "Broadcast perubahan slot, cek ulang cutoff, dan prioritaskan shipment time-sensitive.",
+        triggeredAt: triggeredAt.toISOString(),
+        ageMinutes: getAlertAgeMinutes(triggeredAt, now),
+      });
+    }
+
+    if (flight.status !== "departed" && pendingShipments.length && minutesToCutoff <= 120) {
+      alerts.push({
+        id: `cutoff-risk-${flight.id}`,
+        kind: "cutoff-risk",
+        title: minutesToCutoff < 0 ? "Cutoff terlewat" : "Cutoff mendekat",
+        detail: `${flight.flightNumber} punya ${pendingShipments.length} shipment belum clear menjelang cutoff.`,
+        severity: minutesToCutoff < 0 ? "critical" : "warning",
+        tone: minutesToCutoff < 0 ? "error" : "warning",
+        entityType: "flight",
+        entityLabel: flight.flightNumber,
+        href: `/flight-board?query=${flight.flightNumber}`,
+        route,
+        station: flight.origin,
+        ownerName: meta.airlineName,
+        statusLabel: FLIGHT_STATUS_LABELS[flight.status],
+        recommendedAction: "Tutup manifest parsial, eskalasi shipment pending, atau pindahkan ke flight berikutnya.",
+        triggeredAt: flight.cargoCutoffTime.toISOString(),
+        ageMinutes: Math.abs(minutesToCutoff),
+      });
+    }
+
+    if (capacityKg && loadRatio >= 0.92) {
+      alerts.push({
+        id: `capacity-risk-${flight.id}`,
+        kind: "capacity-risk",
+        title: loadRatio > 1 ? "Kapasitas terlampaui" : "Kapasitas hampir penuh",
+        detail: `${flight.flightNumber} membawa ${Math.round(activeWeight).toLocaleString("id-ID")} kg dari kapasitas ${capacityKg.toLocaleString("id-ID")} kg.`,
+        severity: loadRatio > 1 ? "critical" : "warning",
+        tone: loadRatio > 1 ? "error" : "warning",
+        entityType: "flight",
+        entityLabel: flight.flightNumber,
+        href: `/flight-board?query=${flight.flightNumber}`,
+        route,
+        station: flight.origin,
+        ownerName: flight.aircraft?.registration ?? meta.airlineName,
+        statusLabel: `${Math.round(loadRatio * 100)}% load`,
+        recommendedAction: "Pisahkan shipment berat, cek dimensi aktual, dan siapkan overflow ke flight cadangan.",
+        triggeredAt: triggeredAt.toISOString(),
+        ageMinutes: getAlertAgeMinutes(triggeredAt, now),
+      });
+    }
+  }
+
+  const sortedAlerts = alerts
+    .sort((left, right) => {
+      const severityDiff = getAlertPriority(left.severity) - getAlertPriority(right.severity);
+      if (severityDiff) return severityDiff;
+      return new Date(right.triggeredAt).getTime() - new Date(left.triggeredAt).getTime();
+    })
+    .slice(0, ALERT_LOOKBACK_LIMIT);
+
+  const counts = sortedAlerts.reduce(
+    (current, alert) => ({
+      ...current,
+      [alert.severity]: current[alert.severity] + 1,
+    }),
+    { critical: 0, warning: 0, info: 0 } as Record<AlertSeverity, number>,
+  );
+
+  const holdCount = shipments.filter((shipment) => shipment.status === ShipmentStatus.hold).length;
+  const docIssueCount = shipments.filter((shipment) => shipment.docStatus.toLowerCase() !== "complete").length;
+  const readinessIssueCount = shipments.filter((shipment) => shipment.readiness.toLowerCase() !== "ready").length;
+  const cutoffRiskCount = sortedAlerts.filter((alert) => alert.kind === "cutoff-risk").length;
+  const capacityRiskCount = sortedAlerts.filter((alert) => alert.kind === "capacity-risk").length;
+  const staleUpdateCount = sortedAlerts.filter((alert) => alert.kind === "stale-update").length;
+
+  return {
+    generatedAt: now.toISOString(),
+    summary: {
+      total: sortedAlerts.length,
+      critical: counts.critical,
+      warning: counts.warning,
+      info: counts.info,
+      unreadNotifications: notificationCount,
+    },
+    alerts: sortedAlerts,
+    conditionChecks: [
+      buildConditionCheck({
+        id: "hold-sla",
+        label: "Hold dan SLA release",
+        count: holdCount,
+        threshold: 0,
+        normalCopy: "Tidak ada hold aktif pada cakupan data terbaru.",
+        actionCopy: `${holdCount} shipment masih hold dan perlu keputusan release atau eskalasi.`,
+        mechanism: "Butuh timer SLA hold, alasan hold wajib, dan owner eskalasi per station.",
+      }),
+      buildConditionCheck({
+        id: "document-gate",
+        label: "Gerbang dokumen",
+        count: docIssueCount,
+        threshold: 0,
+        normalCopy: "Dokumen utama sudah lengkap untuk shipment yang dipantau.",
+        actionCopy: `${docIssueCount} shipment masih punya dokumen incomplete atau review.`,
+        mechanism: "Butuh document gate sebelum status loaded_to_aircraft dapat dipakai.",
+      }),
+      buildConditionCheck({
+        id: "readiness",
+        label: "Readiness operasional",
+        count: readinessIssueCount,
+        threshold: 0,
+        normalCopy: "Readiness shipment berada di kondisi aman.",
+        actionCopy: `${readinessIssueCount} shipment belum ready untuk eksekusi penuh.`,
+        mechanism: "Butuh checklist label, special handling, volume, dan flight assignment.",
+      }),
+      buildConditionCheck({
+        id: "cutoff",
+        label: "Cutoff flight",
+        count: cutoffRiskCount,
+        threshold: 0,
+        normalCopy: "Tidak ada manifest pending dekat cutoff.",
+        actionCopy: `${cutoffRiskCount} flight punya risiko cutoff atau cutoff terlewat.`,
+        mechanism: "Butuh countdown cutoff, freeze manifest, dan rencana pindah flight.",
+      }),
+      buildConditionCheck({
+        id: "capacity",
+        label: "Kapasitas manifest",
+        count: capacityRiskCount,
+        threshold: 0,
+        normalCopy: "Load factor flight masih dalam batas aman.",
+        actionCopy: `${capacityRiskCount} flight hampir penuh atau melewati kapasitas.`,
+        mechanism: "Butuh load factor guard berbasis berat aktual dan kapasitas aircraft.",
+      }),
+      buildConditionCheck({
+        id: "freshness",
+        label: "Freshness update",
+        count: staleUpdateCount,
+        threshold: 0,
+        normalCopy: "Checkpoint aktif masih segar.",
+        actionCopy: `${staleUpdateCount} shipment aktif belum bergerak lebih dari 6 jam.`,
+        mechanism: "Butuh scan cadence per area: gudang, sortation, apron, dan terminal tujuan.",
+      }),
+    ],
+    environmentMechanisms: [
+      {
+        title: "SLA per exception",
+        detail: "Hold, dokumen, readiness, dan cutoff punya jam target berbeda agar prioritas tidak hanya berdasarkan urutan data.",
+      },
+      {
+        title: "Gate sebelum muat",
+        detail: "Shipment tidak ideal masuk loaded_to_aircraft bila dokumen belum complete atau readiness masih pending.",
+      },
+      {
+        title: "Capacity guard",
+        detail: "Manifest perlu membandingkan total berat terhadap kapasitas aircraft untuk menangkap overflow sejak awal.",
+      },
+      {
+        title: "Delay propagation",
+        detail: "Flight delayed harus menurunkan ulang cutoff, notifikasi customer, dan prioritas barang time-sensitive.",
+      },
+      {
+        title: "Station escalation",
+        detail: "Alert perlu owner, station, dan rekomendasi aksi agar terlihat seperti operasi gudang nyata.",
+      },
+    ],
   };
 }
 

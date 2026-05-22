@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   Bell,
+  BellRing,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -65,6 +66,7 @@ const navIconMap = {
   "/dashboard": LayoutDashboard,
   "/shipment-ledger": PackageSearch,
   "/awb-tracking": Radar,
+  "/alerts": BellRing,
   "/flight-board": PlaneTakeoff,
   "/activity-log": History,
   "/reports": FileBarChart2,
