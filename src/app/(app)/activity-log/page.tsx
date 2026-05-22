@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { FileText, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
@@ -22,10 +22,13 @@ type ActivityPayload = {
   }[];
 };
 
+const ACTIVITY_PAGE_SIZE = 15;
+
 export default function ActivityLogPage() {
   const [query, setQuery] = useState("");
   const [action, setAction] = useState("all");
   const [userId, setUserId] = useState("all");
+  const [page, setPage] = useState(1);
   const [data, setData] = useState<ActivityPayload | null>(null);
 
   useEffect(() => {
@@ -54,6 +57,12 @@ export default function ActivityLogPage() {
   }, [data]);
 
   const actions = Array.from(new Set((data?.logs ?? []).map((log) => log.action)));
+  const totalPages = Math.max(1, Math.ceil((data?.logs.length ?? 0) / ACTIVITY_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * ACTIVITY_PAGE_SIZE;
+  const pagedLogs = (data?.logs ?? []).slice(pageStart, pageStart + ACTIVITY_PAGE_SIZE);
+  const visibleStart = data?.logs.length ? pageStart + 1 : 0;
+  const visibleEnd = Math.min(pageStart + pagedLogs.length, data?.logs.length ?? 0);
 
   const exportParams = new URLSearchParams();
   if (query.trim()) exportParams.set("query", query.trim());
@@ -78,11 +87,26 @@ export default function ActivityLogPage() {
       <FilterBar className="xl:grid-cols-[minmax(0,1fr)_minmax(0,220px)_minmax(0,220px)_auto]">
         <div>
           <label className="label">Cari log</label>
-          <input className="input-field" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="AWB, deskripsi, target..." />
+          <input
+            className="input-field"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(1);
+            }}
+            placeholder="AWB, deskripsi, target..."
+          />
         </div>
         <div>
           <label className="label">Aksi</label>
-          <select className="select-field" value={action} onChange={(event) => setAction(event.target.value)}>
+          <select
+            className="select-field"
+            value={action}
+            onChange={(event) => {
+              setAction(event.target.value);
+              setPage(1);
+            }}
+          >
             <option value="all">Semua aksi</option>
             {actions.map((item) => (
               <option key={item} value={item}>
@@ -93,7 +117,14 @@ export default function ActivityLogPage() {
         </div>
         <div>
           <label className="label">Pengguna</label>
-          <select className="select-field" value={userId} onChange={(event) => setUserId(event.target.value)}>
+          <select
+            className="select-field"
+            value={userId}
+            onChange={(event) => {
+              setUserId(event.target.value);
+              setPage(1);
+            }}
+          >
             <option value="all">Semua pengguna</option>
             {(data?.users ?? []).map((user) => (
               <option key={user.id} value={user.id}>
@@ -123,7 +154,7 @@ export default function ActivityLogPage() {
               </tr>
             </thead>
             <tbody>
-              {(data?.logs ?? []).map((log) => (
+              {pagedLogs.map((log) => (
                 <tr key={log.id}>
                   <td className="text-sm text-[color:var(--muted-fg)]">{formatDateTime(log.createdAt)}</td>
                   <td>{log.userName}</td>
@@ -137,6 +168,29 @@ export default function ActivityLogPage() {
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="table-pagination-footer">
+          <button
+            type="button"
+            className="topbar-button"
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+            disabled={currentPage <= 1}
+          >
+            <ChevronLeft size={16} />
+            Sebelumnya
+          </button>
+          <p>
+            {visibleStart}-{visibleEnd} dari {data?.logs.length ?? 0} • Halaman {currentPage}/{totalPages}
+          </p>
+          <button
+            type="button"
+            className="topbar-button"
+            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+            disabled={currentPage >= totalPages}
+          >
+            Berikutnya
+            <ChevronRight size={16} />
+          </button>
         </div>
       </OpsPanel>
     </div>

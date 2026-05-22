@@ -6,17 +6,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BellRing,
   Boxes,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   FileCheck2,
   PackageCheck,
   PlaneTakeoff,
   RefreshCw,
+  Search,
   ShieldAlert,
   TowerControl,
 } from "lucide-react";
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
-import { EmptyState, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 
 type BaseShipment = {
   id: string;
@@ -132,6 +135,7 @@ type ShiftScopedItem<T extends object> = T & {
 };
 
 const SHIFT_OPTIONS: readonly ShiftName[] = ["Pagi", "Siang", "Malam"];
+const DASHBOARD_PAGE_SIZE = 6;
 
 function getShiftFromHour(hour: number): ShiftName {
   if (hour >= 6 && hour < 14) return "Pagi";
@@ -198,6 +202,65 @@ function appendFallbackNote(note: string, fallbackCount: number) {
   return fallbackCount ? `${note} +${fallbackCount} konteks terbaru lintas shift.` : note;
 }
 
+function getPageWindow<T>(items: T[], page: number) {
+  const totalPages = Math.max(1, Math.ceil(items.length / DASHBOARD_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * DASHBOARD_PAGE_SIZE;
+  return {
+    currentPage,
+    totalPages,
+    start,
+    visibleStart: items.length ? start + 1 : 0,
+    visibleEnd: Math.min(start + DASHBOARD_PAGE_SIZE, items.length),
+    items: items.slice(start, start + DASHBOARD_PAGE_SIZE),
+  };
+}
+
+function DashboardPagination({
+  page,
+  totalPages,
+  visibleStart,
+  visibleEnd,
+  totalItems,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  visibleStart: number;
+  visibleEnd: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
+}) {
+  return (
+    <div className="dashboard-pagination-footer">
+      <button
+        type="button"
+        className="topbar-button"
+        onClick={() => onPageChange(Math.max(1, page - 1))}
+        disabled={page <= 1}
+      >
+        <ChevronLeft size={16} />
+      </button>
+      <p>
+        {visibleStart}-{visibleEnd} dari {totalItems}
+      </p>
+      <button
+        type="button"
+        className="topbar-button"
+        onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+        disabled={page >= totalPages}
+      >
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  );
+}
+
+function textMatchesQuery(values: Array<string | number | null | undefined>, query: string) {
+  const normalized = query.trim().toLowerCase();
+  return !normalized || values.join(" ").toLowerCase().includes(normalized);
+}
+
 function ShiftContextBadge({
   isFallbackContext,
   shiftLabel,
@@ -232,6 +295,12 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [shift, setShift] = useState<ShiftName>(getCurrentShift);
+  const [dashboardQuery, setDashboardQuery] = useState("");
+  const [dashboardShipmentPage, setDashboardShipmentPage] = useState(1);
+  const [dashboardFlightPage, setDashboardFlightPage] = useState(1);
+  const [dashboardAlertPage, setDashboardAlertPage] = useState(1);
+  const [dashboardActivityPage, setDashboardActivityPage] = useState(1);
+  const [customerShipmentPage, setCustomerShipmentPage] = useState(1);
   const [refreshSettings, setRefreshSettings] = useState({
     autoRefresh: true,
     refreshIntervalSeconds: 5,
@@ -354,15 +423,62 @@ export default function DashboardPage() {
     };
   }, [internalData?.alerts, internalData?.shipmentsToday, shift]);
 
-  const filteredShipments = shipmentShift.displayed;
-  const filteredFlights = flightShift.displayed;
-  const filteredActivities = activityShift.displayed;
-  const filteredAlerts = alertShift.displayed;
+  const filteredShipments = shipmentShift.displayed.filter((shipment) =>
+    textMatchesQuery(
+      [shipment.awb, shipment.commodity, shipment.origin, shipment.destination, shipment.statusLabel, shipment.flightNumber],
+      dashboardQuery,
+    ),
+  );
+  const filteredFlights = flightShift.displayed.filter((flight) =>
+    textMatchesQuery([flight.flightNumber, flight.route, flight.statusLabel, flight.airlineName, flight.aircraftType, flight.registration], dashboardQuery),
+  );
+  const filteredActivities = activityShift.displayed.filter((activity) =>
+    textMatchesQuery([activity.action, activity.targetLabel, activity.description, activity.userName, activity.level], dashboardQuery),
+  );
+  const filteredAlerts = alertShift.displayed.filter((alert) =>
+    textMatchesQuery([alert.awb, alert.title, alert.detail], dashboardQuery),
+  );
+  const shipmentPage = getPageWindow(filteredShipments, dashboardShipmentPage);
+  const flightPage = getPageWindow(filteredFlights, dashboardFlightPage);
+  const alertPage = getPageWindow(filteredAlerts, dashboardAlertPage);
+  const activityPage = getPageWindow(filteredActivities, dashboardActivityPage);
+  const customerFilteredShipments = (customerData?.shipments ?? []).filter((shipment) =>
+    textMatchesQuery([shipment.awb, shipment.commodity, shipment.origin, shipment.destination, shipment.statusLabel, shipment.flightNumber], dashboardQuery),
+  );
+  const customerShipmentWindow = getPageWindow(customerFilteredShipments, customerShipmentPage);
   const shipmentFallbackCount = getFallbackCount(filteredShipments);
   const flightFallbackCount = getFallbackCount(filteredFlights);
   const alertFallbackCount = getFallbackCount(filteredAlerts);
   const activeLoaded = shipmentShift.shiftMatched.filter((shipment) => shipment.status === "loaded_to_aircraft").length;
   const activeFlightSummary = `${flightShift.shiftMatched.filter((flight) => flight.status === "on_time").length} tepat waktu, ${flightShift.shiftMatched.filter((flight) => flight.status === "delayed").length} terlambat.`;
+
+  useEffect(() => {
+    setDashboardShipmentPage(1);
+    setDashboardFlightPage(1);
+    setDashboardAlertPage(1);
+    setDashboardActivityPage(1);
+    setCustomerShipmentPage(1);
+  }, [dashboardQuery, shift]);
+
+  useEffect(() => {
+    setDashboardShipmentPage((current) => Math.min(current, shipmentPage.totalPages));
+  }, [shipmentPage.totalPages]);
+
+  useEffect(() => {
+    setDashboardFlightPage((current) => Math.min(current, flightPage.totalPages));
+  }, [flightPage.totalPages]);
+
+  useEffect(() => {
+    setDashboardAlertPage((current) => Math.min(current, alertPage.totalPages));
+  }, [alertPage.totalPages]);
+
+  useEffect(() => {
+    setDashboardActivityPage((current) => Math.min(current, activityPage.totalPages));
+  }, [activityPage.totalPages]);
+
+  useEffect(() => {
+    setCustomerShipmentPage((current) => Math.min(current, customerShipmentWindow.totalPages));
+  }, [customerShipmentWindow.totalPages]);
 
   if (customerData) {
     return (
@@ -397,6 +513,21 @@ export default function DashboardPage() {
           <StatCard label="Tiba" value={loading ? "..." : customerData.metrics.arrived} note="Shipment yang sudah tercatat tiba di tujuan." icon={PackageCheck} tone="success" />
         </div>
 
+        <FilterBar className="dashboard-filter-bar">
+          <div>
+            <label className="label">Cari dashboard</label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={16} />
+              <input
+                className="input-field pl-10"
+                value={dashboardQuery}
+                onChange={(event) => setDashboardQuery(event.target.value)}
+                placeholder="AWB, komoditas, rute, status..."
+              />
+            </div>
+          </div>
+        </FilterBar>
+
         <div className="page-grid-2">
           <OpsPanel className="page-pane p-5">
             <SectionHeader
@@ -421,8 +552,8 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {customerData.shipments.length ? (
-                    customerData.shipments.map((shipment) => (
+                  {customerFilteredShipments.length ? (
+                    customerShipmentWindow.items.map((shipment) => (
                       <tr key={shipment.id}>
                         <td className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{shipment.awb}</td>
                         <td>
@@ -456,6 +587,14 @@ export default function DashboardPage() {
                 </tbody>
               </table>
             </div>
+            <DashboardPagination
+              page={customerShipmentWindow.currentPage}
+              totalPages={customerShipmentWindow.totalPages}
+              visibleStart={customerShipmentWindow.visibleStart}
+              visibleEnd={customerShipmentWindow.visibleEnd}
+              totalItems={customerFilteredShipments.length}
+              onPageChange={setCustomerShipmentPage}
+            />
           </OpsPanel>
 
           <div className="page-stack">
@@ -583,6 +722,21 @@ export default function DashboardPage() {
         <StatCard label="Perlu Tindakan" value={loading ? "..." : alertShift.shiftMatched.length} note={appendFallbackNote("Alert hold, cutoff, atau validasi dokumen pada shift aktif.", alertFallbackCount)} icon={ShieldAlert} tone="warning" />
       </div>
 
+      <FilterBar className="dashboard-filter-bar">
+        <div>
+          <label className="label">Cari dashboard</label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={16} />
+            <input
+              className="input-field pl-10"
+              value={dashboardQuery}
+              onChange={(event) => setDashboardQuery(event.target.value)}
+              placeholder="AWB, flight, alert, aktivitas..."
+            />
+          </div>
+        </div>
+      </FilterBar>
+
       <div className="dashboard-main flex-1">
         <OpsPanel className="dashboard-panel p-4 xl:p-5">
           <SectionHeader
@@ -596,8 +750,9 @@ export default function DashboardPage() {
           />
 
           <div className="dashboard-split mt-4">
-            <div className="dashboard-table-scroll table-shell">
-              <table className="data-table">
+            <div className="dashboard-table-stack">
+              <div className="dashboard-table-scroll table-shell">
+                <table className="data-table">
                 <thead>
                   <tr>
                     <th>AWB</th>
@@ -610,7 +765,7 @@ export default function DashboardPage() {
                 </thead>
                 <tbody>
                   {filteredShipments.length ? (
-                    filteredShipments.map((shipment) => (
+                    shipmentPage.items.map((shipment) => (
                       <tr key={shipment.id}>
                         <td className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{shipment.awb}</td>
                         <td>
@@ -647,7 +802,16 @@ export default function DashboardPage() {
                     </tr>
                   )}
                 </tbody>
-              </table>
+                </table>
+              </div>
+              <DashboardPagination
+                page={shipmentPage.currentPage}
+                totalPages={shipmentPage.totalPages}
+                visibleStart={shipmentPage.visibleStart}
+                visibleEnd={shipmentPage.visibleEnd}
+                totalItems={filteredShipments.length}
+                onPageChange={setDashboardShipmentPage}
+              />
             </div>
 
             <div className="dashboard-flight-scroll space-y-3">
@@ -663,7 +827,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-4 space-y-3">
                   {filteredFlights.length ? (
-                    filteredFlights.map((flight) => (
+                    flightPage.items.map((flight) => (
                       <div
                         key={flight.id}
                         className="dashboard-flight-card overflow-hidden rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]"
@@ -746,6 +910,14 @@ export default function DashboardPage() {
                     <p className="text-sm text-[color:var(--muted-fg)]">Tidak ada flight aktif di shift ini.</p>
                   )}
                 </div>
+                <DashboardPagination
+                  page={flightPage.currentPage}
+                  totalPages={flightPage.totalPages}
+                  visibleStart={flightPage.visibleStart}
+                  visibleEnd={flightPage.visibleEnd}
+                  totalItems={filteredFlights.length}
+                  onPageChange={setDashboardFlightPage}
+                />
               </div>
             </div>
           </div>
@@ -756,7 +928,7 @@ export default function DashboardPage() {
             <SectionHeader title="Pusat Tindakan" subtitle="AWB yang membutuhkan intervensi tim staff operasional." />
             <div className="dashboard-alert-scroll mt-4 space-y-3">
               {filteredAlerts.length ? (
-                filteredAlerts.map((alert) => (
+                alertPage.items.map((alert) => (
                   <div key={alert.id} className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -779,6 +951,14 @@ export default function DashboardPage() {
                 <EmptyState icon={BellRing} title="Tidak ada alert kritis" copy="Semua shipment pada shift ini berada dalam kondisi normal atau sudah tertangani." />
               )}
             </div>
+            <DashboardPagination
+              page={alertPage.currentPage}
+              totalPages={alertPage.totalPages}
+              visibleStart={alertPage.visibleStart}
+              visibleEnd={alertPage.visibleEnd}
+              totalItems={filteredAlerts.length}
+              onPageChange={setDashboardAlertPage}
+            />
           </OpsPanel>
 
           <OpsPanel className="dashboard-panel p-4 xl:p-5">
@@ -793,7 +973,7 @@ export default function DashboardPage() {
             />
             <div className="dashboard-activity-scroll mt-4 space-y-3">
               {filteredActivities.length ? (
-                filteredActivities.map((activity) => (
+                activityPage.items.map((activity) => (
                   <div key={activity.id} className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -815,6 +995,14 @@ export default function DashboardPage() {
                 <EmptyState icon={Clock3} title="Belum ada aktivitas" copy="Audit trail untuk shift ini akan muncul otomatis saat staff mulai melakukan aksi." />
               )}
             </div>
+            <DashboardPagination
+              page={activityPage.currentPage}
+              totalPages={activityPage.totalPages}
+              visibleStart={activityPage.visibleStart}
+              visibleEnd={activityPage.visibleEnd}
+              totalItems={filteredActivities.length}
+              onPageChange={setDashboardActivityPage}
+            />
           </OpsPanel>
         </div>
       </div>

@@ -3,10 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
   Check,
+  ChevronLeft,
   ChevronRight,
   Monitor,
   MoonStar,
   Plus,
+  Search,
   ShieldCheck,
   SunMedium,
   UserCircle2,
@@ -85,6 +87,8 @@ type SettingsDraft = {
   soundAlert: boolean;
   emailDigest: boolean;
 };
+
+const SETTINGS_PAGE_SIZE = 10;
 
 function toDraft(data: SettingsPayload | null): SettingsDraft {
   return {
@@ -266,6 +270,10 @@ export default function SettingsPage() {
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editingAccountDraft, setEditingAccountDraft] =
     useState<SettingsPayload["customerAccounts"][number] | null>(null);
+  const [userSearch, setUserSearch] = useState("");
+  const [userPage, setUserPage] = useState(1);
+  const [accountSearch, setAccountSearch] = useState("");
+  const [accountPage, setAccountPage] = useState(1);
 
   useEffect(() => {
     fetch("/api/settings", { cache: "no-store" })
@@ -348,6 +356,58 @@ export default function SettingsPage() {
       tone: "warning" as const,
     },
   ];
+
+  const filteredUsers = useMemo(() => {
+    const normalized = userSearch.trim().toLowerCase();
+    if (!normalized) return data?.users ?? [];
+    return (data?.users ?? []).filter((user) =>
+      [user.name, user.email, user.role, user.station, user.status, user.customerAccountName ?? ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalized),
+    );
+  }, [data?.users, userSearch]);
+
+  const userTotalPages = Math.max(1, Math.ceil(filteredUsers.length / SETTINGS_PAGE_SIZE));
+  const currentUserPage = Math.min(userPage, userTotalPages);
+  const userPageStart = (currentUserPage - 1) * SETTINGS_PAGE_SIZE;
+  const pagedUsers = filteredUsers.slice(userPageStart, userPageStart + SETTINGS_PAGE_SIZE);
+  const userVisibleStart = filteredUsers.length ? userPageStart + 1 : 0;
+  const userVisibleEnd = Math.min(userPageStart + pagedUsers.length, filteredUsers.length);
+
+  const filteredAccounts = useMemo(() => {
+    const normalized = accountSearch.trim().toLowerCase();
+    if (!normalized) return data?.customerAccounts ?? [];
+    return (data?.customerAccounts ?? []).filter((account) =>
+      [account.code, account.name, account.contactName ?? "", account.contactEmail ?? "", account.contactPhone ?? "", account.status]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalized),
+    );
+  }, [accountSearch, data?.customerAccounts]);
+
+  const accountTotalPages = Math.max(1, Math.ceil(filteredAccounts.length / SETTINGS_PAGE_SIZE));
+  const currentAccountPage = Math.min(accountPage, accountTotalPages);
+  const accountPageStart = (currentAccountPage - 1) * SETTINGS_PAGE_SIZE;
+  const pagedAccounts = filteredAccounts.slice(accountPageStart, accountPageStart + SETTINGS_PAGE_SIZE);
+  const accountVisibleStart = filteredAccounts.length ? accountPageStart + 1 : 0;
+  const accountVisibleEnd = Math.min(accountPageStart + pagedAccounts.length, filteredAccounts.length);
+
+  useEffect(() => {
+    setUserPage(1);
+  }, [userSearch]);
+
+  useEffect(() => {
+    setAccountPage(1);
+  }, [accountSearch]);
+
+  useEffect(() => {
+    setUserPage((current) => Math.min(current, userTotalPages));
+  }, [userTotalPages]);
+
+  useEffect(() => {
+    setAccountPage((current) => Math.min(current, accountTotalPages));
+  }, [accountTotalPages]);
 
   function emitSettingsPreview(patch: Partial<SettingsDraft>) {
     window.dispatchEvent(new CustomEvent("skyhub:settings-preview", { detail: patch }));
@@ -971,6 +1031,19 @@ export default function SettingsPage() {
                   </div>
                 ) : null}
 
+                <div className="settings-table-toolbar">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={16} />
+                    <input
+                      className="input-field pl-10"
+                      value={userSearch}
+                      onChange={(event) => setUserSearch(event.target.value)}
+                      placeholder="Cari nama, email, role, stasiun..."
+                    />
+                  </div>
+                  <span>{filteredUsers.length} pengguna</span>
+                </div>
+
                 <div className="page-scroll table-shell mt-5 rounded-[24px] border border-[color:var(--border-soft)]">
                   <table className="data-table">
                     <thead>
@@ -985,7 +1058,7 @@ export default function SettingsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.users.map((user) => {
+                      {pagedUsers.map((user) => {
                         const userRowDraft = editingUserId === user.id ? editingUserDraft : null;
                         const isEditing = Boolean(userRowDraft);
 
@@ -1143,6 +1216,29 @@ export default function SettingsPage() {
                     </tbody>
                   </table>
                 </div>
+                <div className="table-pagination-footer">
+                  <button
+                    type="button"
+                    className="topbar-button"
+                    onClick={() => setUserPage((current) => Math.max(1, current - 1))}
+                    disabled={currentUserPage <= 1}
+                  >
+                    <ChevronLeft size={16} />
+                    Sebelumnya
+                  </button>
+                  <p>
+                    {userVisibleStart}-{userVisibleEnd} dari {filteredUsers.length} • Halaman {currentUserPage}/{userTotalPages}
+                  </p>
+                  <button
+                    type="button"
+                    className="topbar-button"
+                    onClick={() => setUserPage((current) => Math.min(userTotalPages, current + 1))}
+                    disabled={currentUserPage >= userTotalPages}
+                  >
+                    Berikutnya
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
               </OpsPanel>
             ) : null}
 
@@ -1226,6 +1322,19 @@ export default function SettingsPage() {
                   </div>
                 ) : null}
 
+                <div className="settings-table-toolbar">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={16} />
+                    <input
+                      className="input-field pl-10"
+                      value={accountSearch}
+                      onChange={(event) => setAccountSearch(event.target.value)}
+                      placeholder="Cari kode, nama akun, PIC, email..."
+                    />
+                  </div>
+                  <span>{filteredAccounts.length} akun</span>
+                </div>
+
                 <div className="page-scroll table-shell mt-5 rounded-[24px] border border-[color:var(--border-soft)]">
                   <table className="data-table">
                     <thead>
@@ -1241,7 +1350,7 @@ export default function SettingsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.customerAccounts.map((account) => {
+                      {pagedAccounts.map((account) => {
                         const accountRowDraft = editingAccountId === account.id ? editingAccountDraft : null;
                         const isEditing = Boolean(accountRowDraft);
 
@@ -1385,6 +1494,29 @@ export default function SettingsPage() {
                       })}
                     </tbody>
                   </table>
+                </div>
+                <div className="table-pagination-footer">
+                  <button
+                    type="button"
+                    className="topbar-button"
+                    onClick={() => setAccountPage((current) => Math.max(1, current - 1))}
+                    disabled={currentAccountPage <= 1}
+                  >
+                    <ChevronLeft size={16} />
+                    Sebelumnya
+                  </button>
+                  <p>
+                    {accountVisibleStart}-{accountVisibleEnd} dari {filteredAccounts.length} • Halaman {currentAccountPage}/{accountTotalPages}
+                  </p>
+                  <button
+                    type="button"
+                    className="topbar-button"
+                    onClick={() => setAccountPage((current) => Math.min(accountTotalPages, current + 1))}
+                    disabled={currentAccountPage >= accountTotalPages}
+                  >
+                    Berikutnya
+                    <ChevronRight size={16} />
+                  </button>
                 </div>
               </OpsPanel>
             ) : null}
