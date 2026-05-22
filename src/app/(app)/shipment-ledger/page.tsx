@@ -336,6 +336,15 @@ export default function ShipmentLedgerPage() {
     return () => window.clearTimeout(timer);
   }, [actionNotice]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible" || createOpen || saving) return;
+      void loadShipments(selectedIdRef.current, "refresh");
+    }, 10000);
+
+    return () => window.clearInterval(timer);
+  }, [createOpen, loadShipments, saving]);
+
   const selectedShipment = useMemo(
     () => data?.shipments.find((shipment) => shipment.id === selectedId) ?? null,
     [data, selectedId],

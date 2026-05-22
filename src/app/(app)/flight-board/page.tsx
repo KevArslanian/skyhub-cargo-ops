@@ -302,6 +302,15 @@ export default function FlightBoardPage() {
     return () => window.clearTimeout(timer);
   }, [notice]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible" || createOpen || saving) return;
+      void loadFlightBoard();
+    }, 10000);
+
+    return () => window.clearInterval(timer);
+  }, [createOpen, loadFlightBoard, saving]);
+
   async function handleRefresh() {
     setRefreshing(true);
     try {
