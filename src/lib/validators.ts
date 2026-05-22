@@ -21,6 +21,12 @@ const optionalPositiveVolumeSchema = z.preprocess(
   z.coerce.number().positive("Volume harus lebih dari 0.").optional().nullable(),
 );
 
+const optionalCargoDateSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal kirim harus format YYYY-MM-DD.")
+  .optional();
+
 function validateFlightDateOrder<T extends { cargoCutoffTime?: string; departureTime?: string; arrivalTime?: string }>(
   value: T,
   context: z.RefinementCtx,
@@ -64,13 +70,25 @@ export const loginSchema = z.object({
 
 export const shipmentCreateSchema = z.object({
   awb: optionalAwbSchema,
+  sentAt: optionalCargoDateSchema,
   commodity: z.string().trim().min(2, "Komoditas wajib diisi."),
+  cargoMode: z.enum(["Darat", "Udara", "Laut"]).optional().default("Udara"),
+  senderPhone: z.string().trim().min(6, "No telepon wajib diisi.").optional().default("0800000000"),
   origin: z.string().trim().min(3),
   destination: z.string().trim().min(3),
   pieces: z.coerce.number().int().positive("Pieces harus lebih dari 0."),
   weightKg: z.coerce.number().positive("Berat harus lebih dari 0."),
   volumeM3: optionalPositiveVolumeSchema,
   specialHandling: z.string().trim().optional().default(""),
+  serviceType: z.enum(["Biasa", "Cepat", "VVIP"]).optional().default("Biasa"),
+  shippingRate: z.coerce.number().int().min(0, "Tarif tidak boleh negatif.").optional().default(0),
+  vehicleName: z.string().trim().min(2, "Nama kendaraan wajib diisi.").optional().default("SkyHub 01"),
+  vehicleType: z.string().trim().min(2, "Jenis kendaraan wajib diisi.").optional().default("Pesawat"),
+  vehicleCode: z.string().trim().min(2, "Kode kendaraan wajib diisi.").optional().default("PK-SHA"),
+  vehicleCapacityKg: z.coerce.number().int().positive("Kapasitas harus lebih dari 0.").optional().default(1000),
+  vehicleStatus: z.enum(["Aktif", "Maintenance", "Nonaktif"]).optional().default("Aktif"),
+  goodsStatus: z.enum(["Diproses", "Dalam Pengiriman", "Sampai Tujuan", "Pending", "Selesai"]).optional().default("Diproses"),
+  transactionStatus: z.enum(["Pending", "Lunas", "Belum Lunas", "Selesai"]).optional().default("Pending"),
   shipper: z.string().trim().min(2),
   consignee: z.string().trim().min(2),
   forwarder: z.string().trim().min(2),
@@ -84,6 +102,23 @@ export const shipmentUpdateSchema = z.object({
   status: shipmentStatusSchema.optional(),
   notes: z.string().trim().optional(),
   ownerName: z.string().trim().optional(),
+  sentAt: optionalCargoDateSchema,
+  cargoMode: z.enum(["Darat", "Udara", "Laut"]).optional(),
+  senderPhone: z.string().trim().min(6).optional(),
+  commodity: z.string().trim().min(2).optional(),
+  origin: z.string().trim().min(3).optional(),
+  destination: z.string().trim().min(3).optional(),
+  pieces: z.coerce.number().int().positive().optional(),
+  weightKg: z.coerce.number().positive().optional(),
+  serviceType: z.enum(["Biasa", "Cepat", "VVIP"]).optional(),
+  shippingRate: z.coerce.number().int().min(0).optional(),
+  vehicleName: z.string().trim().min(2).optional(),
+  vehicleType: z.string().trim().min(2).optional(),
+  vehicleCode: z.string().trim().min(2).optional(),
+  vehicleCapacityKg: z.coerce.number().int().positive().optional(),
+  vehicleStatus: z.enum(["Aktif", "Maintenance", "Nonaktif"]).optional(),
+  goodsStatus: z.enum(["Diproses", "Dalam Pengiriman", "Sampai Tujuan", "Pending", "Selesai"]).optional(),
+  transactionStatus: z.enum(["Pending", "Lunas", "Belum Lunas", "Selesai"]).optional(),
   flightId: z.string().trim().optional().nullable(),
   customerAccountId: z.string().trim().optional().nullable(),
   docStatus: shipmentDocStatusSchema.optional(),

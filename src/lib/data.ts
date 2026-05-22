@@ -90,13 +90,25 @@ function serializeShipment(shipment: ShipmentRecord, user: AccessUser) {
   return {
     id: shipment.id,
     awb: shipment.awb,
+    sentAt: shipment.sentAt.toISOString(),
     commodity: shipment.commodity,
+    cargoMode: shipment.cargoMode,
+    senderPhone: shipment.senderPhone,
     origin: shipment.origin,
     destination: shipment.destination,
     pieces: shipment.pieces,
     weightKg: shipment.weightKg,
     volumeM3: shipment.volumeM3,
     specialHandling: shipment.specialHandling,
+    serviceType: shipment.serviceType,
+    shippingRate: shipment.shippingRate,
+    vehicleName: shipment.vehicleName,
+    vehicleType: shipment.vehicleType,
+    vehicleCode: shipment.vehicleCode,
+    vehicleCapacityKg: shipment.vehicleCapacityKg,
+    vehicleStatus: shipment.vehicleStatus,
+    goodsStatus: shipment.goodsStatus,
+    transactionStatus: shipment.transactionStatus,
     docStatus: shipment.docStatus,
     readiness: shipment.readiness,
     shipper: shipment.shipper,
@@ -138,6 +150,14 @@ function getShipmentOrderBy(sortBy?: string): Prisma.ShipmentOrderByWithRelation
   }
 
   return [{ updatedAt: "desc" }];
+}
+
+function parseCargoDate(value?: string | null) {
+  if (!value) {
+    return new Date();
+  }
+
+  return new Date(`${value}T00:00:00.000+07:00`);
 }
 
 type FlightBoardShift = "all" | "pagi" | "siang" | "malam";
@@ -1163,6 +1183,9 @@ export async function listShipments(
       { shipper: { contains: filters.query } },
       { consignee: { contains: filters.query } },
       { ownerName: { contains: filters.query } },
+      { senderPhone: { contains: filters.query } },
+      { vehicleCode: { contains: filters.query } },
+      { vehicleName: { contains: filters.query } },
     ];
   }
 
@@ -1225,13 +1248,25 @@ export async function listShipments(
 
 export async function createShipment(input: {
   awb?: string;
+  sentAt?: string;
   commodity: string;
+  cargoMode: string;
+  senderPhone: string;
   origin: string;
   destination: string;
   pieces: number;
   weightKg: number;
   volumeM3?: number | null;
   specialHandling?: string;
+  serviceType: string;
+  shippingRate: number;
+  vehicleName: string;
+  vehicleType: string;
+  vehicleCode: string;
+  vehicleCapacityKg: number;
+  vehicleStatus: string;
+  goodsStatus: string;
+  transactionStatus: string;
   shipper: string;
   consignee: string;
   forwarder: string;
@@ -1259,13 +1294,25 @@ export async function createShipment(input: {
     const created = await tx.shipment.create({
       data: {
         awb,
+        sentAt: parseCargoDate(input.sentAt),
         commodity: input.commodity,
+        cargoMode: input.cargoMode,
+        senderPhone: input.senderPhone,
         origin: input.origin.toUpperCase(),
         destination: input.destination.toUpperCase(),
         pieces: input.pieces,
         weightKg: input.weightKg,
         volumeM3: input.volumeM3 ?? null,
         specialHandling: input.specialHandling || "",
+        serviceType: input.serviceType,
+        shippingRate: input.shippingRate,
+        vehicleName: input.vehicleName,
+        vehicleType: input.vehicleType,
+        vehicleCode: input.vehicleCode.toUpperCase(),
+        vehicleCapacityKg: input.vehicleCapacityKg,
+        vehicleStatus: input.vehicleStatus,
+        goodsStatus: input.goodsStatus,
+        transactionStatus: input.transactionStatus,
         docStatus: "Complete",
         readiness: "Ready",
         shipper: input.shipper,
@@ -1280,8 +1327,8 @@ export async function createShipment(input: {
         trackingLogs: {
           create: {
             status: "received",
-            message: "Kargo diterima di gudang udara.",
-            location: "Gudang Udara",
+            message: `Kargo ${input.cargoMode.toLowerCase()} diterima dan data resi dibuat.`,
+            location: "Gudang Operasional",
             actorName: input.actorName,
           },
         },
@@ -1313,6 +1360,23 @@ export async function updateShipment(
     status?: ShipmentStatus;
     notes?: string;
     ownerName?: string;
+    sentAt?: string;
+    cargoMode?: string;
+    senderPhone?: string;
+    commodity?: string;
+    origin?: string;
+    destination?: string;
+    pieces?: number;
+    weightKg?: number;
+    serviceType?: string;
+    shippingRate?: number;
+    vehicleName?: string;
+    vehicleType?: string;
+    vehicleCode?: string;
+    vehicleCapacityKg?: number;
+    vehicleStatus?: string;
+    goodsStatus?: string;
+    transactionStatus?: string;
     flightId?: string | null;
     customerAccountId?: string | null;
     docStatus?: string;
@@ -1350,6 +1414,23 @@ export async function updateShipment(
         status: nextStatus,
         notes: input.notes ?? current.notes,
         ownerName: input.ownerName ?? current.ownerName,
+        sentAt: input.sentAt ? parseCargoDate(input.sentAt) : current.sentAt,
+        cargoMode: input.cargoMode ?? current.cargoMode,
+        senderPhone: input.senderPhone ?? current.senderPhone,
+        commodity: input.commodity ?? current.commodity,
+        origin: input.origin ? input.origin.toUpperCase() : current.origin,
+        destination: input.destination ? input.destination.toUpperCase() : current.destination,
+        pieces: input.pieces ?? current.pieces,
+        weightKg: input.weightKg ?? current.weightKg,
+        serviceType: input.serviceType ?? current.serviceType,
+        shippingRate: input.shippingRate ?? current.shippingRate,
+        vehicleName: input.vehicleName ?? current.vehicleName,
+        vehicleType: input.vehicleType ?? current.vehicleType,
+        vehicleCode: input.vehicleCode ? input.vehicleCode.toUpperCase() : current.vehicleCode,
+        vehicleCapacityKg: input.vehicleCapacityKg ?? current.vehicleCapacityKg,
+        vehicleStatus: input.vehicleStatus ?? current.vehicleStatus,
+        goodsStatus: input.goodsStatus ?? current.goodsStatus,
+        transactionStatus: input.transactionStatus ?? current.transactionStatus,
         flightId: nextFlightId,
         customerAccountId: nextCustomerAccountId,
         docStatus: input.docStatus ?? current.docStatus,
@@ -1425,6 +1506,42 @@ export async function archiveShipment(shipmentId: string, archived: boolean, use
           ? `Shipment ${current.awb} diarsipkan dari daftar kerja aktif.`
           : `Shipment ${current.awb} dipulihkan kembali ke daftar kerja aktif.`,
         level: archived ? "warning" : "success",
+      },
+    });
+  });
+}
+
+export async function deleteShipment(shipmentId: string, userId: string) {
+  const actor = await getActorWithRelations(userId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  ensureShipmentManager(actor);
+
+  const current = await db.shipment.findUnique({
+    where: { id: shipmentId },
+    select: { id: true, awb: true },
+  });
+
+  if (!current) {
+    throw new AccessError("Shipment tidak ditemukan.", 404, "SHIPMENT_NOT_FOUND");
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.shipment.delete({
+      where: { id: shipmentId },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.id,
+        action: "Hapus Shipment",
+        targetType: "shipment",
+        targetId: shipmentId,
+        targetLabel: current.awb,
+        description: `Shipment ${current.awb} dihapus dari database.`,
+        level: "warning",
       },
     });
   });

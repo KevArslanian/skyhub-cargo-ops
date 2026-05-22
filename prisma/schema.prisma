@@ -92,10 +92,12 @@ model Airport {
 
 model Aircraft {
   id           String   @id @default(cuid())
+  name         String   @default("Pesawat Operasional")
   registration String   @unique
   airlineCode  String
   type         String
   capacityKg   Int
+  status       String   @default("Aktif")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   flights      Flight[]
@@ -216,13 +218,25 @@ model Flight {
 model Shipment {
   id              String            @id @default(cuid())
   awb             String            @unique
+  sentAt          DateTime          @default(now())
   commodity       String
+  cargoMode       String            @default("Udara")
+  senderPhone     String            @default("")
   origin          String
   destination     String
   pieces          Int
   weightKg        Float
   volumeM3        Float?
   specialHandling String?
+  serviceType     String            @default("Biasa")
+  shippingRate    Int               @default(0)
+  vehicleName     String            @default("")
+  vehicleType     String            @default("Pesawat")
+  vehicleCode     String            @default("")
+  vehicleCapacityKg Int             @default(0)
+  vehicleStatus   String            @default("Aktif")
+  goodsStatus     String            @default("Diproses")
+  transactionStatus String          @default("Pending")
   docStatus       String            @default("Complete")
   readiness       String            @default("Ready")
   shipper         String

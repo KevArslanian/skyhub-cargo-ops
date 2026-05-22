@@ -60,10 +60,10 @@ export default async function ShipmentsPrintPage({
       documentCode={buildPrintDocumentCode("SHIPMENTS", printedAt)}
     >
       <section className="print-table-wrap">
-        <table className="print-table min-w-[980px]">
+        <table className="print-table min-w-[1180px]">
           <thead>
             <tr>
-              {["AWB", "Komoditas", "Rute", "Status", "Flight", "Update"].map((header) => (
+              {["AWB", "Tanggal", "Barang", "Pengirim", "Rute", "Jenis", "Tarif", "Kendaraan", "Status"].map((header) => (
                 <th key={header}>{header}</th>
               ))}
             </tr>
@@ -73,18 +73,25 @@ export default async function ShipmentsPrintPage({
               data.shipments.map((shipment) => (
                 <tr key={shipment.id}>
                   <td className="whitespace-nowrap font-mono text-xs font-semibold text-[#1d4ed8]">{shipment.awb}</td>
+                  <td className="whitespace-nowrap">{formatDateTime(shipment.sentAt)}</td>
                   <td>{shipment.commodity}</td>
+                  <td>
+                    {shipment.shipper}
+                    <br />
+                    <span className="text-xs text-slate-500">{shipment.senderPhone}</span>
+                  </td>
                   <td className="whitespace-nowrap">{shipment.origin}{" -> "}{shipment.destination}</td>
+                  <td className="whitespace-nowrap">{shipment.cargoMode} / {shipment.serviceType}</td>
+                  <td className="whitespace-nowrap">Rp {shipment.shippingRate.toLocaleString("id-ID")}</td>
+                  <td className="whitespace-nowrap">{shipment.vehicleCode || shipment.vehicleType}</td>
                   <td>
                     <span className={`print-badge print-badge-${getShipmentTone(shipment.status)}`}>{shipment.statusLabel}</span>
                   </td>
-                  <td className="whitespace-nowrap">{shipment.flightNumber || "-"}</td>
-                  <td className="whitespace-nowrap">{formatDateTime(shipment.updatedAt)}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">
+                <td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-500">
                   Tidak ada data shipment untuk filter ini.
                 </td>
               </tr>

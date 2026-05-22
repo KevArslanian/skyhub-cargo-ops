@@ -130,6 +130,13 @@ const CONSIGNEES = [
 const OWNER_NAMES = ["Raka Pratama", "Naila Putri", "Dimas Rafi", "Mira Putri"] as const;
 
 const SPECIAL_HANDLING = ["", "ELI", "COL", "PER", "DGR", "HEA"] as const;
+const CARGO_MODES = ["Darat", "Udara", "Laut"] as const;
+const SERVICE_TYPES = ["Biasa", "Cepat", "VVIP"] as const;
+const VEHICLE_TYPES = {
+  Darat: "Truk Box",
+  Udara: "Pesawat",
+  Laut: "Kapal Cargo",
+} as const;
 
 const STATUS_CYCLE: ShipmentStatus[] = [
   ShipmentStatus.received,
@@ -902,8 +909,20 @@ async function main() {
     const tariff = pick(tariffs, index);
     const firstCargoItem = pick(cargoItems, index);
     const secondCargoItem = pick(cargoItems, index + 3);
+    const cargoMode = pick(CARGO_MODES, index);
+    const vehicleType = VEHICLE_TYPES[cargoMode];
+    const serviceType = pick(SERVICE_TYPES, index);
+    const goodsStatus =
+      status === ShipmentStatus.arrived
+        ? "Sampai Tujuan"
+        : status === ShipmentStatus.hold
+          ? "Pending"
+          : status === ShipmentStatus.departed || status === ShipmentStatus.loaded_to_aircraft
+            ? "Dalam Pengiriman"
+            : "Diproses";
 
     const receivedAt = subHours(now, (index % 72) + Math.floor(index / 100) * 8);
+    const weightKg = 60 + (index % 40) * 12;
     const docStatus = determineDocumentStatus(index, status);
     const readiness = determineReadiness(docStatus, status);
 
@@ -920,13 +939,25 @@ async function main() {
     const shipment = await prisma.shipment.create({
       data: {
         awb,
+        sentAt: receivedAt,
         commodity: commodityMaster.name,
+        cargoMode,
+        senderPhone: `08${String(1200000000 + index).slice(0, 10)}`,
         origin: flight.origin,
         destination: flight.destination,
         pieces: 2 + (index % 23),
-        weightKg: 60 + (index % 40) * 12,
+        weightKg,
         volumeM3: Number((0.3 + (index % 8) * 0.25).toFixed(2)),
         specialHandling: pick(SPECIAL_HANDLING, index),
+        serviceType,
+        shippingRate: Math.max(tariff.minimumCharge, Math.round(weightKg * tariff.pricePerKg)),
+        vehicleName: `SkyHub ${vehicleType} ${String((index % 9) + 1).padStart(2, "0")}`,
+        vehicleType,
+        vehicleCode: cargoMode === "Udara" ? flight.flightNumber : `${cargoMode.slice(0, 2).toUpperCase()}-${index + 100}`,
+        vehicleCapacityKg: cargoMode === "Udara" ? 18000 : cargoMode === "Laut" ? 60000 : 9000,
+        vehicleStatus: index % 11 === 0 ? "Maintenance" : "Aktif",
+        goodsStatus,
+        transactionStatus: status === ShipmentStatus.arrived ? "Selesai" : index % 4 === 0 ? "Lunas" : "Pending",
         docStatus,
         readiness,
         shipper: pick(SHIPPERS, index),

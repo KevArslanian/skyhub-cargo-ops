@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { routeErrorResponse, validationErrorResponse } from "@/lib/api";
-import { archiveShipment, updateShipment } from "@/lib/data";
+import { deleteShipment, updateShipment } from "@/lib/data";
 import { shipmentUpdateSchema } from "@/lib/validators";
 
 type RouteContext = {
@@ -36,9 +36,9 @@ export async function DELETE(_: Request, context: RouteContext) {
     const user = await requireUser();
     const { id } = await context.params;
 
-    await archiveShipment(id, true, user.id);
+    await deleteShipment(id, user.id);
     return NextResponse.json({ success: true });
   } catch (error) {
-    return routeErrorResponse(error, "Gagal mengarsipkan shipment.");
+    return routeErrorResponse(error, "Gagal menghapus shipment.");
   }
 }

@@ -145,12 +145,24 @@ test("@crud shipment CRUD, document upload, notification update, and archive wor
   const shipmentCreate = await request.post(apiUrl("/api/shipments"), {
     data: {
       awb,
+      sentAt: "2026-05-22",
       commodity: "QA Test Cargo",
+      cargoMode: "Udara",
+      senderPhone: "081234567890",
       origin: "CGK",
       destination: "DPS",
       pieces: 2,
       weightKg: 12.5,
       volumeM3: 0.4,
+      serviceType: "Cepat",
+      shippingRate: 225000,
+      vehicleName: "QA Cargo Unit",
+      vehicleType: "Pesawat",
+      vehicleCode: "PK-QA1",
+      vehicleCapacityKg: 1200,
+      vehicleStatus: "Aktif",
+      goodsStatus: "Diproses",
+      transactionStatus: "Pending",
       shipper: "QA Shipper",
       consignee: "QA Consignee",
       forwarder: "QA Forwarder",
@@ -161,21 +173,34 @@ test("@crud shipment CRUD, document upload, notification update, and archive wor
   expect(shipmentCreate.status()).toBe(200);
   const created = (await shipmentCreate.json()).shipment;
   expect(created.awb).toBe(awb);
+  expect(created.senderPhone).toBe("081234567890");
+  expect(created.serviceType).toBe("Cepat");
+  expect(created.vehicleCode).toBe("PK-QA1");
 
   const shipmentLookup = await request.get(apiUrl(`/api/shipments?awb=${encodeURIComponent(awb)}`));
   expect(shipmentLookup.status()).toBe(200);
   expect((await shipmentLookup.json()).shipment.awb).toBe(awb);
+
+  const shipmentSearch = await request.get(apiUrl(`/api/shipments?query=${encodeURIComponent("QA Cargo Unit")}`));
+  expect(shipmentSearch.status()).toBe(200);
+  expect((await shipmentSearch.json()).shipments.some((shipment: { awb: string }) => shipment.awb === awb)).toBe(true);
 
   const shipmentUpdate = await request.patch(apiUrl(`/api/shipments/${created.id}`), {
     data: {
       status: "hold",
       docStatus: "Review",
       readiness: "Pending",
+      shippingRate: 275000,
+      goodsStatus: "Dalam Pengiriman",
+      transactionStatus: "Belum Lunas",
       notes: "Regression review note",
     },
   });
   expect(shipmentUpdate.status()).toBe(200);
-  expect((await shipmentUpdate.json()).shipment.status).toBe("hold");
+  const updatedShipment = (await shipmentUpdate.json()).shipment;
+  expect(updatedShipment.status).toBe("hold");
+  expect(updatedShipment.shippingRate).toBe(275000);
+  expect(updatedShipment.goodsStatus).toBe("Dalam Pengiriman");
 
   const upload = await request.post(apiUrl(`/api/shipments/${created.id}/documents`), {
     multipart: {
@@ -207,6 +232,10 @@ test("@crud shipment CRUD, document upload, notification update, and archive wor
 
   const archive = await request.delete(apiUrl(`/api/shipments/${created.id}`));
   expect(archive.status()).toBe(200);
+
+  const deletedLookup = await request.get(apiUrl(`/api/shipments?awb=${encodeURIComponent(awb)}`));
+  expect(deletedLookup.status()).toBe(200);
+  expect((await deletedLookup.json()).shipment).toBeNull();
 });
 
 test("@crud flight create, update, and archive work", async ({ request }) => {
