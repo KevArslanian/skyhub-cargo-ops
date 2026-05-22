@@ -2,19 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import {
-  ArrowUpRight,
-  BellRing,
-  Clock3,
-  FileCheck2,
-  Gauge,
-  RefreshCw,
-  Search,
-  ShieldAlert,
-  SlidersHorizontal,
-  TriangleAlert,
-  Workflow,
-} from "lucide-react";
+import { ArrowUpRight, BellRing, Clock3, FileCheck2, RefreshCw, Search, ShieldAlert, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { DataCard, EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 import { StatusBadge } from "@/components/status-badge";
 import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
@@ -136,7 +124,7 @@ export default function AlertsPage() {
       <PageHeader
         eyebrow="Alert Center"
         title="Pusat Alert Operasional"
-        subtitle="Exception shipment, cutoff flight, kapasitas manifest, dan freshness update dikumpulkan sebagai kondisi kerja yang bisa langsung ditindak."
+        subtitle="Alert shipment, cutoff flight, kapasitas manifest, dan update data."
         actions={
           <>
             <button type="button" className="topbar-button" onClick={handleRefresh}>
@@ -152,10 +140,10 @@ export default function AlertsPage() {
       />
 
       <div className="grid gap-4 xl:grid-cols-4">
-        <StatCard label="Total Alert" value={loading ? "..." : data?.summary.total ?? 0} note="Semua kondisi aktif yang perlu dipantau." icon={BellRing} tone="primary" />
-        <StatCard label="Kritis" value={loading ? "..." : data?.summary.critical ?? 0} note="Butuh keputusan cepat atau eskalasi." icon={ShieldAlert} tone="danger" />
-        <StatCard label="Warning" value={loading ? "..." : data?.summary.warning ?? 0} note="Risiko operasional yang sedang terbentuk." icon={TriangleAlert} tone="warning" />
-        <StatCard label="Notifikasi" value={loading ? "..." : data?.summary.unreadNotifications ?? 0} note="Inbox operasional yang belum dibaca." icon={FileCheck2} tone="info" />
+        <StatCard label="Total Alert" value={loading ? "..." : data?.summary.total ?? 0} note="Alert aktif." icon={BellRing} tone="primary" />
+        <StatCard label="Kritis" value={loading ? "..." : data?.summary.critical ?? 0} note="Prioritas tinggi." icon={ShieldAlert} tone="danger" />
+        <StatCard label="Warning" value={loading ? "..." : data?.summary.warning ?? 0} note="Perlu dicek." icon={TriangleAlert} tone="warning" />
+        <StatCard label="Notifikasi" value={loading ? "..." : data?.summary.unreadNotifications ?? 0} note="Belum dibaca." icon={FileCheck2} tone="info" />
       </div>
 
       <FilterBar className="xl:grid-cols-[minmax(0,1fr)_minmax(0,220px)_minmax(0,220px)_auto]">
@@ -193,9 +181,9 @@ export default function AlertsPage() {
         </div>
       </FilterBar>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.55fr)]">
+      <div className="grid gap-4">
         <OpsPanel className="page-pane p-5">
-          <SectionHeader title="Daftar Alert" subtitle="Prioritas disusun dari kritis, warning, lalu info dengan rekomendasi aksi per kondisi." />
+          <SectionHeader title="Daftar Alert" subtitle="Urut berdasarkan prioritas." />
           <div className="page-scroll mt-5 space-y-3">
             {filteredAlerts.length ? (
               filteredAlerts.map((alert) => (
@@ -235,43 +223,12 @@ export default function AlertsPage() {
               <EmptyState
                 icon={BellRing}
                 title="Tidak ada alert pada filter ini"
-                copy="Kondisi aktif tidak memunculkan alert sesuai filter yang dipilih."
+                copy="Tidak ada data."
                 className="m-4"
               />
             )}
           </div>
         </OpsPanel>
-
-        <div className="space-y-4">
-          <OpsPanel className="p-5">
-            <SectionHeader title="Kondisi Lingkungan" subtitle="Checklist mekanisme yang membuat simulasi terasa seperti operasi lapangan." />
-            <div className="mt-5 space-y-3">
-              {(data?.conditionChecks ?? []).map((check) => (
-                <div key={check.id} className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-[color:var(--text-strong)]">{check.label}</p>
-                      <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{check.detail}</p>
-                    </div>
-                    <StatusBadge value={check.status === "action" ? "warning" : "normal"} label={check.statusLabel} />
-                  </div>
-                  <div className="mt-4 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-3 text-sm leading-6 text-[color:var(--muted-fg)]">
-                    {check.mechanism}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </OpsPanel>
-
-          <OpsPanel className="p-5">
-            <SectionHeader title="Penyempurnaan Realistis" subtitle="Mekanisme khusus yang sebaiknya ada untuk meniru ritme gudang udara." />
-            <div className="mt-5 grid gap-3">
-              {(data?.environmentMechanisms ?? []).map((item) => (
-                <DataCard key={item.title} label={item.title} value={<Workflow size={20} />} note={item.detail} icon={Gauge} tone="info" />
-              ))}
-            </div>
-          </OpsPanel>
-        </div>
       </div>
     </div>
   );

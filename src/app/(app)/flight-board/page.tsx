@@ -651,7 +651,7 @@ export default function FlightBoardPage() {
         <PageHeader
           eyebrow="Pemantauan Keberangkatan"
           title="Papan Flight"
-          subtitle="Pantau cutoff, keberangkatan, dan shipment terkait dalam layout split yang tetap stabil di desktop."
+          subtitle="Tambah, cari, ubah, dan hapus flight."
           actions={
             <>
               <Link href={`/exports/flights?${flightExportQuery}`} className="btn btn-secondary">
@@ -682,9 +682,9 @@ export default function FlightBoardPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <StatCard label="Tepat Waktu" value={data?.summary.onTime ?? 0} note="Penerbangan yang masih sesuai jadwal." icon={PlaneTakeoff} tone="success" />
-        <StatCard label="Terlambat" value={data?.summary.delayed ?? 0} note="Flight yang berpotensi mengganggu slot muat." icon={Clock3} tone="warning" />
-        <StatCard label="Berangkat" value={data?.summary.departed ?? 0} note="Penerbangan yang sudah meninggalkan bandara." icon={TowerControl} tone="info" />
+        <StatCard label="Tepat Waktu" value={data?.summary.onTime ?? 0} note="Status on time." icon={PlaneTakeoff} tone="success" />
+        <StatCard label="Terlambat" value={data?.summary.delayed ?? 0} note="Status delayed." icon={Clock3} tone="warning" />
+        <StatCard label="Berangkat" value={data?.summary.departed ?? 0} note="Status departed." icon={TowerControl} tone="info" />
       </div>
 
       <FilterBar className="md:grid-cols-[minmax(0,1fr)_minmax(0,180px)_minmax(0,180px)]">

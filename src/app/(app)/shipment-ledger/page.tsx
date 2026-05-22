@@ -568,8 +568,8 @@ export default function ShipmentLedgerPage() {
         title={isReadOnly ? "Shipment Saya" : "Ledger Shipment"}
         subtitle={
           isReadOnly
-            ? `Daftar shipment milik ${data?.viewer.customerAccountName || "akun Anda"} dengan status, dokumen, dan kronologi yang lebih mudah dipindai.`
-            : "Manifest board dan detail panel dipertajam untuk review cepat: identifier lebih dominan, filter lebih rapi, dan urgency lebih terlihat."
+            ? `Daftar shipment milik ${data?.viewer.customerAccountName || "akun Anda"}.`
+            : "Tambah, cari, ubah, dan hapus shipment."
         }
         actions={
           <>
@@ -593,7 +593,7 @@ export default function ShipmentLedgerPage() {
         <DataCard
           label="Total Shipment"
           value={data?.shipments.length ?? 0}
-          note="Jumlah kiriman pada filter aktif."
+          note="Data tampil."
           meta={`${activeFilterCount} filter aktif${lastSyncedAt ? ` • Sinkron ${formatRelativeShort(lastSyncedAt)}` : ""}`}
           icon={Boxes}
           tone="primary"
@@ -601,7 +601,7 @@ export default function ShipmentLedgerPage() {
         <DataCard
           label="Berat Total"
           value={formatWeight(totalWeight)}
-          note="Akumulasi berat shipment yang sedang tampil."
+          note="Total berat."
           meta={`${assignedFlightCount} shipment sudah assigned ke flight`}
           icon={PackageSearch}
           tone="info"
@@ -609,7 +609,7 @@ export default function ShipmentLedgerPage() {
         <DataCard
           label="Assigned Flight"
           value={assignedFlightCount}
-          note="Shipment yang sudah terhubung ke flight aktif."
+          note="Terhubung flight."
           meta={`${(data?.flights ?? []).length} pilihan flight tersedia`}
           icon={PlaneTakeoff}
           tone="success"
@@ -617,7 +617,7 @@ export default function ShipmentLedgerPage() {
         <DataCard
           label="Perlu Review"
           value={pendingDocsCount + holdCount + readinessIssuesCount}
-          note="Menggabungkan hold, dokumen incomplete, dan readiness issue."
+          note="Hold, dokumen, readiness."
           meta={`${holdCount} hold • ${pendingDocsCount} dokumen • ${readinessIssuesCount} readiness`}
           icon={CircleAlert}
           tone="warning"
