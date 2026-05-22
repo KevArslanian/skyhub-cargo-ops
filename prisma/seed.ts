@@ -137,10 +137,19 @@ const STATUS_CYCLE: ShipmentStatus[] = [
   ShipmentStatus.loaded_to_aircraft,
   ShipmentStatus.departed,
   ShipmentStatus.arrived,
-  ShipmentStatus.received,
-  ShipmentStatus.sortation,
   ShipmentStatus.hold,
 ];
+
+const FLIGHT_STATUS_CYCLE: FlightStatus[] = [
+  FlightStatus.on_time,
+  FlightStatus.delayed,
+  FlightStatus.departed,
+];
+
+const MIN_SEEDED_ROWS_PER_STATE = 10;
+const SEEDED_FLIGHT_DAYS = 3;
+const SEEDED_FLIGHTS_PER_DAY = FLIGHT_STATUS_CYCLE.length * MIN_SEEDED_ROWS_PER_STATE;
+const SEEDED_SHIPMENT_COUNT = STATUS_CYCLE.length * MIN_SEEDED_ROWS_PER_STATE * 10;
 
 function pick<T>(items: readonly T[], index: number): T {
   return items[index % items.length]!;
@@ -262,6 +271,17 @@ async function createManyInChunks<T extends Record<string, unknown>>(
     if (chunk.length) {
       await handler(chunk);
     }
+  }
+}
+
+function assertMinimumSeededRows(label: string, counts: Record<string, number>, states: readonly string[]) {
+  const missingStates = states.filter((state) => (counts[state] ?? 0) < MIN_SEEDED_ROWS_PER_STATE);
+  if (missingStates.length) {
+    throw new Error(
+      `${label} seed requires at least ${MIN_SEEDED_ROWS_PER_STATE} rows per state. Missing: ${missingStates
+        .map((state) => `${state}=${counts[state] ?? 0}`)
+        .join(", ")}`,
+    );
   }
 }
 
@@ -452,6 +472,22 @@ async function main() {
     customerAccounts.push(await prisma.customerAccount.create({ data: spec }));
   }
 
+  for (let index = 0; index < MIN_SEEDED_ROWS_PER_STATE; index += 1) {
+    customerAccounts.push(
+      await prisma.customerAccount.create({
+        data: {
+          code: `HOLDACC${String(index + 1).padStart(2, "0")}`,
+          name: `PT Arsip Pelanggan ${String(index + 1).padStart(2, "0")}`,
+          contactName: `Kontak Arsip ${index + 1}`,
+          contactEmail: `archive-${index + 1}@customer.test`,
+          contactPhone: `+62-811-7100-${String(index + 1).padStart(3, "0")}`,
+          status: "disabled",
+        },
+      }),
+    );
+  }
+
+  const activeCustomerAccounts = customerAccounts.filter((account) => account.status === "active");
   const customerPrimaryAccount = customerAccounts[0]!;
 
   const users = await Promise.all([
@@ -694,8 +730,89 @@ async function main() {
 
   const [admin, staffPrimary, staffSecondary, customer, invitedStaff, disabledStaff] = users;
 
+  for (let index = 0; index < 2; index += 1) {
+    await prisma.user.create({
+      data: {
+        name: `Staff Operasional ${String(index + 5).padStart(2, "0")}`,
+        email: `staff-extra-${index + 1}@skyhub.test`,
+        passwordHash: PASSWORD_HASH,
+        role: UserRole.staff,
+        station: pick(["SOQ", "CGK", "SUB", "DPS"], index),
+        status: "active",
+        settings: {
+          create: {
+            theme: index % 2 === 0 ? "light" : "dark",
+            compactRows: index % 2 === 0,
+            sidebarCollapsed: false,
+            cutoffAlert: true,
+            exceptionAlert: true,
+            soundAlert: false,
+            emailDigest: false,
+            autoRefresh: true,
+            refreshIntervalSeconds: 10,
+            timezone: "Asia/Makassar",
+          },
+        },
+      },
+    });
+  }
+
+  for (let index = 0; index < 9; index += 1) {
+    await prisma.user.create({
+      data: {
+        name: `Undangan Staff ${String(index + 2).padStart(2, "0")}`,
+        email: `invited-staff-${index + 2}@skyhub.test`,
+        passwordHash: PASSWORD_HASH,
+        role: UserRole.staff,
+        station: pick(["SOQ", "CGK", "SUB", "DPS"], index),
+        status: "invited",
+        settings: {
+          create: {
+            theme: "light",
+            compactRows: false,
+            sidebarCollapsed: false,
+            cutoffAlert: true,
+            exceptionAlert: true,
+            soundAlert: false,
+            emailDigest: false,
+            autoRefresh: true,
+            refreshIntervalSeconds: 15,
+            timezone: "Asia/Makassar",
+          },
+        },
+      },
+    });
+  }
+
+  for (let index = 0; index < 9; index += 1) {
+    await prisma.user.create({
+      data: {
+        name: `Staff Nonaktif ${String(index + 2).padStart(2, "0")}`,
+        email: `disabled-staff-${index + 2}@skyhub.test`,
+        passwordHash: PASSWORD_HASH,
+        role: UserRole.staff,
+        station: pick(["SOQ", "CGK", "SUB", "DPS"], index),
+        status: "disabled",
+        settings: {
+          create: {
+            theme: "dark",
+            compactRows: false,
+            sidebarCollapsed: true,
+            cutoffAlert: true,
+            exceptionAlert: true,
+            soundAlert: false,
+            emailDigest: true,
+            autoRefresh: false,
+            refreshIntervalSeconds: 30,
+            timezone: "Asia/Makassar",
+          },
+        },
+      },
+    });
+  }
+
   const flights = [] as Awaited<ReturnType<typeof prisma.flight.create>>[];
-  for (let index = 0; index < 40; index += 1) {
+  for (let index = 0; index < SEEDED_FLIGHT_DAYS * SEEDED_FLIGHTS_PER_DAY; index += 1) {
     const airlineCode = pick(SUPPORTED_AIRLINE_CODES, index);
     const numberPart = String(index % 3 === 0 ? 1000 + index : 700 + index);
     const flightNumber = buildFlightNumber(airlineCode, numberPart);
@@ -707,11 +824,11 @@ async function main() {
       throw new Error(`Missing flight airport for ${route.origin}-${route.destination}`);
     }
 
-    const dayOffset = Math.floor(index / 8) - 2;
+    const dayOffset = Math.floor(index / SEEDED_FLIGHTS_PER_DAY) - 1;
     const baseDay = addDays(now, dayOffset);
     const departureTime = set(baseDay, {
-      hours: 5 + ((index * 3) % 17),
-      minutes: (index % 4) * 10,
+      hours: 1 + ((index * 3) % 22),
+      minutes: (index % 6) * 10,
       seconds: 0,
       milliseconds: 0,
     });
@@ -719,12 +836,7 @@ async function main() {
     const arrivalTime = addHours(departureTime, 2 + (index % 4));
     const cargoCutoffTime = addMinutes(departureTime, -(70 + (index % 4) * 10));
 
-    const status =
-      departureTime.getTime() < now.getTime() - 45 * 60 * 1000
-        ? FlightStatus.departed
-        : index % 6 === 0
-          ? FlightStatus.delayed
-          : FlightStatus.on_time;
+    const status = pick(FLIGHT_STATUS_CYCLE, index);
 
     const gate = `${String.fromCharCode(65 + (index % 4))}${(index % 8) + 1}`;
     const remarks =
@@ -779,13 +891,13 @@ async function main() {
     createdAt: Date;
   }> = [];
 
-  for (let index = 0; index < 400; index += 1) {
+  for (let index = 0; index < SEEDED_SHIPMENT_COUNT; index += 1) {
     const flight = pick(flights, index);
     const awb = buildAwb(index);
     const status = pick(STATUS_CYCLE, index);
     const ownerName = pick(OWNER_NAMES, index);
     const createdById = index % 9 === 0 ? admin.id : index % 2 === 0 ? staffPrimary.id : staffSecondary.id;
-    const customerAccount = index % 2 === 0 ? pick(customerAccounts, index) : null;
+    const customerAccount = pick(activeCustomerAccounts, Math.floor(index / STATUS_CYCLE.length));
     const commodityMaster = pick(commodities, index);
     const tariff = pick(tariffs, index);
     const firstCargoItem = pick(cargoItems, index);
@@ -830,7 +942,7 @@ async function main() {
         status,
         flightId: flight.id,
         createdById,
-        customerAccountId: customerAccount?.id ?? null,
+        customerAccountId: customerAccount.id,
         commodityId: commodityMaster.id,
         originAirportId: flight.originAirportId,
         destinationAirportId: flight.destinationAirportId,
@@ -872,7 +984,7 @@ async function main() {
       awb,
       status,
       createdById,
-      customerAccountId: customerAccount?.id ?? null,
+      customerAccountId: customerAccount.id,
       flightNumber: flight.flightNumber,
       receivedAt,
     });
@@ -949,6 +1061,20 @@ async function main() {
     },
   );
 
+  for (let index = 0; index < MIN_SEEDED_ROWS_PER_STATE; index += 1) {
+    const shipment = pick(createdShipments, index * 11);
+    activityRows.push({
+      userId: admin.id,
+      action: "Validasi Gagal",
+      targetType: "shipment",
+      targetId: shipment.id,
+      targetLabel: shipment.awb,
+      description: `Simulasi error validasi untuk AWB ${shipment.awb} agar state galat audit tetap terisi.`,
+      level: "error",
+      createdAt: subMinutes(now, 90 + index * 9),
+    });
+  }
+
   await createManyInChunks(activityRows, 500, async (chunk) => {
     await prisma.activityLog.createMany({ data: chunk });
   });
@@ -994,7 +1120,7 @@ async function main() {
     });
   }
 
-  for (let index = 0; index < 24; index += 1) {
+  for (let index = 0; index < 36; index += 1) {
     const shipment = pick(customerShipments.length ? customerShipments : createdShipments, index);
     notifications.push({
       userId: customer.id,
@@ -1067,6 +1193,67 @@ async function main() {
   await createManyInChunks(recentSearches, 400, async (chunk) => {
     await prisma.recentAwbSearch.createMany({ data: chunk });
   });
+
+  const shipmentStatusCounts = await prisma.shipment.groupBy({
+    by: ["status"],
+    _count: { _all: true },
+  });
+  assertMinimumSeededRows(
+    "Shipment",
+    Object.fromEntries(shipmentStatusCounts.map((item) => [item.status, item._count._all])),
+    STATUS_CYCLE,
+  );
+
+  const customerShipmentStatusCounts = await prisma.shipment.groupBy({
+    by: ["status"],
+    where: { customerAccountId: customerPrimaryAccount.id },
+    _count: { _all: true },
+  });
+  assertMinimumSeededRows(
+    "Primary customer shipment",
+    Object.fromEntries(customerShipmentStatusCounts.map((item) => [item.status, item._count._all])),
+    STATUS_CYCLE,
+  );
+
+  const flightStatusCounts = await prisma.flight.groupBy({
+    by: ["status"],
+    _count: { _all: true },
+  });
+  assertMinimumSeededRows(
+    "Flight",
+    Object.fromEntries(flightStatusCounts.map((item) => [item.status, item._count._all])),
+    FLIGHT_STATUS_CYCLE,
+  );
+
+  const userStatusCounts = await prisma.user.groupBy({
+    by: ["status"],
+    _count: { _all: true },
+  });
+  assertMinimumSeededRows(
+    "User",
+    Object.fromEntries(userStatusCounts.map((item) => [item.status, item._count._all])),
+    ["active", "invited", "disabled"],
+  );
+
+  const accountStatusCounts = await prisma.customerAccount.groupBy({
+    by: ["status"],
+    _count: { _all: true },
+  });
+  assertMinimumSeededRows(
+    "Customer account",
+    Object.fromEntries(accountStatusCounts.map((item) => [item.status, item._count._all])),
+    ["active", "disabled"],
+  );
+
+  const activityLevelCounts = await prisma.activityLog.groupBy({
+    by: ["level"],
+    _count: { _all: true },
+  });
+  assertMinimumSeededRows(
+    "Activity log",
+    Object.fromEntries(activityLevelCounts.map((item) => [item.level, item._count._all])),
+    ["success", "info", "warning", "error"],
+  );
 }
 
 main()
