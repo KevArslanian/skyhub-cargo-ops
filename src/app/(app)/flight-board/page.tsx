@@ -99,21 +99,25 @@ const FLIGHT_STATUS_LABELS: Record<string, string> = {
   departed: "Berangkat",
 };
 
-const blankForm = {
-  airlineCode: "GA" as SupportedAirlineCode,
-  flightNumberSuffix: "",
-  aircraftType: "",
-  origin: "SOQ",
-  destination: "CGK",
-  departureTime: new Date().toISOString().slice(0, 16),
-  arrivalTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().slice(0, 16),
-  cargoCutoffTime: new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16),
-  status: "on_time",
-  gate: "",
-  remarks: "",
-};
+function createBlankFlightForm() {
+  const now = Date.now();
 
-type FlightFormState = typeof blankForm;
+  return {
+    airlineCode: "GA" as SupportedAirlineCode,
+    flightNumberSuffix: "",
+    aircraftType: "Boeing 737-800F",
+    origin: "SOQ",
+    destination: "CGK",
+    departureTime: new Date(now + 60 * 60 * 1000).toISOString().slice(0, 16),
+    arrivalTime: new Date(now + 3 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    cargoCutoffTime: new Date(now).toISOString().slice(0, 16),
+    status: "on_time",
+    gate: "",
+    remarks: "",
+  };
+}
+
+type FlightFormState = ReturnType<typeof createBlankFlightForm>;
 
 function normalizeFlightNumberSuffix(value: string) {
   return value.replace(/\D/g, "").slice(0, 4);
@@ -131,7 +135,7 @@ function toDateInputValue(value: string | Date = new Date()) {
 
 function createFlightDraft(flight: FlightRow | null) {
   if (!flight) {
-    return { ...blankForm };
+    return createBlankFlightForm();
   }
 
   const parsed = parseFlightNumberParts(flight.flightNumber);
@@ -221,8 +225,8 @@ export default function FlightBoardPage() {
   const [saving, setSaving] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState(() => ({ ...blankForm }));
-  const [editDraft, setEditDraft] = useState(() => ({ ...blankForm }));
+  const [createForm, setCreateForm] = useState(() => createBlankFlightForm());
+  const [editDraft, setEditDraft] = useState(() => createBlankFlightForm());
   const [notice, setNotice] = useState("");
   const [noticeTone, setNoticeTone] = useState<"info" | "warning">("info");
   const initialDateResolvedRef = useRef(false);
@@ -480,7 +484,7 @@ export default function FlightBoardPage() {
         const nextDate = toDateInputValue(payload.flight.departureTime);
         const nextQuery = payload.flight.flightNumber;
         setCreateOpen(false);
-        setCreateForm({ ...blankForm });
+        setCreateForm(createBlankFlightForm());
         setDate(nextDate);
         setQuery(nextQuery);
         setAppliedQuery(nextQuery);
