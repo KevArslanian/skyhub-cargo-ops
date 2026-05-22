@@ -109,7 +109,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       group.items.some((item) => pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))),
     )?.id ?? navigation.groups[0].id;
   const [openGroupId, setOpenGroupId] = useState<(typeof navigation.groups)[number]["id"]>(activeGroupId);
-  const visibleNotifications = notificationItems.slice(0, 4);
+  const visibleNotifications = notificationItems.slice(0, 10);
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
 
   useEffect(() => {
@@ -178,7 +178,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
         createdAt: new Date().toISOString(),
       };
 
-      setNotificationItems((items) => [previewItem, ...items].slice(0, 8));
+      setNotificationItems((items) => [previewItem, ...items].slice(0, 10));
       setNotificationOpen(true);
     }
 

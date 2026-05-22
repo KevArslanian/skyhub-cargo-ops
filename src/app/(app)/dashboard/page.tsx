@@ -320,12 +320,12 @@ export default function DashboardPage() {
   );
 
   const flightShift = useMemo(
-    () => buildShiftPartition(internalData?.flightsSummary ?? [], shift, 6, (flight) => flight.departureTime),
+    () => buildShiftPartition(internalData?.flightsSummary ?? [], shift, 10, (flight) => flight.departureTime),
     [internalData?.flightsSummary, shift],
   );
 
   const activityShift = useMemo(
-    () => buildShiftPartition(internalData?.recentActivity ?? [], shift, 8, (activity) => activity.createdAt),
+    () => buildShiftPartition(internalData?.recentActivity ?? [], shift, 10, (activity) => activity.createdAt),
     [internalData?.recentActivity, shift],
   );
 
@@ -350,7 +350,7 @@ export default function DashboardPage() {
     return {
       shiftMatched,
       fallbackContext,
-      displayed: [...shiftMatched, ...fallbackContext].slice(0, 4),
+      displayed: [...shiftMatched, ...fallbackContext].slice(0, 10),
     };
   }, [internalData?.alerts, internalData?.shipmentsToday, shift]);
 

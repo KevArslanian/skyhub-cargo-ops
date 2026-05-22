@@ -415,7 +415,7 @@ export async function getShellData(userId: string) {
     db.notification.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      take: 8,
+      take: 10,
     }),
   ]);
 
@@ -603,7 +603,7 @@ export async function getDashboardData(user: AccessUser) {
         where: scopedWhere,
         include: shipmentInclude,
         orderBy: [{ updatedAt: "desc" }],
-        take: 24,
+        take: 60,
       }),
       getRecentAwbSearches(user),
     ]);
@@ -627,7 +627,7 @@ export async function getDashboardData(user: AccessUser) {
         arrived: serializedShipments.filter((shipment) => shipment.status === "arrived").length,
       },
       shipments: serializedShipments,
-      actionItems: actionShipments.slice(0, 6).map((shipment) => ({
+      actionItems: actionShipments.slice(0, 10).map((shipment) => ({
         id: shipment.id,
         awb: shipment.awb,
         title:
@@ -643,7 +643,7 @@ export async function getDashboardData(user: AccessUser) {
               ? `Status dokumen ${shipment.awb} masih ${shipment.docStatus}.`
               : `Shipment ${shipment.awb} masih berstatus ${shipment.statusLabel}.`,
       })),
-      documentSummary: serializedShipments.slice(0, 6).map((shipment) => ({
+      documentSummary: serializedShipments.slice(0, 10).map((shipment) => ({
         id: shipment.id,
         awb: shipment.awb,
         docStatus: shipment.documentSummary.docStatus,
@@ -1213,7 +1213,7 @@ export async function rememberAwbSearch(userId: string, awb: string) {
     const searches = await tx.recentAwbSearch.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      skip: 8,
+      skip: 10,
     });
 
     if (searches.length) {
@@ -1228,7 +1228,7 @@ export async function getRecentAwbSearches(user: AccessUser) {
   const searches = await db.recentAwbSearch.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: "desc" },
-    take: 8,
+    take: 10,
   });
 
   const awbs = Array.from(new Set(searches.map((item) => item.awb)));
@@ -1600,7 +1600,7 @@ export async function getFlightBoardData(
 
   appendFlightDateFilter(where, getFlightDateIntervals(filters?.date, filters?.shift));
 
-  const requestedPageSize = filters?.pageSize ?? 8;
+  const requestedPageSize = filters?.pageSize ?? 10;
   const pageSize = Math.min(Math.max(requestedPageSize, 1), 50);
   const totalItems = await db.flight.count({ where });
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
