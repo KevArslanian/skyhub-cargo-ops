@@ -20,6 +20,7 @@ import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
 import {
   AIRLINE_CODE_OPTIONS,
   buildFlightNumber,
+  getFlightVisualMeta,
   parseFlightNumberParts,
   type SupportedAirlineCode,
 } from "@/lib/flight-meta";
@@ -76,6 +77,27 @@ type FlightBoardPayload = {
 };
 
 type FlightRow = FlightBoardPayload["flights"][number];
+
+type FlightMutationRow = {
+  id: string;
+  flightNumber: string;
+  aircraftType: string;
+  origin: string;
+  destination: string;
+  departureTime: string;
+  arrivalTime: string;
+  cargoCutoffTime: string;
+  status: string;
+  gate: string | null;
+  remarks: string | null;
+  archivedAt?: string | null;
+};
+
+const FLIGHT_STATUS_LABELS: Record<string, string> = {
+  on_time: "Tepat Waktu",
+  delayed: "Terlambat",
+  departed: "Berangkat",
+};
 
 const blankForm = {
   airlineCode: "GA" as SupportedAirlineCode,
@@ -147,6 +169,36 @@ function resolveDefaultFlightBoardDate(flights: FlightRow[], preferredDate: stri
   );
 
   return toDateInputValue(latestFlight.departureTime);
+}
+
+function createFlightRowFromMutation(flight: FlightMutationRow): FlightRow {
+  const meta = getFlightVisualMeta(flight.flightNumber, flight.aircraftType);
+
+  return {
+    id: flight.id,
+    flightNumber: flight.flightNumber,
+    aircraftType: meta.aircraftType,
+    route: `${flight.origin} -> ${flight.destination}`,
+    origin: flight.origin,
+    destination: flight.destination,
+    departureTime: flight.departureTime,
+    arrivalTime: flight.arrivalTime,
+    cargoCutoffTime: flight.cargoCutoffTime,
+    status: flight.status,
+    statusLabel: FLIGHT_STATUS_LABELS[flight.status] ?? flight.status,
+    gate: flight.gate,
+    remarks: flight.remarks,
+    imageUrl: meta.aircraftImageUrl,
+    airlineCode: meta.airlineCode,
+    airlineName: meta.airlineName,
+    airlineFullName: meta.airlineFullName,
+    airlineLogoUrl: meta.airlineLogoUrl,
+    registration: meta.registration,
+    category: meta.category,
+    brandColor: meta.brandColor,
+    archivedAt: flight.archivedAt ?? null,
+    shipments: [],
+  };
 }
 
 function parsePageParam(value: string | null) {
@@ -423,7 +475,8 @@ export default function FlightBoardPage() {
       });
 
       if (response.ok) {
-        const payload = (await response.json()) as { flight: FlightRow };
+        const payload = (await response.json()) as { flight: FlightMutationRow };
+        const nextFlight = createFlightRowFromMutation(payload.flight);
         const nextDate = toDateInputValue(payload.flight.departureTime);
         const nextQuery = payload.flight.flightNumber;
         setCreateOpen(false);
@@ -433,9 +486,20 @@ export default function FlightBoardPage() {
         setAppliedQuery(nextQuery);
         setPage(1);
         replaceFlightBoardUrl({ date: nextDate, query: nextQuery, page: 1 });
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                pagination: { ...current.pagination, page: 1, totalItems: Math.max(1, current.pagination.totalItems + 1) },
+                flights: [nextFlight, ...current.flights.filter((flight) => flight.id !== nextFlight.id)],
+              }
+            : current,
+        );
+        setSelectedFlightId(nextFlight.id);
+        setEditDraft(createFlightDraft(nextFlight));
         setNoticeTone("info");
         setNotice("Flight berhasil dibuat.");
-        await loadFlightBoardWithParams({
+        void loadFlightBoardWithParams({
           date: nextDate,
           query: nextQuery,
           preferredFlightId: payload.flight.id,
@@ -480,14 +544,26 @@ export default function FlightBoardPage() {
       });
 
       if (response.ok) {
-        const payload = (await response.json()) as { flight: FlightRow };
+        const payload = (await response.json()) as { flight: FlightMutationRow };
+        const nextFlight = createFlightRowFromMutation(payload.flight);
         const nextDate = toDateInputValue(payload.flight.departureTime);
         setDate(nextDate);
         setPage(1);
         replaceFlightBoardUrl({ date: nextDate, page: 1 });
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                pagination: { ...current.pagination, page: 1 },
+                flights: current.flights.map((flight) => (flight.id === nextFlight.id ? nextFlight : flight)),
+              }
+            : current,
+        );
+        setSelectedFlightId(nextFlight.id);
+        setEditDraft(createFlightDraft(nextFlight));
         setNoticeTone("info");
         setNotice("Perubahan flight berhasil disimpan.");
-        await loadFlightBoardWithParams({
+        void loadFlightBoardWithParams({
           date: nextDate,
           query: appliedQuery,
           preferredFlightId: payload.flight.id,
@@ -525,9 +601,23 @@ export default function FlightBoardPage() {
     });
 
     if (response.ok) {
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              pagination: {
+                ...current.pagination,
+                totalItems: Math.max(0, current.pagination.totalItems - 1),
+              },
+              flights: current.flights.filter((flight) => flight.id !== selectedFlight.id),
+            }
+          : current,
+      );
+      setSelectedFlightId(null);
+      setEditDraft(createFlightDraft(null));
       setNoticeTone("info");
       setNotice(`Flight ${selectedFlight.flightNumber} berhasil dihapus dari database.`);
-      await loadFlightBoard();
+      void loadFlightBoard();
     } else {
       const errorMessage = await resolveErrorMessage(response, "Gagal menghapus flight.");
       setNoticeTone("warning");

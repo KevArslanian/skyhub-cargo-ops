@@ -418,8 +418,20 @@ export default function ShipmentLedgerPage() {
       const payload = (await response.json()) as { shipment?: ShipmentRow | null };
       setCreateOpen(false);
       setForm(createBlankForm());
+      if (payload.shipment) {
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                shipments: [payload.shipment!, ...current.shipments.filter((shipment) => shipment.id !== payload.shipment!.id)],
+              }
+            : current,
+        );
+        setSelectedId(payload.shipment.id);
+        setDrawerDraft(createDrawerDraft(payload.shipment));
+      }
       setActionNotice("Shipment berhasil dibuat.");
-      await loadShipments(payload.shipment?.id ?? selectedId, "refresh");
+      void loadShipments(payload.shipment?.id ?? selectedId, "refresh");
     }
 
     setSaving(false);
@@ -440,8 +452,22 @@ export default function ShipmentLedgerPage() {
     });
 
     if (response.ok) {
+      const payload = (await response.json()) as { shipment?: ShipmentRow | null };
+      if (payload.shipment) {
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                shipments: current.shipments.map((shipment) =>
+                  shipment.id === payload.shipment!.id ? payload.shipment! : shipment,
+                ),
+              }
+            : current,
+        );
+        setDrawerDraft(createDrawerDraft(payload.shipment));
+      }
       setActionNotice("Perubahan shipment berhasil disimpan.");
-      await loadShipments(selectedShipment.id, "refresh");
+      void loadShipments(selectedShipment.id, "refresh");
     }
 
     setSaving(false);
@@ -487,8 +513,17 @@ export default function ShipmentLedgerPage() {
     });
 
     if (response.ok) {
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              shipments: current.shipments.filter((shipment) => shipment.id !== selectedShipment.id),
+            }
+          : current,
+      );
+      setSelectedId(null);
       setActionNotice(`Shipment ${selectedShipment.awb} berhasil dihapus dari database.`);
-      await loadShipments(null, "refresh");
+      void loadShipments(null, "refresh");
     }
   }
 
