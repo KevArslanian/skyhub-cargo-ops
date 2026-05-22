@@ -1253,6 +1253,37 @@ input[type="checkbox"] {
   min-height: 0;
 }
 
+.alerts-pagination-footer {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 12px;
+}
+
+.alerts-pagination-footer p {
+  min-width: 0;
+  color: var(--muted-fg);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.alerts-pagination-footer .topbar-button {
+  min-height: 38px;
+  padding-inline: 12px;
+}
+
+.topbar-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .about-shell {
   min-height: 100vh;
   max-width: 100%;

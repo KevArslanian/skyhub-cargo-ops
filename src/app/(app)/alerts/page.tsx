@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
   BellRing,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   RefreshCw,
   Search,
@@ -67,6 +69,8 @@ const severityLabels: Record<string, string> = {
   info: "Info",
 };
 
+const ALERT_PAGE_SIZE = 12;
+
 function formatAge(minutes: number) {
   if (minutes < 60) return `${minutes} menit`;
   const hours = Math.floor(minutes / 60);
@@ -81,6 +85,7 @@ export default function AlertsPage() {
   const [severity, setSeverity] = useState("all");
   const [kind, setKind] = useState("all");
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
+  const [alertPage, setAlertPage] = useState(1);
 
   async function loadAlerts() {
     const response = await fetch("/api/alerts", { cache: "no-store" });
@@ -122,9 +127,18 @@ export default function AlertsPage() {
     });
   }, [data?.alerts, kind, query, severity]);
 
+  const totalAlertPages = Math.max(1, Math.ceil(filteredAlerts.length / ALERT_PAGE_SIZE));
+  const currentAlertPage = Math.min(alertPage, totalAlertPages);
+  const pageStartIndex = (currentAlertPage - 1) * ALERT_PAGE_SIZE;
+  const paginatedAlerts = useMemo(() => {
+    return filteredAlerts.slice(pageStartIndex, pageStartIndex + ALERT_PAGE_SIZE);
+  }, [filteredAlerts, pageStartIndex]);
+  const visibleStart = filteredAlerts.length ? pageStartIndex + 1 : 0;
+  const visibleEnd = Math.min(pageStartIndex + paginatedAlerts.length, filteredAlerts.length);
+
   const selectedAlert = useMemo<AlertRow | null>(() => {
-    return filteredAlerts.find((alert) => alert.id === selectedAlertId) ?? filteredAlerts[0] ?? null;
-  }, [filteredAlerts, selectedAlertId]);
+    return paginatedAlerts.find((alert) => alert.id === selectedAlertId) ?? paginatedAlerts[0] ?? null;
+  }, [paginatedAlerts, selectedAlertId]);
 
   useEffect(() => {
     if (!filteredAlerts.length) {
@@ -132,10 +146,18 @@ export default function AlertsPage() {
       return;
     }
 
-    if (!selectedAlertId || !filteredAlerts.some((alert) => alert.id === selectedAlertId)) {
-      setSelectedAlertId(filteredAlerts[0].id);
+    if (!selectedAlertId || !paginatedAlerts.some((alert) => alert.id === selectedAlertId)) {
+      setSelectedAlertId((paginatedAlerts[0] ?? filteredAlerts[0]).id);
     }
-  }, [filteredAlerts, selectedAlertId]);
+  }, [filteredAlerts, paginatedAlerts, selectedAlertId]);
+
+  useEffect(() => {
+    setAlertPage(1);
+  }, [kind, query, severity]);
+
+  useEffect(() => {
+    setAlertPage((current) => Math.min(current, totalAlertPages));
+  }, [totalAlertPages]);
 
   return (
     <div className="page-workspace alerts-viewport">
@@ -196,7 +218,7 @@ export default function AlertsPage() {
         <OpsPanel className="page-pane alerts-panel p-5">
           <SectionHeader title="Daftar Alert" subtitle="Klik row untuk detail." />
           <div className="page-scroll internal-scrollbar alerts-table-scroll mt-5 table-shell">
-            {filteredAlerts.length ? (
+            {paginatedAlerts.length ? (
               <table className="data-table min-w-[920px]">
                 <thead>
                   <tr>
@@ -210,7 +232,7 @@ export default function AlertsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAlerts.map((alert) => {
+                  {paginatedAlerts.map((alert) => {
                     const selected = selectedAlert?.id === alert.id;
                     return (
                       <tr
@@ -253,6 +275,29 @@ export default function AlertsPage() {
                 className="m-4"
               />
             )}
+          </div>
+          <div className="alerts-pagination-footer">
+            <button
+              type="button"
+              className="topbar-button"
+              onClick={() => setAlertPage((current) => Math.max(1, current - 1))}
+              disabled={currentAlertPage <= 1}
+            >
+              <ChevronLeft size={16} />
+              Sebelumnya
+            </button>
+            <p>
+              {visibleStart}-{visibleEnd} dari {filteredAlerts.length} • Halaman {currentAlertPage}/{totalAlertPages}
+            </p>
+            <button
+              type="button"
+              className="topbar-button"
+              onClick={() => setAlertPage((current) => Math.min(totalAlertPages, current + 1))}
+              disabled={currentAlertPage >= totalAlertPages}
+            >
+              Berikutnya
+              <ChevronRight size={16} />
+            </button>
           </div>
         </OpsPanel>
 
