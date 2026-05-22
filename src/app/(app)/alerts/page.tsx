@@ -76,7 +76,6 @@ function formatAge(minutes: number) {
 
 export default function AlertsPage() {
   const [data, setData] = useState<AlertCenterPayload | null>(null);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
   const [severity, setSeverity] = useState("all");
@@ -91,7 +90,7 @@ export default function AlertsPage() {
   }
 
   useEffect(() => {
-    void loadAlerts().finally(() => setLoading(false));
+    void loadAlerts();
   }, []);
 
   async function handleRefresh() {
@@ -157,20 +156,6 @@ export default function AlertsPage() {
           </>
         }
       />
-
-      <div className="alerts-summary-strip">
-        {[
-          ["Total Alert", loading ? "..." : data?.summary.total ?? 0],
-          ["Kritis", loading ? "..." : data?.summary.critical ?? 0],
-          ["Warning", loading ? "..." : data?.summary.warning ?? 0],
-          ["Notifikasi", loading ? "..." : data?.summary.unreadNotifications ?? 0],
-        ].map(([label, value]) => (
-          <div key={label} className="alerts-summary-item">
-            <span>{label}</span>
-            <strong>{value}</strong>
-          </div>
-        ))}
-      </div>
 
       <FilterBar className="alerts-filter-bar xl:grid-cols-[minmax(0,1fr)_minmax(0,220px)_minmax(0,220px)_auto]">
         <div>
