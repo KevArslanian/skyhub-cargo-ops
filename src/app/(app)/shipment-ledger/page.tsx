@@ -674,7 +674,7 @@ export default function ShipmentLedgerPage() {
       ) : null}
 
       <div className="page-grid-2 split-pane-shell">
-        <OpsPanel className="page-pane split-pane-left flex min-h-0 flex-col overflow-hidden p-0">
+        <OpsPanel className="page-pane split-pane-left internal-scrollbar flex min-h-0 flex-col overflow-hidden p-0">
           <div className="border-b border-[color:var(--border-soft)] p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -845,7 +845,7 @@ export default function ShipmentLedgerPage() {
                 </div>
               </div>
 
-              <div className="page-scroll ledger-detail-scroll flex-1">
+              <div className="page-scroll ledger-detail-scroll internal-scrollbar flex-1">
                 <div className="ledger-info-grid">
                   <DataCard
                     label="Tanggal Kirim"

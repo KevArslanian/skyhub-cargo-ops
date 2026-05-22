@@ -794,7 +794,7 @@ export default function FlightBoardPage() {
           )}
         >
           <SectionHeader title="Manifest Flight" subtitle="Daftar flight yang sudah difilter dan siap dipilih untuk detail lebih lanjut." />
-          <div className="flightboard-manifest-scroll flight-manifest-table-space table-shell">
+          <div className="flightboard-manifest-scroll flight-manifest-table-space internal-scrollbar table-shell">
             <table className="data-table">
               <thead>
                 <tr>

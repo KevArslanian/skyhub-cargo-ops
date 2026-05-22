@@ -685,6 +685,37 @@ textarea {
   display: none;
 }
 
+.internal-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 61, 155, 0.34) transparent;
+}
+
+.internal-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  display: block;
+}
+
+.internal-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.internal-scrollbar::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(0, 61, 155, 0.34);
+  background-clip: padding-box;
+}
+
+.dark .internal-scrollbar {
+  scrollbar-color: rgba(139, 188, 255, 0.42) transparent;
+}
+
+.dark .internal-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(139, 188, 255, 0.42);
+  background-clip: padding-box;
+}
+
 .page-pane {
   display: flex;
   min-height: 0;
@@ -1712,10 +1743,35 @@ input[type="checkbox"] {
   }
 
   .dashboard-viewport,
-  .flightboard-viewport {
+  .flightboard-viewport,
+  .alerts-viewport {
     min-height: 100%;
     height: auto;
     gap: clamp(1rem, 1.2vw, 1.4rem);
+  }
+
+  .alerts-viewport {
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+  }
+
+  .alerts-content-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    align-items: stretch;
+  }
+
+  .alerts-panel {
+    overflow: hidden;
+  }
+
+  .alerts-table-scroll,
+  .alerts-detail-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
   }
 
   .ledger-detail-scroll,
@@ -1854,8 +1910,8 @@ input[type="checkbox"] {
 
   .flightboard-manifest-scroll {
     min-height: 320px;
-    max-height: none;
-    overflow-y: visible;
+    max-height: clamp(320px, calc(100svh - var(--shell-topbar-height) - 30rem), 620px);
+    overflow-y: auto;
   }
 
   .auth-min-grid {

@@ -142,7 +142,7 @@ export default function AlertsPage() {
   }, [filteredAlerts, selectedAlertId]);
 
   return (
-    <div className="page-workspace">
+    <div className="page-workspace alerts-viewport">
       <PageHeader
         eyebrow="Alert Center"
         title="Pusat Alert Operasional"
@@ -203,10 +203,10 @@ export default function AlertsPage() {
         </div>
       </FilterBar>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
-        <OpsPanel className="page-pane p-5">
+      <div className="alerts-content-grid grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
+        <OpsPanel className="page-pane alerts-panel p-5">
           <SectionHeader title="Daftar Alert" subtitle="Klik row untuk detail." />
-          <div className="page-scroll mt-5 table-shell">
+          <div className="page-scroll internal-scrollbar alerts-table-scroll mt-5 table-shell">
             {filteredAlerts.length ? (
               <table className="data-table min-w-[920px]">
                 <thead>
@@ -267,10 +267,10 @@ export default function AlertsPage() {
           </div>
         </OpsPanel>
 
-        <OpsPanel className="page-pane p-5">
+        <OpsPanel className="page-pane alerts-panel p-5">
           <SectionHeader title="Detail Alert" subtitle={selectedAlert ? selectedAlert.entityLabel : "Pilih alert"} />
           {selectedAlert ? (
-            <div className="page-scroll mt-5 space-y-4">
+            <div className="page-scroll internal-scrollbar alerts-detail-scroll mt-5 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge value={selectedAlert.tone} label={severityLabels[selectedAlert.severity]} />
                 <StatusBadge
