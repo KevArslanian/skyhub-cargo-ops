@@ -41,7 +41,7 @@ export default async function ShipmentsPrintPage({
 
   const distributionChips = Array.from(statusCounters.entries())
     .sort((left, right) => right[1] - left[1])
-    .slice(0, 4)
+    .slice(0, 10)
     .map(([label, count]) => ({ label: `${count} ${label}`, tone: "neutral" as const }));
 
   return (
