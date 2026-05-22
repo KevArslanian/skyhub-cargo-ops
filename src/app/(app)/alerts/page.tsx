@@ -2,8 +2,18 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, BellRing, Clock3, FileCheck2, RefreshCw, Search, ShieldAlert, SlidersHorizontal, TriangleAlert } from "lucide-react";
-import { DataCard, EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import {
+  ArrowUpRight,
+  BellRing,
+  Clock3,
+  FileCheck2,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  SlidersHorizontal,
+  TriangleAlert,
+} from "lucide-react";
+import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 import { StatusBadge } from "@/components/status-badge";
 import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
 
@@ -51,18 +61,14 @@ type AlertCenterPayload = {
   }[];
 };
 
+type AlertRow = AlertCenterPayload["alerts"][number];
+
 const severityLabels: Record<string, string> = {
   all: "Semua severity",
   critical: "Kritis",
   warning: "Warning",
   info: "Info",
 };
-
-function getSeverityTone(severity: AlertSeverity) {
-  if (severity === "critical") return "danger";
-  if (severity === "warning") return "warning";
-  return "info";
-}
 
 function formatAge(minutes: number) {
   if (minutes < 60) return `${minutes} menit`;
@@ -78,6 +84,7 @@ export default function AlertsPage() {
   const [query, setQuery] = useState("");
   const [severity, setSeverity] = useState("all");
   const [kind, setKind] = useState("all");
+  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
 
   async function loadAlerts() {
     const response = await fetch("/api/alerts", { cache: "no-store" });
@@ -118,6 +125,21 @@ export default function AlertsPage() {
       return matchesSeverity && matchesKind && matchesQuery;
     });
   }, [data?.alerts, kind, query, severity]);
+
+  const selectedAlert = useMemo<AlertRow | null>(() => {
+    return filteredAlerts.find((alert) => alert.id === selectedAlertId) ?? filteredAlerts[0] ?? null;
+  }, [filteredAlerts, selectedAlertId]);
+
+  useEffect(() => {
+    if (!filteredAlerts.length) {
+      setSelectedAlertId(null);
+      return;
+    }
+
+    if (!selectedAlertId || !filteredAlerts.some((alert) => alert.id === selectedAlertId)) {
+      setSelectedAlertId(filteredAlerts[0].id);
+    }
+  }, [filteredAlerts, selectedAlertId]);
 
   return (
     <div className="page-workspace">
@@ -181,44 +203,59 @@ export default function AlertsPage() {
         </div>
       </FilterBar>
 
-      <div className="grid gap-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
         <OpsPanel className="page-pane p-5">
-          <SectionHeader title="Daftar Alert" subtitle="Urut berdasarkan prioritas." />
-          <div className="page-scroll mt-5 space-y-3">
+          <SectionHeader title="Daftar Alert" subtitle="Klik row untuk detail." />
+          <div className="page-scroll mt-5 table-shell">
             {filteredAlerts.length ? (
-              filteredAlerts.map((alert) => (
-                <article
-                  key={alert.id}
-                  className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4"
-                >
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge value={alert.tone} label={severityLabels[alert.severity]} />
-                        <StatusBadge value={alert.entityType === "flight" ? "live" : "review"} label={alert.kind} />
-                        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
-                          {alert.station}
-                        </span>
-                      </div>
-                      <h2 className="mt-3 font-[family:var(--font-heading)] text-xl font-extrabold text-[color:var(--text-strong)]">
-                        {alert.title}
-                      </h2>
-                      <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{alert.detail}</p>
-                    </div>
-                    <Link href={alert.href} className="btn btn-secondary shrink-0">
-                      <ArrowUpRight size={16} />
-                      Buka
-                    </Link>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 md:grid-cols-4">
-                    <DataCard label="Entity" value={alert.entityLabel} note={alert.statusLabel} tone={getSeverityTone(alert.severity)} />
-                    <DataCard label="Rute" value={alert.route} note={`Owner: ${alert.ownerName}`} />
-                    <DataCard label="Umur" value={formatAge(alert.ageMinutes)} note={formatDateTime(alert.triggeredAt)} />
-                    <DataCard label="Aksi" value="Tindak" note={alert.recommendedAction} tone={getSeverityTone(alert.severity)} />
-                  </div>
-                </article>
-              ))
+              <table className="data-table min-w-[920px]">
+                <thead>
+                  <tr>
+                    <th>Severity</th>
+                    <th>Jenis</th>
+                    <th>Entity</th>
+                    <th>Rute</th>
+                    <th>Umur</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAlerts.map((alert) => {
+                    const selected = selectedAlert?.id === alert.id;
+                    return (
+                      <tr
+                        key={alert.id}
+                        className={selected ? "flight-manifest-row-active cursor-pointer" : "cursor-pointer"}
+                        onClick={() => setSelectedAlertId(alert.id)}
+                      >
+                        <td>
+                          <StatusBadge value={alert.tone} label={severityLabels[alert.severity]} />
+                        </td>
+                        <td>
+                          <StatusBadge value={alert.entityType === "flight" ? "live" : "review"} label={alert.kind} />
+                        </td>
+                        <td>
+                          <p className="font-semibold text-[color:var(--text-strong)]">{alert.entityLabel}</p>
+                          <p className="text-xs text-[color:var(--muted-fg)]">{alert.title}</p>
+                        </td>
+                        <td>{alert.route}</td>
+                        <td>{formatAge(alert.ageMinutes)}</td>
+                        <td>{alert.statusLabel}</td>
+                        <td>
+                          <Link
+                            href={alert.href}
+                            className="topbar-button"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <ArrowUpRight size={15} />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             ) : (
               <EmptyState
                 icon={BellRing}
@@ -228,6 +265,64 @@ export default function AlertsPage() {
               />
             )}
           </div>
+        </OpsPanel>
+
+        <OpsPanel className="page-pane p-5">
+          <SectionHeader title="Detail Alert" subtitle={selectedAlert ? selectedAlert.entityLabel : "Pilih alert"} />
+          {selectedAlert ? (
+            <div className="page-scroll mt-5 space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge value={selectedAlert.tone} label={severityLabels[selectedAlert.severity]} />
+                <StatusBadge
+                  value={selectedAlert.entityType === "flight" ? "live" : "review"}
+                  label={selectedAlert.kind}
+                />
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
+                  {selectedAlert.station}
+                </span>
+              </div>
+
+              <div>
+                <h2 className="font-[family:var(--font-heading)] text-2xl font-black tracking-[-0.04em] text-[color:var(--text-strong)]">
+                  {selectedAlert.title}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{selectedAlert.detail}</p>
+              </div>
+
+              <div className="grid gap-3">
+                <div className="ops-panel-muted p-4">
+                  <p className="label">Rute</p>
+                  <p className="mt-2 font-semibold text-[color:var(--text-strong)]">{selectedAlert.route}</p>
+                </div>
+                <div className="ops-panel-muted p-4">
+                  <p className="label">Umur</p>
+                  <p className="mt-2 font-semibold text-[color:var(--text-strong)]">
+                    {formatAge(selectedAlert.ageMinutes)}
+                  </p>
+                  <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
+                    {formatDateTime(selectedAlert.triggeredAt)}
+                  </p>
+                </div>
+                <div className="ops-panel-muted p-4">
+                  <p className="label">Owner</p>
+                  <p className="mt-2 font-semibold text-[color:var(--text-strong)]">{selectedAlert.ownerName}</p>
+                </div>
+                <div className="ops-panel-muted p-4">
+                  <p className="label">Aksi</p>
+                  <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">
+                    {selectedAlert.recommendedAction}
+                  </p>
+                </div>
+              </div>
+
+              <Link href={selectedAlert.href} className="btn btn-primary w-full justify-center">
+                <ArrowUpRight size={16} />
+                Buka Data
+              </Link>
+            </div>
+          ) : (
+            <EmptyState icon={BellRing} title="Tidak ada alert" copy="Tidak ada data." className="m-0" />
+          )}
         </OpsPanel>
       </div>
     </div>
