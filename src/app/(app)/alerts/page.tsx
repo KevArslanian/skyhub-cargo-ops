@@ -6,14 +6,11 @@ import {
   ArrowUpRight,
   BellRing,
   Clock3,
-  FileCheck2,
   RefreshCw,
   Search,
-  ShieldAlert,
   SlidersHorizontal,
-  TriangleAlert,
 } from "lucide-react";
-import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
 import { StatusBadge } from "@/components/status-badge";
 import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
 
@@ -161,14 +158,21 @@ export default function AlertsPage() {
         }
       />
 
-      <div className="grid gap-4 xl:grid-cols-4">
-        <StatCard label="Total Alert" value={loading ? "..." : data?.summary.total ?? 0} note="Alert aktif." icon={BellRing} tone="primary" />
-        <StatCard label="Kritis" value={loading ? "..." : data?.summary.critical ?? 0} note="Prioritas tinggi." icon={ShieldAlert} tone="danger" />
-        <StatCard label="Warning" value={loading ? "..." : data?.summary.warning ?? 0} note="Perlu dicek." icon={TriangleAlert} tone="warning" />
-        <StatCard label="Notifikasi" value={loading ? "..." : data?.summary.unreadNotifications ?? 0} note="Belum dibaca." icon={FileCheck2} tone="info" />
+      <div className="alerts-summary-strip">
+        {[
+          ["Total Alert", loading ? "..." : data?.summary.total ?? 0],
+          ["Kritis", loading ? "..." : data?.summary.critical ?? 0],
+          ["Warning", loading ? "..." : data?.summary.warning ?? 0],
+          ["Notifikasi", loading ? "..." : data?.summary.unreadNotifications ?? 0],
+        ].map(([label, value]) => (
+          <div key={label} className="alerts-summary-item">
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
       </div>
 
-      <FilterBar className="xl:grid-cols-[minmax(0,1fr)_minmax(0,220px)_minmax(0,220px)_auto]">
+      <FilterBar className="alerts-filter-bar xl:grid-cols-[minmax(0,1fr)_minmax(0,220px)_minmax(0,220px)_auto]">
         <div>
           <label className="label">Cari alert</label>
           <div className="relative">
