@@ -1,6 +1,14 @@
 import { hashSync } from "bcryptjs";
 import { addDays, addHours, addMinutes, set, subHours, subMinutes } from "date-fns";
-import { FlightStatus, PrismaClient, ShipmentStatus, UserRole } from "@prisma/client";
+import {
+  FlightStatus,
+  PrismaClient,
+  ShipmentDocStatus,
+  ShipmentReadiness,
+  ShipmentStatus,
+  ShipmentTransactionStatus,
+  UserRole,
+} from "@prisma/client";
 import { SHIPMENT_STATUS_LABELS } from "../src/lib/constants";
 import {
   buildFlightNumber,
@@ -153,10 +161,10 @@ const FLIGHT_STATUS_CYCLE: FlightStatus[] = [
   FlightStatus.departed,
 ];
 
-const MIN_SEEDED_ROWS_PER_STATE = 10;
+const MIN_SEEDED_ROWS_PER_STATE = 1;
 const SEEDED_FLIGHT_DAYS = 3;
 const SEEDED_FLIGHTS_PER_DAY = FLIGHT_STATUS_CYCLE.length * MIN_SEEDED_ROWS_PER_STATE;
-const SEEDED_SHIPMENT_COUNT = STATUS_CYCLE.length * MIN_SEEDED_ROWS_PER_STATE * 10;
+const SEEDED_SHIPMENT_COUNT = STATUS_CYCLE.length * MIN_SEEDED_ROWS_PER_STATE * 6;
 
 function pick<T>(items: readonly T[], index: number): T {
   return items[index % items.length]!;
@@ -167,12 +175,11 @@ function buildAwb(index: number) {
 }
 
 function buildDocument(filePrefix: string, awb: string, index: number) {
-  const useCsv = index % 3 === 0;
   return {
-    fileName: `${filePrefix}-${awb}.${useCsv ? "csv" : "pdf"}`,
-    mimeType: useCsv ? "text/csv" : "application/pdf",
-    fileSize: useCsv ? 3000 + (index % 900) : 62000 + (index % 40000),
-    storageUrl: useCsv ? "/demo-assets/sample-data.csv" : "/demo-assets/sample-document.pdf",
+    fileName: `${filePrefix}-${awb}.pdf`,
+    mimeType: "application/pdf",
+    fileSize: 62000 + (index % 40000),
+    storageUrl: "/demo-assets/sample-document.pdf",
   };
 }
 
@@ -257,15 +264,22 @@ function buildTrackingLogs(status: ShipmentStatus, receivedAt: Date, ownerName: 
 }
 
 function determineDocumentStatus(index: number, status: ShipmentStatus) {
-  if (status === ShipmentStatus.hold) return "Review";
-  if (index % 6 === 0) return "Partial";
-  return "Complete";
+  if (status === ShipmentStatus.hold) return ShipmentDocStatus.Review;
+  if (index % 6 === 0) return ShipmentDocStatus.Partial;
+  return ShipmentDocStatus.Complete;
 }
 
-function determineReadiness(docStatus: string, status: ShipmentStatus) {
-  if (status === ShipmentStatus.hold) return "Pending";
-  if (docStatus !== "Complete") return "Pending";
-  return "Ready";
+function determineReadiness(docStatus: ShipmentDocStatus, status: ShipmentStatus) {
+  if (status === ShipmentStatus.hold) return ShipmentReadiness.Pending;
+  if (docStatus !== ShipmentDocStatus.Complete) return ShipmentReadiness.Pending;
+  return ShipmentReadiness.Ready;
+}
+
+function determineTransactionStatus(index: number, shippingRate: number) {
+  if (shippingRate <= 0) return ShipmentTransactionStatus.Tidak_Ditagih;
+  if (index % 6 === 0) return ShipmentTransactionStatus.Lunas;
+  if (index % 4 === 0) return ShipmentTransactionStatus.Menunggu_Verifikasi;
+  return ShipmentTransactionStatus.Belum_Lunas;
 }
 
 async function createManyInChunks<T extends Record<string, unknown>>(
@@ -314,7 +328,7 @@ async function main() {
   await prisma.systemKpi.deleteMany();
 
   const now = new Date();
-  for (let index = 0; index < 10; index += 1) {
+  for (let index = 0; index < 4; index += 1) {
     await prisma.systemKpi.create({
       data: {
         id: index === 0 ? "global" : `kpi-${String(index).padStart(2, "0")}`,
@@ -356,7 +370,7 @@ async function main() {
   }
 
   const cargoItems = [] as Awaited<ReturnType<typeof prisma.cargoItem.create>>[];
-  for (let index = 0; index < CARGO_ITEM_SPECS.length; index += 1) {
+  for (let index = 0; index < 8; index += 1) {
     cargoItems.push(
       await prisma.cargoItem.create({
         data: {
@@ -370,7 +384,7 @@ async function main() {
   }
 
   const tariffs = [] as Awaited<ReturnType<typeof prisma.tariff.create>>[];
-  for (let index = 0; index < 10; index += 1) {
+  for (let index = 0; index < 6; index += 1) {
     const route = pick([...ROUTES, { origin: "SOQ", destination: "BDO" }, { origin: "CGK", destination: "SOQ" }], index);
     const originAirport = airportByCode.get(route.origin);
     const destinationAirport = airportByCode.get(route.destination);
@@ -475,7 +489,7 @@ async function main() {
   ];
 
   const customerAccounts = [] as Awaited<ReturnType<typeof prisma.customerAccount.create>>[];
-  for (const spec of accountSpecs) {
+  for (const spec of accountSpecs.slice(0, 6)) {
     customerAccounts.push(await prisma.customerAccount.create({ data: spec }));
   }
 
@@ -737,7 +751,7 @@ async function main() {
 
   const [admin, staffPrimary, staffSecondary, customer, invitedStaff, disabledStaff] = users;
 
-  for (let index = 0; index < 2; index += 1) {
+  for (let index = 0; index < 1; index += 1) {
     await prisma.user.create({
       data: {
         name: `Staff Operasional ${String(index + 5).padStart(2, "0")}`,
@@ -764,7 +778,7 @@ async function main() {
     });
   }
 
-  for (let index = 0; index < 9; index += 1) {
+  for (let index = 0; index < 1; index += 1) {
     await prisma.user.create({
       data: {
         name: `Undangan Staff ${String(index + 2).padStart(2, "0")}`,
@@ -791,7 +805,7 @@ async function main() {
     });
   }
 
-  for (let index = 0; index < 9; index += 1) {
+  for (let index = 0; index < 1; index += 1) {
     await prisma.user.create({
       data: {
         name: `Staff Nonaktif ${String(index + 2).padStart(2, "0")}`,
@@ -923,8 +937,12 @@ async function main() {
 
     const receivedAt = subHours(now, (index % 72) + Math.floor(index / 100) * 8);
     const weightKg = 60 + (index % 40) * 12;
+    const shippingRate = Math.max(tariff.minimumCharge, Math.round(weightKg * tariff.pricePerKg));
+    const transactionStatus = determineTransactionStatus(index, shippingRate);
     const docStatus = determineDocumentStatus(index, status);
-    const readiness = determineReadiness(docStatus, status);
+    const readiness = transactionStatus === ShipmentTransactionStatus.Belum_Lunas || transactionStatus === ShipmentTransactionStatus.Menunggu_Verifikasi
+      ? ShipmentReadiness.Pending
+      : determineReadiness(docStatus, status);
 
     const trackingLogs = buildTrackingLogs(status, receivedAt, ownerName);
 
@@ -950,14 +968,14 @@ async function main() {
         volumeM3: Number((0.3 + (index % 8) * 0.25).toFixed(2)),
         specialHandling: pick(SPECIAL_HANDLING, index),
         serviceType,
-        shippingRate: Math.max(tariff.minimumCharge, Math.round(weightKg * tariff.pricePerKg)),
+        shippingRate,
         vehicleName: `SkyHub ${vehicleType} ${String((index % 9) + 1).padStart(2, "0")}`,
         vehicleType,
         vehicleCode: cargoMode === "Udara" ? flight.flightNumber : `${cargoMode.slice(0, 2).toUpperCase()}-${index + 100}`,
         vehicleCapacityKg: cargoMode === "Udara" ? 18000 : cargoMode === "Laut" ? 60000 : 9000,
         vehicleStatus: index % 11 === 0 ? "Maintenance" : "Aktif",
         goodsStatus,
-        transactionStatus: status === ShipmentStatus.arrived ? "Selesai" : index % 4 === 0 ? "Lunas" : "Pending",
+        transactionStatus,
         docStatus,
         readiness,
         shipper: pick(SHIPPERS, index),
@@ -1125,7 +1143,7 @@ async function main() {
     (shipment) => shipment.customerAccountId === customerPrimaryAccount.id,
   );
 
-  for (let index = 0; index < 36; index += 1) {
+  for (let index = 0; index < 10; index += 1) {
     const shipment = pick(holdShipments.length ? holdShipments : createdShipments, index);
     notifications.push({
       userId: staffPrimary.id,
@@ -1138,7 +1156,7 @@ async function main() {
     });
   }
 
-  for (let index = 0; index < 28; index += 1) {
+  for (let index = 0; index < 8; index += 1) {
     const flight = pick(flights, index);
     notifications.push({
       userId: staffSecondary.id,
@@ -1151,7 +1169,7 @@ async function main() {
     });
   }
 
-  for (let index = 0; index < 36; index += 1) {
+  for (let index = 0; index < 10; index += 1) {
     const shipment = pick(customerShipments.length ? customerShipments : createdShipments, index);
     notifications.push({
       userId: customer.id,
@@ -1194,7 +1212,7 @@ async function main() {
 
   const recentSearches: Array<{ userId: string; awb: string; createdAt: Date }> = [];
 
-  for (let index = 0; index < 30; index += 1) {
+  for (let index = 0; index < 8; index += 1) {
     const shipment = pick(customerShipments.length ? customerShipments : createdShipments, index);
     recentSearches.push({
       userId: customer.id,
@@ -1203,7 +1221,7 @@ async function main() {
     });
   }
 
-  for (let index = 0; index < 35; index += 1) {
+  for (let index = 0; index < 10; index += 1) {
     const shipment = pick(createdShipments, index * 2);
     recentSearches.push({
       userId: staffPrimary.id,
@@ -1212,7 +1230,7 @@ async function main() {
     });
   }
 
-  for (let index = 0; index < 25; index += 1) {
+  for (let index = 0; index < 8; index += 1) {
     const shipment = pick(createdShipments, index * 3);
     recentSearches.push({
       userId: admin.id,

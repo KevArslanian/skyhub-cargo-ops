@@ -1,4 +1,13 @@
-import type { CustomerAccountStatus, FlightStatus, ShipmentStatus, UserRole, UserStatus } from "@prisma/client";
+import type {
+  CustomerAccountStatus,
+  FlightStatus,
+  ShipmentDocStatus,
+  ShipmentReadiness,
+  ShipmentStatus,
+  ShipmentTransactionStatus,
+  UserRole,
+  UserStatus,
+} from "@prisma/client";
 
 export const APP_NAME = "SkyHub";
 export const APP_SUBTITLE = "Pusat Kendali Kargo";
@@ -30,7 +39,26 @@ export const GOODS_STATUS_OPTIONS = [
   "Pending",
   "Selesai",
 ] as const;
-export const TRANSACTION_STATUS_OPTIONS = ["Pending", "Lunas", "Belum Lunas", "Selesai"] as const;
+export const TRANSACTION_STATUS_OPTIONS = ["Belum_Lunas", "Menunggu_Verifikasi", "Lunas", "Tidak_Ditagih"] as const;
+
+export const SHIPMENT_TRANSACTION_STATUS_LABELS: Record<ShipmentTransactionStatus, string> = {
+  Belum_Lunas: "Belum Lunas",
+  Menunggu_Verifikasi: "Menunggu Verifikasi",
+  Lunas: "Lunas",
+  Tidak_Ditagih: "Tidak Ditagih",
+  Pending: "Pending",
+};
+
+export const SHIPMENT_DOC_STATUS_LABELS: Record<ShipmentDocStatus, string> = {
+  Complete: "Complete",
+  Partial: "Partial",
+  Review: "Review",
+};
+
+export const SHIPMENT_READINESS_LABELS: Record<ShipmentReadiness, string> = {
+  Ready: "Ready",
+  Pending: "Pending",
+};
 
 export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
   received: "Diterima",

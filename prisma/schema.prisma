@@ -36,6 +36,25 @@ enum ShipmentStatus {
   hold
 }
 
+enum ShipmentTransactionStatus {
+  Belum_Lunas
+  Menunggu_Verifikasi
+  Lunas
+  Tidak_Ditagih
+  Pending
+}
+
+enum ShipmentDocStatus {
+  Complete
+  Partial
+  Review
+}
+
+enum ShipmentReadiness {
+  Ready
+  Pending
+}
+
 enum FlightStatus {
   on_time
   delayed
@@ -251,9 +270,9 @@ model Shipment {
   vehicleCapacityKg Int             @default(0)
   vehicleStatus   String            @default("Aktif")
   goodsStatus     String            @default("Diproses")
-  transactionStatus String          @default("Pending")
-  docStatus       String            @default("Complete")
-  readiness       String            @default("Ready")
+  transactionStatus ShipmentTransactionStatus @default(Belum_Lunas)
+  docStatus       ShipmentDocStatus @default(Complete)
+  readiness       ShipmentReadiness @default(Ready)
   shipper         String
   consignee       String
   forwarder       String

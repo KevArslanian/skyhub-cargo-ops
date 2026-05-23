@@ -186,6 +186,18 @@ export function hasCapability(user: AccessUser, capability: Capability) {
   return CUSTOMER_DEFAULT_CAPABILITIES.has(capability);
 }
 
+export function getDefaultCapabilitiesForRole(role: UserRole) {
+  if (role === "admin") {
+    return [...CAPABILITIES];
+  }
+
+  if (role === "staff") {
+    return [...STAFF_DEFAULT_CAPABILITIES];
+  }
+
+  return [...CUSTOMER_DEFAULT_CAPABILITIES];
+}
+
 export function isInternalOnlyPath(pathname: string) {
   return INTERNAL_ONLY_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }

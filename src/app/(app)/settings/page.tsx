@@ -26,6 +26,29 @@ import { cn } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { DataCard, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
 
+const CAPABILITY_OPTIONS = [
+  { value: "shipment:create", label: "Buat shipment" },
+  { value: "shipment:update", label: "Edit shipment" },
+  { value: "shipment:delete", label: "Hapus shipment" },
+  { value: "shipment:document", label: "Dokumen shipment" },
+  { value: "flight:manage", label: "Kelola flight" },
+  { value: "payment:verify", label: "Verifikasi bayar" },
+  { value: "reports:export", label: "Export laporan" },
+  { value: "users:manage", label: "Kelola user" },
+  { value: "customer_accounts:manage", label: "Kelola pelanggan" },
+  { value: "settings:workspace", label: "Workspace" },
+] as const;
+
+type SettingsCapability = (typeof CAPABILITY_OPTIONS)[number]["value"];
+
+function defaultCapabilitiesForRole(role: "admin" | "staff" | "customer"): SettingsCapability[] {
+  if (role === "admin") return CAPABILITY_OPTIONS.map((item) => item.value);
+  if (role === "staff") {
+    return ["shipment:create", "shipment:update", "shipment:delete", "shipment:document", "flight:manage", "reports:export"];
+  }
+  return [];
+}
+
 type SettingsPayload = {
   profile: {
     id: string;
@@ -61,6 +84,7 @@ type SettingsPayload = {
     status: "active" | "invited" | "disabled";
     customerAccountId: string | null;
     customerAccountName: string | null;
+    capabilities: SettingsCapability[];
   }[];
   customerAccounts: {
     id: string;
@@ -469,6 +493,7 @@ export default function SettingsPage() {
         station: editingUserDraft.station,
         customerAccountId:
           editingUserDraft.role === "customer" ? editingUserDraft.customerAccountId : null,
+        capabilities: editingUserDraft.capabilities,
       }),
     });
 
@@ -501,6 +526,7 @@ export default function SettingsPage() {
           status: nextStatus,
           station: userRow.station,
           customerAccountId: userRow.role === "customer" ? userRow.customerAccountId : null,
+          capabilities: userRow.capabilities,
         }),
       });
 
@@ -1052,6 +1078,7 @@ export default function SettingsPage() {
                         <th>Nama</th>
                         <th>Email</th>
                         <th>Peran</th>
+                        <th>Izin granular</th>
                         <th>Stasiun</th>
                         <th>Akun Pelanggan</th>
                         <th>Status</th>
@@ -1078,6 +1105,9 @@ export default function SettingsPage() {
                                         ? {
                                             ...current,
                                             role: event.target.value as SettingsPayload["users"][number]["role"],
+                                            capabilities: defaultCapabilitiesForRole(
+                                              event.target.value as SettingsPayload["users"][number]["role"],
+                                            ),
                                           }
                                         : current,
                                     )
@@ -1091,6 +1121,53 @@ export default function SettingsPage() {
                                 <div className="space-y-1">
                                   <p className="font-medium text-[color:var(--text-strong)]">{ROLE_LABELS[user.role]}</p>
                                   <p className="text-xs leading-5 text-[color:var(--muted-fg)]">{ROLE_SCOPE_COPY[user.role]}</p>
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              {isEditing ? (
+                                <div className="grid min-w-[260px] gap-2 sm:grid-cols-2">
+                                  {CAPABILITY_OPTIONS.map((capability) => {
+                                    const checked = userRowDraft?.capabilities.includes(capability.value) ?? false;
+                                    return (
+                                      <label
+                                        key={capability.value}
+                                        className="flex items-center gap-2 rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 py-2 text-xs font-semibold text-[color:var(--text-strong)]"
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={(event) =>
+                                            setEditingUserDraft((current) => {
+                                              if (!current) return current;
+                                              const next = new Set(current.capabilities);
+                                              if (event.target.checked) next.add(capability.value);
+                                              else next.delete(capability.value);
+                                              return { ...current, capabilities: [...next] };
+                                            })
+                                          }
+                                        />
+                                        {capability.label}
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="flex min-w-[220px] flex-wrap gap-2">
+                                  {user.capabilities.slice(0, 3).map((capability) => (
+                                    <span
+                                      key={capability}
+                                      className="rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-2.5 py-1 text-xs font-semibold text-[color:var(--muted-fg)]"
+                                    >
+                                      {CAPABILITY_OPTIONS.find((item) => item.value === capability)?.label ?? capability}
+                                    </span>
+                                  ))}
+                                  {user.capabilities.length > 3 ? (
+                                    <span className="rounded-full bg-[color:var(--brand-primary-soft)] px-2.5 py-1 text-xs font-bold text-[color:var(--brand-primary)]">
+                                      +{user.capabilities.length - 3}
+                                    </span>
+                                  ) : null}
+                                  {!user.capabilities.length ? <span className="text-xs text-[color:var(--muted-2)]">Read-only</span> : null}
                                 </div>
                               )}
                             </td>

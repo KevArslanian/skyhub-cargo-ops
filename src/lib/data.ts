@@ -1,7 +1,9 @@
-import { Prisma, ShipmentStatus } from "@prisma/client";
+import { Prisma, ShipmentDocStatus, ShipmentReadiness, ShipmentStatus, ShipmentTransactionStatus } from "@prisma/client";
 import { addMinutes, endOfDay, startOfDay } from "date-fns";
 import {
   AccessError,
+  CAPABILITIES,
+  type Capability,
   canDeleteShipments,
   canExportReports,
   canManageCustomerAccounts,
@@ -10,6 +12,7 @@ import {
   canManageShipments,
   canManageUsers,
   canVerifyPayments,
+  getDefaultCapabilitiesForRole,
   hasCapability,
   isInternalRole,
   scopeAwbWhere,
@@ -18,7 +21,15 @@ import {
   scopeShipmentWhere,
   type AccessUser,
 } from "./access";
-import { AWB_REGEX, FLIGHT_STATUS_LABELS, ROLE_LABELS, SHIPMENT_STATUS_LABELS } from "./constants";
+import {
+  AWB_REGEX,
+  FLIGHT_STATUS_LABELS,
+  ROLE_LABELS,
+  SHIPMENT_DOC_STATUS_LABELS,
+  SHIPMENT_READINESS_LABELS,
+  SHIPMENT_STATUS_LABELS,
+  SHIPMENT_TRANSACTION_STATUS_LABELS,
+} from "./constants";
 import { getCargoCutoffTime, getEstimatedArrivalTime, getGateForDestination } from "./flight-rules";
 import {
   getFlightVisualMeta,
@@ -78,7 +89,7 @@ function getDocumentSummary(shipment: ShipmentRecord) {
   const latestDocument = activeDocuments[0] ?? null;
 
   return {
-    docStatus: shipment.docStatus,
+    docStatus: SHIPMENT_DOC_STATUS_LABELS[shipment.docStatus],
     count: activeDocuments.length,
     latestUploadedAt: latestDocument?.createdAt.toISOString() ?? null,
   };
@@ -89,19 +100,19 @@ function deriveShipmentTransactionStatus(input: {
   documents: { deletedAt: Date | null; paymentProof?: boolean | null; paymentVerifiedAt?: Date | null }[];
 }) {
   if (input.shippingRate <= 0) {
-    return "Tidak Ditagih";
+    return ShipmentTransactionStatus.Tidak_Ditagih;
   }
 
   const activePaymentDocuments = input.documents.filter((document) => !document.deletedAt && document.paymentProof);
   if (activePaymentDocuments.some((document) => document.paymentVerifiedAt)) {
-    return "Lunas";
+    return ShipmentTransactionStatus.Lunas;
   }
 
   if (activePaymentDocuments.length > 0) {
-    return "Menunggu Verifikasi";
+    return ShipmentTransactionStatus.Menunggu_Verifikasi;
   }
 
-  return "Belum Lunas";
+  return ShipmentTransactionStatus.Belum_Lunas;
 }
 
 function deriveShipmentGoodsStatus(status: ShipmentStatus) {
@@ -113,20 +124,25 @@ function deriveShipmentGoodsStatus(status: ShipmentStatus) {
 
 function deriveShipmentDocStatus(documents: { deletedAt: Date | null; paymentProof?: boolean | null; paymentVerifiedAt?: Date | null }[]) {
   const activeDocuments = documents.filter((document) => !document.deletedAt);
-  if (activeDocuments.length === 0) return "Partial";
-  if (activeDocuments.some((document) => document.paymentProof && !document.paymentVerifiedAt)) return "Review";
-  return "Complete";
+  if (activeDocuments.length === 0) return ShipmentDocStatus.Partial;
+  if (activeDocuments.some((document) => document.paymentProof && !document.paymentVerifiedAt)) return ShipmentDocStatus.Review;
+  return ShipmentDocStatus.Complete;
 }
 
 function deriveShipmentReadiness(input: {
   status: ShipmentStatus;
-  docStatus: string;
-  transactionStatus: string;
+  docStatus: ShipmentDocStatus;
+  transactionStatus: ShipmentTransactionStatus;
 }) {
-  if (input.status === "hold") return "Pending";
-  if (input.docStatus !== "Complete") return "Pending";
-  if (input.transactionStatus === "Belum Lunas" || input.transactionStatus === "Menunggu Verifikasi") return "Pending";
-  return "Ready";
+  if (input.status === "hold") return ShipmentReadiness.Pending;
+  if (input.docStatus !== ShipmentDocStatus.Complete) return ShipmentReadiness.Pending;
+  if (
+    input.transactionStatus === ShipmentTransactionStatus.Belum_Lunas ||
+    input.transactionStatus === ShipmentTransactionStatus.Menunggu_Verifikasi
+  ) {
+    return ShipmentReadiness.Pending;
+  }
+  return ShipmentReadiness.Ready;
 }
 
 function deriveShipmentGuardFields(input: {
@@ -190,9 +206,9 @@ function serializeShipment(shipment: ShipmentRecord, user: AccessUser) {
     vehicleCapacityKg: shipment.vehicleCapacityKg,
     vehicleStatus: shipment.vehicleStatus,
     goodsStatus: guardFields.goodsStatus,
-    transactionStatus: guardFields.transactionStatus,
-    docStatus: guardFields.docStatus,
-    readiness: guardFields.readiness,
+    transactionStatus: SHIPMENT_TRANSACTION_STATUS_LABELS[guardFields.transactionStatus],
+    docStatus: SHIPMENT_DOC_STATUS_LABELS[guardFields.docStatus],
+    readiness: SHIPMENT_READINESS_LABELS[guardFields.readiness],
     shipper: shipment.shipper,
     consignee: shipment.consignee,
     forwarder: shipment.forwarder,
@@ -472,7 +488,8 @@ function serializeManagedUser(user: {
   station: string;
   status: "active" | "invited" | "disabled";
   customerAccountId: string | null;
-  customerAccount: { id: string; name: string } | null;
+  capabilityOverrides?: { capability: string; enabled: boolean }[];
+  customerAccount: { id: string; name: string; status: "active" | "disabled" } | null;
 }) {
   return {
     id: user.id,
@@ -483,6 +500,7 @@ function serializeManagedUser(user: {
     status: user.status,
     customerAccountId: user.customerAccountId,
     customerAccountName: user.customerAccount?.name ?? null,
+    capabilities: CAPABILITIES.filter((capability) => hasCapability(user, capability)),
   };
 }
 
@@ -2194,6 +2212,7 @@ export async function inviteUser(input: {
           select: {
             id: true,
             name: true,
+            status: true,
           },
         },
       },
@@ -2224,6 +2243,7 @@ export async function updateUserAccess(
     status?: "active" | "invited" | "disabled";
     station?: string;
     customerAccountId?: string | null;
+    capabilities?: Capability[];
     actorUserId: string;
   },
 ) {
@@ -2254,6 +2274,10 @@ export async function updateUserAccess(
 
   if (current.id === actor.id && nextStatus === "disabled") {
     throw new AccessError("Akun admin yang sedang dipakai tidak dapat dinonaktifkan.", 400, "SELF_DISABLE_NOT_ALLOWED");
+  }
+
+  if (current.id === actor.id && input.capabilities && !input.capabilities.includes("users:manage")) {
+    throw new AccessError("Akun yang sedang dipakai harus tetap punya izin kelola user.", 400, "SELF_ACCESS_LOCKOUT");
   }
 
   if (current.role === "admin" && (nextRole !== "admin" || nextStatus !== "active")) {
@@ -2300,10 +2324,33 @@ export async function updateUserAccess(
           select: {
             id: true,
             name: true,
+            status: true,
+          },
+        },
+        capabilityOverrides: {
+          select: {
+            capability: true,
+            enabled: true,
           },
         },
       },
     });
+
+    if (input.capabilities) {
+      await tx.userCapabilityOverride.deleteMany({
+        where: { userId },
+      });
+      const selectedCapabilities = new Set(input.capabilities);
+      const defaultCapabilities = new Set(getDefaultCapabilitiesForRole(nextRole));
+      const overrides = CAPABILITIES.flatMap((capability) => {
+        const enabled = selectedCapabilities.has(capability);
+        return defaultCapabilities.has(capability) === enabled ? [] : [{ userId, capability, enabled }];
+      });
+      if (overrides.length) {
+        await tx.userCapabilityOverride.createMany({ data: overrides });
+      }
+      updated.capabilityOverrides = overrides;
+    }
 
     await tx.activityLog.create({
       data: {
@@ -2850,6 +2897,13 @@ export async function getSettingsData(userId: string) {
           select: {
             id: true,
             name: true,
+            status: true,
+          },
+        },
+        capabilityOverrides: {
+          select: {
+            capability: true,
+            enabled: true,
           },
         },
       },

@@ -20,7 +20,6 @@ import {
   ShieldAlert,
   Trash2,
   Upload,
-  X,
 } from "lucide-react";
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import {
@@ -40,6 +39,7 @@ import {
   SectionHeader,
   SkeletonBlock,
 } from "@/components/ops-ui";
+import { OpsDrawer } from "@/components/ops-drawer";
 
 type ShipmentRow = {
   id: string;
@@ -1008,24 +1008,14 @@ export default function ShipmentLedgerPage() {
                         </div>
                       </div>
 
-                      {editOpen ? (
-                        <div className="ops-modal-backdrop" onClick={() => setEditOpen(false)}>
-                          <div className="ops-modal-panel" onClick={(event) => event.stopPropagation()}>
-                            <div className="flex items-start justify-between gap-4 border-b border-[color:var(--border-soft)] pb-5">
-                              <div>
-                                <p className="ops-eyebrow">Edit Shipment</p>
-                                <h2 className="mt-2 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
-                                  Perbarui {selectedShipment.awb}
-                                </h2>
-                                <p className="mt-2 text-sm text-[color:var(--muted-fg)]">
-                                  Semua perubahan disimpan setelah tombol Simpan Perubahan ditekan.
-                                </p>
-                              </div>
-                              <button type="button" className="topbar-button" onClick={() => setEditOpen(false)}>
-                                <X size={16} />
-                              </button>
-                            </div>
-                            <div className="mt-6 space-y-5">
+                      <OpsDrawer
+                        open={editOpen}
+                        eyebrow="Edit Shipment"
+                        title={`Perbarui ${selectedShipment.awb}`}
+                        description="Form shipment dipisahkan ke drawer agar detail manifest tetap berada di halaman utama."
+                        onClose={() => setEditOpen(false)}
+                      >
+                            <div className="space-y-5">
                               <SectionHeader
                                 title="Review Operasional"
                                 subtitle="Metadata dikelompokkan agar status action, assignment, dan ownership mudah direvisi."
@@ -1343,9 +1333,7 @@ export default function ShipmentLedgerPage() {
                         </button>
                       </div>
                             </div>
-                          </div>
-                        </div>
-                      ) : null}
+                      </OpsDrawer>
                     </>
                   ) : (
                     <div className="ledger-section-card rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
@@ -1484,25 +1472,14 @@ export default function ShipmentLedgerPage() {
         </OpsPanel>
       </div>
 
-      {createOpen ? (
-        <div className="ops-modal-backdrop" onClick={() => setCreateOpen(false)}>
-          <div className="ops-modal-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 border-b border-[color:var(--border-soft)] pb-5">
-              <div>
-                <p className="ops-eyebrow">Buat Shipment</p>
-                <h2 className="mt-2 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
-                  Tambah manifest baru
-                </h2>
-                <p className="mt-2 text-sm text-[color:var(--muted-fg)]">
-                  AWB dapat diisi manual atau dibuat otomatis. Form dipecah berdasarkan identitas kiriman, routing, dan kontak.
-                </p>
-              </div>
-              <button type="button" className="topbar-button" onClick={() => setCreateOpen(false)}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <form className="mt-6 space-y-6" onSubmit={submitCreate}>
+      <OpsDrawer
+        open={createOpen}
+        eyebrow="Buat Shipment"
+        title="Tambah manifest baru"
+        description="AWB dapat diisi manual atau dibuat otomatis. Form dipecah berdasarkan identitas kiriman, routing, kargo, assignment, dan catatan."
+        onClose={() => setCreateOpen(false)}
+      >
+            <form className="space-y-6" onSubmit={submitCreate}>
               <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
                 <SectionHeader title="Identitas Shipment" subtitle="Identifier utama dan ownership operasional." />
                 <div className="mt-5 grid gap-4 md:grid-cols-3">
@@ -1822,9 +1799,7 @@ export default function ShipmentLedgerPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      ) : null}
+      </OpsDrawer>
     </div>
   );
 }

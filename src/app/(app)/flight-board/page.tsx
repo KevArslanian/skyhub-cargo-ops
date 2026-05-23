@@ -36,6 +36,7 @@ import {
 } from "@/lib/flight-meta";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { OpsDrawer } from "@/components/ops-drawer";
 
 type FlightBoardPayload = {
   permissions: {
@@ -1088,22 +1089,14 @@ export default function FlightBoardPage() {
         ) : null}
       </div>
 
-      {createOpen ? (
-        <div className="ops-modal-backdrop" onClick={() => setCreateOpen(false)}>
-          <div className="ops-modal-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 border-b border-[color:var(--border-soft)] pb-5">
-              <div>
-                <p className="ops-eyebrow">Buat Flight</p>
-                <h2 className="mt-2 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
-                  Tambah flight baru
-                </h2>
-              </div>
-              <button type="button" className="topbar-button" onClick={() => setCreateOpen(false)}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <form className="mt-6 space-y-5" onSubmit={handleCreateFlight}>
+      <OpsDrawer
+        open={createOpen}
+        eyebrow="Buat Flight"
+        title="Tambah flight baru"
+        description="Jadwal, aircraft, gate, cutoff, dan estimasi tiba disusun sebagai panel kerja kanan agar konteks flight board tetap terlihat."
+        onClose={() => setCreateOpen(false)}
+      >
+            <form className="space-y-5" onSubmit={handleCreateFlight}>
               <div className="flight-time-note">
                 <p className="font-semibold text-[color:var(--text-strong)]">Aturan master otomatis</p>
                 <p className="mt-1 text-sm text-[color:var(--muted-fg)]">
@@ -1232,26 +1225,17 @@ export default function FlightBoardPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      ) : null}
+      </OpsDrawer>
 
-      {editOpen && selectedFlight ? (
-        <div className="ops-modal-backdrop" onClick={() => setEditOpen(false)}>
-          <div className="ops-modal-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 border-b border-[color:var(--border-soft)] pb-5">
-              <div>
-                <p className="ops-eyebrow">Edit Flight</p>
-                <h2 className="mt-2 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
-                  Perbarui {selectedFlight.flightNumber}
-                </h2>
-              </div>
-              <button type="button" className="topbar-button" onClick={() => setEditOpen(false)}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="mt-6 space-y-5">
+      <OpsDrawer
+        open={editOpen && Boolean(selectedFlight)}
+        eyebrow="Edit Flight"
+        title={selectedFlight ? `Perbarui ${selectedFlight.flightNumber}` : "Edit Flight"}
+        description="Ubah flight dalam drawer supaya manifest dan detail aktif tidak hilang dari alur kerja."
+        onClose={() => setEditOpen(false)}
+      >
+            {selectedFlight ? (
+            <div className="space-y-5">
               <div className="flight-time-note">
                 <p className="font-semibold text-[color:var(--text-strong)]">Aturan master otomatis</p>
                 <p className="mt-1 text-sm text-[color:var(--muted-fg)]">
@@ -1390,9 +1374,8 @@ export default function FlightBoardPage() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      ) : null}
+            ) : null}
+      </OpsDrawer>
     </div>
   );
 }

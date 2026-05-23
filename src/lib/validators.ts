@@ -3,10 +3,8 @@ import {
   AIRCRAFT_TYPE_OPTIONS,
   AWB_REGEX,
   CARGO_MODE_OPTIONS,
-  GOODS_STATUS_OPTIONS,
   SERVICE_TYPE_OPTIONS,
   STATION_OPTIONS,
-  TRANSACTION_STATUS_OPTIONS,
   VEHICLE_STATUS_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
 } from "./constants";
@@ -41,16 +39,15 @@ function validateFlightDateOrder<T extends { cargoCutoffTime?: string; departure
   value: T,
   context: z.RefinementCtx,
 ) {
-  const providedDateFields = [value.cargoCutoffTime, value.departureTime, value.arrivalTime].filter(Boolean).length;
   const cutoff = value.cargoCutoffTime ? new Date(value.cargoCutoffTime).getTime() : null;
   const departure = value.departureTime ? new Date(value.departureTime).getTime() : null;
   const arrival = value.arrivalTime ? new Date(value.arrivalTime).getTime() : null;
 
-  if (providedDateFields > 0 && providedDateFields < 3) {
+  if ((cutoff !== null || arrival !== null) && departure === null) {
     context.addIssue({
       code: "custom",
       path: ["departureTime"],
-      message: "Cargo cutoff, waktu berangkat, dan waktu tiba harus dikirim bersama.",
+      message: "Waktu berangkat wajib dikirim jika cutoff atau estimasi tiba dikirim.",
     });
     return;
   }
@@ -97,8 +94,6 @@ export const shipmentCreateSchema = z.object({
   vehicleCode: z.string().trim().min(2, "Kode kendaraan wajib diisi.").optional().default("PK-SHA"),
   vehicleCapacityKg: z.coerce.number().int().positive("Kapasitas harus lebih dari 0.").optional().default(1000),
   vehicleStatus: z.enum(VEHICLE_STATUS_OPTIONS).optional().default("Aktif"),
-  goodsStatus: z.enum(GOODS_STATUS_OPTIONS).optional().default("Diproses"),
-  transactionStatus: z.enum(TRANSACTION_STATUS_OPTIONS).optional().default("Pending"),
   shipper: z.string().trim().min(2),
   consignee: z.string().trim().min(2),
   forwarder: z.string().trim().min(2),
@@ -127,12 +122,8 @@ export const shipmentUpdateSchema = z.object({
   vehicleCode: z.string().trim().min(2).optional(),
   vehicleCapacityKg: z.coerce.number().int().positive().optional(),
   vehicleStatus: z.enum(VEHICLE_STATUS_OPTIONS).optional(),
-  goodsStatus: z.enum(GOODS_STATUS_OPTIONS).optional(),
-  transactionStatus: z.enum(TRANSACTION_STATUS_OPTIONS).optional(),
   flightId: z.string().trim().optional().nullable(),
   customerAccountId: z.string().trim().optional().nullable(),
-  docStatus: shipmentDocStatusSchema.optional(),
-  readiness: shipmentReadinessSchema.optional(),
 });
 
 export const shipmentArchiveSchema = z.object({
@@ -173,6 +164,22 @@ export const userRoleUpdateSchema = z.object({
   status: z.enum(["active", "invited", "disabled"]).optional(),
   station: z.enum(STATION_OPTIONS).optional(),
   customerAccountId: z.string().trim().optional().nullable(),
+  capabilities: z
+    .array(
+      z.enum([
+        "shipment:create",
+        "shipment:update",
+        "shipment:delete",
+        "shipment:document",
+        "flight:manage",
+        "payment:verify",
+        "reports:export",
+        "users:manage",
+        "customer_accounts:manage",
+        "settings:workspace",
+      ]),
+    )
+    .optional(),
 });
 
 export const customerAccountCreateSchema = z.object({
@@ -208,9 +215,9 @@ export const flightCreateSchema = z.object({
   origin: z.enum(STATION_OPTIONS),
   destination: z.enum(STATION_OPTIONS),
   departureTime: z.string().datetime({ offset: true }),
-  arrivalTime: z.string().datetime({ offset: true }),
-  cargoCutoffTime: z.string().datetime({ offset: true }),
-  status: flightStatusSchema,
+  arrivalTime: z.string().datetime({ offset: true }).optional(),
+  cargoCutoffTime: z.string().datetime({ offset: true }).optional(),
+  status: flightStatusSchema.optional(),
   gate: z.string().trim().optional().nullable(),
   remarks: z.string().trim().optional().nullable(),
 }).superRefine(validateFlightDateOrder);
