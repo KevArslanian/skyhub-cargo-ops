@@ -587,6 +587,28 @@ textarea {
   color: var(--muted-2);
 }
 
+.form-help {
+  margin-top: 6px;
+  color: var(--muted-fg);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.flight-time-note {
+  border: 1px solid var(--tone-info-border);
+  border-radius: 22px;
+  background: var(--tone-info-soft);
+  padding: 14px 16px;
+}
+
+.flight-auto-status-card {
+  min-width: 0;
+  border: 1px solid var(--tone-success-border);
+  border-radius: var(--control-radius);
+  background: var(--tone-success-soft);
+  padding: 12px 16px;
+}
+
 .inline-link {
   color: var(--brand-primary-2);
   font-weight: 700;
@@ -632,6 +654,15 @@ textarea {
   background: rgba(255, 255, 255, 0.38);
   padding: 40px 24px;
   text-align: center;
+}
+
+.flightboard-empty-state,
+.activity-log-panel .ops-empty {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .dark .ops-empty {
@@ -754,7 +785,7 @@ textarea {
 }
 
 .ledger-info-grid {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   align-items: stretch;
 }
 
@@ -1210,6 +1241,51 @@ input[type="checkbox"] {
   overscroll-behavior: auto;
 }
 
+.flightboard-pagination-footer {
+  margin-top: 12px;
+}
+
+.flightboard-page-numbers {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.flightboard-page-button {
+  display: inline-flex;
+  min-height: 36px;
+  min-width: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--panel-muted);
+  color: var(--muted-fg);
+  font-size: 0.82rem;
+  font-weight: 800;
+  transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+}
+
+.flightboard-page-button:hover {
+  border-color: rgba(0, 82, 204, 0.32);
+  background: var(--brand-primary-soft);
+  color: var(--brand-primary);
+}
+
+.flightboard-page-button-active {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary);
+  color: #fff;
+}
+
+.flightboard-page-gap {
+  color: var(--muted-2);
+  font-weight: 800;
+}
+
 .dashboard-table-scroll,
 .dashboard-flight-scroll,
 .dashboard-alert-scroll,
@@ -1247,6 +1323,54 @@ input[type="checkbox"] {
   max-width: 100%;
   overflow: auto;
   overscroll-behavior: contain;
+}
+
+.awb-tracking-panel,
+.awb-tracking-results {
+  overflow: visible;
+}
+
+.activity-log-filter-bar {
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.32fr) minmax(150px, 0.32fr) auto;
+  align-items: end;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px 16px;
+}
+
+.activity-log-filter-bar .label {
+  margin-bottom: 4px;
+  font-size: 0.62rem;
+}
+
+.activity-log-filter-bar .input-field,
+.activity-log-filter-bar .select-field,
+.activity-log-print-button {
+  height: 40px;
+  min-height: 40px;
+}
+
+.activity-log-filter-bar .input-field,
+.activity-log-filter-bar .select-field {
+  padding-inline: 14px;
+}
+
+.activity-log-panel .data-table thead th {
+  padding: 10px 14px;
+}
+
+.activity-log-panel .data-table tbody td {
+  padding: 10px 14px;
+}
+
+.activity-log-panel .table-pagination-footer {
+  padding-top: 10px;
+}
+
+@media (min-width: 1024px) {
+  .flightboard-filter-bar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 180px) minmax(0, 220px);
+  }
 }
 
 .alerts-filter-bar {
@@ -1834,9 +1958,9 @@ input[type="checkbox"] {
   }
 
   .alerts-viewport {
-    height: 100%;
-    max-height: 100%;
-    overflow: hidden;
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .alerts-viewport > header {
@@ -1853,9 +1977,9 @@ input[type="checkbox"] {
   }
 
   .alerts-content-grid {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
     align-items: stretch;
   }
 
@@ -1880,7 +2004,7 @@ input[type="checkbox"] {
   .alerts-table-scroll,
   .alerts-detail-scroll {
     flex: 1 1 auto;
-    min-height: 0;
+    min-height: clamp(420px, 48vh, 620px);
     margin-top: 12px !important;
     overflow: auto;
   }
@@ -2146,6 +2270,10 @@ input[type="checkbox"] {
 }
 
 @media (max-width: 1024px) {
+  .activity-log-filter-bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .metric-card {
     border-radius: 24px;
   }
@@ -2240,6 +2368,17 @@ input[type="checkbox"] {
 
   .ops-snap-card {
     flex-basis: min(100%, calc(100vw - 2rem));
+  }
+}
+
+.ledger-detail-scroll {
+  padding-bottom: max(112px, calc(env(safe-area-inset-bottom) + 112px)) !important;
+  scroll-padding-bottom: 132px;
+}
+
+@media (min-width: 1280px) {
+  .split-pane-right {
+    max-height: calc(100svh - var(--shell-topbar-height) - 2.5rem);
   }
 }
 

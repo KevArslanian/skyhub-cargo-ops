@@ -180,7 +180,7 @@ export default function AwbTrackingPage() {
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.92fr)]">
         <div className="page-stack">
-          <OpsPanel className="page-pane overflow-hidden p-0">
+          <OpsPanel className="page-pane awb-tracking-panel overflow-hidden p-0">
             <div className="border-b border-[color:var(--border-soft)] p-6">
               <SectionHeader
                 title="Input Tracking"
@@ -231,7 +231,7 @@ export default function AwbTrackingPage() {
               ) : null}
             </div>
 
-            <div className="page-scroll flex-1 p-6">
+            <div className="awb-tracking-results p-6">
               {loading ? (
                 <div className="space-y-4">
                   <SkeletonBlock className="h-24 w-full rounded-[24px]" />
