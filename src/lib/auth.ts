@@ -258,7 +258,7 @@ export async function requireUser() {
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/about-us");
+    redirect("/api/auth/logout?next=/about-us");
   }
 
   return user;
