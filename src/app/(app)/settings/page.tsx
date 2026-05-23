@@ -50,6 +50,7 @@ type SettingsPayload = {
   permissions: {
     canManageUsers: boolean;
     canManageCustomerAccounts: boolean;
+    canManageWorkspace: boolean;
   };
   users: {
     id: string;

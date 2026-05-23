@@ -7,6 +7,10 @@ export type AccessUser = {
   status: UserStatus;
   station: string;
   customerAccountId: string | null;
+  capabilityOverrides?: {
+    capability: string;
+    enabled: boolean;
+  }[];
   customerAccount?: {
     id: string;
     name: string;
@@ -45,6 +49,29 @@ export class AccessError extends Error {
 
 export const INTERNAL_ROLES: UserRole[] = ["admin", "staff"];
 export const FLIGHT_MANAGER_ROLES: UserRole[] = ["admin", "staff"];
+export const CAPABILITIES = [
+  "shipment:create",
+  "shipment:update",
+  "shipment:delete",
+  "shipment:document",
+  "flight:manage",
+  "payment:verify",
+  "reports:export",
+  "users:manage",
+  "customer_accounts:manage",
+  "settings:workspace",
+] as const;
+export type Capability = (typeof CAPABILITIES)[number];
+const ALL_CAPABILITIES = new Set<Capability>(CAPABILITIES);
+const STAFF_DEFAULT_CAPABILITIES = new Set<Capability>([
+  "shipment:create",
+  "shipment:update",
+  "shipment:delete",
+  "shipment:document",
+  "flight:manage",
+  "reports:export",
+]);
+const CUSTOMER_DEFAULT_CAPABILITIES = new Set<Capability>();
 export const INTERNAL_ONLY_ROUTE_PREFIXES = [
   "/flight-board",
   "/alerts",
@@ -138,6 +165,27 @@ export function isInternalRole(role: UserRole) {
   return INTERNAL_ROLES.includes(role);
 }
 
+export function hasCapability(user: AccessUser, capability: Capability) {
+  if (!ALL_CAPABILITIES.has(capability)) {
+    return false;
+  }
+
+  const override = user.capabilityOverrides?.find((entry) => entry.capability === capability);
+  if (override) {
+    return override.enabled;
+  }
+
+  if (user.role === "admin") {
+    return true;
+  }
+
+  if (user.role === "staff") {
+    return STAFF_DEFAULT_CAPABILITIES.has(capability);
+  }
+
+  return CUSTOMER_DEFAULT_CAPABILITIES.has(capability);
+}
+
 export function isInternalOnlyPath(pathname: string) {
   return INTERNAL_ONLY_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
@@ -213,19 +261,39 @@ export function assertInternalApiAccess(user: AccessUser) {
 }
 
 export function canManageUsers(user: AccessUser) {
-  return user.role === "admin";
+  return hasCapability(user, "users:manage");
 }
 
 export function canManageCustomerAccounts(user: AccessUser) {
-  return user.role === "admin";
+  return hasCapability(user, "customer_accounts:manage");
 }
 
 export function canManageShipments(user: AccessUser) {
-  return isInternalRole(user.role);
+  return hasCapability(user, "shipment:create") || hasCapability(user, "shipment:update");
 }
 
 export function canManageFlights(user: AccessUser) {
-  return FLIGHT_MANAGER_ROLES.includes(user.role);
+  return hasCapability(user, "flight:manage");
+}
+
+export function canDeleteShipments(user: AccessUser) {
+  return hasCapability(user, "shipment:delete");
+}
+
+export function canManageShipmentDocuments(user: AccessUser) {
+  return hasCapability(user, "shipment:document");
+}
+
+export function canVerifyPayments(user: AccessUser) {
+  return hasCapability(user, "payment:verify");
+}
+
+export function canExportReports(user: AccessUser) {
+  return hasCapability(user, "reports:export");
+}
+
+export function canManageWorkspaceSettings(user: AccessUser) {
+  return hasCapability(user, "settings:workspace");
 }
 
 export function scopeShipmentWhere(user: AccessUser): Prisma.ShipmentWhereInput {

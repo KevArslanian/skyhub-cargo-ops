@@ -25,6 +25,12 @@ export type SessionPayload = {
 export type CurrentUser = Prisma.UserGetPayload<{
   include: {
     settings: true;
+    capabilityOverrides: {
+      select: {
+        capability: true;
+        enabled: true;
+      };
+    };
     customerAccount: {
       select: {
         id: true;
@@ -69,6 +75,12 @@ async function getBypassUser(preferredRole?: UserRole | null): Promise<CurrentUs
       orderBy: { createdAt: "asc" },
       include: {
         settings: true,
+        capabilityOverrides: {
+          select: {
+            capability: true,
+            enabled: true,
+          },
+        },
         customerAccount: {
           select: {
             id: true,
@@ -92,6 +104,12 @@ async function getBypassUser(preferredRole?: UserRole | null): Promise<CurrentUs
     orderBy: [{ role: "asc" }, { createdAt: "asc" }],
     include: {
       settings: true,
+      capabilityOverrides: {
+        select: {
+          capability: true,
+          enabled: true,
+        },
+      },
       customerAccount: {
         select: {
           id: true,
@@ -111,6 +129,12 @@ async function getBypassUser(preferredRole?: UserRole | null): Promise<CurrentUs
     orderBy: { createdAt: "asc" },
     include: {
       settings: true,
+      capabilityOverrides: {
+        select: {
+          capability: true,
+          enabled: true,
+        },
+      },
       customerAccount: {
         select: {
           id: true,
@@ -233,6 +257,12 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     where: { id: session.userId },
     include: {
       settings: true,
+      capabilityOverrides: {
+        select: {
+          capability: true,
+          enabled: true,
+        },
+      },
       customerAccount: {
         select: {
           id: true,

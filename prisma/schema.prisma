@@ -160,11 +160,26 @@ model User {
   notifications     Notification[]
   activityLogs      ActivityLog[]
   recentAwbSearches RecentAwbSearch[]
+  capabilityOverrides UserCapabilityOverride[]
   createdShipments  Shipment[]        @relation("ShipmentCreator")
+  trackingLogs      TrackingLog[]      @relation("TrackingActor")
   customerAccount   CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
 
   @@index([role, status])
   @@index([customerAccountId])
+}
+
+model UserCapabilityOverride {
+  id         String   @id @default(cuid())
+  userId     String
+  capability String
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, capability])
+  @@index([capability])
 }
 
 model UserSetting {
@@ -311,10 +326,15 @@ model TrackingLog {
   message    String
   location   String
   actorName  String?
+  visibility String         @default("customer")
+  actorUserId String?
   createdAt  DateTime       @default(now())
   shipment   Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  actorUser  User?          @relation("TrackingActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([shipmentId, createdAt])
+  @@index([visibility, createdAt])
+  @@index([actorUserId])
 }
 
 model ShipmentDocument {
@@ -325,12 +345,17 @@ model ShipmentDocument {
   fileSize          Int
   storageUrl        String
   storageKey        String?
+  paymentProof      Boolean            @default(false)
+  paymentVerifiedAt DateTime?
+  paymentVerifiedById String?
+  paymentVerifiedByName String?
   deletedAt         DateTime?
   blobCleanupStatus BlobCleanupStatus?
   createdAt         DateTime           @default(now())
   shipment          Shipment           @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
   @@index([shipmentId, deletedAt])
+  @@index([paymentProof, paymentVerifiedAt])
 }
 
 model SystemKpi {

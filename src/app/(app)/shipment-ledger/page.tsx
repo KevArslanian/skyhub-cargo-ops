@@ -12,6 +12,7 @@ import {
   FileText,
   FolderOpen,
   PackageSearch,
+  Pencil,
   PlaneTakeoff,
   Plus,
   RefreshCw,
@@ -24,10 +25,8 @@ import {
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import {
   CARGO_MODE_OPTIONS,
-  GOODS_STATUS_OPTIONS,
   SERVICE_TYPE_OPTIONS,
   STATION_OPTIONS,
-  TRANSACTION_STATUS_OPTIONS,
   VEHICLE_STATUS_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
 } from "@/lib/constants";
@@ -101,6 +100,9 @@ type ShipmentRow = {
     storageUrl: string;
     createdAt: string;
     blobCleanupStatus: string | null;
+    paymentProof: boolean;
+    paymentVerifiedAt: string | null;
+    paymentVerifiedByName: string | null;
   }[];
 };
 
@@ -113,6 +115,10 @@ type LedgerPayload = {
   permissions: {
     canCreate: boolean;
     canEdit: boolean;
+    canDelete: boolean;
+    canDocument: boolean;
+    canVerifyPayment: boolean;
+    canExport: boolean;
   };
   shipments: ShipmentRow[];
   flights: { id: string; flightNumber: string }[];
@@ -143,12 +149,8 @@ function createDrawerDraft(shipment: ShipmentRow | null) {
     vehicleCode: shipment?.vehicleCode ?? "",
     vehicleCapacityKg: shipment?.vehicleCapacityKg ?? 1,
     vehicleStatus: shipment?.vehicleStatus ?? "Aktif",
-    goodsStatus: shipment?.goodsStatus ?? "Diproses",
-    transactionStatus: shipment?.transactionStatus ?? "Pending",
     flightId: shipment?.flightId || "",
     customerAccountId: shipment?.customerAccountId || "",
-    docStatus: shipment?.docStatus ?? "Complete",
-    readiness: shipment?.readiness ?? "Ready",
   };
 }
 
@@ -172,8 +174,6 @@ function createBlankForm() {
     vehicleCode: "PK-SHA",
     vehicleCapacityKg: 1000,
     vehicleStatus: "Aktif",
-    goodsStatus: "Diproses",
-    transactionStatus: "Pending",
     shipper: "",
     consignee: "",
     forwarder: "SkyHub",
@@ -182,6 +182,10 @@ function createBlankForm() {
     customerAccountId: "",
     notes: "",
   };
+}
+
+function getDraftTransactionStatus(shippingRate: number) {
+  return shippingRate <= 0 ? "Tidak Ditagih" : "Belum Lunas";
 }
 
 function getUrgencyState(shipment: ShipmentRow | null) {
@@ -270,6 +274,7 @@ export default function ShipmentLedgerPage() {
   const [sortBy, setSortBy] = useState(searchParams.get("sortBy") || "updated");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -282,6 +287,18 @@ export default function ShipmentLedgerPage() {
   const hasLoadedRef = useRef(false);
 
   const deferredQuery = useDeferredValue(query);
+
+  useEffect(() => {
+    function handleContextSearch(event: Event) {
+      const detail = (event as CustomEvent<{ pathname?: string; query?: string }>).detail;
+      if (detail?.pathname !== "/shipment-ledger" || !detail.query) return;
+      setQuery(detail.query);
+      setListPage(1);
+    }
+
+    window.addEventListener("skyhub:context-search", handleContextSearch as EventListener);
+    return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
+  }, []);
 
   const applyShipmentPayload = useCallback((payload: LedgerPayload, preferredShipmentId?: string | null) => {
     const resolvedPreferredShipmentId = preferredShipmentId ?? null;
@@ -347,12 +364,12 @@ export default function ShipmentLedgerPage() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      if (document.visibilityState !== "visible" || createOpen || saving) return;
+      if (document.visibilityState !== "visible" || createOpen || editOpen || saving) return;
       void loadShipments(selectedIdRef.current, "refresh");
     }, 10000);
 
     return () => window.clearInterval(timer);
-  }, [createOpen, loadShipments, saving]);
+  }, [createOpen, editOpen, loadShipments, saving]);
 
   const selectedShipment = useMemo(
     () => data?.shipments.find((shipment) => shipment.id === selectedId) ?? null,
@@ -364,6 +381,7 @@ export default function ShipmentLedgerPage() {
       const nextShipment = (data?.shipments ?? []).find((shipment) => shipment.id === shipmentId) ?? null;
       setSelectedId(shipmentId);
       setDrawerDraft(createDrawerDraft(nextShipment));
+      setEditOpen(false);
     },
     [data?.shipments],
   );
@@ -486,6 +504,7 @@ export default function ShipmentLedgerPage() {
         );
         setDrawerDraft(createDrawerDraft(payload.shipment));
       }
+      setEditOpen(false);
       setActionNotice("Perubahan shipment berhasil disimpan.");
       void loadShipments(selectedShipment.id, "refresh");
     } else {
@@ -506,8 +525,10 @@ export default function ShipmentLedgerPage() {
     });
 
     if (response.ok) {
-      setActionNotice("Dokumen berhasil diunggah.");
+      setActionNotice("Dokumen berhasil diunggah dan tersimpan di database.");
       await loadShipments(selectedShipment.id, "refresh");
+    } else {
+      setActionNotice(await resolveErrorMessage(response, "Gagal mengunggah dokumen. Gunakan PDF, JPG, atau JPEG."));
     }
 
     event.target.value = "";
@@ -525,6 +546,37 @@ export default function ShipmentLedgerPage() {
       setActionNotice(payload.warning || "Dokumen berhasil dihapus dari tampilan kerja.");
       await loadShipments(selectedShipment.id, "refresh");
     }
+  }
+
+  async function handleVerifyPaymentDocument(documentId: string) {
+    if (!selectedShipment) return;
+
+    setSaving(true);
+    const response = await fetch(`/api/shipments/${selectedShipment.id}/documents/${documentId}`, {
+      method: "PATCH",
+    });
+
+    if (response.ok) {
+      const payload = (await response.json()) as { shipment?: ShipmentRow | null };
+      if (payload.shipment) {
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                shipments: current.shipments.map((shipment) =>
+                  shipment.id === payload.shipment!.id ? payload.shipment! : shipment,
+                ),
+              }
+            : current,
+        );
+        setDrawerDraft(createDrawerDraft(payload.shipment));
+      }
+      setActionNotice("Pembayaran berhasil diverifikasi admin.");
+    } else {
+      setActionNotice(await resolveErrorMessage(response, "Gagal verifikasi pembayaran."));
+    }
+
+    setSaving(false);
   }
 
   async function handleDeleteShipment() {
@@ -573,7 +625,7 @@ export default function ShipmentLedgerPage() {
         }
         actions={
           <>
-            {!isReadOnly ? (
+            {!isReadOnly && data?.permissions.canExport ? (
               <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">
                 <FileText size={16} />
                 PDF / Print
@@ -873,9 +925,6 @@ export default function ShipmentLedgerPage() {
                     icon={FileText}
                     tone={selectedShipment.docStatus.toLowerCase() === "complete" ? "success" : "warning"}
                   />
-                </div>
-
-                <div className="ledger-info-grid mt-4">
                   <DataCard
                     label="Jenis Pengiriman"
                     value={selectedShipment.serviceType}
@@ -907,13 +956,81 @@ export default function ShipmentLedgerPage() {
 
                 <div className="section-stack-gap mt-6">
                   {!isReadOnly ? (
-                    <div className="ledger-section-card rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
-                      <SectionHeader
-                        title="Review Operasional"
-                        subtitle="Metadata dikelompokkan agar status action, assignment, dan ownership mudah direvisi."
-                        className="pb-6"
-                      />
-                      <div className="ledger-form-grid pt-6">
+                    <>
+                      <div className="ledger-section-card rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
+                        <SectionHeader
+                          title="Review Operasional"
+                          subtitle="Mode baca. Tekan Edit Shipment untuk mengubah metadata operasional."
+                        />
+                        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          <DataCard label="Status" value={selectedShipment.statusLabel} note={`Dokumen: ${selectedShipment.docStatus}`} />
+                          <DataCard label="Penanggung Jawab" value={selectedShipment.ownerName || "-"} note={selectedShipment.senderPhone || "No telepon kosong"} />
+                          <DataCard label="Tanggal Kirim" value={formatDateInput(selectedShipment.sentAt)} note={`${selectedShipment.cargoMode} • ${selectedShipment.serviceType}`} />
+                          <DataCard label="Rute" value={`${selectedShipment.origin} -> ${selectedShipment.destination}`} note={selectedShipment.flightNumber || "Tanpa flight"} />
+                          <DataCard label="Muatan" value={`${selectedShipment.pieces} pcs`} note={formatWeight(selectedShipment.weightKg)} />
+                          <DataCard label="Tarif" value={`Rp ${selectedShipment.shippingRate.toLocaleString("id-ID")}`} note={`Transaksi: ${selectedShipment.transactionStatus}`} />
+                          <DataCard label="Kendaraan" value={selectedShipment.vehicleName || selectedShipment.vehicleType} note={`${selectedShipment.vehicleCode || "-"} • ${selectedShipment.vehicleStatus}`} />
+                          <DataCard label="Akun Pelanggan" value={selectedShipment.customerAccountName || "-"} note={selectedShipment.customerAccountId ? "Terhubung" : "Tanpa akun"} />
+                          <DataCard label="Kesiapan" value={selectedShipment.readiness} note={`Barang: ${selectedShipment.goodsStatus}`} />
+                        </div>
+                        {selectedShipment.notes ? (
+                          <div className="mt-4 rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-4 py-4 text-sm leading-6 text-[color:var(--muted-fg)]">
+                            {selectedShipment.notes}
+                          </div>
+                        ) : null}
+                        <div className="mt-6 flex flex-wrap gap-3 rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-5">
+                          {data?.permissions.canEdit ? (
+                            <button
+                              type="button"
+                              className="btn btn-primary flex-1"
+                              onClick={() => {
+                                setDrawerDraft(createDrawerDraft(selectedShipment));
+                                setEditOpen(true);
+                              }}
+                            >
+                              <Pencil size={16} />
+                              Edit Shipment
+                            </button>
+                          ) : null}
+                          {data?.permissions.canDocument ? (
+                            <label className="btn btn-secondary flex-1 cursor-pointer">
+                              <Upload size={16} />
+                              Upload Dokumen
+                              <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,application/pdf,image/jpeg" onChange={handleUpload} />
+                            </label>
+                          ) : null}
+                          {data?.permissions.canDelete ? (
+                            <button type="button" className="btn btn-warning" onClick={handleDeleteShipment}>
+                              <Trash2 size={16} />
+                              Hapus
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {editOpen ? (
+                        <div className="ops-modal-backdrop" onClick={() => setEditOpen(false)}>
+                          <div className="ops-modal-panel" onClick={(event) => event.stopPropagation()}>
+                            <div className="flex items-start justify-between gap-4 border-b border-[color:var(--border-soft)] pb-5">
+                              <div>
+                                <p className="ops-eyebrow">Edit Shipment</p>
+                                <h2 className="mt-2 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
+                                  Perbarui {selectedShipment.awb}
+                                </h2>
+                                <p className="mt-2 text-sm text-[color:var(--muted-fg)]">
+                                  Semua perubahan disimpan setelah tombol Simpan Perubahan ditekan.
+                                </p>
+                              </div>
+                              <button type="button" className="topbar-button" onClick={() => setEditOpen(false)}>
+                                <X size={16} />
+                              </button>
+                            </div>
+                            <div className="mt-6 space-y-5">
+                              <SectionHeader
+                                title="Review Operasional"
+                                subtitle="Metadata dikelompokkan agar status action, assignment, dan ownership mudah direvisi."
+                              />
+                              <div className="ledger-form-grid pt-2">
                         <div>
                           <label className="label">Status</label>
                           <select
@@ -1144,35 +1261,13 @@ export default function ShipmentLedgerPage() {
                         </div>
                         <div>
                           <label className="label">Status Barang</label>
-                          <select
-                            className="select-field"
-                            value={drawerDraft.goodsStatus}
-                            onChange={(event) =>
-                              setDrawerDraft((current) => ({ ...current, goodsStatus: event.target.value }))
-                            }
-                          >
-                            {GOODS_STATUS_OPTIONS.map((item) => (
-                              <option key={item} value={item}>
-                                {item}
-                              </option>
-                            ))}
-                          </select>
+                          <input className="input-field" value={selectedShipment.goodsStatus} readOnly />
+                          <p className="form-help">Otomatis dari status workflow shipment.</p>
                         </div>
                         <div>
                           <label className="label">Status Transaksi</label>
-                          <select
-                            className="select-field"
-                            value={drawerDraft.transactionStatus}
-                            onChange={(event) =>
-                              setDrawerDraft((current) => ({ ...current, transactionStatus: event.target.value }))
-                            }
-                          >
-                            {TRANSACTION_STATUS_OPTIONS.map((item) => (
-                              <option key={item} value={item}>
-                                {item}
-                              </option>
-                            ))}
-                          </select>
+                          <input className="input-field" value={selectedShipment.transactionStatus} readOnly />
+                          <p className="form-help">Otomatis dari tarif dan bukti pembayaran terverifikasi admin.</p>
                         </div>
                         <div>
                           <label className="label">Flight</label>
@@ -1213,30 +1308,13 @@ export default function ShipmentLedgerPage() {
                         </div>
                         <div>
                           <label className="label">Status Dokumen</label>
-                          <select
-                            className="select-field"
-                            value={drawerDraft.docStatus}
-                            onChange={(event) =>
-                              setDrawerDraft((current) => ({ ...current, docStatus: event.target.value }))
-                            }
-                          >
-                            <option value="Complete">Complete</option>
-                            <option value="Partial">Partial</option>
-                            <option value="Review">Review</option>
-                          </select>
+                          <input className="input-field" value={selectedShipment.docStatus} readOnly />
+                          <p className="form-help">Otomatis dari dokumen aktif dan bukti bayar.</p>
                         </div>
                         <div>
                           <label className="label">Kesiapan</label>
-                          <select
-                            className="select-field"
-                            value={drawerDraft.readiness}
-                            onChange={(event) =>
-                              setDrawerDraft((current) => ({ ...current, readiness: event.target.value }))
-                            }
-                          >
-                            <option value="Ready">Ready</option>
-                            <option value="Pending">Pending</option>
-                          </select>
+                          <input className="input-field" value={selectedShipment.readiness} readOnly />
+                          <p className="form-help">Ready jika dokumen complete, pembayaran aman, dan tidak hold.</p>
                         </div>
                         <div className="md:col-span-2">
                           <label className="label">Catatan Review</label>
@@ -1251,22 +1329,24 @@ export default function ShipmentLedgerPage() {
                         </div>
                       </div>
 
-                      <div className="ops-sticky-footer mt-6 flex flex-wrap gap-3 rounded-[22px] border border-[color:var(--border-soft)] bg-white/85 p-5 shadow-[0_-8px_24px_rgba(11,30,52,0.04)] backdrop-blur dark:bg-[color:var(--panel-bg)]/85">
+                              <div className="ops-sticky-footer mt-6 flex flex-wrap gap-3 rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-5 shadow-[0_-8px_24px_rgba(11,30,52,0.04)]">
                         <button type="button" className="btn btn-primary flex-1" onClick={saveShipmentChanges} disabled={saving}>
                           <Save size={16} />
                           {saving ? "Menyimpan..." : "Simpan Perubahan"}
                         </button>
-                        <label className="btn btn-secondary flex-1 cursor-pointer">
-                          <Upload size={16} />
-                          Upload Dokumen
-                          <input type="file" className="hidden" onChange={handleUpload} />
-                        </label>
+                        <button type="button" className="btn btn-secondary" onClick={() => setEditOpen(false)}>
+                          Batal
+                        </button>
                         <button type="button" className="btn btn-warning" onClick={handleDeleteShipment}>
                           <Trash2 size={16} />
                           Hapus
                         </button>
                       </div>
-                    </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                    </>
                   ) : (
                     <div className="ledger-section-card rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
                       <SectionHeader
@@ -1318,14 +1398,34 @@ export default function ShipmentLedgerPage() {
                                   <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
                                     {formatDateTime(document.createdAt)}
                                   </p>
+                                  {document.paymentVerifiedAt ? (
+                                    <p className="mt-2 text-xs font-semibold text-[color:var(--tone-info)]">
+                                      Bukti bayar terverifikasi {formatDateTime(document.paymentVerifiedAt)}
+                                    </p>
+                                  ) : null}
                                 </div>
-                                <button
-                                  type="button"
-                                  className="topbar-button"
-                                  onClick={() => handleDeleteDocument(document.id)}
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                                <div className="flex flex-wrap justify-end gap-2">
+                                  {!document.paymentVerifiedAt && selectedShipment.shippingRate > 0 && data?.permissions.canVerifyPayment ? (
+                                    <button
+                                      type="button"
+                                      className="topbar-button"
+                                      onClick={() => void handleVerifyPaymentDocument(document.id)}
+                                      disabled={saving}
+                                    >
+                                      <Save size={16} />
+                                      Verifikasi Bayar
+                                    </button>
+                                  ) : null}
+                                  {data?.permissions.canDocument ? (
+                                    <button
+                                      type="button"
+                                      className="topbar-button"
+                                      onClick={() => handleDeleteDocument(document.id)}
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  ) : null}
+                                </div>
                               </div>
                             </div>
                           ))
@@ -1628,33 +1728,13 @@ export default function ShipmentLedgerPage() {
                   </div>
                   <div>
                     <label className="label">Status Barang</label>
-                    <select
-                      className="select-field"
-                      value={form.goodsStatus}
-                      onChange={(event) => setForm((current) => ({ ...current, goodsStatus: event.target.value }))}
-                    >
-                      {GOODS_STATUS_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
+                    <input className="input-field" value="Diproses" readOnly />
+                    <p className="form-help">Otomatis dari workflow shipment.</p>
                   </div>
                   <div>
                     <label className="label">Status Transaksi</label>
-                    <select
-                      className="select-field"
-                      value={form.transactionStatus}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, transactionStatus: event.target.value }))
-                      }
-                    >
-                      {TRANSACTION_STATUS_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
+                    <input className="input-field" value={getDraftTransactionStatus(form.shippingRate)} readOnly />
+                    <p className="form-help">Tidak dapat dipilih manual.</p>
                   </div>
                 </div>
               </div>

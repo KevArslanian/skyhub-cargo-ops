@@ -306,6 +306,22 @@ export default function DashboardPage() {
     refreshIntervalSeconds: 5,
   });
 
+  useEffect(() => {
+    function handleContextSearch(event: Event) {
+      const detail = (event as CustomEvent<{ pathname?: string; query?: string }>).detail;
+      if (detail?.pathname !== "/dashboard" || !detail.query) return;
+      setDashboardQuery(detail.query);
+      setDashboardShipmentPage(1);
+      setDashboardFlightPage(1);
+      setDashboardAlertPage(1);
+      setDashboardActivityPage(1);
+      setCustomerShipmentPage(1);
+    }
+
+    window.addEventListener("skyhub:context-search", handleContextSearch as EventListener);
+    return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
+  }, []);
+
   const requestDashboard = useCallback(async () => {
     const response = await fetch("/api/dashboard", { cache: "no-store" });
     if (!response.ok) {

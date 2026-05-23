@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
-import { requireInternalUser } from "@/lib/access";
+import { canExportReports, requireInternalUser } from "@/lib/access";
+import { redirect } from "next/navigation";
 import { getFlightBoardData } from "@/lib/data";
 import { formatDateTime } from "@/lib/format";
 import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
@@ -21,6 +22,7 @@ export default async function FlightsPrintPage({
 }) {
   const user = await requireUser();
   requireInternalUser(user);
+  if (!canExportReports(user)) redirect("/dashboard");
   const params = await searchParams;
   const printedAt = new Date();
 

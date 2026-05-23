@@ -28,6 +28,7 @@ import { getNavigationForRole } from "@/lib/access";
 import { APP_NAME, APP_SUBTITLE, ROLE_LABELS } from "@/lib/constants";
 import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
 import { BrandMark } from "./brand-mark";
+import { ShellSearchProvider } from "./shell-search-provider";
 import { StatusBadge } from "./status-badge";
 
 type ShellProps = {
@@ -227,7 +228,37 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   async function handleSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!search.trim()) return;
-    const response = await fetch(`/api/search?query=${encodeURIComponent(search.trim())}`);
+    const nextQuery = search.trim();
+
+    window.dispatchEvent(
+      new CustomEvent("skyhub:context-search", {
+        detail: {
+          pathname,
+          query: nextQuery,
+        },
+      }),
+    );
+
+    if (pathname === "/shipment-ledger") {
+      router.push(`/shipment-ledger?query=${encodeURIComponent(nextQuery)}`);
+      return;
+    }
+
+    if (pathname === "/awb-tracking") {
+      router.push(`/awb-tracking?awb=${encodeURIComponent(nextQuery)}`);
+      return;
+    }
+
+    if (pathname === "/flight-board") {
+      router.push(`/flight-board?query=${encodeURIComponent(nextQuery)}`);
+      return;
+    }
+
+    if (pathname === "/alerts" || pathname === "/activity-log" || pathname === "/dashboard") {
+      return;
+    }
+
+    const response = await fetch(`/api/search?query=${encodeURIComponent(nextQuery)}&scope=global`);
     if (!response.ok) return;
     const result = (await response.json()) as { path?: string | null };
     if (result.path) {
@@ -273,7 +304,27 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
     }
   }
 
+  const searchPlaceholder = useMemo(() => {
+    if (pathname === "/dashboard") return "Cari AWB, flight, alert, atau aktivitas";
+    if (pathname === "/shipment-ledger") return "Filter ledger: AWB, pengirim, penerima, barang";
+    if (pathname === "/awb-tracking") return "Masukkan AWB untuk tracking";
+    if (pathname === "/flight-board") return "Filter flight: nomor, origin, destination";
+    if (pathname === "/alerts") return "Filter alert: AWB, flight, station, aksi";
+    if (pathname === "/activity-log") return "Filter log: AWB, deskripsi, target";
+    if (pathname === "/settings") return "Cari pengaturan, user, atau akun";
+    return "Cari AWB, shipment, atau flight";
+  }, [pathname]);
+  const shellSearchConfig = useMemo(
+    () => ({
+      scope: pathname.replace("/", "") || "dashboard",
+      placeholder: searchPlaceholder,
+      filterSummary: activeNav.label,
+    }),
+    [activeNav.label, pathname, searchPlaceholder],
+  );
+
   return (
+    <ShellSearchProvider value={shellSearchConfig}>
     <div
       style={shellStyle}
       className={cn(
@@ -483,11 +534,13 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                 onSubmit={handleSearchSubmit}
                 className="shell-topbar-search relative order-last min-w-0 flex-[1_1_100%] sm:order-none sm:flex-[1_1_240px] lg:flex-[2_1_320px]"
               >
-                <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
+                <button type="submit" className="topbar-search-submit" aria-label="Jalankan pencarian">
+                  <Search size={16} />
+                </button>
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Cari AWB, shipment, atau flight"
+                  placeholder={searchPlaceholder}
                   className="input-field input-field-leading w-full"
                 />
               </form>
@@ -620,11 +673,12 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
             </div>
           </header>
 
-          <main className="ops-shell-main-scroll min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip px-3 pb-6 sm:px-4 lg:px-8">
+          <main className="ops-shell-main-scroll app-main-scroll min-h-0 min-w-0 flex-1 px-3 pb-6 sm:px-4 lg:px-8">
             <div className="h-full min-h-0 min-w-0 max-w-full">{children}</div>
           </main>
         </div>
       </div>
     </div>
+    </ShellSearchProvider>
   );
 }

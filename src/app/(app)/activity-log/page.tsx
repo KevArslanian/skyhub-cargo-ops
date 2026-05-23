@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, FileText, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
-import { FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 
 type ActivityPayload = {
   users: { id: string; name: string }[];
@@ -22,7 +22,7 @@ type ActivityPayload = {
   }[];
 };
 
-const ACTIVITY_PAGE_SIZE = 15;
+const ACTIVITY_PAGE_SIZE = 25;
 
 export default function ActivityLogPage() {
   const [query, setQuery] = useState("");
@@ -30,6 +30,18 @@ export default function ActivityLogPage() {
   const [userId, setUserId] = useState("all");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<ActivityPayload | null>(null);
+
+  useEffect(() => {
+    function handleContextSearch(event: Event) {
+      const detail = (event as CustomEvent<{ pathname?: string; query?: string }>).detail;
+      if (detail?.pathname !== "/activity-log" || !detail.query) return;
+      setQuery(detail.query);
+      setPage(1);
+    }
+
+    window.addEventListener("skyhub:context-search", handleContextSearch as EventListener);
+    return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -84,7 +96,7 @@ export default function ActivityLogPage() {
         <StatCard label="Galat" value={levels.error} note="Kejadian gagal atau exception log yang tercatat." icon={ShieldAlert} tone="danger" />
       </div>
 
-      <FilterBar className="xl:grid-cols-[minmax(0,1fr)_minmax(0,220px)_minmax(0,220px)_auto]">
+      <FilterBar className="activity-log-filter-bar">
         <div>
           <label className="label">Cari log</label>
           <input
@@ -133,7 +145,7 @@ export default function ActivityLogPage() {
             ))}
           </select>
         </div>
-        <Link href={`/exports/activity-log?${exportParams.toString()}`} className="btn btn-secondary self-end">
+        <Link href={`/exports/activity-log?${exportParams.toString()}`} className="btn btn-secondary activity-log-print-button self-end">
           <FileText size={16} />
           PDF / Print
         </Link>
@@ -154,18 +166,31 @@ export default function ActivityLogPage() {
               </tr>
             </thead>
             <tbody>
-              {pagedLogs.map((log) => (
-                <tr key={log.id}>
-                  <td className="text-sm text-[color:var(--muted-fg)]">{formatDateTime(log.createdAt)}</td>
-                  <td>{log.userName}</td>
-                  <td className="font-semibold text-[color:var(--text-strong)]">{log.action}</td>
-                  <td className="font-mono text-sm text-[color:var(--brand-primary)]">{log.targetLabel}</td>
-                  <td className="max-w-[460px] text-sm leading-6">{log.description}</td>
-                  <td>
-                    <StatusBadge value={log.level} label={log.level} />
+              {pagedLogs.length ? (
+                pagedLogs.map((log) => (
+                  <tr key={log.id}>
+                    <td className="text-sm text-[color:var(--muted-fg)]">{formatDateTime(log.createdAt)}</td>
+                    <td>{log.userName}</td>
+                    <td className="font-semibold text-[color:var(--text-strong)]">{log.action}</td>
+                    <td className="font-mono text-sm text-[color:var(--brand-primary)]">{log.targetLabel}</td>
+                    <td className="max-w-[460px] text-sm leading-6">{log.description}</td>
+                    <td>
+                      <StatusBadge value={log.level} label={log.level} />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6}>
+                    <EmptyState
+                      icon={History}
+                      title="Belum ada log yang cocok"
+                      copy="Ubah pencarian, aksi, atau pengguna untuk melihat jejak audit lain."
+                      className="m-4"
+                    />
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

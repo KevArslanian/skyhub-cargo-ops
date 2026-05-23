@@ -7,12 +7,14 @@ import {
   BellRing,
   ChevronLeft,
   ChevronRight,
+  CheckCircle2,
   Clock3,
   RefreshCw,
   Search,
+  ShieldAlert,
   SlidersHorizontal,
 } from "lucide-react";
-import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
+import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 import { StatusBadge } from "@/components/status-badge";
 import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
 
@@ -42,6 +44,9 @@ type AlertCenterPayload = {
     ownerName: string;
     statusLabel: string;
     recommendedAction: string;
+    cause: string;
+    clearCondition: string;
+    targetModule: string;
     triggeredAt: string;
     ageMinutes: number;
   }[];
@@ -87,6 +92,18 @@ export default function AlertsPage() {
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const [alertPage, setAlertPage] = useState(1);
 
+  useEffect(() => {
+    function handleContextSearch(event: Event) {
+      const detail = (event as CustomEvent<{ pathname?: string; query?: string }>).detail;
+      if (detail?.pathname !== "/alerts" || !detail.query) return;
+      setQuery(detail.query);
+      setAlertPage(1);
+    }
+
+    window.addEventListener("skyhub:context-search", handleContextSearch as EventListener);
+    return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
+  }, []);
+
   async function loadAlerts() {
     const response = await fetch("/api/alerts", { cache: "no-store" });
     if (!response.ok) return;
@@ -118,7 +135,18 @@ export default function AlertsPage() {
       const matchesKind = kind === "all" || alert.kind === kind;
       const matchesQuery =
         !normalizedQuery ||
-        [alert.title, alert.detail, alert.entityLabel, alert.route, alert.station, alert.ownerName, alert.recommendedAction]
+        [
+          alert.title,
+          alert.detail,
+          alert.entityLabel,
+          alert.route,
+          alert.station,
+          alert.ownerName,
+          alert.recommendedAction,
+          alert.cause,
+          alert.clearCondition,
+          alert.targetModule,
+        ]
           .join(" ")
           .toLowerCase()
           .includes(normalizedQuery);
@@ -164,7 +192,7 @@ export default function AlertsPage() {
       <PageHeader
         eyebrow="Alert Center"
         title="Pusat Alert Operasional"
-        subtitle="Alert shipment, cutoff flight, kapasitas manifest, dan update data."
+        subtitle="Daftar masalah yang dibuat otomatis dari aturan shipment, flight, dokumen, readiness, dan kapasitas."
         actions={
           <>
             <button type="button" className="topbar-button" onClick={handleRefresh}>
@@ -179,12 +207,80 @@ export default function AlertsPage() {
         }
       />
 
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Butuh Tindakan"
+          value={data?.summary.total ?? 0}
+          note="Alert aktif dari aturan sistem."
+          icon={BellRing}
+          tone="primary"
+        />
+        <StatCard
+          label="Kritis"
+          value={data?.summary.critical ?? 0}
+          note="Perlu diselesaikan lebih dulu."
+          icon={ShieldAlert}
+          tone="danger"
+        />
+        <StatCard
+          label="Warning"
+          value={data?.summary.warning ?? 0}
+          note="Risiko operasional belum fatal."
+          icon={Clock3}
+          tone="warning"
+        />
+        <StatCard
+          label="Normal Check"
+          value={(data?.conditionChecks ?? []).filter((item) => item.status === "normal").length}
+          note={`${data?.conditionChecks.length ?? 0} aturan dipantau.`}
+          icon={CheckCircle2}
+          tone="success"
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.45fr)]">
+        <OpsPanel className="p-5">
+          <SectionHeader title="Evaluasi Aturan" subtitle="Alert aktif jika count melewati batas aman. Jika data diperbaiki, alert hilang otomatis." />
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {(data?.conditionChecks ?? []).map((item) => (
+              <div key={item.id} className="ops-panel-muted p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-[color:var(--text-strong)]">{item.label}</p>
+                    <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{item.detail}</p>
+                  </div>
+                  <StatusBadge value={item.status === "action" ? "warning" : "success"} label={item.statusLabel} />
+                </div>
+                <p className="mt-3 text-xs leading-5 text-[color:var(--muted-2)]">{item.mechanism}</p>
+              </div>
+            ))}
+          </div>
+        </OpsPanel>
+
+        <OpsPanel className="p-5">
+          <SectionHeader title="Mekanisme Selesai" subtitle="Tidak ada tombol selesai manual. Status alert mengikuti data sumber." />
+          <div className="mt-5 space-y-3">
+            {(data?.environmentMechanisms ?? []).slice(0, 4).map((item) => (
+              <div key={item.title} className="ops-panel-muted p-4">
+                <p className="font-semibold text-[color:var(--text-strong)]">{item.title}</p>
+                <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </OpsPanel>
+      </div>
+
       <FilterBar className="alerts-filter-bar xl:grid-cols-[minmax(0,1fr)_minmax(0,220px)_minmax(0,220px)_auto]">
         <div>
           <label className="label">Cari alert</label>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={16} />
-            <input className="input-field pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="AWB, flight, station, aksi..." />
+            <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={16} />
+            <input
+              className="input-field input-field-leading"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="AWB, flight, station, aksi..."
+            />
           </div>
         </div>
         <div>
@@ -342,10 +438,22 @@ export default function AlertsPage() {
                   <p className="mt-2 font-semibold text-[color:var(--text-strong)]">{selectedAlert.ownerName}</p>
                 </div>
                 <div className="ops-panel-muted p-4">
+                  <p className="label">Penyebab</p>
+                  <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{selectedAlert.cause}</p>
+                </div>
+                <div className="ops-panel-muted p-4">
                   <p className="label">Aksi</p>
                   <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">
                     {selectedAlert.recommendedAction}
                   </p>
+                </div>
+                <div className="ops-panel-muted p-4">
+                  <p className="label">Kriteria Selesai</p>
+                  <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{selectedAlert.clearCondition}</p>
+                </div>
+                <div className="ops-panel-muted p-4">
+                  <p className="label">Modul Tujuan</p>
+                  <p className="mt-2 font-semibold text-[color:var(--text-strong)]">{selectedAlert.targetModule}</p>
                 </div>
               </div>
 
