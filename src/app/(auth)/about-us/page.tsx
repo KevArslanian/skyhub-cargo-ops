@@ -297,7 +297,7 @@ export default function AboutUsPage() {
   return (
     <div className="premium-landing bg-[#050505] text-white">
       <nav className={`premium-nav ${navSolid ? "premium-nav-solid" : ""}`} id="navbar">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6">
+        <div className="premium-fluid-shell flex items-center justify-between">
           <button type="button" className="flex items-center gap-3 text-left" onClick={() => scrollToId("hero")}>
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#0066ff66] bg-[#0066ff1a]">
               <Image
@@ -360,19 +360,19 @@ export default function AboutUsPage() {
           <Plane />
         </div>
 
-        <div className="relative z-10 mx-auto w-full max-w-5xl px-6 text-center">
+        <div className="premium-fluid-shell relative z-10 text-left">
           <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-5 py-1 text-xs tracking-[3px]">
             <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#00a3ff]" />
             LIVE • SOEDIRMAN CONTROL CENTER
           </div>
 
-          <h1 className="mb-8 text-[64px] font-semibold leading-[0.92] tracking-[-0.05em] md:text-[92px]">
+          <h1 className="mb-8 max-w-[1500px] text-[64px] font-semibold leading-[0.92] tracking-[-0.05em] md:text-[92px] 2xl:text-[112px]">
             {COMPANY_HERO_HEADLINE}
           </h1>
 
-          <p className="mx-auto mb-12 max-w-3xl text-2xl text-white/70">{COMPANY_HERO_COPY}</p>
+          <p className="mb-12 max-w-5xl text-2xl text-white/70">{COMPANY_HERO_COPY}</p>
 
-          <div className="flex flex-col justify-center gap-4 sm:flex-row">
+          <div className="flex flex-col gap-4 sm:flex-row">
             <button
               type="button"
               onClick={() => setModalOpen(true)}
@@ -392,8 +392,8 @@ export default function AboutUsPage() {
         </div>
       </section>
 
-      <section id="about" className="mx-auto max-w-7xl border-t border-white/10 px-6 py-24">
-        <div className="grid items-center gap-16 md:grid-cols-2">
+      <section id="about" className="premium-fluid-shell border-t border-white/10 py-24">
+        <div className="premium-about-grid grid items-center gap-16">
           <div className="premium-reveal">
             <div className="mb-4 text-xs tracking-[4px] text-[#0066ff]">OUR STORY</div>
             <h2 className="mb-8 text-6xl font-semibold leading-none tracking-tight">
@@ -471,13 +471,13 @@ export default function AboutUsPage() {
       </section>
 
       <section id="capabilities" className="border-y border-white/10 bg-black py-20">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="premium-reveal mb-16 text-center">
+        <div className="premium-fluid-shell">
+          <div className="premium-reveal mb-16">
             <div className="text-xs tracking-[4px] text-[#0066ff]">WHAT WE DELIVER</div>
             <h3 className="mt-4 text-6xl font-semibold tracking-tight">{capabilityCard?.title ?? "Capabilities that define the edge."}</h3>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="premium-auto-grid grid gap-6">
             {CAPABILITIES.map((item) => {
               const Icon = item.icon;
               return (
@@ -494,13 +494,13 @@ export default function AboutUsPage() {
         </div>
       </section>
 
-      <section id="operations" className="mx-auto max-w-7xl px-6 py-24">
+      <section id="operations" className="premium-fluid-shell py-24">
         <div className="premium-reveal mb-12">
           <div className="text-xs tracking-[4px] text-[#0066ff]">THE RHYTHM OF CARGO</div>
           <h3 className="mt-3 text-6xl font-semibold tracking-tight">Operations that never sleep.</h3>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="premium-auto-grid premium-auto-grid-compact grid gap-6">
           {OPERATIONS.map((item) => (
             <div key={item.index} className="premium-glass premium-reveal rounded-3xl p-8">
               <div className="text-xs text-white/50">{item.index}</div>
@@ -513,12 +513,12 @@ export default function AboutUsPage() {
       </section>
 
       <section id="metrics" className="border-y border-white/10 bg-black py-20">
-        <div className="premium-reveal mx-auto max-w-7xl px-6 text-center">
+        <div className="premium-reveal premium-fluid-shell">
           <div className="text-xs tracking-[4px] text-[#0066ff]">PROVEN AT SCALE</div>
           <h3 className="mt-4 text-6xl font-semibold tracking-tight">Numbers that matter.</h3>
         </div>
 
-        <div className="mx-auto mt-16 grid max-w-7xl grid-cols-1 gap-px px-6 sm:grid-cols-2 md:grid-cols-4">
+        <div className="premium-fluid-shell mt-16 grid grid-cols-1 gap-px sm:grid-cols-2 xl:grid-cols-4">
           <div className="premium-glass p-10 text-center">
             <div className="text-5xl font-semibold md:text-7xl">{Math.floor(counter.shipments).toLocaleString()}</div>
             <div className="mt-2 text-sm text-white/60">Shipments today</div>
@@ -538,8 +538,8 @@ export default function AboutUsPage() {
         </div>
       </section>
 
-      <section id="contact" className="mx-auto max-w-7xl px-6 py-24">
-        <div className="grid gap-16 md:grid-cols-2">
+      <section id="contact" className="premium-fluid-shell py-24">
+        <div className="premium-contact-grid grid gap-16">
           <div className="premium-reveal">
             <div className="text-xs tracking-[4px] text-[#0066ff]">GET IN TOUCH</div>
             <h3 className="mb-8 mt-3 text-6xl font-semibold tracking-tight">
@@ -735,6 +735,27 @@ export default function AboutUsPage() {
           overflow-wrap: anywhere;
         }
 
+        .premium-fluid-shell {
+          width: min(100% - clamp(2rem, 6vw, 8rem), 1840px);
+          margin-inline: auto;
+        }
+
+        .premium-about-grid {
+          grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+        }
+
+        .premium-contact-grid {
+          grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+        }
+
+        .premium-auto-grid {
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+        }
+
+        .premium-auto-grid-compact {
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+        }
+
         .premium-nav {
           position: fixed;
           inset: 0 0 auto 0;
@@ -823,7 +844,29 @@ export default function AboutUsPage() {
           pointer-events: none;
         }
 
+        @media (min-width: 1920px) {
+          .premium-fluid-shell {
+            width: min(100% - 7rem, 2040px);
+          }
+
+          .premium-about-grid,
+          .premium-contact-grid {
+            gap: 7rem;
+          }
+        }
+
+        @media (max-width: 900px) {
+          .premium-about-grid,
+          .premium-contact-grid {
+            grid-template-columns: minmax(0, 1fr);
+          }
+        }
+
         @media (max-width: 640px) {
+          .premium-fluid-shell {
+            width: min(100% - 1.5rem, 100%);
+          }
+
           .premium-nav {
             padding: 0.85rem 0;
           }
