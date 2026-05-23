@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CircleAlert,
   Clock3,
+  ExternalLink,
   FileText,
   FolderOpen,
   PackageSearch,
@@ -1374,15 +1375,8 @@ export default function ShipmentLedgerPage() {
                               className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-4 py-4"
                             >
                               <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <a
-                                    href={document.storageUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="font-semibold text-[color:var(--text-strong)] underline-offset-2 hover:underline"
-                                  >
-                                    {document.fileName}
-                                  </a>
+                                <div className="min-w-0">
+                                  <p className="break-words font-semibold text-[color:var(--text-strong)]">{document.fileName}</p>
                                   <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
                                     {formatDateTime(document.createdAt)}
                                   </p>
@@ -1393,6 +1387,15 @@ export default function ShipmentLedgerPage() {
                                   ) : null}
                                 </div>
                                 <div className="flex flex-wrap justify-end gap-2">
+                                  <a
+                                    href={document.storageUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="topbar-button"
+                                  >
+                                    <ExternalLink size={16} />
+                                    Buka Dokumen
+                                  </a>
                                   {!document.paymentVerifiedAt && selectedShipment.shippingRate > 0 && data?.permissions.canVerifyPayment ? (
                                     <button
                                       type="button"

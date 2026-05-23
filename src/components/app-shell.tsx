@@ -13,6 +13,7 @@ import {
   FileBarChart2,
   History,
   LayoutDashboard,
+  LogOut,
   Menu,
   MoonStar,
   PackageSearch,
@@ -89,7 +90,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [shellSettings, setShellSettings] = useState(settings);
   const [collapsed, setCollapsed] = useState(settings.sidebarCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [avatarOpen, setAvatarOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationItems, setNotificationItems] = useState(notifications);
   const [mounted, setMounted] = useState(false);
@@ -114,6 +114,10 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [openGroupId, setOpenGroupId] = useState<(typeof navigation.groups)[number]["id"]>(activeGroupId);
   const visibleNotifications = notificationItems.slice(0, 10);
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
+  const displayedNavigationItems = navigation.items.filter((item) => item.href !== "/settings");
+  const displayedNavigationGroups = navigation.groups
+    .map((group) => ({ ...group, items: group.items.filter((item) => item.href !== "/settings") }))
+    .filter((group) => group.items.length > 0);
 
   useEffect(() => {
     setShellSettings((current) => ({ ...settings, theme: current.theme }));
@@ -402,7 +406,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               )}
             >
               {collapsed
-                ? navigation.items.map((item) => {
+                ? displayedNavigationItems.map((item) => {
                     const Icon = navIconMap[item.href];
                     const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
                     return (
@@ -422,7 +426,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                       </Link>
                     );
                   })
-                : navigation.groups.map((group) => {
+                : displayedNavigationGroups.map((group) => {
                     const GroupIcon = navGroupIconMap[group.id];
                     const isOpen = openGroupId === group.id;
 
@@ -482,33 +486,65 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                   })}
             </nav>
 
-            <div className={cn("border-t border-[color:var(--border-soft)]", collapsed ? "px-4 py-4" : "px-4 py-4")}>
-              <div className={cn("rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-contrast)] px-4 py-4 text-white", collapsed && "px-0 py-3")}>
+            <div className={cn("border-t border-[color:var(--border-soft)]", collapsed ? "px-3 py-4" : "px-4 py-4")}>
+              <div className={cn("rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-3", collapsed && "px-2")}>
                 {!collapsed ? (
                   <>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">Ringkasan</p>
-                    <div className="mt-3 flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em]">
-                          {user.role === "customer" ? "Portal Akun" : "Shift Aktif"}
-                        </p>
-                        <p className="mt-1 text-sm text-white/70">
-                          {ROLE_LABELS[user.role]} | {user.customerAccountName || user.station}
-                        </p>
+                    <div className="flex items-start gap-3 px-1 pb-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary)] text-sm font-black text-white">
+                        {user.name
+                          .split(" ")
+                          .map((part) => part[0])
+                          .join("")
+                          .slice(0, 2)}
                       </div>
-                      <StatusBadge value="normal" label="Siap" className="border-white/15 bg-white/10 text-white" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">{user.name}</p>
+                        <p className="truncate text-xs text-[color:var(--muted-fg)]">{ROLE_LABELS[user.role]} | {user.customerAccountName || user.station}</p>
+                      </div>
+                    </div>
+                    <div className="grid gap-1 border-t border-[color:var(--border-soft)] pt-3">
+                      <Link href="/settings" className="sidebar-link" onClick={() => setMobileOpen(false)}>
+                        <UserCircle2 size={18} className="shrink-0" />
+                        <div className="min-w-0">
+                          <p className="truncate">Profil</p>
+                          <p className="truncate text-[11px] font-medium text-[color:var(--muted-2)]">Data akun</p>
+                        </div>
+                      </Link>
+                      <Link href="/settings" className="sidebar-link" onClick={() => setMobileOpen(false)}>
+                        <Settings2 size={18} className="shrink-0" />
+                        <div className="min-w-0">
+                          <p className="truncate">Settings</p>
+                          <p className="truncate text-[11px] font-medium text-[color:var(--muted-2)]">Preferensi umum</p>
+                        </div>
+                      </Link>
+                      <button type="button" className="sidebar-link w-full text-left text-[color:var(--tone-warning)]" onClick={handleSignOut}>
+                        <LogOut size={18} className="shrink-0" />
+                        <div className="min-w-0">
+                          <p className="truncate">Logout</p>
+                          <p className="truncate text-[11px] font-medium text-[color:var(--muted-2)]">Keluar sesi</p>
+                        </div>
+                      </button>
                     </div>
                   </>
                 ) : (
-                  <div className="flex flex-col items-center gap-3">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-white/10 text-sm font-black">
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary)] text-sm font-black text-white">
                       {user.name
                         .split(" ")
                         .map((part) => part[0])
                         .join("")
                         .slice(0, 2)}
                     </span>
-                    <span className="h-2 w-2 rounded-full bg-[color:var(--tone-success)]" />
+                    <Link href="/settings" title="Profil" aria-label="Profil" className="sidebar-link h-11 w-11 justify-center rounded-[16px] px-0" onClick={() => setMobileOpen(false)}>
+                      <UserCircle2 size={18} />
+                    </Link>
+                    <Link href="/settings" title="Settings" aria-label="Settings" className="sidebar-link h-11 w-11 justify-center rounded-[16px] px-0" onClick={() => setMobileOpen(false)}>
+                      <Settings2 size={18} />
+                    </Link>
+                    <button type="button" title="Logout" aria-label="Logout" className="sidebar-link h-11 w-11 justify-center rounded-[16px] px-0 text-[color:var(--tone-warning)]" onClick={handleSignOut}>
+                      <LogOut size={18} />
+                    </button>
                   </div>
                 )}
               </div>
@@ -627,49 +663,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                 ) : null}
               </div>
 
-              <div className="relative">
-                <button
-                  type="button"
-                  className="inline-flex h-11 max-w-full min-w-0 items-center gap-3 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-3"
-                  onClick={() => setAvatarOpen((value) => !value)}
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand-primary),var(--brand-primary-2))] text-sm font-black text-white">
-                    {user.name
-                      .split(" ")
-                      .map((part) => part[0])
-                      .join("")
-                      .slice(0, 2)}
-                  </div>
-                  <div className="hidden min-w-0 max-w-[140px] text-left sm:block">
-                    <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">{user.name}</p>
-                    <p className="truncate text-xs text-[color:var(--muted-fg)]">{ROLE_LABELS[user.role]}</p>
-                  </div>
-                  <ChevronDown size={16} className="hidden sm:block text-[color:var(--muted-fg)]" />
-                </button>
-
-                {avatarOpen ? (
-                  <div className="dropdown-panel right-0 top-14 w-[min(248px,calc(100vw-1.5rem))] sm:w-[248px]">
-                    <div className="border-b border-[color:var(--border-soft)] px-4 py-4">
-                      <p className="font-semibold text-[color:var(--text-strong)]">{user.email}</p>
-                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
-                        {user.customerAccountName || user.station}
-                      </p>
-                    </div>
-                    <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-[color:var(--panel-muted)]">
-                      <UserCircle2 size={18} />
-                      Profil
-                    </Link>
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-[color:var(--tone-warning)] hover:bg-[color:var(--panel-muted)]"
-                      onClick={handleSignOut}
-                    >
-                      <ChevronRight size={18} />
-                      Keluar
-                    </button>
-                  </div>
-                ) : null}
-              </div>
             </div>
           </header>
 

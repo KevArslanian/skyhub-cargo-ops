@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -806,38 +805,16 @@ export default function FlightBoardPage() {
               className="ops-panel overflow-hidden text-left"
               onClick={() => handleSelectFlight(flight.id)}
             >
-              <div className="relative h-44 overflow-hidden border-b border-[color:var(--border-soft)]">
-                <Image
-                  src={flight.imageUrl}
-                  alt={flight.flightNumber}
-                  fill
-                  sizes="(max-width: 1023px) 100vw, 33vw"
-                  className="object-cover"
-                />
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,38,0.08),rgba(8,20,38,0.74))]" />
-                <div className="absolute left-4 top-4 flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/90 p-1 shadow-sm">
-                    <Image
-                      src={flight.airlineLogoUrl}
-                      alt={flight.airlineName}
-                      width={36}
-                      height={36}
-                      sizes="36px"
-                      className="object-contain"
-                      style={{ height: "100%", width: "auto" }}
-                    />
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-white">{flight.airlineName}</p>
-                    <p className="text-xs text-white/74">{flight.aircraftType}</p>
+              <div className="border-b border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
+                      {flight.airlineName} | {flight.aircraftType}
+                    </p>
+                    <p className="mt-2 font-[family:var(--font-heading)] text-2xl font-black tracking-[-0.05em] text-[color:var(--text-strong)]">{flight.flightNumber}</p>
+                    <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{flight.route}</p>
                   </div>
-                </div>
-                <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-4 pb-4">
-                  <div>
-                    <p className="font-[family:var(--font-heading)] text-2xl font-black tracking-[-0.05em] text-white">{flight.flightNumber}</p>
-                    <p className="text-sm text-white/75">{flight.route}</p>
-                  </div>
-                  <StatusBadge value={flight.status} label={flight.statusLabel} className="border-white/20 bg-white/10 text-white" />
+                  <StatusBadge value={flight.status} label={flight.statusLabel} />
                 </div>
               </div>
               <div className="grid gap-3 px-4 py-4 text-sm">
@@ -896,16 +873,8 @@ export default function FlightBoardPage() {
                     >
                       <td>
                         <div className="flex items-center gap-3">
-                          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border-soft)] bg-white/90 p-1">
-                            <Image
-                              src={flight.airlineLogoUrl}
-                              alt={flight.airlineName}
-                              width={32}
-                              height={32}
-                              sizes="32px"
-                              className="object-contain"
-                              style={{ height: "100%", width: "auto" }}
-                            />
+                          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-xs font-black text-[color:var(--brand-primary)]">
+                            {flight.airlineCode}
                           </span>
                           <div>
                             <p className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">{flight.flightNumber}</p>
@@ -978,43 +947,23 @@ export default function FlightBoardPage() {
         {selectedFlight ? (
           <OpsPanel className="page-pane flightboard-pane flightboard-editor-detail-pane p-5">
             <div className="flightboard-editor-detail-scroll space-y-5">
-              <div className="overflow-hidden rounded-[26px] border border-[color:var(--border-soft)]">
-                <div className="relative h-56">
-                  <Image
-                    src={selectedFlight.imageUrl}
-                    alt={selectedFlight.flightNumber}
-                    fill
-                    sizes="(max-width: 1535px) 100vw, 420px"
-                    className="object-cover"
-                  />
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,38,0.1),rgba(8,20,38,0.78))]" />
-                  <div className="absolute inset-x-0 bottom-0 px-5 pb-5">
-                    <div className="flex items-end justify-between gap-3">
-                      <div>
-                        <div className="mb-3 flex items-center gap-3">
-                          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/90 p-1 shadow-sm">
-                            <Image
-                              src={selectedFlight.airlineLogoUrl}
-                              alt={selectedFlight.airlineName}
-                              width={40}
-                              height={40}
-                              sizes="40px"
-                              className="object-contain"
-                              style={{ height: "100%", width: "auto" }}
-                            />
-                          </span>
-                          <div>
-                            <p className="text-base font-semibold text-white">{selectedFlight.airlineName}</p>
-                            <p className="text-xs text-white/74">{selectedFlight.airlineFullName}</p>
-                          </div>
-                        </div>
-                        <p className="ops-eyebrow !text-white/70">Flight Terpilih</p>
-                        <h2 className="mt-1 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-white">{selectedFlight.flightNumber}</h2>
-                        <p className="mt-2 text-sm text-white/74">{selectedFlight.route}</p>
+              <div className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="mb-4 flex items-center gap-3">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] text-sm font-black text-[color:var(--brand-primary)]">
+                        {selectedFlight.airlineCode}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-semibold text-[color:var(--text-strong)]">{selectedFlight.airlineName}</p>
+                        <p className="truncate text-xs text-[color:var(--muted-fg)]">{selectedFlight.airlineFullName}</p>
                       </div>
-                      <StatusBadge value={selectedFlight.status} label={selectedFlight.statusLabel} className="border-white/20 bg-white/10 text-white" />
                     </div>
+                    <p className="ops-eyebrow">Flight Terpilih</p>
+                    <h2 className="mt-1 font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">{selectedFlight.flightNumber}</h2>
+                    <p className="mt-2 text-sm text-[color:var(--muted-fg)]">{selectedFlight.route}</p>
                   </div>
+                  <StatusBadge value={selectedFlight.status} label={selectedFlight.statusLabel} className="shrink-0" />
                 </div>
               </div>
 

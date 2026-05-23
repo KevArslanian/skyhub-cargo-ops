@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -848,52 +847,23 @@ export default function DashboardPage() {
                         key={flight.id}
                         className="dashboard-flight-card overflow-hidden rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]"
                       >
-                        <div className="dashboard-flight-card-hero relative h-[clamp(8.75rem,22vw,10rem)] min-h-[8.75rem] overflow-hidden border-b border-[color:var(--border-soft)]">
-                          <Image
-                            src={flight.imageUrl}
-                            alt={flight.flightNumber}
-                            fill
-                            sizes="(max-width: 1279px) 100vw, 320px"
-                            className="object-cover"
-                          />
-                          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,38,0.08),rgba(8,20,38,0.72))]" />
-                          <div className="absolute inset-0 flex flex-col justify-between p-3">
-                            <div className="flex items-start gap-2.5">
-                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/92 p-1 shadow-sm">
-                                <Image
-                                  src={flight.airlineLogoUrl}
-                                  alt={flight.airlineName}
-                                  width={32}
-                                  height={32}
-                                  sizes="32px"
-                                  className="object-contain"
-                                  style={{ height: "100%", width: "auto" }}
-                                />
-                              </span>
-                              <div className="min-w-0 leading-tight">
-                                <p className="truncate text-xs font-semibold text-white">{flight.airlineName}</p>
-                                <p className="truncate text-[11px] text-white/72">{flight.aircraftType}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-end justify-between gap-3 pb-1">
-                              <div className="min-w-0">
-                                <p className="font-[family:var(--font-heading)] text-xl font-black leading-none tracking-[-0.04em] text-white">
-                                  {flight.flightNumber}
-                                </p>
-                                <p className="mt-1 truncate text-sm text-white/75">{flight.route}</p>
-                                <ShiftContextBadge
-                                  isFallbackContext={flight.isFallbackContext}
-                                  shiftLabel={flight.shiftLabel}
-                                  className="mt-2"
-                                  onImage
-                                />
-                              </div>
-                              <StatusBadge
-                                value={flight.status}
-                                label={flight.statusLabel}
-                                className="shrink-0 border-white/20 bg-white/10 text-white"
+                        <div className="border-b border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
+                                {flight.airlineName} | {flight.aircraftType}
+                              </p>
+                              <p className="mt-2 font-[family:var(--font-heading)] text-2xl font-black tracking-[-0.04em] text-[color:var(--text-strong)]">
+                                {flight.flightNumber}
+                              </p>
+                              <p className="mt-1 truncate text-sm text-[color:var(--muted-fg)]">{flight.route}</p>
+                              <ShiftContextBadge
+                                isFallbackContext={flight.isFallbackContext}
+                                shiftLabel={flight.shiftLabel}
+                                className="mt-3"
                               />
                             </div>
+                            <StatusBadge value={flight.status} label={flight.statusLabel} className="shrink-0" />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 items-start gap-x-4 gap-y-3 px-4 py-4 text-sm">
