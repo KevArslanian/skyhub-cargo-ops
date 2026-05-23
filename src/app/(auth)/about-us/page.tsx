@@ -617,42 +617,42 @@ export default function AboutUsPage() {
 
       {modalOpen ? (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-6"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/88 p-4 backdrop-blur-sm sm:p-6"
           onClick={() => setModalOpen(false)}
         >
           <div
-            className="premium-glass relative w-full max-w-md rounded-3xl border border-white/20 p-9"
+            className="premium-glass premium-login-modal relative rounded-[28px] border border-white/15 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.58)] sm:p-8"
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setModalOpen(false)}
-              className="absolute right-6 top-6 text-white/60 transition hover:text-white"
+              className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/60 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
               aria-label="Close login modal"
             >
-              <X size={22} />
+              <X size={18} />
             </button>
 
-            <div className="mb-8 text-center">
-              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#0066ff66] bg-[#0066ff1a]">
+            <div className="mb-7 text-center">
+              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-[18px] border border-[#0066ff66] bg-[#0066ff1a]">
                 <Image
                   src="/skyhub-logo-icon-clean.png"
                   alt="SkyHub logo"
-                  width={42}
-                  height={42}
+                  width={38}
+                  height={38}
                   className="premium-logo-plane"
                 />
               </div>
-              <div className="text-3xl font-semibold">SkyHub Command</div>
+              <div className="text-[1.55rem] font-semibold leading-tight">SkyHub Command</div>
               <div className="mt-1 text-sm text-white/50">Secure Operator Access</div>
             </div>
 
-            <form className="space-y-5" onSubmit={handleLogin}>
+            <form className="space-y-4" onSubmit={handleLogin}>
               <div>
                 <label className="mb-2 block text-xs tracking-widest text-white/60">EMAIL</label>
                 <input
                   type="email"
-                  className="w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
+                  className="h-12 w-full rounded-[18px] border border-white/15 bg-white/[0.06] px-4 text-sm text-white outline-none transition focus:border-[#0066ff] focus:bg-white/[0.08]"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                 />
@@ -661,7 +661,7 @@ export default function AboutUsPage() {
                 <label className="mb-2 block text-xs tracking-widest text-white/60">PASSWORD</label>
                 <input
                   type="password"
-                  className="w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
+                  className="h-12 w-full rounded-[18px] border border-white/15 bg-white/[0.06] px-4 text-sm text-white outline-none transition focus:border-[#0066ff] focus:bg-white/[0.08]"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                 />
@@ -679,7 +679,7 @@ export default function AboutUsPage() {
 
               <button
                 type="submit"
-                className="mt-2 w-full rounded-2xl bg-white py-4 font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+                className="mt-3 h-12 w-full rounded-[18px] bg-white font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={submitting}
               >
                 {submitting ? "LOGGING IN..." : "LOGIN"}
@@ -774,6 +774,14 @@ export default function AboutUsPage() {
           background: rgba(10, 10, 12, 0.88);
           backdrop-filter: blur(24px);
           border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .premium-login-modal {
+          width: min(100%, 460px);
+          max-width: min(460px, calc(100vw - 2rem)) !important;
+          background:
+            linear-gradient(180deg, rgba(16, 18, 22, 0.96), rgba(8, 9, 12, 0.98)),
+            rgba(10, 10, 12, 0.96);
         }
 
         .premium-reveal {
