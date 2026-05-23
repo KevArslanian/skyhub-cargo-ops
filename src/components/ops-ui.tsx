@@ -21,7 +21,7 @@ export function PageHeader({
         <h1 className="page-title">{title}</h1>
         <p className="page-subtitle max-w-3xl">{subtitle}</p>
       </div>
-      {actions ? <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3 xl:justify-end">{actions}</div> : null}
+      {actions ? <div className="flex max-w-full shrink-0 flex-wrap items-center gap-3 xl:justify-end">{actions}</div> : null}
     </header>
   );
 }
@@ -59,7 +59,7 @@ export function SectionHeader({
         </h2>
         {subtitle ? <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">{subtitle}</p> : null}
       </div>
-      {action ? <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3 xl:justify-end">{action}</div> : null}
+      {action ? <div className="flex max-w-full shrink-0 flex-wrap items-center gap-3 xl:justify-end">{action}</div> : null}
     </div>
   );
 }
@@ -205,7 +205,7 @@ export function EmptyState({
       <h3 className="mt-5 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
         {title}
       </h3>
-      <p className="mt-3 max-w-xl text-sm leading-7 text-[color:var(--muted-fg)]">{copy}</p>
+      <p className="mx-auto mt-3 max-w-xl text-center text-sm leading-7 text-[color:var(--muted-fg)]">{copy}</p>
       {action ? <div className="mt-5">{action}</div> : null}
     </div>
   );
