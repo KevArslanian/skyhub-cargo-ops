@@ -8,7 +8,6 @@ import {
   Monitor,
   MoonStar,
   Plus,
-  Search,
   ShieldCheck,
   SunMedium,
   UserCircle2,
@@ -18,7 +17,6 @@ import {
 import {
   CUSTOMER_ACCOUNT_STATUS_LABELS,
   ROLE_LABELS,
-  ROLE_SCOPE_COPY,
   STATION_OPTIONS,
   USER_STATUS_LABELS,
 } from "@/lib/constants";
@@ -300,14 +298,17 @@ export default function SettingsPage() {
   const [accountSearch, setAccountSearch] = useState("");
   const [accountPage, setAccountPage] = useState(1);
 
+  async function reloadSettings() {
+    const response = await fetch("/api/settings", { cache: "no-store" });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as SettingsPayload;
+    setData(payload);
+    setDraft(toDraft(payload));
+    return payload;
+  }
+
   useEffect(() => {
-    fetch("/api/settings", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((payload: SettingsPayload) => {
-        setData(payload);
-        setDraft(toDraft(payload));
-      })
-      .catch(() => undefined);
+    void reloadSettings().catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -325,14 +326,14 @@ export default function SettingsPage() {
   const tabs = useMemo(() => {
     const items = [
       {
-        label: "Profil",
-        icon: UserCircle2,
-        note: "Identitas, role, stasiun",
+      label: "Profil",
+      icon: UserCircle2,
+      note: "Identitas",
       },
       {
-        label: "Preferensi",
-        icon: Monitor,
-        note: "Tampilan, notifikasi, behavior",
+      label: "Preferensi",
+      icon: Monitor,
+      note: "Tampilan",
       },
     ];
 
@@ -340,7 +341,7 @@ export default function SettingsPage() {
       items.push({
         label: "Tim & Akses",
         icon: Users2,
-        note: "Hak akses dan undangan user",
+        note: "User",
       });
     }
 
@@ -348,18 +349,38 @@ export default function SettingsPage() {
       items.push({
         label: "Akun Pelanggan",
         icon: Building2,
-        note: "Relasi portal dan kontak akun",
+        note: "Pelanggan",
       });
     }
 
     return items;
   }, [data?.permissions.canManageCustomerAccounts, data?.permissions.canManageUsers]);
 
+  useEffect(() => {
+    function handleContextSearch(event: Event) {
+      const detail = (event as CustomEvent<{ pathname?: string; query?: string }>).detail;
+      if (detail?.pathname !== "/settings") return;
+      const nextQuery = detail.query ?? "";
+      if (activeTab === "Tim & Akses") {
+        setUserSearch(nextQuery);
+      } else if (activeTab === "Akun Pelanggan") {
+        setAccountSearch(nextQuery);
+      } else {
+        const normalized = nextQuery.toLowerCase();
+        const matchedTab = tabs.find((tab) => tab.label.toLowerCase().includes(normalized));
+        if (matchedTab) setActiveTab(matchedTab.label);
+      }
+    }
+
+    window.addEventListener("skyhub:context-search", handleContextSearch as EventListener);
+    return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
+  }, [activeTab, tabs]);
+
   const preferenceSummary = [
     {
       label: "Tema aktif",
       value: draft.theme === "light" ? "Terang" : "Gelap",
-      note: "Preview diterapkan langsung ke shell aplikasi.",
+      note: "Shell.",
       tone: "primary" as const,
     },
     {
@@ -370,14 +391,14 @@ export default function SettingsPage() {
     },
     {
       label: "Notifikasi aktif",
-      value: [draft.cutoffAlert, draft.exceptionAlert, draft.soundAlert, draft.emailDigest].filter(Boolean).length,
-      note: "Jumlah kanal yang sedang diaktifkan.",
+      value: [draft.cutoffAlert, draft.exceptionAlert].filter(Boolean).length,
+      note: "Cutoff dan exception.",
       tone: "success" as const,
     },
     {
       label: "Refresh behavior",
       value: draft.autoRefresh ? `${draft.refreshIntervalSeconds} detik` : "Manual",
-      note: "Mengontrol ritme sinkronisasi workspace.",
+      note: "Sinkronisasi.",
       tone: "warning" as const,
     },
   ];
@@ -488,6 +509,8 @@ export default function SettingsPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        name: editingUserDraft.name,
+        email: editingUserDraft.email,
         role: editingUserDraft.role,
         status: editingUserDraft.status,
         station: editingUserDraft.station,
@@ -498,15 +521,7 @@ export default function SettingsPage() {
     });
 
     if (response.ok) {
-      const payload = (await response.json()) as { user: SettingsPayload["users"][number] };
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              users: current.users.map((user) => (user.id === payload.user.id ? payload.user : user)),
-            }
-          : current,
-      );
+      await reloadSettings();
       setEditingUserId(null);
       setEditingUserDraft(null);
       setNotice("Pengguna berhasil diperbarui.");
@@ -589,24 +604,12 @@ export default function SettingsPage() {
         contactName: editingAccountDraft.contactName,
         contactEmail: editingAccountDraft.contactEmail,
         contactPhone: editingAccountDraft.contactPhone,
-        status: editingAccountDraft.status,
+      status: editingAccountDraft.status,
       }),
     });
 
     if (response.ok) {
-      const payload = (await response.json()) as {
-        customerAccount: SettingsPayload["customerAccounts"][number];
-      };
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              customerAccounts: current.customerAccounts.map((account) =>
-                account.id === payload.customerAccount.id ? payload.customerAccount : account,
-              ),
-            }
-          : current,
-      );
+      await reloadSettings();
       setEditingAccountId(null);
       setEditingAccountDraft(null);
       setNotice("Akun pelanggan berhasil diperbarui.");
@@ -618,7 +621,7 @@ export default function SettingsPage() {
       <PageHeader
         eyebrow="Pengaturan"
         title="Pengaturan"
-        subtitle="Pusat preferensi yang lebih modular: profil, tampilan, notifikasi, workflow, dan behavior ditata sebagai sistem kerja yang utuh."
+        subtitle="Profil, akses, pelanggan."
         actions={
           <button type="button" className="btn btn-primary" onClick={saveSettings} disabled={saving}>
             <ShieldCheck size={16} />
@@ -652,7 +655,7 @@ export default function SettingsPage() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[minmax(240px,300px)_minmax(0,1fr)] split-pane-shell split-pane-shell-settings">
+        <div className="grid gap-4 xl:grid-cols-[minmax(200px,260px)_minmax(0,1fr)] split-pane-shell split-pane-shell-settings">
           <OpsPanel className="page-pane split-pane-left p-4">
             <div className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
               <div className="flex items-start gap-4">
@@ -704,14 +707,6 @@ export default function SettingsPage() {
               })}
             </div>
 
-            <div className="mt-4 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
-              <p className="label">Ringkasan Workspace</p>
-              <div className="mt-3 space-y-3 text-sm text-[color:var(--muted-fg)]">
-                <p>Theme {draft.theme === "light" ? "terang" : "gelap"} dengan {draft.compactRows ? "baris ringkas" : "baris standar"}.</p>
-                <p>Auto refresh {draft.autoRefresh ? `aktif tiap ${draft.refreshIntervalSeconds} detik` : "dinonaktifkan"}.</p>
-                <p>{hasDraftChanges ? "Ada perubahan yang belum disimpan." : "Semua preferensi sudah sinkron dengan shell aplikasi."}</p>
-              </div>
-            </div>
           </OpsPanel>
 
           <div className="page-stack split-pane-right page-scroll">
@@ -722,7 +717,6 @@ export default function SettingsPage() {
                     <div className="p-6">
                       <SectionHeader
                         title="Profil Pengguna"
-                        subtitle="Identitas akun, stasiun aktif, dan metadata akses disusun sebagai ringkasan yang lebih jelas."
                       />
                       <div className="mt-6 grid gap-4 xl:grid-cols-2">
                         <div className="xl:col-span-2">
@@ -754,25 +748,12 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <div className="border-t border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/70 p-6 xl:border-l xl:border-t-0">
+                    <div className="border-t border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/70 p-5 xl:border-l xl:border-t-0">
                       <p className="ops-eyebrow">Akses Workspace</p>
-                      <div className="mt-4 space-y-3">
-                        <DataCard label="Peran" value={ROLE_LABELS[data.profile.role]} note="Hak akses saat ini" />
-                        <DataCard
-                          label="Hak akses peran"
-                          value={data.profile.role === "admin" ? "Manajemen penuh" : data.profile.role === "staff" ? "Operasional internal" : "Portal pelanggan"}
-                          note={ROLE_SCOPE_COPY[data.profile.role]}
-                        />
-                        <DataCard
-                          label="Stasiun aktif"
-                          value={draft.station}
-                          note={data.profile.role === "staff" ? "Digunakan sebagai konteks default staff operasional." : "Konteks stasiun untuk workspace saat ini."}
-                        />
-                        <DataCard
-                          label="Akun pelanggan"
-                          value={data.profile.customerAccountName || "-"}
-                          note="Akan muncul bila akun ini terhubung ke portal pelanggan"
-                        />
+                      <div className="mt-4 grid gap-3">
+                        <DataCard label="Peran" value={ROLE_LABELS[data.profile.role]} />
+                        <DataCard label="Stasiun" value={draft.station} />
+                        <DataCard label="Akun pelanggan" value={data.profile.customerAccountName || "-"} />
                       </div>
                     </div>
                   </div>
@@ -783,9 +764,6 @@ export default function SettingsPage() {
                     <div className="min-w-0">
                       <p className="font-semibold text-[color:var(--text-strong)]">
                         {hasDraftChanges ? "Perubahan profil belum disimpan" : "Profil sudah sinkron"}
-                      </p>
-                      <p className="mt-1 text-sm text-[color:var(--muted-fg)]">
-                        Simpan untuk menerapkan perubahan nama, stasiun, dan preferensi yang sudah diubah.
                       </p>
                     </div>
                     <button type="button" className="btn btn-primary" onClick={saveSettings} disabled={saving}>
@@ -840,20 +818,18 @@ export default function SettingsPage() {
                   <OpsPanel className="p-5">
                     <SectionHeader
                       title="Workflow"
-                      subtitle="Kepadatan baris dan state sidebar dikelompokkan sebagai perilaku kerja tim operasional."
+                      subtitle="Kepadatan layar."
                     />
                     <div className="mt-5 space-y-4">
                       <PreferenceToggleCard
                         title="Baris ringkas"
-                        copy="Rapatkan tinggi baris tabel agar ledger, audit log, dan manifest lebih padat."
-                        hint="Cocok untuk shift yang perlu memindai banyak identifier dalam satu layar."
+                        copy="Rapatkan tabel."
                         checked={draft.compactRows}
                         onChange={(value) => applyDraftPatch({ compactRows: value })}
                       />
                       <PreferenceToggleCard
                         title="Sidebar terlipat"
-                        copy="Simpan sidebar dalam kondisi terlipat untuk memberi ruang kerja lebih luas."
-                        hint="Tetap mempertahankan anchor navigasi utama di kiri."
+                        copy="Beri ruang kerja lebih luas."
                         checked={draft.sidebarCollapsed}
                         onChange={(value) => applyDraftPatch({ sidebarCollapsed: value })}
                       />
@@ -863,32 +839,20 @@ export default function SettingsPage() {
                   <OpsPanel className="p-5">
                     <SectionHeader
                       title="Notifikasi"
-                      subtitle="Kanal alert dipisah jelas antara warning operasional dan notifikasi pelengkap."
+                      subtitle="Alert praktis."
                     />
                     <div className="mt-5 space-y-4">
                       <PreferenceToggleCard
                         title="Cutoff alerts"
-                        copy="Peringatan saat cutoff flight mendekat agar manifest tidak terlambat ditutup."
+                        copy="Peringatan cutoff flight."
                         checked={draft.cutoffAlert}
                         onChange={(value) => applyDraftPatch({ cutoffAlert: value })}
                       />
                       <PreferenceToggleCard
                         title="Exception alerts"
-                        copy="Sorot shipment hold, data bermasalah, atau exception yang perlu review."
+                        copy="Sorot hold dan data bermasalah."
                         checked={draft.exceptionAlert}
                         onChange={(value) => applyDraftPatch({ exceptionAlert: value })}
-                      />
-                      <PreferenceToggleCard
-                        title="Sound alerts"
-                        copy="Aktifkan bunyi notifikasi untuk workspace yang membutuhkan response cepat."
-                        checked={draft.soundAlert}
-                        onChange={(value) => applyDraftPatch({ soundAlert: value })}
-                      />
-                      <PreferenceToggleCard
-                        title="Email digest"
-                        copy="Ringkasan berkala untuk user yang perlu rekap tanpa memantau layar terus-menerus."
-                        checked={draft.emailDigest}
-                        onChange={(value) => applyDraftPatch({ emailDigest: value })}
                       />
                     </div>
                   </OpsPanel>
@@ -896,13 +860,12 @@ export default function SettingsPage() {
                   <OpsPanel className="p-5">
                     <SectionHeader
                       title="Refresh & Behavior"
-                      subtitle="Auto refresh tidak lagi berdiri sendirian; ia ditempatkan bersama ritme sinkronisasi workspace."
+                      subtitle="Sinkronisasi."
                     />
                     <div className="mt-5 space-y-4">
                       <PreferenceToggleCard
                         title="Penyegaran otomatis"
-                        copy="Segarkan dashboard dan panel monitoring tanpa reload manual."
-                        hint="Aktifkan untuk ruang kontrol yang memerlukan sinkronisasi berulang."
+                        copy="Segarkan panel tanpa reload manual."
                         checked={draft.autoRefresh}
                         onChange={(value) => applyDraftPatch({ autoRefresh: value })}
                       />
@@ -957,7 +920,7 @@ export default function SettingsPage() {
               <OpsPanel className="p-5">
                 <SectionHeader
                   title="Tim & Akses"
-                  subtitle="Undangan, peran, stasiun, dan hubungan akun pelanggan ditata lebih rapat agar review akses tidak terasa datar."
+                  subtitle="User, role, izin."
                   action={
                     <button type="button" className="btn btn-primary" onClick={() => setInviteOpen((current) => !current)}>
                       <Plus size={16} />
@@ -967,37 +930,17 @@ export default function SettingsPage() {
                 />
 
                 <div className="mt-5 grid gap-4 xl:grid-cols-3">
-                  <DataCard label="Total user" value={data.users.length} note="Semua akun yang terdaftar di workspace." tone="primary" />
+                  <DataCard label="Total user" value={data.users.length} tone="primary" />
                   <DataCard
                     label="User aktif"
                     value={data.users.filter((user) => user.status === "active").length}
-                    note="Akun yang dapat mengakses sistem saat ini."
                     tone="success"
                   />
                   <DataCard
                     label="Perlu follow-up"
                     value={data.users.filter((user) => user.status !== "active").length}
-                    note="Undangan atau akun nonaktif yang mungkin butuh tindakan."
                     tone="warning"
                   />
-                </div>
-
-                <div className="mt-5 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
-                  <p className="label">Batas Akses Role</p>
-                  <div className="mt-3 grid gap-3 xl:grid-cols-3">
-                    <div className="rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3">
-                      <p className="font-semibold text-[color:var(--text-strong)]">Admin</p>
-                      <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{ROLE_SCOPE_COPY.admin}</p>
-                    </div>
-                    <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-4 py-3">
-                      <p className="font-semibold text-[color:var(--text-strong)]">Staff Operasional</p>
-                      <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{ROLE_SCOPE_COPY.staff}</p>
-                    </div>
-                    <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-4 py-3">
-                      <p className="font-semibold text-[color:var(--text-strong)]">Pelanggan</p>
-                      <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{ROLE_SCOPE_COPY.customer}</p>
-                    </div>
-                  </div>
                 </div>
 
                 {inviteOpen ? (
@@ -1059,16 +1002,7 @@ export default function SettingsPage() {
                 ) : null}
 
                 <div className="settings-table-toolbar">
-                  <div className="relative min-w-0 flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={16} />
-                    <input
-                      className="input-field pl-10"
-                      value={userSearch}
-                      onChange={(event) => setUserSearch(event.target.value)}
-                      placeholder="Cari nama, email, role, stasiun..."
-                    />
-                  </div>
-                  <span>{filteredUsers.length} pengguna</span>
+                  <span>{filteredUsers.length} pengguna{userSearch ? ` cocok "${userSearch}"` : ""}</span>
                 </div>
 
                 <div className="page-scroll table-shell mt-5 rounded-[24px] border border-[color:var(--border-soft)]">
@@ -1092,8 +1026,36 @@ export default function SettingsPage() {
 
                         return (
                           <tr key={user.id}>
-                            <td className="font-semibold text-[color:var(--text-strong)]">{user.name}</td>
-                            <td>{user.email}</td>
+                            <td className="font-semibold text-[color:var(--text-strong)]">
+                              {isEditing ? (
+                                <input
+                                  className="input-field h-10 min-w-[180px]"
+                                  value={userRowDraft?.name ?? user.name}
+                                  onChange={(event) =>
+                                    setEditingUserDraft((current) =>
+                                      current ? { ...current, name: event.target.value } : current,
+                                    )
+                                  }
+                                />
+                              ) : (
+                                user.name
+                              )}
+                            </td>
+                            <td>
+                              {isEditing ? (
+                                <input
+                                  className="input-field h-10 min-w-[220px]"
+                                  value={userRowDraft?.email ?? user.email}
+                                  onChange={(event) =>
+                                    setEditingUserDraft((current) =>
+                                      current ? { ...current, email: event.target.value } : current,
+                                    )
+                                  }
+                                />
+                              ) : (
+                                user.email
+                              )}
+                            </td>
                             <td>
                               {isEditing ? (
                                 <select
@@ -1118,10 +1080,7 @@ export default function SettingsPage() {
                                   <option value="customer">Pelanggan</option>
                                 </select>
                               ) : (
-                                <div className="space-y-1">
-                                  <p className="font-medium text-[color:var(--text-strong)]">{ROLE_LABELS[user.role]}</p>
-                                  <p className="text-xs leading-5 text-[color:var(--muted-fg)]">{ROLE_SCOPE_COPY[user.role]}</p>
-                                </div>
+                                <p className="font-medium text-[color:var(--text-strong)]">{ROLE_LABELS[user.role]}</p>
                               )}
                             </td>
                             <td>
@@ -1324,7 +1283,7 @@ export default function SettingsPage() {
               <OpsPanel className="p-5">
                 <SectionHeader
                   title="Akun Pelanggan"
-                  subtitle="Portal, relasi user, dan kontak akun pelanggan dirangkum dalam workspace yang lebih sistematis."
+                  subtitle="Akun, kontak, status."
                   action={
                     <button
                       type="button"
@@ -1336,22 +1295,6 @@ export default function SettingsPage() {
                     </button>
                   }
                 />
-
-                <div className="mt-5 grid gap-4 xl:grid-cols-3">
-                  <DataCard label="Total akun" value={data.customerAccounts.length} note="Semua akun pelanggan yang terhubung." tone="primary" />
-                  <DataCard
-                    label="Akun aktif"
-                    value={data.customerAccounts.filter((account) => account.status === "active").length}
-                    note="Dapat digunakan untuk login dan scope shipment."
-                    tone="success"
-                  />
-                  <DataCard
-                    label="Relasi shipment"
-                    value={data.customerAccounts.reduce((sum, account) => sum + account.shipmentCount, 0)}
-                    note="Total shipment aktif yang terhubung ke akun pelanggan."
-                    tone="info"
-                  />
-                </div>
 
                 {customerAccountOpen ? (
                   <div className="mt-5 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
@@ -1401,16 +1344,7 @@ export default function SettingsPage() {
                 ) : null}
 
                 <div className="settings-table-toolbar">
-                  <div className="relative min-w-0 flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={16} />
-                    <input
-                      className="input-field pl-10"
-                      value={accountSearch}
-                      onChange={(event) => setAccountSearch(event.target.value)}
-                      placeholder="Cari kode, nama akun, PIC, email..."
-                    />
-                  </div>
-                  <span>{filteredAccounts.length} akun</span>
+                  <span>{filteredAccounts.length} akun{accountSearch ? ` cocok "${accountSearch}"` : ""}</span>
                 </div>
 
                 <div className="page-scroll table-shell mt-5 rounded-[24px] border border-[color:var(--border-soft)]">

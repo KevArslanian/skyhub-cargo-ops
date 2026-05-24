@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   Clock3,
   RefreshCw,
-  Search,
   ShieldAlert,
   SlidersHorizontal,
 } from "lucide-react";
@@ -192,7 +191,7 @@ export default function AlertsPage() {
       <PageHeader
         eyebrow="Alert Center"
         title="Pusat Alert Operasional"
-        subtitle="Daftar masalah yang dibuat otomatis dari aturan shipment, flight, dokumen, readiness, dan kapasitas."
+        subtitle="Exception dan eskalasi."
         actions={
           <>
             <button type="button" className="topbar-button" onClick={handleRefresh}>
@@ -211,78 +210,60 @@ export default function AlertsPage() {
         <StatCard
           label="Butuh Tindakan"
           value={data?.summary.total ?? 0}
-          note="Alert aktif dari aturan sistem."
+          note="Alert aktif."
           icon={BellRing}
           tone="primary"
         />
         <StatCard
           label="Kritis"
           value={data?.summary.critical ?? 0}
-          note="Perlu diselesaikan lebih dulu."
+          note="Prioritas awal."
           icon={ShieldAlert}
           tone="danger"
         />
         <StatCard
           label="Warning"
           value={data?.summary.warning ?? 0}
-          note="Risiko operasional belum fatal."
+          note="Risiko aktif."
           icon={Clock3}
           tone="warning"
         />
         <StatCard
           label="Normal Check"
           value={(data?.conditionChecks ?? []).filter((item) => item.status === "normal").length}
-          note={`${data?.conditionChecks.length ?? 0} aturan dipantau.`}
+          note={`${data?.conditionChecks.length ?? 0} aturan.`}
           icon={CheckCircle2}
           tone="success"
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.45fr)]">
-        <OpsPanel className="p-5">
-          <SectionHeader title="Evaluasi Aturan" subtitle="Alert aktif jika count melewati batas aman. Jika data diperbaiki, alert hilang otomatis." />
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <OpsPanel className="p-5">
+        <SectionHeader title="Eskalasi" />
+        <div className="mt-5 table-shell">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Aturan</th>
+                <th>Status</th>
+                <th>Jumlah</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
             {(data?.conditionChecks ?? []).map((item) => (
-              <div key={item.id} className="ops-panel-muted p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-[color:var(--text-strong)]">{item.label}</p>
-                    <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{item.detail}</p>
-                  </div>
-                  <StatusBadge value={item.status === "action" ? "warning" : "success"} label={item.statusLabel} />
-                </div>
-                <p className="mt-3 text-xs leading-5 text-[color:var(--muted-2)]">{item.mechanism}</p>
-              </div>
+              <tr key={item.id}>
+                <td className="font-semibold text-[color:var(--text-strong)]">{item.label}</td>
+                <td><StatusBadge value={item.status === "action" ? "warning" : "success"} label={item.statusLabel} /></td>
+                <td>{item.count}</td>
+                <td className="text-sm text-[color:var(--muted-fg)]">{item.mechanism}</td>
+              </tr>
             ))}
-          </div>
-        </OpsPanel>
-
-        <OpsPanel className="p-5">
-          <SectionHeader title="Mekanisme Selesai" subtitle="Tidak ada tombol selesai manual. Status alert mengikuti data sumber." />
-          <div className="mt-5 space-y-3">
-            {(data?.environmentMechanisms ?? []).slice(0, 4).map((item) => (
-              <div key={item.title} className="ops-panel-muted p-4">
-                <p className="font-semibold text-[color:var(--text-strong)]">{item.title}</p>
-                <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{item.detail}</p>
-              </div>
-            ))}
-          </div>
-        </OpsPanel>
-      </div>
-
-      <FilterBar className="alerts-filter-bar xl:grid-cols-[minmax(0,1fr)_minmax(0,220px)_minmax(0,220px)_auto]">
-        <div>
-          <label className="label">Cari alert</label>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={16} />
-            <input
-              className="input-field input-field-leading"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="AWB, flight, station, aksi..."
-            />
-          </div>
+            </tbody>
+          </table>
         </div>
+      </OpsPanel>
+
+      <FilterBar className="alerts-filter-bar xl:grid-cols-[minmax(0,220px)_minmax(0,220px)_auto]">
         <div>
           <label className="label">Severity</label>
           <select className="select-field" value={severity} onChange={(event) => setSeverity(event.target.value)}>

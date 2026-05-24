@@ -10,7 +10,7 @@ export function PageHeader({
 }: {
   eyebrow?: string;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   actions?: React.ReactNode;
   className?: string;
 }) {
@@ -19,7 +19,7 @@ export function PageHeader({
       <div className="min-w-0 space-y-2">
         {eyebrow ? <p className="ops-eyebrow">{eyebrow}</p> : null}
         <h1 className="page-title">{title}</h1>
-        <p className="page-subtitle max-w-3xl">{subtitle}</p>
+        {subtitle ? <p className="page-subtitle max-w-3xl">{subtitle}</p> : null}
       </div>
       {actions ? <div className="flex max-w-full shrink-0 flex-wrap items-center gap-3 2xl:justify-end">{actions}</div> : null}
     </header>

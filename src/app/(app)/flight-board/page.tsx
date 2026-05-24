@@ -111,7 +111,7 @@ const FLIGHT_STATUS_LABELS: Record<string, string> = {
 };
 
 function createBlankFlightForm() {
-  const departureTime = new Date(Date.now() + 60 * 60 * 1000);
+  const departureTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
   const origin = "SOQ";
   const destination = "CGK";
 
@@ -169,6 +169,38 @@ function applyFlightMasterRules(form: FlightFormState, next: Partial<FlightFormS
     arrivalTime: toDateTimeInputValue(getEstimatedArrivalTime(departureTime, draft.origin, draft.destination)),
     gate: getGateForDestination(draft.destination),
   };
+}
+
+function getFlightScheduleIssues(form: FlightFormState, mode: "create" | "edit") {
+  const now = new Date();
+  const departureTime = new Date(form.departureTime);
+  const arrivalTime = new Date(form.arrivalTime);
+  const cargoCutoffTime = new Date(form.cargoCutoffTime);
+  const issues: { tone: "error" | "warning"; message: string }[] = [];
+
+  if ([departureTime, arrivalTime, cargoCutoffTime].some((date) => Number.isNaN(date.getTime()))) {
+    return [{ tone: "error" as const, message: "Jadwal belum valid." }];
+  }
+
+  if (arrivalTime <= departureTime) {
+    issues.push({ tone: "error", message: "Estimasi tiba harus setelah waktu berangkat." });
+  }
+
+  if (cargoCutoffTime >= departureTime) {
+    issues.push({ tone: "error", message: "Cutoff harus sebelum waktu berangkat." });
+  }
+
+  if (mode === "create" && departureTime <= now) {
+    issues.push({ tone: "error", message: "Flight baru tidak boleh berangkat di masa lalu." });
+  }
+
+  if (mode === "create" && cargoCutoffTime <= now) {
+    issues.push({ tone: "error", message: "Cutoff sudah lewat. Pilih berangkat minimal 70 menit dari sekarang." });
+  } else if (cargoCutoffTime.getTime() - now.getTime() < 30 * 60 * 1000) {
+    issues.push({ tone: "warning", message: "Cutoff kurang dari 30 menit. Pastikan manifest sudah siap." });
+  }
+
+  return issues;
 }
 
 function createFlightDraft(flight: FlightRow | null) {
@@ -452,15 +484,6 @@ export default function FlightBoardPage() {
     [data?.flights, replaceFlightBoardUrl, selectedFlightId],
   );
 
-  const handleQueryChange = useCallback(
-    (nextQuery: string) => {
-      setQuery(nextQuery);
-      setPage(1);
-      replaceFlightBoardUrl({ query: nextQuery, page: 1 });
-    },
-    [replaceFlightBoardUrl],
-  );
-
   const handleStatusChange = useCallback(
     (nextStatus: string) => {
       setStatus(nextStatus);
@@ -504,6 +527,13 @@ export default function FlightBoardPage() {
     if (!isFlightNumberSuffixValid(createForm.flightNumberSuffix)) {
       setNoticeTone("warning");
       setNotice("Nomor flight harus terdiri dari 3-4 digit.");
+      return;
+    }
+
+    const createBlockingIssue = createScheduleIssues.find((issue) => issue.tone === "error");
+    if (createBlockingIssue) {
+      setNoticeTone("warning");
+      setNotice(createBlockingIssue.message);
       return;
     }
 
@@ -569,6 +599,13 @@ export default function FlightBoardPage() {
     if (!isFlightNumberSuffixValid(editDraft.flightNumberSuffix)) {
       setNoticeTone("warning");
       setNotice("Nomor flight harus terdiri dari 3-4 digit.");
+      return;
+    }
+
+    const editBlockingIssue = editScheduleIssues.find((issue) => issue.tone === "error");
+    if (editBlockingIssue) {
+      setNoticeTone("warning");
+      setNotice(editBlockingIssue.message);
       return;
     }
 
@@ -691,6 +728,8 @@ export default function FlightBoardPage() {
     if (date) params.set("date", date);
     return params.toString();
   }, [appliedQuery, date, status]);
+  const createScheduleIssues = getFlightScheduleIssues(createForm, "create");
+  const editScheduleIssues = getFlightScheduleIssues(editDraft, "edit");
 
   const handleManifestPageChange = useCallback(
     async (nextPage: number) => {
@@ -752,10 +791,6 @@ export default function FlightBoardPage() {
       </div>
 
       <FilterBar className="flightboard-filter-bar">
-        <div>
-          <label className="label">Cari Flight</label>
-          <input className="input-field" value={query} onChange={(event) => handleQueryChange(event.target.value)} placeholder="GA-714, SJ-182, atau CGK" />
-        </div>
         <div>
           <label className="label">Status</label>
           <select className="select-field" value={status} onChange={(event) => handleStatusChange(event.target.value)}>
@@ -1048,10 +1083,15 @@ export default function FlightBoardPage() {
             <form className="space-y-5" onSubmit={handleCreateFlight}>
               <div className="flight-time-note">
                 <p className="font-semibold text-[color:var(--text-strong)]">Aturan master otomatis</p>
-                <p className="mt-1 text-sm text-[color:var(--muted-fg)]">
-                  Pilih maskapai dan tipe pesawat. Batas cargo H-70 menit, estimasi tiba, gate, dan status tetap dihitung sistem.
-                </p>
+                <p className="mt-1 text-sm text-[color:var(--muted-fg)]">Cutoff H-70, estimasi tiba, gate, dan status dihitung sistem.</p>
               </div>
+              {createScheduleIssues.length ? (
+                <div className="rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-semibold text-[color:var(--tone-warning)]">
+                  {createScheduleIssues.map((issue) => (
+                    <p key={issue.message}>{issue.message}</p>
+                  ))}
+                </div>
+              ) : null}
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="label">Kode Maskapai</label>
@@ -1187,10 +1227,15 @@ export default function FlightBoardPage() {
             <div className="space-y-5">
               <div className="flight-time-note">
                 <p className="font-semibold text-[color:var(--text-strong)]">Aturan master otomatis</p>
-                <p className="mt-1 text-sm text-[color:var(--muted-fg)]">
-                  Maskapai dan tipe pesawat bisa dipilih. Cutoff, estimasi tiba, gate, dan status dihitung sistem.
-                </p>
+                <p className="mt-1 text-sm text-[color:var(--muted-fg)]">Cutoff, estimasi tiba, gate, dan status dihitung sistem.</p>
               </div>
+              {editScheduleIssues.length ? (
+                <div className="rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-semibold text-[color:var(--tone-warning)]">
+                  {editScheduleIssues.map((issue) => (
+                    <p key={issue.message}>{issue.message}</p>
+                  ))}
+                </div>
+              ) : null}
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="label">Kode Maskapai</label>

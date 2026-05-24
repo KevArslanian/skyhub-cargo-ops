@@ -12,13 +12,12 @@ import {
   PackageCheck,
   PlaneTakeoff,
   RefreshCw,
-  Search,
   ShieldAlert,
   TowerControl,
 } from "lucide-react";
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
-import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { EmptyState, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 
 type BaseShipment = {
   id: string;
@@ -528,21 +527,6 @@ export default function DashboardPage() {
           <StatCard label="Tiba" value={loading ? "..." : customerData.metrics.arrived} note="Shipment yang sudah tercatat tiba di tujuan." icon={PackageCheck} tone="success" />
         </div>
 
-        <FilterBar className="dashboard-filter-bar">
-          <div>
-            <label className="label">Cari dashboard</label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={16} />
-              <input
-                className="input-field pl-10"
-                value={dashboardQuery}
-                onChange={(event) => setDashboardQuery(event.target.value)}
-                placeholder="AWB, komoditas, rute, status..."
-              />
-            </div>
-          </div>
-        </FilterBar>
-
         <div className="page-grid-2">
           <OpsPanel className="page-pane p-5">
             <SectionHeader
@@ -736,21 +720,6 @@ export default function DashboardPage() {
         <StatCard label="Sudah Muat" value={loading ? "..." : activeLoaded} note={appendFallbackNote("Shipment shift aktif yang sudah siap berangkat ke pesawat.", shipmentFallbackCount)} icon={PackageCheck} tone="success" />
         <StatCard label="Perlu Tindakan" value={loading ? "..." : alertShift.shiftMatched.length} note={appendFallbackNote("Alert hold, cutoff, atau validasi dokumen pada shift aktif.", alertFallbackCount)} icon={ShieldAlert} tone="warning" />
       </div>
-
-      <FilterBar className="dashboard-filter-bar">
-        <div>
-          <label className="label">Cari dashboard</label>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={16} />
-            <input
-              className="input-field pl-10"
-              value={dashboardQuery}
-              onChange={(event) => setDashboardQuery(event.target.value)}
-              placeholder="AWB, flight, alert, aktivitas..."
-            />
-          </div>
-        </div>
-      </FilterBar>
 
       <div className="dashboard-main flex-1">
         <OpsPanel className="dashboard-panel p-4 xl:p-5">

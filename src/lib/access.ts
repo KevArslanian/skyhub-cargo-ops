@@ -26,7 +26,6 @@ export type NavigationItem = {
     | "/alerts"
     | "/flight-board"
     | "/activity-log"
-    | "/reports"
     | "/settings";
   label: string;
   hint: string;
@@ -76,7 +75,6 @@ export const INTERNAL_ONLY_ROUTE_PREFIXES = [
   "/flight-board",
   "/alerts",
   "/activity-log",
-  "/reports",
   "/exports/shipments",
   "/exports/activity-log",
   "/exports/flights",
@@ -89,7 +87,6 @@ export const PROTECTED_ROUTE_PREFIXES = [
   "/flight-board",
   "/alerts",
   "/activity-log",
-  "/reports",
   "/settings",
   "/exports",
 ] as const;
@@ -139,14 +136,6 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     href: "/activity-log",
     label: "Log Aktivitas",
     hint: "Jejak audit operasional",
-    groupId: "pemantauan",
-    groupLabel: "Pemantauan",
-    roles: ["admin", "staff"],
-  },
-  {
-    href: "/reports",
-    label: "Pusat Laporan",
-    hint: "Print dan PDF formal",
     groupId: "pemantauan",
     groupLabel: "Pemantauan",
     roles: ["admin", "staff"],

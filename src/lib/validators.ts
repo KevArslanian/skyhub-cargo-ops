@@ -160,6 +160,8 @@ export const inviteUserSchema = z.object({
 });
 
 export const userRoleUpdateSchema = z.object({
+  name: z.string().trim().min(2).optional(),
+  email: z.email().optional(),
   role: z.enum(["admin", "staff", "customer"]).optional(),
   status: z.enum(["active", "invited", "disabled"]).optional(),
   station: z.enum(STATION_OPTIONS).optional(),

@@ -2239,6 +2239,8 @@ export async function inviteUser(input: {
 export async function updateUserAccess(
   userId: string,
   input: {
+    name?: string;
+    email?: string;
     role?: "admin" | "staff" | "customer";
     status?: "active" | "invited" | "disabled";
     station?: string;
@@ -2307,6 +2309,8 @@ export async function updateUserAccess(
     const updated = await tx.user.update({
       where: { id: userId },
       data: {
+        name: input.name,
+        email: input.email,
         role: nextRole,
         status: nextStatus,
         station: input.station,

@@ -10,7 +10,6 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderKanban,
-  FileBarChart2,
   History,
   LayoutDashboard,
   LogOut,
@@ -22,7 +21,6 @@ import {
   Search,
   Settings2,
   SunMedium,
-  UserCircle2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { getNavigationForRole } from "@/lib/access";
@@ -71,7 +69,6 @@ const navIconMap = {
   "/alerts": BellRing,
   "/flight-board": PlaneTakeoff,
   "/activity-log": History,
-  "/reports": FileBarChart2,
   "/settings": Settings2,
 } as const;
 
@@ -114,6 +111,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [openGroupId, setOpenGroupId] = useState<(typeof navigation.groups)[number]["id"]>(activeGroupId);
   const visibleNotifications = notificationItems.slice(0, 10);
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
+  const showShellSearch = true;
   const displayedNavigationItems = navigation.items.filter((item) => item.href !== "/settings");
   const displayedNavigationGroups = navigation.groups
     .map((group) => ({ ...group, items: group.items.filter((item) => item.href !== "/settings") }))
@@ -258,7 +256,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       return;
     }
 
-    if (pathname === "/alerts" || pathname === "/activity-log" || pathname === "/dashboard") {
+    if (pathname === "/alerts" || pathname === "/activity-log" || pathname === "/dashboard" || pathname === "/settings") {
       return;
     }
 
@@ -309,14 +307,14 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   }
 
   const searchPlaceholder = useMemo(() => {
-    if (pathname === "/dashboard") return "Cari AWB, flight, alert, atau aktivitas";
-    if (pathname === "/shipment-ledger") return "Filter ledger: AWB, pengirim, penerima, barang";
-    if (pathname === "/awb-tracking") return "Masukkan AWB untuk tracking";
-    if (pathname === "/flight-board") return "Filter flight: nomor, origin, destination";
-    if (pathname === "/alerts") return "Filter alert: AWB, flight, station, aksi";
-    if (pathname === "/activity-log") return "Filter log: AWB, deskripsi, target";
-    if (pathname === "/settings") return "Cari pengaturan, user, atau akun";
-    return "Cari AWB, shipment, atau flight";
+    if (pathname === "/dashboard") return "Cari dashboard";
+    if (pathname === "/shipment-ledger") return "Cari shipment";
+    if (pathname === "/awb-tracking") return "Cari AWB";
+    if (pathname === "/flight-board") return "Cari flight";
+    if (pathname === "/alerts") return "Cari alert";
+    if (pathname === "/activity-log") return "Cari log";
+    if (pathname === "/settings") return "Cari settings";
+    return "Cari";
   }, [pathname]);
   const shellSearchConfig = useMemo(
     () => ({
@@ -368,12 +366,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                     <Link href="/dashboard" className="block" onClick={() => setMobileOpen(false)}>
                       <BrandMark title={APP_NAME} subtitle={APP_SUBTITLE} />
                     </Link>
-                    <div className="mt-3 flex items-center gap-2 pl-[68px]">
-                      <StatusBadge value="normal" label="Normal" />
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">
-                        {user.customerAccountName || user.station}
-                      </span>
-                    </div>
                   </div>
                   <button
                     type="button"
@@ -490,7 +482,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               <div className={cn("rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-3", collapsed && "px-2")}>
                 {!collapsed ? (
                   <>
-                    <div className="flex items-start gap-3 px-1 pb-3">
+                    <Link href="/settings" className="flex items-start gap-3 rounded-[18px] px-1 pb-3 text-left" onClick={() => setMobileOpen(false)}>
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary)] text-sm font-black text-white">
                         {user.name
                           .split(" ")
@@ -501,16 +493,12 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">{user.name}</p>
                         <p className="truncate text-xs text-[color:var(--muted-fg)]">{ROLE_LABELS[user.role]} | {user.customerAccountName || user.station}</p>
-                      </div>
-                    </div>
-                    <div className="grid gap-1 border-t border-[color:var(--border-soft)] pt-3">
-                      <Link href="/settings" className="sidebar-link" onClick={() => setMobileOpen(false)}>
-                        <UserCircle2 size={18} className="shrink-0" />
-                        <div className="min-w-0">
-                          <p className="truncate">Profil</p>
-                          <p className="truncate text-[11px] font-medium text-[color:var(--muted-2)]">Data akun</p>
+                        <div className="mt-2">
+                          <StatusBadge value="normal" label="Normal" />
                         </div>
-                      </Link>
+                      </div>
+                    </Link>
+                    <div className="grid gap-1 border-t border-[color:var(--border-soft)] pt-3">
                       <Link href="/settings" className="sidebar-link" onClick={() => setMobileOpen(false)}>
                         <Settings2 size={18} className="shrink-0" />
                         <div className="min-w-0">
@@ -518,13 +506,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                           <p className="truncate text-[11px] font-medium text-[color:var(--muted-2)]">Preferensi umum</p>
                         </div>
                       </Link>
-                      <button type="button" className="sidebar-link w-full text-left text-[color:var(--tone-warning)]" onClick={handleSignOut}>
-                        <LogOut size={18} className="shrink-0" />
-                        <div className="min-w-0">
-                          <p className="truncate">Logout</p>
-                          <p className="truncate text-[11px] font-medium text-[color:var(--muted-2)]">Keluar sesi</p>
-                        </div>
-                      </button>
                     </div>
                   </>
                 ) : (
@@ -536,18 +517,25 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                         .join("")
                         .slice(0, 2)}
                     </span>
-                    <Link href="/settings" title="Profil" aria-label="Profil" className="sidebar-link h-11 w-11 justify-center rounded-[16px] px-0" onClick={() => setMobileOpen(false)}>
-                      <UserCircle2 size={18} />
-                    </Link>
                     <Link href="/settings" title="Settings" aria-label="Settings" className="sidebar-link h-11 w-11 justify-center rounded-[16px] px-0" onClick={() => setMobileOpen(false)}>
                       <Settings2 size={18} />
                     </Link>
-                    <button type="button" title="Logout" aria-label="Logout" className="sidebar-link h-11 w-11 justify-center rounded-[16px] px-0 text-[color:var(--tone-warning)]" onClick={handleSignOut}>
-                      <LogOut size={18} />
-                    </button>
                   </div>
                 )}
               </div>
+              <button
+                type="button"
+                className={cn(
+                  "mt-2 flex w-full items-center gap-3 rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-left text-sm font-semibold text-[color:var(--tone-warning)]",
+                  collapsed && "h-11 justify-center px-0",
+                )}
+                onClick={handleSignOut}
+                title="Logout"
+                aria-label="Logout"
+              >
+                <LogOut size={18} className="shrink-0" />
+                {!collapsed ? <span>Logout</span> : null}
+              </button>
             </div>
           </div>
         </aside>
@@ -566,20 +554,22 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                 </p>
               </div>
 
-              <form
-                onSubmit={handleSearchSubmit}
-                className="shell-topbar-search relative order-last min-w-0 flex-[1_1_100%] sm:order-none sm:flex-[1_1_240px] lg:flex-[2_1_320px]"
-              >
-                <button type="submit" className="topbar-search-submit" aria-label="Jalankan pencarian">
-                  <Search size={16} />
-                </button>
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={searchPlaceholder}
-                  className="input-field input-field-leading w-full"
-                />
-              </form>
+              {showShellSearch ? (
+                <form
+                  onSubmit={handleSearchSubmit}
+                  className="shell-topbar-search relative order-last min-w-0 flex-[1_1_100%] sm:order-none sm:flex-[1_1_240px] lg:flex-[2_1_320px]"
+                >
+                  <button type="submit" className="topbar-search-submit" aria-label="Jalankan pencarian">
+                    <Search size={16} />
+                  </button>
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder={searchPlaceholder}
+                    className="input-field input-field-leading w-full"
+                  />
+                </form>
+              ) : null}
 
               <div className="topbar-button hidden min-w-0 max-w-[320px] xl:flex">
                 <div className="h-2.5 w-2.5 rounded-full bg-[color:var(--tone-success)]" />
@@ -622,7 +612,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                         Tandai semua
                       </button>
                     </div>
-                    <div>
+                    <div className="notifications-dropdown-list">
                       {visibleNotifications.length ? (
                         visibleNotifications.map((item) => (
                           <button

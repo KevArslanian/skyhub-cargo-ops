@@ -629,7 +629,7 @@ export default function ShipmentLedgerPage() {
             {!isReadOnly && data?.permissions.canExport ? (
               <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">
                 <FileText size={16} />
-                PDF / Print
+                Print
               </Link>
             ) : null}
             {data?.permissions.canCreate ? (
@@ -677,16 +677,7 @@ export default function ShipmentLedgerPage() {
         />
       </div>
 
-      <FilterBar className="xl:grid-cols-[minmax(0,1.45fr)_170px_170px_200px]">
-        <div>
-          <label className="label">Cari Shipment</label>
-          <input
-            className="input-field"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="AWB, pengirim, penerima, barang, kendaraan..."
-          />
-        </div>
+      <FilterBar className="xl:grid-cols-[170px_170px_200px]">
         <div>
           <label className="label">Status</label>
           <select className="select-field" value={status} onChange={(event) => setStatus(event.target.value)}>

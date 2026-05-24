@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, FileText, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
@@ -25,23 +24,11 @@ type ActivityPayload = {
 const ACTIVITY_PAGE_SIZE = 25;
 
 export default function ActivityLogPage() {
-  const [query, setQuery] = useState("");
   const [action, setAction] = useState("all");
   const [userId, setUserId] = useState("all");
+  const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<ActivityPayload | null>(null);
-
-  useEffect(() => {
-    function handleContextSearch(event: Event) {
-      const detail = (event as CustomEvent<{ pathname?: string; query?: string }>).detail;
-      if (detail?.pathname !== "/activity-log" || !detail.query) return;
-      setQuery(detail.query);
-      setPage(1);
-    }
-
-    window.addEventListener("skyhub:context-search", handleContextSearch as EventListener);
-    return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
-  }, []);
 
   useEffect(() => {
     async function load() {
@@ -56,7 +43,19 @@ export default function ActivityLogPage() {
     }
 
     void load();
-  }, [query, action, userId]);
+  }, [action, query, userId]);
+
+  useEffect(() => {
+    function handleContextSearch(event: Event) {
+      const detail = (event as CustomEvent<{ pathname?: string; query?: string }>).detail;
+      if (detail?.pathname !== "/activity-log" || !detail.query) return;
+      setQuery(detail.query);
+      setPage(1);
+    }
+
+    window.addEventListener("skyhub:context-search", handleContextSearch as EventListener);
+    return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
+  }, []);
 
   const levels = useMemo(() => {
     const counts = { success: 0, info: 0, warning: 0, error: 0 };
@@ -76,17 +75,12 @@ export default function ActivityLogPage() {
   const visibleStart = data?.logs.length ? pageStart + 1 : 0;
   const visibleEnd = Math.min(pageStart + pagedLogs.length, data?.logs.length ?? 0);
 
-  const exportParams = new URLSearchParams();
-  if (query.trim()) exportParams.set("query", query.trim());
-  if (action !== "all") exportParams.set("action", action);
-  if (userId !== "all") exportParams.set("userId", userId);
-
   return (
     <div className="page-workspace activity-log-workspace">
       <PageHeader
         eyebrow="Jejak Audit"
         title="Log Aktivitas"
-        subtitle="Riwayat yang mudah dibaca untuk login, update shipment, upload dokumen, cetak, dan perubahan pengaturan yang relevan bagi tim staff dan admin."
+        subtitle="Audit internal."
       />
 
       <div className="grid gap-4 xl:grid-cols-4">
@@ -96,19 +90,7 @@ export default function ActivityLogPage() {
         <StatCard label="Galat" value={levels.error} note="Kejadian gagal atau exception log yang tercatat." icon={ShieldAlert} tone="danger" />
       </div>
 
-      <FilterBar className="activity-log-filter-bar">
-        <div>
-          <label className="label">Cari log</label>
-          <input
-            className="input-field"
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setPage(1);
-            }}
-            placeholder="AWB, deskripsi, target..."
-          />
-        </div>
+      <FilterBar className="activity-log-filter-bar activity-log-filter-bar-compact">
         <div>
           <label className="label">Aksi</label>
           <select
@@ -145,14 +127,10 @@ export default function ActivityLogPage() {
             ))}
           </select>
         </div>
-        <Link href={`/exports/activity-log?${exportParams.toString()}`} className="btn btn-secondary activity-log-print-button self-end">
-          <FileText size={16} />
-          PDF / Print
-        </Link>
       </FilterBar>
 
       <OpsPanel className="page-pane activity-log-panel p-5">
-        <SectionHeader title="Timeline Aktivitas" subtitle="Semua entri audit disusun dalam tabel padat untuk memudahkan review cepat saat shift berjalan." />
+        <SectionHeader title="Timeline Aktivitas" />
         <div className="page-scroll activity-log-scroll mt-5 table-shell">
           <table className="data-table">
             <thead>
@@ -185,7 +163,7 @@ export default function ActivityLogPage() {
                     <EmptyState
                       icon={History}
                       title="Belum ada log yang cocok"
-                      copy="Ubah pencarian, aksi, atau pengguna untuk melihat jejak audit lain."
+                      copy="Ubah filter atau pencarian utama."
                       className="m-4"
                     />
                   </td>
