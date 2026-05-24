@@ -8,10 +8,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleAlert,
-  Clock3,
   ExternalLink,
   FileText,
-  FolderOpen,
   PackageSearch,
   Pencil,
   PlaneTakeoff,
@@ -21,6 +19,7 @@ import {
   ShieldAlert,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import {
@@ -286,6 +285,7 @@ export default function ShipmentLedgerPage() {
   const selectedIdRef = useRef<string | null>(null);
   const hasLoadedRef = useRef(false);
   const splitPaneRef = useRef<HTMLDivElement | null>(null);
+  const pendingDetailQueryRef = useRef<string | null>(null);
 
   const deferredQuery = useDeferredValue(query);
 
@@ -297,6 +297,7 @@ export default function ShipmentLedgerPage() {
       setListPage(1);
 
       if (detail.focusDetail) {
+        pendingDetailQueryRef.current = detail.query;
         window.setTimeout(() => {
           splitPaneRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 120);
@@ -309,15 +310,14 @@ export default function ShipmentLedgerPage() {
 
   const applyShipmentPayload = useCallback((payload: LedgerPayload, preferredShipmentId?: string | null) => {
     const resolvedPreferredShipmentId = preferredShipmentId ?? null;
-      const nextSelectedShipment =
-        payload.shipments.find((shipment) => shipment.id === resolvedPreferredShipmentId) ?? payload.shipments[0] ?? null;
+    const nextSelectedShipment = payload.shipments.find((shipment) => shipment.id === resolvedPreferredShipmentId) ?? null;
 
-      startTransition(() => {
-        setData(payload);
-        setSelectedId(nextSelectedShipment?.id ?? null);
-        setDrawerDraft(createDrawerDraft(nextSelectedShipment));
-      });
-    }, []);
+    startTransition(() => {
+      setData(payload);
+      setSelectedId(nextSelectedShipment?.id ?? null);
+      setDrawerDraft(createDrawerDraft(nextSelectedShipment));
+    });
+  }, []);
 
   const requestShipments = useCallback(async () => {
     const params = new URLSearchParams();
@@ -419,11 +419,13 @@ export default function ShipmentLedgerPage() {
   const isReadOnly = data?.viewer.readOnly ?? false;
   const urgencyState = getUrgencyState(selectedShipment);
   const confidenceState = getConfidenceState(selectedShipment);
-  const listPageSize = 10;
-  const shipments = data?.shipments ?? [];
+  const listPageSize = 6;
+  const shipments = useMemo(() => data?.shipments ?? [], [data?.shipments]);
   const totalPages = Math.max(1, Math.ceil(shipments.length / listPageSize));
   const pageStart = (listPage - 1) * listPageSize;
   const pagedShipments = shipments.slice(pageStart, pageStart + listPageSize);
+  const pageEnd = Math.min(pageStart + pagedShipments.length, shipments.length);
+  const splitPaneClassName = cn("split-pane-shell", selectedShipment ? "split-pane-shell-open" : "split-pane-shell-closed");
 
   useEffect(() => {
     setListPage(1);
@@ -433,6 +435,30 @@ export default function ShipmentLedgerPage() {
     if (listPage <= totalPages) return;
     setListPage(totalPages);
   }, [listPage, totalPages]);
+
+  useEffect(() => {
+    const pendingQuery = pendingDetailQueryRef.current?.trim().toLowerCase();
+    if (!pendingQuery || !shipments.length) return;
+
+    const matchedShipment =
+      shipments.find((shipment) => shipment.awb.toLowerCase() === pendingQuery) ??
+      shipments.find((shipment) =>
+        [shipment.awb, shipment.commodity, shipment.shipper, shipment.consignee, shipment.customerAccountName, shipment.flightNumber]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(pendingQuery),
+      );
+
+    if (!matchedShipment) return;
+
+    pendingDetailQueryRef.current = null;
+    const matchedIndex = shipments.findIndex((shipment) => shipment.id === matchedShipment.id);
+    if (matchedIndex >= 0) {
+      setListPage(Math.floor(matchedIndex / listPageSize) + 1);
+    }
+    handleSelectShipment(matchedShipment.id);
+  }, [handleSelectShipment, shipments, listPageSize]);
 
   async function resolveErrorMessage(response: Response, fallback: string) {
     try {
@@ -613,11 +639,7 @@ export default function ShipmentLedgerPage() {
   function handlePageChange(nextPage: number) {
     const clamped = Math.min(Math.max(nextPage, 1), totalPages);
     setListPage(clamped);
-    const firstOnNextPage = shipments[(clamped - 1) * listPageSize] ?? null;
-
-    if (firstOnNextPage) {
-      handleSelectShipment(firstOnNextPage.id);
-    }
+    setSelectedId(null);
   }
 
   return (
@@ -639,7 +661,7 @@ export default function ShipmentLedgerPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-4">
+      <div className="ledger-compact-stats grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <DataCard
           label="Total Shipment"
           value={data?.shipments.length ?? 0}
@@ -647,6 +669,8 @@ export default function ShipmentLedgerPage() {
           meta={`${activeFilterCount} filter aktif${lastSyncedAt ? ` • Sinkron ${formatRelativeShort(lastSyncedAt)}` : ""}`}
           icon={Boxes}
           tone="primary"
+          className="ledger-stat-card"
+          valueClassName="mt-2 text-[1.1rem]"
         />
         <DataCard
           label="Berat Total"
@@ -655,6 +679,8 @@ export default function ShipmentLedgerPage() {
           meta={`${assignedFlightCount} shipment sudah assigned ke flight`}
           icon={PackageSearch}
           tone="info"
+          className="ledger-stat-card"
+          valueClassName="mt-2 text-[1.1rem]"
         />
         <DataCard
           label="Assigned Flight"
@@ -663,6 +689,8 @@ export default function ShipmentLedgerPage() {
           meta={`${(data?.flights ?? []).length} pilihan flight tersedia`}
           icon={PlaneTakeoff}
           tone="success"
+          className="ledger-stat-card"
+          valueClassName="mt-2 text-[1.1rem]"
         />
         <DataCard
           label="Perlu Review"
@@ -671,10 +699,12 @@ export default function ShipmentLedgerPage() {
           meta={`${holdCount} hold • ${pendingDocsCount} dokumen • ${readinessIssuesCount} readiness`}
           icon={CircleAlert}
           tone="warning"
+          className="ledger-stat-card"
+          valueClassName="mt-2 text-[1.1rem]"
         />
       </div>
 
-      <FilterBar className="xl:grid-cols-[170px_170px_200px]">
+      <FilterBar className="ledger-compact-filter xl:grid-cols-[170px_170px_200px]">
         <div>
           <label className="label">Status</label>
           <select className="select-field" value={status} onChange={(event) => setStatus(event.target.value)}>
@@ -714,17 +744,17 @@ export default function ShipmentLedgerPage() {
         </div>
       ) : null}
 
-      <div ref={splitPaneRef} className="page-grid-2 split-pane-shell">
+      <div ref={splitPaneRef} className={splitPaneClassName}>
         <OpsPanel className="page-pane split-pane-left internal-scrollbar flex min-h-0 flex-col overflow-hidden p-0">
-          <div className="border-b border-[color:var(--border-soft)] p-5">
+          <div className="border-b border-[color:var(--border-soft)] p-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="ops-eyebrow">Manifest Board</p>
-                <h2 className="mt-2 font-[family:var(--font-heading)] text-[1.55rem] font-extrabold tracking-[-0.04em] text-[color:var(--text-strong)]">
+                <h2 className="mt-1 font-[family:var(--font-heading)] text-[1.25rem] font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
                   Papan manifest aktif
                 </h2>
-                <p className="mt-2 text-sm leading-7 text-[color:var(--muted-fg)]">
-                  Daftar ringkas AWB. Detail lengkap dibaca di panel kanan.
+                <p className="mt-1 text-xs font-semibold text-[color:var(--muted-fg)]">
+                  {shipments.length ? `${pageStart + 1}-${pageEnd} dari ${shipments.length} shipment` : "Belum ada shipment"}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -747,9 +777,9 @@ export default function ShipmentLedgerPage() {
               ))}
             </div>
           ) : (
-            <div className="min-h-0 flex-1 p-5">
+            <div className="min-h-0 flex-1 p-4">
               {(data?.shipments ?? []).length ? (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {pagedShipments.map((shipment) => {
                     const isSelected = selectedShipment?.id === shipment.id;
                     const needsAttention =
@@ -763,7 +793,7 @@ export default function ShipmentLedgerPage() {
                         type="button"
                         onClick={() => handleSelectShipment(shipment.id)}
                         className={cn(
-                          "w-full rounded-[22px] border px-4 py-4 text-left transition-colors",
+                          "ledger-manifest-row w-full rounded-[18px] border px-3 py-3 text-left transition-colors",
                           isSelected
                             ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]"
                             : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] hover:bg-[color:var(--brand-primary-soft)]",
@@ -776,32 +806,29 @@ export default function ShipmentLedgerPage() {
                             <p className="mt-1 truncate text-xs text-[color:var(--muted-fg)]">
                               {shipment.origin} {" -> "} {shipment.destination}
                             </p>
-                            <p className="mt-1 truncate text-xs text-[color:var(--muted-fg)]">
-                              {shipment.customerAccountName || shipment.shipper}
-                            </p>
-                            <p className="mt-1 truncate text-xs text-[color:var(--muted-fg)]">
-                              {shipment.cargoMode} • {shipment.serviceType} • {shipment.senderPhone}
-                            </p>
                           </div>
                           <div className="shrink-0 text-right">
                             <StatusBadge value={shipment.status} label={shipment.statusLabel} />
                             <p className="mt-2 text-xs text-[color:var(--muted-fg)]">{formatRelativeShort(shipment.updatedAt)}</p>
                           </div>
                         </div>
-                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted-fg)]">
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted-fg)]">
                           <span>{formatWeight(shipment.weightKg)}</span>
                           <span>•</span>
                           <span>{shipment.pieces} pcs</span>
                           <span>•</span>
                           <span>{shipment.flightNumber || "Belum assigned"}</span>
-                          <span>•</span>
-                          <span>{shipment.vehicleCode || shipment.vehicleType}</span>
                           {needsAttention ? (
                             <>
                               <span>•</span>
                               <span className="font-semibold text-[color:var(--tone-warning)]">Butuh review</span>
                             </>
                           ) : null}
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          <span className="inline-flex min-h-[30px] items-center rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-3 text-xs font-extrabold text-[color:var(--brand-primary)]">
+                            Detail
+                          </span>
                         </div>
                       </button>
                     );
@@ -843,32 +870,34 @@ export default function ShipmentLedgerPage() {
           )}
         </OpsPanel>
 
-        <OpsPanel className="page-pane split-pane-right flex min-h-0 flex-col overflow-hidden p-0">
-          {selectedShipment ? (
+        {selectedShipment ? (
+          <OpsPanel key={selectedShipment.id} className="page-pane split-pane-right ledger-detail-panel flex min-h-0 flex-col overflow-hidden p-0">
             <>
-              <div className="border-b border-[color:var(--border-soft)] p-6">
+              <div className="border-b border-[color:var(--border-soft)] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <p className="ops-eyebrow">Detail Shipment</p>
-                    <div className="mt-2 flex flex-wrap items-end gap-3">
-                      <h2 className="font-[family:var(--font-heading)] text-[2rem] font-black tracking-[-0.05em] text-[color:var(--brand-primary)]">
+                    <div className="mt-1 flex flex-wrap items-end gap-3">
+                      <h2 className="font-[family:var(--font-heading)] text-[1.55rem] font-black tracking-[-0.04em] text-[color:var(--brand-primary)]">
                         {selectedShipment.awb}
                       </h2>
                       <StatusBadge value={selectedShipment.status} label={selectedShipment.statusLabel} />
                     </div>
-                    <p className="mt-2 text-sm leading-7 text-[color:var(--muted-fg)]">
+                    <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">
                       {selectedShipment.commodity} • {selectedShipment.origin} &rarr; {selectedShipment.destination}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap justify-end gap-2">
                     <StatusBadge value={urgencyState.badgeValue} label={urgencyState.label} />
-                    <StatusBadge value={confidenceState.badgeValue} label={`Confidence ${confidenceState.label}`} />
+                    <button type="button" className="topbar-button min-h-[34px] px-3" onClick={() => setSelectedId(null)} aria-label="Tutup detail">
+                      <X size={15} />
+                    </button>
                   </div>
                 </div>
 
                 <div
                   className={cn(
-                    "mt-5 rounded-[22px] border px-4 py-4 text-sm leading-7",
+                    "mt-4 rounded-[18px] border px-3 py-3 text-sm leading-6",
                     urgencyState.tone === "danger"
                       ? "border-[color:var(--tone-danger-border)] bg-[color:var(--tone-danger-soft)] text-[color:var(--tone-danger)]"
                       : urgencyState.tone === "warning"
@@ -880,98 +909,70 @@ export default function ShipmentLedgerPage() {
                     <ShieldAlert size={18} className="mt-1 shrink-0" />
                     <div>
                       <p className="font-semibold text-[color:var(--text-strong)]">{urgencyState.label}</p>
-                      <p className="mt-1">{urgencyState.copy}</p>
-                    </div>
-                  </div>
-                </div>
+	                      <p className="mt-1">{urgencyState.copy}</p>
+	                    </div>
+	                  </div>
+	                </div>
               </div>
 
               <div className="page-scroll ledger-detail-scroll internal-scrollbar flex-1">
-                <div className="ledger-info-grid">
-                  <DataCard
-                    label="Tanggal Kirim"
-                    value={formatDateTime(selectedShipment.sentAt)}
-                    note={`Update ${formatRelativeShort(selectedShipment.updatedAt)}`}
-                    icon={Clock3}
-                  />
-                  <DataCard
-                    label="Flight"
-                    value={selectedShipment.flightNumber || "-"}
-                    note="Assignment aktif"
-                    icon={PlaneTakeoff}
-                    tone={selectedShipment.flightNumber ? "info" : "default"}
-                  />
-                  <DataCard
-                    label="Pengirim / Penerima"
-                    value={selectedShipment.customerAccountName || selectedShipment.shipper}
-                    note={`${selectedShipment.consignee} • ${selectedShipment.senderPhone}`}
-                    icon={FolderOpen}
-                  />
-                  <DataCard
-                    label="Dokumen"
-                    value={selectedShipment.docStatus}
-                    note={`${selectedShipment.documentSummary.count} file aktif`}
-                    icon={FileText}
-                    tone={selectedShipment.docStatus.toLowerCase() === "complete" ? "success" : "warning"}
-                  />
-                  <DataCard
-                    label="Jenis Pengiriman"
-                    value={selectedShipment.serviceType}
-                    note={`${selectedShipment.cargoMode} • Rp ${selectedShipment.shippingRate.toLocaleString("id-ID")}`}
-                    icon={PackageSearch}
-                    tone="info"
-                  />
-                  <DataCard
-                    label="Kendaraan"
-                    value={selectedShipment.vehicleName || selectedShipment.vehicleType}
-                    note={`${selectedShipment.vehicleCode || "-"} • ${selectedShipment.vehicleCapacityKg} kg`}
-                    icon={PlaneTakeoff}
-                    tone={selectedShipment.vehicleStatus === "Aktif" ? "success" : "warning"}
-                  />
-                  <DataCard
-                    label="Status Barang"
-                    value={selectedShipment.goodsStatus}
-                    note={`Transaksi: ${selectedShipment.transactionStatus}`}
-                    icon={Boxes}
-                    tone={selectedShipment.goodsStatus === "Selesai" ? "success" : "default"}
-                  />
-                  <DataCard
-                    label="Barang"
-                    value={selectedShipment.commodity}
-                    note={`${selectedShipment.pieces} pcs • ${formatWeight(selectedShipment.weightKg)}`}
-                    icon={PackageSearch}
-                  />
-                </div>
+                <div className="ledger-detail-summary">
+                    <div>
+                      <span>Flight</span>
+                      <strong>{selectedShipment.flightNumber || "Belum assigned"}</strong>
+                      <small>{formatDateTime(selectedShipment.sentAt)}</small>
+                    </div>
+                    <div>
+                      <span>Pengirim</span>
+                      <strong>{selectedShipment.customerAccountName || selectedShipment.shipper}</strong>
+                      <small>{selectedShipment.senderPhone}</small>
+                    </div>
+                    <div>
+                      <span>Penerima</span>
+                      <strong>{selectedShipment.consignee}</strong>
+                      <small>{selectedShipment.destination}</small>
+                    </div>
+                    <div>
+                      <span>Dokumen</span>
+                      <strong>{selectedShipment.docStatus}</strong>
+                      <small>{selectedShipment.documentSummary.count} file aktif</small>
+                    </div>
+                    <div>
+                      <span>Muatan</span>
+                      <strong>{formatWeight(selectedShipment.weightKg)}</strong>
+                      <small>{selectedShipment.pieces} pcs • {selectedShipment.serviceType}</small>
+                    </div>
+                    <div>
+                      <span>Kesiapan</span>
+                      <strong>{selectedShipment.readiness}</strong>
+                      <small>{selectedShipment.goodsStatus} • {selectedShipment.transactionStatus}</small>
+                    </div>
+	                </div>
 
-                <div className="section-stack-gap mt-6">
-                  {!isReadOnly ? (
-                    <>
-                      <div className="ledger-section-card rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
-                        <SectionHeader
-                          title="Review Operasional"
-                          subtitle="Mode baca. Tekan Edit Shipment untuk mengubah metadata operasional."
-                        />
-                        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                          <DataCard label="Status" value={selectedShipment.statusLabel} note={`Dokumen: ${selectedShipment.docStatus}`} />
-                          <DataCard label="Penanggung Jawab" value={selectedShipment.ownerName || "-"} note={selectedShipment.senderPhone || "No telepon kosong"} />
-                          <DataCard label="Tanggal Kirim" value={formatDateInput(selectedShipment.sentAt)} note={`${selectedShipment.cargoMode} • ${selectedShipment.serviceType}`} />
-                          <DataCard label="Rute" value={`${selectedShipment.origin} -> ${selectedShipment.destination}`} note={selectedShipment.flightNumber || "Tanpa flight"} />
-                          <DataCard label="Muatan" value={`${selectedShipment.pieces} pcs`} note={formatWeight(selectedShipment.weightKg)} />
-                          <DataCard label="Tarif" value={`Rp ${selectedShipment.shippingRate.toLocaleString("id-ID")}`} note={`Transaksi: ${selectedShipment.transactionStatus}`} />
-                          <DataCard label="Kendaraan" value={selectedShipment.vehicleName || selectedShipment.vehicleType} note={`${selectedShipment.vehicleCode || "-"} • ${selectedShipment.vehicleStatus}`} />
-                          <DataCard label="Akun Pelanggan" value={selectedShipment.customerAccountName || "-"} note={selectedShipment.customerAccountId ? "Terhubung" : "Tanpa akun"} />
-                          <DataCard label="Kesiapan" value={selectedShipment.readiness} note={`Barang: ${selectedShipment.goodsStatus}`} />
-                        </div>
-                        {selectedShipment.notes ? (
-                          <div className="mt-4 rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-4 py-4 text-sm leading-6 text-[color:var(--muted-fg)]">
-                            {selectedShipment.notes}
-                          </div>
-                        ) : null}
-                        <div className="mt-6 flex flex-wrap gap-3 rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-5">
+	                <div className="section-stack-gap mt-4">
+	                  {!isReadOnly ? (
+	                    <>
+	                      <div className="ledger-section-card rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
+	                        <SectionHeader
+	                          title="Review Operasional"
+	                          subtitle={`${selectedShipment.origin} -> ${selectedShipment.destination} • ${selectedShipment.vehicleCode || selectedShipment.vehicleType}`}
+	                        />
+                          <dl className="ledger-detail-lines mt-4">
+                            <div><dt>Penanggung jawab</dt><dd>{selectedShipment.ownerName || "-"}</dd></div>
+                            <div><dt>Tarif</dt><dd>Rp {selectedShipment.shippingRate.toLocaleString("id-ID")}</dd></div>
+                            <div><dt>Kendaraan</dt><dd>{selectedShipment.vehicleName || selectedShipment.vehicleType}</dd></div>
+                            <div><dt>Confidence</dt><dd>{confidenceState.label}</dd></div>
+                          </dl>
+	                        {selectedShipment.notes ? (
+	                          <div className="mt-4 rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-3 py-3 text-sm leading-6 text-[color:var(--muted-fg)]">
+	                            {selectedShipment.notes}
+	                          </div>
+	                        ) : null}
+	                        <div className="mt-4 flex flex-wrap gap-2 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-3">
                           {data?.permissions.canEdit ? (
                             <button
                               type="button"
-                              className="btn btn-primary flex-1"
+	                              className="btn btn-primary flex-1"
                               onClick={() => {
                                 setDrawerDraft(createDrawerDraft(selectedShipment));
                                 setEditOpen(true);
@@ -1325,7 +1326,7 @@ export default function ShipmentLedgerPage() {
                       </OpsDrawer>
                     </>
                   ) : (
-                    <div className="ledger-section-card rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
+	                      <div className="ledger-section-card rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
                       <SectionHeader
                         title="Ringkasan Pelanggan"
                         subtitle="Portal pelanggan menampilkan status, ringkasan dokumen, dan kronologi tanpa aksi edit."
@@ -1350,12 +1351,12 @@ export default function ShipmentLedgerPage() {
                   )}
 
                   {!isReadOnly ? (
-                    <div className="ledger-section-card rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
+	                    <div className="ledger-section-card rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
                       <SectionHeader
                         title="Dokumen Aktif"
                         subtitle="Upload dan penghapusan file tetap dekat dengan detail shipment yang sedang dipilih."
                       />
-                      <div className="mt-5 space-y-3">
+	                      <div className="mt-4 space-y-3">
                         {selectedShipment.documents.length ? (
                           selectedShipment.documents.map((document) => (
                             <div
@@ -1415,13 +1416,13 @@ export default function ShipmentLedgerPage() {
                     </div>
                   ) : null}
 
-                  <div className="ledger-section-card rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
+	                  <div className="ledger-section-card rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
                     <SectionHeader
                       title="Tracking Timeline"
                       subtitle="Hubungan visual antara manifest board dan panel detail dijaga lewat event log yang tetap kronologis."
                     />
-                    <div className="mt-5 space-y-3">
-                      {selectedShipment.trackingLogs.map((log) => (
+	                    <div className="mt-4 space-y-3">
+	                      {selectedShipment.trackingLogs.slice(0, 4).map((log) => (
                         <div
                           key={log.id}
                           className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-4 py-4"
@@ -1446,21 +1447,9 @@ export default function ShipmentLedgerPage() {
                   </div>
                 </div>
               </div>
-            </>
-          ) : (
-            <div className="flex min-h-[420px] flex-1 items-center justify-center p-6">
-              <EmptyState
-                icon={PackageSearch}
-                title="Pilih Shipment"
-                copy={
-                  isReadOnly
-                    ? "Klik salah satu shipment pada daftar untuk melihat ringkasan status, dokumen, dan timeline."
-                    : "Klik salah satu shipment pada manifest board untuk membuka detail review, metadata, dan aksi operasional."
-                }
-              />
-            </div>
-          )}
-        </OpsPanel>
+	            </>
+	        </OpsPanel>
+        ) : null}
       </div>
 
       <OpsDrawer
