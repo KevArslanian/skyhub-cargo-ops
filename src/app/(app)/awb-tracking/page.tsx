@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Clock3,
@@ -62,39 +62,12 @@ type RecentSearch = {
   flightNumber: string | null;
 };
 
-const TRACKING_FORMAT = ["160-12345678", "160-87654321"] as const;
-
-function FormatGuidePanel() {
-  return (
-    <OpsPanel className="p-5">
-      <SectionHeader title="Format" subtitle="Format AWB yang diterima oleh sistem." />
-      <div className="mt-5 space-y-3">
-        <DataCard
-          label="Pattern"
-          value="XXX-XXXXXXXX"
-          note="3 digit prefix, tanda hubung, 8 digit nomor AWB."
-          tone="primary"
-        />
-        {TRACKING_FORMAT.map((sample) => (
-          <div
-            key={sample}
-            className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-3"
-          >
-            <p className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{sample}</p>
-          </div>
-        ))}
-        <p className="text-sm text-[color:var(--muted-fg)]">
-          Gunakan format valid sebelum menekan tombol <strong>Lacak</strong>.
-        </p>
-      </div>
-    </OpsPanel>
-  );
-}
-
 export default function AwbTrackingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const awbFromQuery = searchParams.get("awb") || "";
+  const resultsRef = useRef<HTMLDivElement | null>(null);
+  const shouldScrollToResultRef = useRef(Boolean(awbFromQuery));
   const [awb, setAwb] = useState(awbFromQuery);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -139,6 +112,13 @@ export default function AwbTrackingPage() {
       setNotFound(!payload.shipment);
       setLoading(false);
       fetchRecentSearches();
+
+      if (shouldScrollToResultRef.current) {
+        shouldScrollToResultRef.current = false;
+        window.setTimeout(() => {
+          resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 80);
+      }
     }
 
     void lookup();
@@ -154,7 +134,27 @@ export default function AwbTrackingPage() {
     }
 
     setError("");
-    router.push(`/awb-tracking?awb=${encodeURIComponent(awb.trim())}`);
+    shouldScrollToResultRef.current = true;
+    const nextPath = `/awb-tracking?awb=${encodeURIComponent(awb.trim())}`;
+    if (nextPath === `/awb-tracking?awb=${encodeURIComponent(awbFromQuery)}`) {
+      window.setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
+      return;
+    }
+    router.push(nextPath);
+  }
+
+  function openHistoryAwb(nextAwb: string) {
+    shouldScrollToResultRef.current = true;
+    const nextPath = `/awb-tracking?awb=${encodeURIComponent(nextAwb)}`;
+    if (nextPath === `/awb-tracking?awb=${encodeURIComponent(awbFromQuery)}`) {
+      window.setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
+      return;
+    }
+    router.push(nextPath);
   }
 
   async function handleReportIssue() {
@@ -175,7 +175,7 @@ export default function AwbTrackingPage() {
       <PageHeader
         eyebrow="Pelacakan AWB"
         title="Pelacakan AWB"
-        subtitle="Input tracking, history tracking, dan format AWB dalam alur yang ringkas."
+        subtitle="Input tracking dan history tracking dalam alur yang ringkas."
       />
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.92fr)]">
@@ -231,7 +231,7 @@ export default function AwbTrackingPage() {
               ) : null}
             </div>
 
-            <div className="awb-tracking-results p-6">
+            <div ref={resultsRef} className="awb-tracking-results scroll-mt-24 p-6">
               {loading ? (
                 <div className="space-y-4">
                   <SkeletonBlock className="h-24 w-full rounded-[24px]" />
@@ -326,8 +326,6 @@ export default function AwbTrackingPage() {
             ) : null}
             </div>
           </OpsPanel>
-
-          <FormatGuidePanel />
         </div>
 
         <OpsPanel className="p-5">
@@ -339,7 +337,7 @@ export default function AwbTrackingPage() {
                   key={item.id}
                   type="button"
                   className="w-full rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4 text-left hover:bg-[color:var(--brand-primary-soft)]"
-                  onClick={() => router.push(`/awb-tracking?awb=${encodeURIComponent(item.awb)}`)}
+                  onClick={() => openHistoryAwb(item.awb)}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
