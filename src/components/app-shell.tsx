@@ -640,7 +640,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                       href="/settings"
                       title="Settings"
                       aria-label="Settings"
-                      className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary)] text-sm font-black text-white hover:opacity-90 transition-opacity"
+                      className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary)] text-sm font-black !text-white hover:opacity-90 transition-opacity"
                       onClick={() => setMobileOpen(false)}
                     >
                       {user.name

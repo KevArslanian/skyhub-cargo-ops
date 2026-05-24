@@ -16,8 +16,8 @@
   --app-bg-alt: #e3ebf6;
   --app-fg: #12233d;
   --text-strong: #0b1d33;
-  --muted-fg: #61748d;
-  --muted-2: #8393a7;
+  --muted-fg: #54677f;
+  --muted-2: #5d6f85;
   --panel-bg: #ffffff;
   --panel-muted: #f4f7fb;
   --panel-strong: #edf3fb;
@@ -28,13 +28,13 @@
   --brand-primary-2: #0052cc;
   --brand-primary-3: #0059cf;
   --brand-primary-soft: rgba(0, 61, 155, 0.09);
-  --tone-success: #1f9d55;
+  --tone-success: #126c38;
   --tone-success-soft: rgba(31, 157, 85, 0.14);
   --tone-success-border: rgba(31, 157, 85, 0.22);
-  --tone-warning: #c97a00;
+  --tone-warning: #7a4a00;
   --tone-warning-soft: rgba(201, 122, 0, 0.14);
   --tone-warning-border: rgba(201, 122, 0, 0.22);
-  --tone-info: #0059cf;
+  --tone-info: #004ea8;
   --tone-info-soft: rgba(0, 89, 207, 0.14);
   --tone-info-border: rgba(0, 89, 207, 0.22);
   --tone-danger: #c62828;
