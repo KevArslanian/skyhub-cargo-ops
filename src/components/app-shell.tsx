@@ -25,7 +25,7 @@ import {
 import { useTheme } from "next-themes";
 import { getNavigationForRole } from "@/lib/access";
 import { APP_NAME, APP_SUBTITLE, ROLE_LABELS } from "@/lib/constants";
-import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
+import { cn, formatRelativeShort } from "@/lib/format";
 import { BrandMark } from "./brand-mark";
 import { ShellSearchProvider } from "./shell-search-provider";
 import { StatusBadge } from "./status-badge";
@@ -90,7 +90,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationItems, setNotificationItems] = useState(notifications);
   const [mounted, setMounted] = useState(false);
-  const [clock, setClock] = useState<Date | null>(null);
   const themePreference = shellSettings.theme === "dark" ? "dark" : "light";
   const activeTheme = mounted ? (resolvedTheme === "dark" ? "dark" : "light") : themePreference;
   const sidebarWidth = collapsed ? "88px" : "min(284px, 24vw)";
@@ -199,12 +198,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   useEffect(() => {
     setOpenGroupId(activeGroupId);
   }, [activeGroupId]);
-
-  useEffect(() => {
-    setClock(new Date());
-    const timer = window.setInterval(() => setClock(new Date()), 60000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   async function persistSettings(payload: Record<string, unknown>) {
     const response = await fetch("/api/settings", {
@@ -331,6 +324,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       style={shellStyle}
       className={cn(
         "h-svh w-full min-w-0 overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
+        pathname === "/dashboard" && "dashboard-shell",
         shellSettings.compactRows && "compact-table",
       )}
     >
@@ -543,8 +537,8 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
           </div>
         </aside>
 
-        <div className="flex min-h-0 min-w-0 w-full flex-col transition-all duration-200 lg:ml-[var(--sidebar-width)]">
-          <header className="sticky top-0 z-30 min-w-0 shrink-0 px-3 py-3 sm:px-4 sm:py-4 lg:px-8 lg:py-5">
+        <div className="shell-content flex min-h-0 min-w-0 w-full flex-col transition-all duration-200 lg:ml-[var(--sidebar-width)]">
+          <header className="shell-topbar sticky top-0 z-30 min-w-0 shrink-0 px-3 py-3 sm:px-4 sm:py-4 lg:px-8 lg:py-5">
             <div className="ops-panel shell-topbar-toolbar flex min-w-0 flex-wrap items-center px-4 py-4 lg:px-5">
               <button type="button" className="topbar-button mobile-hamburger-trigger shrink-0" onClick={() => setMobileOpen(true)}>
                 <Menu size={18} />
@@ -573,14 +567,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                   />
                 </form>
               ) : null}
-
-              <div className="topbar-button hidden min-w-0 max-w-[320px] xl:flex">
-                <div className="h-2.5 w-2.5 rounded-full bg-[color:var(--tone-success)]" />
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Sinkron</p>
-                  <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">{clock ? formatDateTime(clock) : "Sinkronisasi waktu"}</p>
-                </div>
-              </div>
 
               <button type="button" className="topbar-button" onClick={handleThemeToggle}>
                 {activeTheme === "dark" ? <SunMedium size={18} /> : <MoonStar size={18} />}
