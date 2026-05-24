@@ -247,7 +247,7 @@ export const flightUpdateSchema = z.object({
 
 export const shipmentListQuerySchema = z.object({
   query: z.string().trim().optional(),
-  status: z.union([shipmentStatusSchema, z.literal("all")]).optional(),
+  status: z.union([shipmentStatusSchema, z.literal("all"), z.literal("delayed"), z.literal("review")]).optional(),
   flight: z
     .string()
     .trim()

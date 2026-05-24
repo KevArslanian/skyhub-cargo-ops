@@ -184,6 +184,10 @@ function serializeShipment(shipment: ShipmentRecord, user: AccessUser) {
     shippingRate: shipment.shippingRate,
     documents: shipment.documents,
   });
+  const needsReview =
+    shipment.status === ShipmentStatus.hold ||
+    guardFields.docStatus !== ShipmentDocStatus.Complete ||
+    guardFields.readiness !== ShipmentReadiness.Ready;
 
   return {
     id: shipment.id,
@@ -216,6 +220,7 @@ function serializeShipment(shipment: ShipmentRecord, user: AccessUser) {
     notes: shipment.notes ?? "",
     status: shipment.status,
     statusLabel: SHIPMENT_STATUS_LABELS[shipment.status],
+    needsReview,
     receivedAt: shipment.receivedAt.toISOString(),
     updatedAt: (latestTrackingTimestamp ?? shipment.updatedAt).toISOString(),
     flightId: shipment.flightId,
@@ -1381,7 +1386,23 @@ export async function listShipments(
     ];
   }
 
-  if (filters?.status && filters.status !== "all") {
+  if (filters?.status === "review") {
+    const queryOr = where.OR;
+    delete where.OR;
+    where.AND = [
+      ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
+      ...(queryOr ? [{ OR: queryOr }] : []),
+      {
+        OR: [
+          { status: ShipmentStatus.hold },
+          { docStatus: { not: ShipmentDocStatus.Complete } },
+          { readiness: { not: ShipmentReadiness.Ready } },
+        ],
+      },
+    ];
+  } else if (filters?.status === "delayed") {
+    where.status = ShipmentStatus.hold;
+  } else if (filters?.status && filters.status !== "all") {
     where.status = filters.status as ShipmentStatus;
   }
 

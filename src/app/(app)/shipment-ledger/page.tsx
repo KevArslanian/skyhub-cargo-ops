@@ -2,24 +2,29 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Boxes,
+  ArrowDown,
+  ArrowUpDown,
+  CircleAlert,
   ChevronLeft,
   ChevronRight,
-  CircleAlert,
   ExternalLink,
   FileText,
-  PackageSearch,
+  Filter,
+  Inbox,
+  Package,
   Pencil,
   PlaneTakeoff,
   Plus,
   RefreshCw,
   RotateCcw,
   Save,
+  Search,
   ShieldAlert,
   Trash2,
   Upload,
+  Weight,
   X,
 } from "lucide-react";
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
@@ -33,7 +38,6 @@ import {
 import { StatusBadge } from "@/components/status-badge";
 import {
   DataCard,
-  EmptyState,
   FilterBar,
   OpsPanel,
   SectionHeader,
@@ -72,6 +76,7 @@ type ShipmentRow = {
   notes: string;
   status: string;
   statusLabel: string;
+  needsReview: boolean;
   receivedAt: string;
   updatedAt: string;
   flightId: string | null;
@@ -265,6 +270,185 @@ function getConfidenceState(shipment: ShipmentRow | null) {
   };
 }
 
+function useDebouncedValue<T>(value: T, delayMs: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedValue(value), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [delayMs, value]);
+
+  return debouncedValue;
+}
+
+function formatIsoSecond(value: string) {
+  return new Date(value).toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+function getManifestStatus(shipment: ShipmentRow) {
+  if (shipment.status === "arrived") return { value: "arrived", label: "Tiba" };
+  if (shipment.status === "departed" || shipment.status === "loaded_to_aircraft") {
+    return { value: "in_transit", label: "Berangkat" };
+  }
+  if (shipment.status === "hold") return { value: "on_hold", label: "Tertahan" };
+  return { value: shipment.status, label: shipment.statusLabel };
+}
+
+function LedgerStats({
+  loading,
+  totalShipments,
+  totalWeight,
+  assignedFlightCount,
+  reviewCount,
+}: {
+  loading: boolean;
+  totalShipments: number;
+  totalWeight: string;
+  assignedFlightCount: number;
+  reviewCount: number;
+}) {
+  const cards = [
+    {
+      label: "Total Shipment",
+      value: totalShipments,
+      description: "Semua pengiriman tercatat",
+      icon: Package,
+      tone: "blue",
+    },
+    {
+      label: "Berat Total",
+      value: totalWeight,
+      description: "Sudah ditimbang & divalidasi",
+      icon: Weight,
+      tone: "green",
+    },
+    {
+      label: "Assigned Flight",
+      value: assignedFlightCount,
+      description: "Penerbangan aktif & terhubung",
+      icon: PlaneTakeoff,
+      tone: "orange",
+    },
+    {
+      label: "Perlu Review",
+      value: reviewCount,
+      description: "Dokumen & kesiapan diperiksa",
+      icon: CircleAlert,
+      tone: "red",
+    },
+  ] as const;
+
+  return (
+    <section aria-labelledby="ledger-stats-title" className="ledger-compact-stats grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <h2 id="ledger-stats-title" className="sr-only">
+        Statistik ledger shipment
+      </h2>
+      {cards.map((card) => {
+        const Icon = card.icon;
+
+        return (
+          <article
+            key={card.label}
+            aria-label={card.label}
+            className={cn("ledger-stat-card ledger-stat-gradient-card", `ledger-stat-${card.tone}`)}
+          >
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p>{card.label}</p>
+                {loading ? <SkeletonBlock className="mt-3 h-8 w-24 rounded-[12px]" /> : <strong>{card.value}</strong>}
+              </div>
+              <span aria-hidden="true">
+                <Icon size={19} />
+              </span>
+            </div>
+            <small>{card.description}</small>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function SortHeader({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const Icon = active ? ArrowDown : ArrowUpDown;
+
+  return (
+    <button type="button" className={cn("ledger-sort-header", active && "ledger-sort-header-active")} onClick={onClick}>
+      <span>{label}</span>
+      <Icon size={14} />
+    </button>
+  );
+}
+
+const LedgerManifestRow = memo(function LedgerManifestRow({
+  shipment,
+  selected,
+  onSelect,
+}: {
+  shipment: ShipmentRow;
+  selected: boolean;
+  onSelect: (shipmentId: string) => void;
+}) {
+  const status = getManifestStatus(shipment);
+
+  return (
+    <tr className={cn("ledger-manifest-table-row", selected && "ledger-manifest-table-row-active")}>
+      <td>
+        <button type="button" className="ledger-row-button" onClick={() => onSelect(shipment.id)}>
+          <span className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]" title={shipment.awb}>
+            {shipment.awb}
+          </span>
+          <span className="mt-1 block truncate text-xs text-[color:var(--muted-fg)]" title={shipment.customerAccountName || shipment.shipper}>
+            {shipment.customerAccountName || shipment.shipper}
+          </span>
+        </button>
+      </td>
+      <td>
+        <button type="button" className="ledger-row-button" onClick={() => onSelect(shipment.id)}>
+          <span className="block truncate font-semibold text-[color:var(--text-strong)]" title={shipment.commodity}>
+            {shipment.commodity}
+          </span>
+          <span className="mt-1 block text-xs text-[color:var(--muted-fg)]">
+            {formatWeight(shipment.weightKg)} • {shipment.pieces} pcs
+          </span>
+        </button>
+      </td>
+      <td>
+        <span className="block truncate" title={`${shipment.origin} -> ${shipment.destination}`}>
+          {shipment.origin} {" -> "} {shipment.destination}
+        </span>
+        <span className="mt-1 block truncate text-xs text-[color:var(--muted-fg)]" title={shipment.flightNumber || "Belum assigned"}>
+          {shipment.flightNumber || "Belum assigned"}
+        </span>
+      </td>
+      <td>
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge value={status.value} label={status.label} />
+          {shipment.needsReview ? <StatusBadge value="review" label="Butuh Review" /> : null}
+        </div>
+      </td>
+      <td>
+        <time dateTime={formatIsoSecond(shipment.updatedAt)} title={formatIsoSecond(shipment.updatedAt)}>
+          {formatRelativeShort(shipment.updatedAt)}
+        </time>
+      </td>
+      <td className="text-right">
+        <button type="button" className="topbar-button min-h-[34px] px-3" onClick={() => onSelect(shipment.id)}>
+          Detail
+        </button>
+      </td>
+    </tr>
+  );
+});
+
 export default function ShipmentLedgerPage() {
   const searchParams = useSearchParams();
   const [data, setData] = useState<LedgerPayload | null>(null);
@@ -288,7 +472,7 @@ export default function ShipmentLedgerPage() {
   const splitPaneRef = useRef<HTMLDivElement | null>(null);
   const pendingDetailQueryRef = useRef<string | null>(null);
 
-  const deferredQuery = useDeferredValue(query);
+  const debouncedQuery = useDebouncedValue(query, 300);
 
   useEffect(() => {
     function handleContextSearch(event: Event) {
@@ -322,7 +506,7 @@ export default function ShipmentLedgerPage() {
 
   const requestShipments = useCallback(async () => {
     const params = new URLSearchParams();
-    if (deferredQuery.trim()) params.set("query", deferredQuery.trim());
+    if (debouncedQuery.trim()) params.set("query", debouncedQuery.trim());
     if (status !== "all") params.set("status", status);
     if (flight !== "all") params.set("flight", flight);
     if (sortBy) params.set("sortBy", sortBy);
@@ -331,7 +515,7 @@ export default function ShipmentLedgerPage() {
     if (!response.ok) return null;
 
     return (await response.json()) as LedgerPayload;
-  }, [deferredQuery, flight, sortBy, status]);
+  }, [debouncedQuery, flight, sortBy, status]);
 
   const loadShipments = useCallback(
     async (preferredShipmentId: string | null = selectedIdRef.current, mode: "initial" | "refresh" = "refresh") => {
@@ -407,13 +591,13 @@ export default function ShipmentLedgerPage() {
   const readinessIssuesCount = (data?.shipments ?? []).filter(
     (shipment) => shipment.readiness.toLowerCase() !== "ready",
   ).length;
-  const activeFilterCount = [Boolean(deferredQuery.trim()), status !== "all", flight !== "all", sortBy !== "updated"].filter(
+  const activeFilterCount = [Boolean(query.trim()), status !== "all", flight !== "all", sortBy !== "updated"].filter(
     Boolean,
   ).length;
-  const filtersDirty = status !== "all" || flight !== "all" || sortBy !== "updated";
+  const filtersDirty = query.trim() !== "" || status !== "all" || flight !== "all" || sortBy !== "updated";
 
   const exportParams = new URLSearchParams();
-  if (deferredQuery.trim()) exportParams.set("query", deferredQuery.trim());
+  if (debouncedQuery.trim()) exportParams.set("query", debouncedQuery.trim());
   if (status !== "all") exportParams.set("status", status);
   if (flight !== "all") exportParams.set("flight", flight);
   if (sortBy) exportParams.set("sortBy", sortBy);
@@ -431,7 +615,7 @@ export default function ShipmentLedgerPage() {
 
   useEffect(() => {
     setListPage(1);
-  }, [deferredQuery, flight, sortBy, status]);
+  }, [debouncedQuery, flight, sortBy, status]);
 
   useEffect(() => {
     if (listPage <= totalPages) return;
@@ -649,6 +833,7 @@ export default function ShipmentLedgerPage() {
   }
 
   function handleResetFilters() {
+    setQuery("");
     setStatus("all");
     setFlight("all");
     setSortBy("updated");
@@ -657,11 +842,11 @@ export default function ShipmentLedgerPage() {
   }
 
   return (
-    <div className="page-workspace">
-      <section className="ledger-control-header">
+    <main className="page-workspace" aria-labelledby="shipment-ledger-title">
+      <section className="ledger-control-header" aria-labelledby="shipment-ledger-title">
         <div className="min-w-0">
           <p>Ruang Kontrol</p>
-          <h1>{isReadOnly ? "Shipment Saya" : "Ledger Shipment"}</h1>
+          <h1 id="shipment-ledger-title">{isReadOnly ? "Shipment Saya" : "Ledger Shipment"}</h1>
         </div>
         <div className="ledger-control-actions">
           {!isReadOnly && data?.permissions.canExport ? (
@@ -687,65 +872,48 @@ export default function ShipmentLedgerPage() {
         </div>
       </section>
 
-      <div className="ledger-compact-stats grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <DataCard
-          label="Total Shipment"
-          value={data?.shipments.length ?? 0}
-          note="Data tampil."
-          meta={activeFilterCount ? "Filter aktif" : "Semua data"}
-          icon={Boxes}
-          tone="primary"
-          className="ledger-stat-card"
-          valueClassName="mt-2 text-[1.1rem]"
-        />
-        <DataCard
-          label="Berat Total"
-          value={formatWeight(totalWeight)}
-          note="Total berat."
-          meta="Sudah di-assign"
-          icon={PackageSearch}
-          tone="info"
-          className="ledger-stat-card"
-          valueClassName="mt-2 text-[1.1rem]"
-        />
-        <DataCard
-          label="Assigned Flight"
-          value={assignedFlightCount}
-          note="Terhubung flight."
-          meta="Flight tersedia"
-          icon={PlaneTakeoff}
-          tone="success"
-          className="ledger-stat-card"
-          valueClassName="mt-2 text-[1.1rem]"
-        />
-        <DataCard
-          label="Perlu Review"
-          value={pendingDocsCount + holdCount + readinessIssuesCount}
-          note="Hold, dokumen, readiness."
-          meta="Hold • Dokumen • Readiness"
-          icon={CircleAlert}
-          tone="warning"
-          className="ledger-stat-card"
-          valueClassName="mt-2 text-[1.1rem]"
-        />
-      </div>
+      <LedgerStats
+        loading={loading}
+        totalShipments={data?.shipments.length ?? 0}
+        totalWeight={formatWeight(totalWeight)}
+        assignedFlightCount={assignedFlightCount}
+        reviewCount={pendingDocsCount + holdCount + readinessIssuesCount}
+      />
 
-      <FilterBar className="ledger-compact-filter xl:grid-cols-[170px_170px_200px_auto]">
+      <FilterBar className="ledger-compact-filter grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
         <div>
-          <label className="label">Status</label>
-          <select className="select-field" value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="all">Semua</option>
-            <option value="received">Diterima</option>
-            <option value="sortation">Sortasi</option>
-            <option value="loaded_to_aircraft">Muat ke Pesawat</option>
+          <label className="label" htmlFor="ledger-search">
+            Cari
+          </label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={15} />
+            <input
+              id="ledger-search"
+              className="input-field ledger-search-input"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="AWB, komoditas, pengirim"
+              aria-label="Cari shipment"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="label" htmlFor="ledger-status">Status</label>
+          <select id="ledger-status" className="select-field" value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="all">Semua Status</option>
             <option value="departed">Berangkat</option>
             <option value="arrived">Tiba</option>
             <option value="hold">Tertahan</option>
+            <option value="delayed">Ditunda</option>
+            <option value="review">Butuh Review</option>
+            <option value="received">Diterima</option>
+            <option value="sortation">Sortasi</option>
+            <option value="loaded_to_aircraft">Muat ke Pesawat</option>
           </select>
         </div>
         <div>
-          <label className="label">Flight</label>
-          <select className="select-field" value={flight} onChange={(event) => setFlight(event.target.value)}>
+          <label className="label" htmlFor="ledger-flight">Flight</label>
+          <select id="ledger-flight" className="select-field" value={flight} onChange={(event) => setFlight(event.target.value)}>
             <option value="all">Semua</option>
             {(data?.flights ?? []).map((item) => (
               <option key={item.id} value={item.flightNumber}>
@@ -754,18 +922,22 @@ export default function ShipmentLedgerPage() {
             ))}
           </select>
         </div>
-        <div>
-          <label className="label">Urutkan</label>
-          <select className="select-field" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+        <div className="ledger-filter-action-cell">
+          <label className="label" htmlFor="ledger-sort">Urutkan</label>
+          <select id="ledger-sort" className="select-field" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
             <option value="updated">Update Terbaru</option>
             <option value="received">Penerimaan Terbaru</option>
             <option value="priority">Prioritas Review</option>
           </select>
+          <button type="button" className="topbar-button ledger-reset-button" onClick={handleResetFilters} disabled={!filtersDirty}>
+            <RotateCcw size={16} />
+            <span>Reset Semua</span>
+          </button>
+          <span className="ledger-filter-count" aria-label={`${activeFilterCount} filter aktif`}>
+            <Filter size={14} />
+            {activeFilterCount}
+          </span>
         </div>
-        <button type="button" className="topbar-button self-end" onClick={handleResetFilters} disabled={!filtersDirty}>
-          <RotateCcw size={16} />
-          <span>Reset</span>
-        </button>
       </FilterBar>
 
       {actionNotice ? (
@@ -798,61 +970,34 @@ export default function ShipmentLedgerPage() {
             </div>
           ) : (
             <div className="min-h-0 flex-1 p-4">
-              {(data?.shipments ?? []).length ? (
+              {shipments.length ? (
                 <div className="space-y-2.5">
-                  {pagedShipments.map((shipment) => {
-                    const isSelected = selectedShipment?.id === shipment.id;
-                    const needsAttention =
-                      shipment.status === "hold" ||
-                      shipment.docStatus.toLowerCase() !== "complete" ||
-                      shipment.readiness.toLowerCase() !== "ready";
-
-                    return (
-                      <button
-                        key={shipment.id}
-                        type="button"
-                        onClick={() => handleSelectShipment(shipment.id)}
-                        className={cn(
-                          "ledger-manifest-row w-full rounded-[18px] border px-3 py-3 text-left transition-colors",
-                          isSelected
-                            ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]"
-                            : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] hover:bg-[color:var(--brand-primary-soft)]",
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{shipment.awb}</p>
-                            <p className="mt-1 truncate text-sm font-semibold text-[color:var(--text-strong)]">{shipment.commodity}</p>
-                            <p className="mt-1 truncate text-xs text-[color:var(--muted-fg)]">
-                              {shipment.origin} {" -> "} {shipment.destination}
-                            </p>
-                          </div>
-                          <div className="shrink-0 text-right">
-                            <StatusBadge value={shipment.status} label={shipment.statusLabel} />
-                            <p className="mt-2 text-xs text-[color:var(--muted-fg)]">{formatRelativeShort(shipment.updatedAt)}</p>
-                          </div>
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted-fg)]">
-                          <span>{formatWeight(shipment.weightKg)}</span>
-                          <span>•</span>
-                          <span>{shipment.pieces} pcs</span>
-                          <span>•</span>
-                          <span>{shipment.flightNumber || "Belum assigned"}</span>
-                          {needsAttention ? (
-                            <>
-                              <span>•</span>
-                              <span className="font-semibold text-[color:var(--tone-warning)]">Butuh review</span>
-                            </>
-                          ) : null}
-                        </div>
-                        <div className="mt-3 flex justify-end">
-                          <span className="inline-flex min-h-[30px] items-center rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-3 text-xs font-extrabold text-[color:var(--brand-primary)]">
-                            Detail
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
+                  <div className="ledger-manifest-table-wrap" role="region" aria-label="Daftar manifest shipment" tabIndex={0}>
+                    <table className="ledger-manifest-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">AWB</th>
+                          <th scope="col">Shipment</th>
+                          <th scope="col">Rute</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">
+                            <SortHeader label="Update" active={sortBy === "updated"} onClick={() => setSortBy("updated")} />
+                          </th>
+                          <th scope="col" className="text-right">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagedShipments.map((shipment) => (
+                          <LedgerManifestRow
+                            key={shipment.id}
+                            shipment={shipment}
+                            selected={selectedShipment?.id === shipment.id}
+                            onSelect={handleSelectShipment}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 py-3">
                     <button
@@ -879,12 +1024,17 @@ export default function ShipmentLedgerPage() {
                   </div>
                 </div>
               ) : (
-                <EmptyState
-                  icon={PackageSearch}
-                  title="Belum ada shipment"
-                  copy="Coba ubah filter status atau flight, atau tunggu hingga manifest baru masuk."
-                  className="m-0"
-                />
+                <div className="ledger-empty-state">
+                  <span aria-hidden="true">
+                    <Inbox size={34} />
+                  </span>
+                  <h3>Tidak ada pengiriman ditemukan</h3>
+                  <p>Coba ubah filter status atau flight, atau tunggu hingga manifest baru masuk.</p>
+                  <button type="button" className="btn btn-secondary" onClick={handleResetFilters} disabled={!filtersDirty}>
+                    <RotateCcw size={16} />
+                    Reset Filter
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -1800,6 +1950,6 @@ export default function ShipmentLedgerPage() {
               </div>
             </form>
       </OpsDrawer>
-    </div>
+    </main>
   );
 }
