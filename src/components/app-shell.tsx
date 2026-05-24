@@ -510,13 +510,19 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                   </>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary)] text-sm font-black text-white">
+                    <Link
+                      href="/settings"
+                      title="Settings"
+                      aria-label="Settings"
+                      className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary)] text-sm font-black text-white hover:opacity-90 transition-opacity"
+                      onClick={() => setMobileOpen(false)}
+                    >
                       {user.name
                         .split(" ")
                         .map((part) => part[0])
                         .join("")
                         .slice(0, 2)}
-                    </span>
+                    </Link>
                   </div>
                 )}
               </div>
