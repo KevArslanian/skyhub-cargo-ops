@@ -324,7 +324,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       style={shellStyle}
       className={cn(
         "h-svh w-full min-w-0 overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
-        pathname === "/dashboard" && "dashboard-shell",
         shellSettings.compactRows && "compact-table",
       )}
     >

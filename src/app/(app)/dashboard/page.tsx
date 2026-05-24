@@ -795,8 +795,8 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <div className="dashboard-main">
-        <OpsPanel className="dashboard-panel dashboard-operational-panel">
+      <div className="dashboard-main flex-1">
+        <OpsPanel className="dashboard-panel p-4 xl:p-5">
           <SectionHeader
             title="Papan Operasional"
             subtitle="Manifest yang paling relevan untuk shift aktif."
@@ -807,9 +807,10 @@ export default function DashboardPage() {
             }
           />
 
-          <div className="dashboard-table-stack">
-            <div className="dashboard-table-scroll table-shell">
-              <table className="data-table dashboard-manifest-table">
+          <div className="dashboard-split mt-4">
+            <div className="dashboard-table-stack">
+              <div className="dashboard-table-scroll table-shell">
+                <table className="data-table">
                 <thead>
                   <tr>
                     <th>AWB</th>
@@ -859,127 +860,180 @@ export default function DashboardPage() {
                     </tr>
                   )}
                 </tbody>
-              </table>
+                </table>
+              </div>
+              <DashboardPagination
+                page={shipmentPage.currentPage}
+                totalPages={shipmentPage.totalPages}
+                visibleStart={shipmentPage.visibleStart}
+                visibleEnd={shipmentPage.visibleEnd}
+                totalItems={filteredShipments.length}
+                onPageChange={setDashboardShipmentPage}
+              />
             </div>
-            <DashboardPagination
-              page={shipmentPage.currentPage}
-              totalPages={shipmentPage.totalPages}
-              visibleStart={shipmentPage.visibleStart}
-              visibleEnd={shipmentPage.visibleEnd}
-              totalItems={filteredShipments.length}
-              onPageChange={setDashboardShipmentPage}
-            />
-          </div>
-        </OpsPanel>
 
-        <OpsPanel className="dashboard-panel dashboard-flight-panel">
-          <div className="dashboard-panel-titlebar flex items-center gap-3">
-            <div className="dashboard-flight-icon flex items-center justify-center rounded-[12px] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]">
-              <TowerControl size={18} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Mendekati Cutoff</p>
-              <p className="font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">Papan Flight</p>
-            </div>
-          </div>
-          <div className="dashboard-flight-scroll">
-            {filteredFlights.length ? (
-              flightPage.items.map((flight) => (
-                <div
-                  key={flight.id}
-                  className="dashboard-flight-card overflow-hidden rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]"
-                >
-                  <div className="dashboard-flight-card-head border-b border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
-                          {flight.airlineName} | {flight.aircraftType}
-                        </p>
-                        <p className="mt-2 font-[family:var(--font-heading)] text-2xl font-black tracking-[-0.04em] text-[color:var(--text-strong)]">
-                          {flight.flightNumber}
-                        </p>
-                        <p className="mt-1 truncate text-sm text-[color:var(--muted-fg)]">{flight.route}</p>
-                        <ShiftContextBadge
-                          isFallbackContext={flight.isFallbackContext}
-                          shiftLabel={flight.shiftLabel}
-                          className="mt-3"
-                        />
-                      </div>
-                      <StatusBadge value={flight.status} label={flight.statusLabel} className="shrink-0" />
-                    </div>
+            <div className="dashboard-flight-scroll space-y-3">
+              <div className="rounded-[28px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]">
+                    <TowerControl size={18} />
                   </div>
-                  <div className="dashboard-flight-detail grid grid-cols-2 items-start text-sm">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Cutoff</p>
-                      <p className="mt-1 font-semibold text-[color:var(--text-strong)]">{formatDateTime(flight.cargoCutoffTime)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Registrasi</p>
-                      <p className="mt-1 font-semibold text-[color:var(--text-strong)]">{flight.registration}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Berangkat</p>
-                      <p className="mt-1 font-semibold text-[color:var(--text-strong)]">{formatDateTime(flight.departureTime)}</p>
-                    </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Mendekati Cutoff</p>
+                    <p className="font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">Papan Flight</p>
                   </div>
-                  {flight.cutoffAtRisk ? (
-                    <div className="dashboard-flight-alert border-t border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] font-medium text-[color:var(--tone-warning)]">
-                      Cutoff mendekat. Pastikan status kargo terbaru sudah tercatat.
-                    </div>
-                  ) : null}
                 </div>
-              ))
-            ) : (
-              <p className="text-sm text-[color:var(--muted-fg)]">Tidak ada flight aktif di shift ini.</p>
-            )}
+                <div className="mt-4 space-y-3">
+                  {filteredFlights.length ? (
+                    flightPage.items.map((flight) => (
+                      <div
+                        key={flight.id}
+                        className="dashboard-flight-card overflow-hidden rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]"
+                      >
+                        <div className="border-b border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
+                                {flight.airlineName} | {flight.aircraftType}
+                              </p>
+                              <p className="mt-2 font-[family:var(--font-heading)] text-2xl font-black tracking-[-0.04em] text-[color:var(--text-strong)]">
+                                {flight.flightNumber}
+                              </p>
+                              <p className="mt-1 truncate text-sm text-[color:var(--muted-fg)]">{flight.route}</p>
+                              <ShiftContextBadge
+                                isFallbackContext={flight.isFallbackContext}
+                                shiftLabel={flight.shiftLabel}
+                                className="mt-3"
+                              />
+                            </div>
+                            <StatusBadge value={flight.status} label={flight.statusLabel} className="shrink-0" />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 items-start gap-x-4 gap-y-3 px-4 py-4 text-sm">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Cutoff</p>
+                            <p className="mt-1 font-semibold text-[color:var(--text-strong)]">{formatDateTime(flight.cargoCutoffTime)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Registrasi</p>
+                            <p className="mt-1 font-semibold text-[color:var(--text-strong)]">{flight.registration}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Berangkat</p>
+                            <p className="mt-1 font-semibold text-[color:var(--text-strong)]">{formatDateTime(flight.departureTime)}</p>
+                            <ShiftContextBadge
+                              isFallbackContext={flight.isFallbackContext}
+                              shiftLabel={flight.shiftLabel}
+                              className="mt-2"
+                            />
+                          </div>
+                        </div>
+                        {flight.cutoffAtRisk ? (
+                          <div className="border-t border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-warning)]">
+                            Cutoff mendekat. Pastikan status kargo terbaru sudah tercatat.
+                          </div>
+                        ) : null}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-[color:var(--muted-fg)]">Tidak ada flight aktif di shift ini.</p>
+                  )}
+                </div>
+                <DashboardPagination
+                  page={flightPage.currentPage}
+                  totalPages={flightPage.totalPages}
+                  visibleStart={flightPage.visibleStart}
+                  visibleEnd={flightPage.visibleEnd}
+                  totalItems={filteredFlights.length}
+                  onPageChange={setDashboardFlightPage}
+                />
+              </div>
+            </div>
           </div>
-          <DashboardPagination
-            page={flightPage.currentPage}
-            totalPages={flightPage.totalPages}
-            visibleStart={flightPage.visibleStart}
-            visibleEnd={flightPage.visibleEnd}
-            totalItems={filteredFlights.length}
-            onPageChange={setDashboardFlightPage}
-          />
         </OpsPanel>
 
-        <OpsPanel className="dashboard-panel dashboard-action-panel">
-          <SectionHeader title="Pusat Tindakan" subtitle="AWB yang membutuhkan intervensi tim staff operasional." />
-          <div className="dashboard-alert-scroll">
-            {filteredAlerts.length ? (
-              alertPage.items.map((alert) => (
-                <div key={alert.id} className="dashboard-alert-card rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-[color:var(--tone-warning)]">{alert.title}</p>
-                      <p className="mt-1 text-sm leading-6 text-[color:var(--text-strong)]">{alert.detail}</p>
+        <div className="dashboard-side-stack">
+          <OpsPanel className="dashboard-panel p-4 xl:p-5">
+            <SectionHeader title="Pusat Tindakan" subtitle="AWB yang membutuhkan intervensi tim staff operasional." />
+            <div className="dashboard-alert-scroll mt-4 space-y-3">
+              {filteredAlerts.length ? (
+                alertPage.items.map((alert) => (
+                  <div key={alert.id} className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-[color:var(--tone-warning)]">{alert.title}</p>
+                        <p className="mt-2 text-sm leading-6 text-[color:var(--text-strong)]">{alert.detail}</p>
+                      </div>
+                      <BellRing size={18} className="shrink-0 text-[color:var(--tone-warning)]" />
                     </div>
-                    <BellRing size={18} className="shrink-0 text-[color:var(--tone-warning)]" />
-                  </div>
-                  <div className="dashboard-alert-footer flex items-center justify-between gap-2">
-                    <Link href={`/awb-tracking?awb=${encodeURIComponent(alert.awb)}`} className="inline-flex text-sm font-semibold text-[color:var(--brand-primary)]">
+                    <Link href={`/awb-tracking?awb=${alert.awb}`} className="mt-4 inline-flex text-sm font-semibold text-[color:var(--brand-primary)]">
                       Buka pelacakan
                     </Link>
-                    <ShiftContextBadge isFallbackContext={alert.isFallbackContext} shiftLabel={alert.shiftLabel} />
+                    <ShiftContextBadge
+                      isFallbackContext={alert.isFallbackContext}
+                      shiftLabel={alert.shiftLabel}
+                      className="mt-3"
+                    />
                   </div>
-                </div>
-              ))
-            ) : (
-              <EmptyState icon={BellRing} title="Tidak ada alert kritis" copy="Semua shipment pada shift ini berada dalam kondisi normal atau sudah tertangani." />
-            )}
-            {filteredAlerts.length > alertPage.visibleEnd ? (
-              <p className="dashboard-alert-summary">+{filteredAlerts.length - alertPage.visibleEnd} alert lain</p>
-            ) : null}
-          </div>
-          <DashboardPagination
-            page={alertPage.currentPage}
-            totalPages={alertPage.totalPages}
-            visibleStart={alertPage.visibleStart}
-            visibleEnd={alertPage.visibleEnd}
-            totalItems={filteredAlerts.length}
-            onPageChange={setDashboardAlertPage}
-          />
-        </OpsPanel>
+                ))
+              ) : (
+                <EmptyState icon={BellRing} title="Tidak ada alert kritis" copy="Semua shipment pada shift ini berada dalam kondisi normal atau sudah tertangani." />
+              )}
+            </div>
+            <DashboardPagination
+              page={alertPage.currentPage}
+              totalPages={alertPage.totalPages}
+              visibleStart={alertPage.visibleStart}
+              visibleEnd={alertPage.visibleEnd}
+              totalItems={filteredAlerts.length}
+              onPageChange={setDashboardAlertPage}
+            />
+          </OpsPanel>
+
+          <OpsPanel className="dashboard-panel p-4 xl:p-5">
+            <SectionHeader
+              title="Aktivitas Terbaru"
+              subtitle="Jejak audit terbaru yang relevan untuk ruang kontrol."
+              action={
+                <Link href="/activity-log" className="btn btn-secondary">
+                  Buka log
+                </Link>
+              }
+            />
+            <div className="dashboard-activity-scroll mt-4 space-y-3">
+              {filteredActivities.length ? (
+                activityPage.items.map((activity) => (
+                  <div key={activity.id} className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[color:var(--text-strong)]">{activity.action}</p>
+                        <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{activity.targetLabel}</p>
+                      </div>
+                      <StatusBadge value={activity.level} label={activity.level} />
+                    </div>
+                    <p className="mt-3 text-sm leading-6">{activity.description}</p>
+                    <p className="mt-3 text-xs text-[color:var(--muted-2)]">{activity.userName} | {formatDateTime(activity.createdAt)}</p>
+                    <ShiftContextBadge
+                      isFallbackContext={activity.isFallbackContext}
+                      shiftLabel={activity.shiftLabel}
+                      className="mt-3"
+                    />
+                  </div>
+                ))
+              ) : (
+                <EmptyState icon={Clock3} title="Belum ada aktivitas" copy="Audit trail untuk shift ini akan muncul otomatis saat staff mulai melakukan aksi." />
+              )}
+            </div>
+            <DashboardPagination
+              page={activityPage.currentPage}
+              totalPages={activityPage.totalPages}
+              visibleStart={activityPage.visibleStart}
+              visibleEnd={activityPage.visibleEnd}
+              totalItems={filteredActivities.length}
+              onPageChange={setDashboardActivityPage}
+            />
+          </OpsPanel>
+        </div>
       </div>
     </div>
   );
