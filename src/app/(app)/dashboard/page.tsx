@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BellRing,
   Boxes,
@@ -537,7 +537,6 @@ export default function DashboardPage() {
       tone: "warning",
     },
   ] as const;
-  const operatorSummaryMax = Math.max(1, ...operatorSummaryItems.map((item) => item.value));
 
   if (customerData) {
     return (
@@ -710,21 +709,14 @@ export default function DashboardPage() {
           <span>{loading ? "Memuat data operasional" : `${shift} | ${operatorSummaryItems.reduce((total, item) => total + item.value, 0)} sinyal aktif`}</span>
         </div>
         <div className="dashboard-summary-steps">
-          {operatorSummaryItems.map((item, index) => {
+          {operatorSummaryItems.map((item) => {
             const Icon = item.icon;
-            const scaledValue =
-              operatorSummaryMax <= 1 ? item.value : Math.log1p(item.value) / Math.log1p(operatorSummaryMax);
-            const stepHeight = loading ? 44 : Math.max(44, 46 + Math.round(scaledValue * 56));
 
             return (
-              <div
-                key={item.label}
-                className={cn("dashboard-summary-step", `dashboard-summary-${item.tone}`)}
-                style={{ "--step-height": `${stepHeight}px`, "--step-index": index } as CSSProperties}
-              >
-                <div className="dashboard-summary-step-bar">
-                  <Icon size={13} />
-                </div>
+              <div key={item.label} className={cn("dashboard-summary-step", `dashboard-summary-${item.tone}`)}>
+                <span className="dashboard-summary-step-icon">
+                  <Icon size={15} />
+                </span>
                 <div className="dashboard-summary-step-copy">
                   <strong>{loading ? "..." : item.value}</strong>
                   <span>{item.label}</span>

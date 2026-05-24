@@ -2681,7 +2681,7 @@ input[type="checkbox"] {
   border-radius: 24px;
   background: var(--panel-bg);
   box-shadow: var(--shadow-soft);
-  padding: 1rem;
+  padding: 0.95rem;
 }
 
 .dashboard-summary-copy {
@@ -2693,6 +2693,7 @@ input[type="checkbox"] {
   font-family: var(--font-heading);
   font-size: 1rem;
   font-weight: 800;
+  letter-spacing: 0;
   line-height: 1.25rem;
 }
 
@@ -2708,41 +2709,45 @@ input[type="checkbox"] {
   display: grid;
   min-width: 0;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  align-items: end;
+  align-items: stretch;
   gap: 0.75rem;
 }
 
 .dashboard-summary-step {
-  display: grid;
+  display: flex;
   min-width: 0;
-  align-items: end;
-  gap: 0.55rem;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 18px;
+  background: var(--panel-muted);
+  padding: 0.85rem;
 }
 
-.dashboard-summary-step-bar {
-  display: flex;
-  height: var(--step-height);
-  min-height: 44px;
-  align-items: flex-start;
+.dashboard-summary-step-icon {
+  display: inline-flex;
+  height: 34px;
+  width: 34px;
+  flex: 0 0 auto;
+  align-items: center;
   justify-content: center;
-  border-radius: 16px 16px 8px 8px;
-  padding-top: 0.65rem;
+  border-radius: 12px;
   color: #fff;
-  transition: height 0.2s ease;
 }
 
 .dashboard-summary-step-copy {
   min-width: 0;
-  text-align: center;
+  text-align: left;
 }
 
 .dashboard-summary-step-copy strong {
   display: block;
   color: var(--text-strong);
   font-family: var(--font-heading);
-  font-size: 1.25rem;
+  font-size: 1.18rem;
   font-weight: 900;
-  line-height: 1.25rem;
+  letter-spacing: 0;
+  line-height: 1.15rem;
 }
 
 .dashboard-summary-step-copy span {
@@ -2756,19 +2761,19 @@ input[type="checkbox"] {
   font-weight: 800;
 }
 
-.dashboard-summary-primary .dashboard-summary-step-bar {
+.dashboard-summary-primary .dashboard-summary-step-icon {
   background: var(--brand-primary);
 }
 
-.dashboard-summary-info .dashboard-summary-step-bar {
+.dashboard-summary-info .dashboard-summary-step-icon {
   background: var(--tone-info);
 }
 
-.dashboard-summary-success .dashboard-summary-step-bar {
+.dashboard-summary-success .dashboard-summary-step-icon {
   background: var(--tone-success);
 }
 
-.dashboard-summary-warning .dashboard-summary-step-bar {
+.dashboard-summary-warning .dashboard-summary-step-icon {
   background: var(--tone-warning);
 }
 
@@ -2880,11 +2885,14 @@ input[type="checkbox"] {
 
 @media (min-width: 1024px) {
   .dashboard-summary-chart {
-    grid-template-columns: minmax(170px, 0.24fr) minmax(0, 1fr);
-    align-items: end;
+    grid-template-columns: minmax(170px, 0.22fr) minmax(0, 1fr);
+    align-items: stretch;
   }
 
   .dashboard-summary-copy {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     border-right: 1px solid var(--border-soft);
     padding-right: 1rem;
   }
