@@ -884,6 +884,47 @@ textarea {
   padding: 16px;
 }
 
+.ledger-control-header {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 28px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-soft);
+  padding: clamp(22px, 2vw, 30px);
+}
+
+.ledger-control-header p {
+  color: var(--muted-2);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+}
+
+.ledger-control-header h1 {
+  margin-top: 10px;
+  color: var(--text-strong);
+  font-family: var(--font-heading);
+  font-size: clamp(1.8rem, 1.45rem + 0.9vw, 2.35rem);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.05;
+}
+
+.ledger-control-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .ledger-compact-stats .ledger-stat-card {
   border-radius: 18px;
   padding: 12px 14px;
@@ -2589,6 +2630,16 @@ input[type="checkbox"] {
   .ledger-form-grid,
   .ledger-detail-summary {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ledger-control-header {
+    border-radius: 24px;
+    padding: 20px;
+  }
+
+  .ledger-control-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .ledger-section-card,

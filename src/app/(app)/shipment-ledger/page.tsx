@@ -644,22 +644,28 @@ export default function ShipmentLedgerPage() {
 
   return (
     <div className="page-workspace">
-      {!isReadOnly && (data?.permissions.canExport || data?.permissions.canCreate) ? (
-        <div className="flex flex-wrap justify-end gap-2">
-          {data?.permissions.canExport ? (
-            <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">
-              <FileText size={16} />
-              Print
-            </Link>
-          ) : null}
-          {data?.permissions.canCreate ? (
-            <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
-              <Plus size={16} />
-              Buat Shipment
-            </button>
-          ) : null}
+      <section className="ledger-control-header">
+        <div className="min-w-0">
+          <p>Ruang Kontrol</p>
+          <h1>{isReadOnly ? "Shipment Saya" : "Ledger Shipment"}</h1>
         </div>
-      ) : null}
+        {!isReadOnly && (data?.permissions.canExport || data?.permissions.canCreate) ? (
+          <div className="ledger-control-actions">
+            {data?.permissions.canExport ? (
+              <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">
+                <FileText size={16} />
+                Print
+              </Link>
+            ) : null}
+            {data?.permissions.canCreate ? (
+              <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+                <Plus size={16} />
+                Buat Shipment
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
       <div className="ledger-compact-stats grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <DataCard
