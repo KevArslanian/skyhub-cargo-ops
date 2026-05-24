@@ -111,7 +111,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [openGroupId, setOpenGroupId] = useState<(typeof navigation.groups)[number]["id"]>(activeGroupId);
   const visibleNotifications = notificationItems.slice(0, 10);
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
-  const showShellSearch = true;
+  const showShellSearch = pathname === "/shipment-ledger" || pathname === "/awb-tracking" || pathname === "/flight-board";
   const displayedNavigationItems = navigation.items.filter((item) => item.href !== "/settings");
   const displayedNavigationGroups = navigation.groups
     .map((group) => ({ ...group, items: group.items.filter((item) => item.href !== "/settings") }))
@@ -482,7 +482,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               <div className={cn("rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-3", collapsed && "px-2")}>
                 {!collapsed ? (
                   <>
-                    <Link href="/settings" className="flex items-start gap-3 rounded-[18px] px-1 pb-3 text-left" onClick={() => setMobileOpen(false)}>
+                    <div className="flex items-start gap-3 rounded-[18px] px-1 pb-3 text-left">
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary)] text-sm font-black text-white">
                         {user.name
                           .split(" ")
@@ -497,7 +497,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                           <StatusBadge value="normal" label="Normal" />
                         </div>
                       </div>
-                    </Link>
+                    </div>
                     <div className="grid gap-1 border-t border-[color:var(--border-soft)] pt-3">
                       <Link href="/settings" className="sidebar-link" onClick={() => setMobileOpen(false)}>
                         <Settings2 size={18} className="shrink-0" />

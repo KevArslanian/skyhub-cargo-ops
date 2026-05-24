@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { DataCard, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
+import { OpsDrawer } from "@/components/ops-drawer";
 
 const CAPABILITY_OPTIONS = [
   { value: "shipment:create", label: "Buat shipment" },
@@ -1003,6 +1004,16 @@ export default function SettingsPage() {
 
                 <div className="settings-table-toolbar">
                   <span>{filteredUsers.length} pengguna{userSearch ? ` cocok "${userSearch}"` : ""}</span>
+                  <input
+                    type="text"
+                    className="input-field h-9 max-w-[220px] text-xs"
+                    placeholder="Cari nama atau email..."
+                    value={userSearch}
+                    onChange={(event) => {
+                      setUserSearch(event.target.value);
+                      setUserPage(1);
+                    }}
+                  />
                 </div>
 
                 <div className="page-scroll table-shell mt-5 rounded-[24px] border border-[color:var(--border-soft)]">
@@ -1021,231 +1032,72 @@ export default function SettingsPage() {
                     </thead>
                     <tbody>
                       {pagedUsers.map((user) => {
-                        const userRowDraft = editingUserId === user.id ? editingUserDraft : null;
-                        const isEditing = Boolean(userRowDraft);
-
                         return (
                           <tr key={user.id}>
                             <td className="font-semibold text-[color:var(--text-strong)]">
-                              {isEditing ? (
-                                <input
-                                  className="input-field h-10 min-w-[180px]"
-                                  value={userRowDraft?.name ?? user.name}
-                                  onChange={(event) =>
-                                    setEditingUserDraft((current) =>
-                                      current ? { ...current, name: event.target.value } : current,
-                                    )
-                                  }
-                                />
-                              ) : (
-                                user.name
-                              )}
+                              {user.name}
                             </td>
                             <td>
-                              {isEditing ? (
-                                <input
-                                  className="input-field h-10 min-w-[220px]"
-                                  value={userRowDraft?.email ?? user.email}
-                                  onChange={(event) =>
-                                    setEditingUserDraft((current) =>
-                                      current ? { ...current, email: event.target.value } : current,
-                                    )
-                                  }
-                                />
-                              ) : (
-                                user.email
-                              )}
+                              {user.email}
                             </td>
                             <td>
-                              {isEditing ? (
-                                <select
-                                  className="select-field h-10"
-                                  value={userRowDraft?.role ?? user.role}
-                                  onChange={(event) =>
-                                    setEditingUserDraft((current) =>
-                                      current
-                                        ? {
-                                            ...current,
-                                            role: event.target.value as SettingsPayload["users"][number]["role"],
-                                            capabilities: defaultCapabilitiesForRole(
-                                              event.target.value as SettingsPayload["users"][number]["role"],
-                                            ),
-                                          }
-                                        : current,
-                                    )
-                                  }
-                                >
-                                  <option value="staff">Staff Operasional</option>
-                                  <option value="admin">Admin</option>
-                                  <option value="customer">Pelanggan</option>
-                                </select>
-                              ) : (
-                                <p className="font-medium text-[color:var(--text-strong)]">{ROLE_LABELS[user.role]}</p>
-                              )}
+                              <p className="font-medium text-[color:var(--text-strong)]">{ROLE_LABELS[user.role]}</p>
                             </td>
                             <td>
-                              {isEditing ? (
-                                <div className="grid min-w-[260px] gap-2 sm:grid-cols-2">
-                                  {CAPABILITY_OPTIONS.map((capability) => {
-                                    const checked = userRowDraft?.capabilities.includes(capability.value) ?? false;
-                                    return (
-                                      <label
-                                        key={capability.value}
-                                        className="flex items-center gap-2 rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 py-2 text-xs font-semibold text-[color:var(--text-strong)]"
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={checked}
-                                          onChange={(event) =>
-                                            setEditingUserDraft((current) => {
-                                              if (!current) return current;
-                                              const next = new Set(current.capabilities);
-                                              if (event.target.checked) next.add(capability.value);
-                                              else next.delete(capability.value);
-                                              return { ...current, capabilities: [...next] };
-                                            })
-                                          }
-                                        />
-                                        {capability.label}
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <div className="flex min-w-[220px] flex-wrap gap-2">
-                                  {user.capabilities.slice(0, 3).map((capability) => (
-                                    <span
-                                      key={capability}
-                                      className="rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-2.5 py-1 text-xs font-semibold text-[color:var(--muted-fg)]"
-                                    >
-                                      {CAPABILITY_OPTIONS.find((item) => item.value === capability)?.label ?? capability}
-                                    </span>
-                                  ))}
-                                  {user.capabilities.length > 3 ? (
-                                    <span className="rounded-full bg-[color:var(--brand-primary-soft)] px-2.5 py-1 text-xs font-bold text-[color:var(--brand-primary)]">
-                                      +{user.capabilities.length - 3}
-                                    </span>
-                                  ) : null}
-                                  {!user.capabilities.length ? <span className="text-xs text-[color:var(--muted-2)]">Read-only</span> : null}
-                                </div>
-                              )}
-                            </td>
-                            <td>
-                              {isEditing ? (
-                                <select
-                                  className="select-field h-10"
-                                  value={userRowDraft?.station ?? user.station}
-                                  onChange={(event) =>
-                                    setEditingUserDraft((current) =>
-                                      current ? { ...current, station: event.target.value } : current,
-                                    )
-                                  }
-                                >
-                                  {STATION_OPTIONS.map((station) => (
-                                    <option key={station} value={station}>
-                                      {station}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <span className="font-semibold text-[color:var(--brand-primary)]">{user.station}</span>
-                              )}
-                            </td>
-                            <td>
-                              {isEditing ? (
-                                <select
-                                  className="select-field h-10"
-                                  value={userRowDraft?.customerAccountId || ""}
-                                  onChange={(event) =>
-                                    setEditingUserDraft((current) =>
-                                      current ? { ...current, customerAccountId: event.target.value || null } : current,
-                                    )
-                                  }
-                                  disabled={userRowDraft?.role !== "customer"}
-                                >
-                                  <option value="">Tanpa akun</option>
-                                  {data.customerAccounts.map((account) => (
-                                    <option key={account.id} value={account.id}>
-                                      {account.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <span className="text-sm text-[color:var(--muted-fg)]">{user.customerAccountName || "-"}</span>
-                              )}
-                            </td>
-                            <td>
-                              {isEditing ? (
-                                <select
-                                  className="select-field h-10"
-                                  value={userRowDraft?.status ?? user.status}
-                                  onChange={(event) =>
-                                    setEditingUserDraft((current) =>
-                                      current
-                                        ? {
-                                            ...current,
-                                            status: event.target.value as SettingsPayload["users"][number]["status"],
-                                          }
-                                        : current,
-                                    )
-                                  }
-                                >
-                                  <option value="active">Aktif</option>
-                                  <option value="invited">Diundang</option>
-                                  <option value="disabled">Nonaktif</option>
-                                </select>
-                              ) : (
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <StatusBadge value={user.status} label={USER_STATUS_LABELS[user.status]} />
-                                  <button
-                                    type="button"
-                                    className="btn btn-secondary h-8 px-3 text-xs"
-                                    onClick={() => toggleUserStatus(user)}
-                                    disabled={togglingUserId === user.id || user.id === data.profile.id}
+                              <div className="flex min-w-[220px] flex-wrap gap-2">
+                                {user.capabilities.slice(0, 3).map((capability) => (
+                                  <span
+                                    key={capability}
+                                    className="rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-2.5 py-1 text-xs font-semibold text-[color:var(--muted-fg)]"
                                   >
-                                    {togglingUserId === user.id
-                                      ? "Memproses..."
-                                      : user.status === "active"
-                                        ? "Matikan"
-                                        : "Aktifkan"}
-                                  </button>
-                                  {user.id === data.profile.id ? (
-                                    <span className="text-xs text-[color:var(--muted-2)]">Akun Anda</span>
-                                  ) : null}
-                                </div>
-                              )}
+                                    {CAPABILITY_OPTIONS.find((item) => item.value === capability)?.label ?? capability}
+                                  </span>
+                                ))}
+                                {user.capabilities.length > 3 ? (
+                                  <span className="rounded-full bg-[color:var(--brand-primary-soft)] px-2.5 py-1 text-xs font-bold text-[color:var(--brand-primary)]">
+                                    +{user.capabilities.length - 3}
+                                  </span>
+                                ) : null}
+                                {!user.capabilities.length ? <span className="text-xs text-[color:var(--muted-2)]">Read-only</span> : null}
+                              </div>
                             </td>
-                            <td className="text-right">
-                              {isEditing ? (
-                                <div className="flex justify-end gap-2">
-                                  <button type="button" className="btn btn-primary h-10 px-4" onClick={saveUser}>
-                                    <Check size={15} />
-                                    Simpan
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn btn-secondary h-10 px-4"
-                                    onClick={() => {
-                                      setEditingUserId(null);
-                                      setEditingUserDraft(null);
-                                    }}
-                                  >
-                                    <X size={15} />
-                                    Batal
-                                  </button>
-                                </div>
-                              ) : (
+                            <td>
+                              <span className="font-semibold text-[color:var(--brand-primary)]">{user.station}</span>
+                            </td>
+                            <td>
+                              <span className="text-sm text-[color:var(--muted-fg)]">{user.customerAccountName || "-"}</span>
+                            </td>
+                            <td>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <StatusBadge value={user.status} label={USER_STATUS_LABELS[user.status]} />
                                 <button
                                   type="button"
-                                  className="btn btn-secondary h-10 px-4"
-                                  onClick={() => {
-                                    setEditingUserId(user.id);
-                                    setEditingUserDraft(user);
-                                  }}
+                                  className="btn btn-secondary h-8 px-3 text-xs"
+                                  onClick={() => toggleUserStatus(user)}
+                                  disabled={togglingUserId === user.id || user.id === data.profile.id}
                                 >
-                                  Edit
+                                  {togglingUserId === user.id
+                                    ? "Memproses..."
+                                    : user.status === "active"
+                                      ? "Matikan"
+                                      : "Aktifkan"}
                                 </button>
-                              )}
+                                {user.id === data.profile.id ? (
+                                  <span className="text-xs text-[color:var(--muted-2)]">Akun Anda</span>
+                                ) : null}
+                              </div>
+                            </td>
+                            <td className="text-right">
+                              <button
+                                type="button"
+                                className="btn btn-secondary h-10 px-4"
+                                onClick={() => {
+                                  setEditingUserId(user.id);
+                                  setEditingUserDraft(user);
+                                }}
+                              >
+                                Edit
+                              </button>
                             </td>
                           </tr>
                         );
@@ -1276,6 +1128,188 @@ export default function SettingsPage() {
                     <ChevronRight size={16} />
                   </button>
                 </div>
+
+                <OpsDrawer
+                  open={Boolean(editingUserId && editingUserDraft)}
+                  title="Edit Hak Akses & Profil"
+                  eyebrow="Kelola Anggota Tim"
+                  description="Sesuaikan peran, stasiun, dan izin granular pengguna."
+                  onClose={() => {
+                    setEditingUserId(null);
+                    setEditingUserDraft(null);
+                  }}
+                  footer={
+                    <div className="flex w-full items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setEditingUserId(null);
+                          setEditingUserDraft(null);
+                        }}
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={saveUser}
+                        disabled={saving}
+                      >
+                        {saving ? "Menyimpan..." : "Simpan Perubahan"}
+                      </button>
+                    </div>
+                  }
+                >
+                  {editingUserDraft ? (
+                    <div className="space-y-6">
+                      <div>
+                        <label className="label">Nama Lengkap</label>
+                        <input
+                          className="input-field mt-2"
+                          value={editingUserDraft.name}
+                          onChange={(event) =>
+                            setEditingUserDraft((current) =>
+                              current ? { ...current, name: event.target.value } : current,
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label">Alamat Email</label>
+                        <input
+                          className="input-field mt-2"
+                          value={editingUserDraft.email}
+                          onChange={(event) =>
+                            setEditingUserDraft((current) =>
+                              current ? { ...current, email: event.target.value } : current,
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="label">Peran (Role)</label>
+                          <select
+                            className="select-field mt-2"
+                            value={editingUserDraft.role}
+                            onChange={(event) =>
+                              setEditingUserDraft((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      role: event.target.value as SettingsPayload["users"][number]["role"],
+                                      capabilities: defaultCapabilitiesForRole(
+                                        event.target.value as SettingsPayload["users"][number]["role"],
+                                      ),
+                                    }
+                                  : current,
+                              )
+                            }
+                          >
+                            <option value="staff">Staff Operasional</option>
+                            <option value="admin">Admin</option>
+                            <option value="customer">Pelanggan</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="label">Stasiun</label>
+                          <select
+                            className="select-field mt-2"
+                            value={editingUserDraft.station}
+                            onChange={(event) =>
+                              setEditingUserDraft((current) =>
+                                current ? { ...current, station: event.target.value } : current,
+                              )
+                            }
+                          >
+                            {STATION_OPTIONS.map((station) => (
+                              <option key={station} value={station}>
+                                {station}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="label">Akun Pelanggan</label>
+                        <select
+                          className="select-field mt-2"
+                          value={editingUserDraft.customerAccountId || ""}
+                          onChange={(event) =>
+                            setEditingUserDraft((current) =>
+                              current ? { ...current, customerAccountId: event.target.value || null } : current,
+                            )
+                          }
+                          disabled={editingUserDraft.role !== "customer"}
+                        >
+                          <option value="">Tanpa akun</option>
+                          {data.customerAccounts.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="label">Status</label>
+                        <select
+                          className="select-field mt-2"
+                          value={editingUserDraft.status}
+                          onChange={(event) =>
+                            setEditingUserDraft((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    status: event.target.value as SettingsPayload["users"][number]["status"],
+                                  }
+                                : current,
+                            )
+                          }
+                        >
+                          <option value="active">Aktif</option>
+                          <option value="invited">Diundang</option>
+                          <option value="disabled">Nonaktif</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="label">Izin Granular (Capabilities)</label>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {CAPABILITY_OPTIONS.map((capability) => {
+                            const checked = editingUserDraft.capabilities.includes(capability.value);
+                            return (
+                              <label
+                                key={capability.value}
+                                className="flex items-center gap-2.5 rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 py-3 text-xs font-semibold text-[color:var(--text-strong)] transition-all hover:bg-[color:var(--panel-bg)]"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(event) =>
+                                    setEditingUserDraft((current) => {
+                                      if (!current) return current;
+                                      const next = new Set(current.capabilities);
+                                      if (event.target.checked) next.add(capability.value);
+                                      else next.delete(capability.value);
+                                      return { ...current, capabilities: [...next] };
+                                    })
+                                  }
+                                />
+                                {capability.label}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </OpsDrawer>
               </OpsPanel>
             ) : null}
 
@@ -1345,6 +1379,16 @@ export default function SettingsPage() {
 
                 <div className="settings-table-toolbar">
                   <span>{filteredAccounts.length} akun{accountSearch ? ` cocok "${accountSearch}"` : ""}</span>
+                  <input
+                    type="text"
+                    className="input-field h-9 max-w-[220px] text-xs"
+                    placeholder="Cari kode atau nama..."
+                    value={accountSearch}
+                    onChange={(event) => {
+                      setAccountSearch(event.target.value);
+                      setAccountPage(1);
+                    }}
+                  />
                 </div>
 
                 <div className="page-scroll table-shell mt-5 rounded-[24px] border border-[color:var(--border-soft)]">
