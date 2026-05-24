@@ -305,7 +305,10 @@ export default function DashboardPage() {
     autoRefresh: true,
     refreshIntervalSeconds: 5,
   });
-  const [showGuide, setShowGuide] = useState(true);
+  const [showGuide, setShowGuide] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("skyhub:guide-dismissed") !== "1";
+  });
 
   useEffect(() => {
     function handleContextSearch(event: Event) {
@@ -706,7 +709,15 @@ export default function DashboardPage() {
                 "topbar-button transition-colors",
                 showGuide && "border-[color:var(--brand-primary)] text-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]"
               )}
-              onClick={() => setShowGuide((prev) => !prev)}
+              onClick={() => {
+                const next = !showGuide;
+                setShowGuide(next);
+                if (!next) {
+                  window.localStorage.setItem("skyhub:guide-dismissed", "1");
+                } else {
+                  window.localStorage.removeItem("skyhub:guide-dismissed");
+                }
+              }}
             >
               <HelpCircle size={16} />
               <span>{showGuide ? "Tutup Panduan" : "Panduan Operasi"}</span>
@@ -759,7 +770,7 @@ export default function DashboardPage() {
               <span className="text-xs font-bold text-[color:var(--brand-primary)] uppercase tracking-wider block">01 / Sistem Shift</span>
               <p className="mt-2 text-sm font-semibold text-[color:var(--text-strong)]">Partisi Rentang Jam</p>
               <p className="mt-1 text-xs leading-5 text-[color:var(--muted-fg)]">
-                Data disortir per shift: **Pagi** (06:00 - 14:00), **Siang** (14:00 - 22:00), dan **Malam** (22:00 - 06:00 WITA/Makassar). Pilih shift di atas untuk memfilter manifest dan flight aktif.
+                Data disortir per shift: <strong>Pagi</strong> (06:00–14:00), <strong>Siang</strong> (14:00–22:00), dan <strong>Malam</strong> (22:00–06:00 WITA). Pilih shift di atas untuk memfilter manifest dan flight aktif.
               </p>
             </div>
 
@@ -775,7 +786,7 @@ export default function DashboardPage() {
               <span className="text-xs font-bold text-[color:var(--brand-primary)] uppercase tracking-wider block">03 / Cutoff Kargo</span>
               <p className="mt-2 text-sm font-semibold text-[color:var(--text-strong)]">Disiplin Waktu Muat</p>
               <p className="mt-1 text-xs leading-5 text-[color:var(--muted-fg)]">
-                Setiap flight memiliki batas **Cutoff** kargo (70 menit sebelum lepas landas). Penerimaan kargo di stasiun ditutup otomatis saat cutoff tercapai demi menjamin ketepatan waktu.
+                Setiap flight memiliki batas <strong>Cutoff</strong> kargo (70 menit sebelum lepas landas). Penerimaan kargo di stasiun ditutup otomatis saat cutoff tercapai demi menjamin ketepatan waktu.
               </p>
             </div>
 
@@ -783,7 +794,7 @@ export default function DashboardPage() {
               <span className="text-xs font-bold text-[color:var(--brand-primary)] uppercase tracking-wider block">04 / Kontrol & Peran</span>
               <p className="mt-2 text-sm font-semibold text-[color:var(--text-strong)]">Izin Tim Terpadu</p>
               <p className="mt-1 text-xs leading-5 text-[color:var(--muted-fg)]">
-                {"Hak untuk membuat, mengedit, atau menghapus kargo/flight dikunci berdasarkan peran Anda. Kelola hak akses granular di menu Settings \u2192 Tim & Akses."}
+                Hak untuk membuat, mengedit, atau menghapus kargo/flight dikunci berdasarkan peran Anda. Kelola hak akses granular di menu <strong>Settings → Tim & Akses</strong>.
               </p>
             </div>
           </div>

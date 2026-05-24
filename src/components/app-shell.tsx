@@ -291,7 +291,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
   async function handleSignOut() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/about-us");
+    router.push("/login");
     router.refresh();
   }
 
@@ -517,9 +517,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                         .join("")
                         .slice(0, 2)}
                     </span>
-                    <Link href="/settings" title="Settings" aria-label="Settings" className="sidebar-link h-11 w-11 justify-center rounded-[16px] px-0" onClick={() => setMobileOpen(false)}>
-                      <Settings2 size={18} />
-                    </Link>
                   </div>
                 )}
               </div>

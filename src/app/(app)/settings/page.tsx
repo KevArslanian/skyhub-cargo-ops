@@ -327,32 +327,30 @@ export default function SettingsPage() {
   const tabs = useMemo(() => {
     const items = [
       {
-      label: "Profil",
-      icon: UserCircle2,
-      note: "Identitas",
+        label: "Profil",
+        icon: UserCircle2,
+        note: "Identitas",
+        enabled: true,
       },
       {
-      label: "Preferensi",
-      icon: Monitor,
-      note: "Tampilan",
+        label: "Preferensi",
+        icon: Monitor,
+        note: "Tampilan",
+        enabled: true,
       },
-    ];
-
-    if (data?.permissions.canManageUsers) {
-      items.push({
+      {
         label: "Tim & Akses",
         icon: Users2,
         note: "User",
-      });
-    }
-
-    if (data?.permissions.canManageCustomerAccounts) {
-      items.push({
+        enabled: data?.permissions.canManageUsers ?? false,
+      },
+      {
         label: "Akun Pelanggan",
         icon: Building2,
         note: "Pelanggan",
-      });
-    }
+        enabled: data?.permissions.canManageCustomerAccounts ?? false,
+      },
+    ];
 
     return items;
   }, [data?.permissions.canManageCustomerAccounts, data?.permissions.canManageUsers]);
@@ -620,9 +618,9 @@ export default function SettingsPage() {
   return (
     <div className="page-workspace">
       <PageHeader
-        eyebrow="Pengaturan"
+        eyebrow="Sistem"
         title="Pengaturan"
-        subtitle="Profil, akses, pelanggan."
+        subtitle="Kelola profil, tampilan dashboard, tim & akses pengguna, serta akun pelanggan."
         actions={
           <button type="button" className="btn btn-primary" onClick={saveSettings} disabled={saving}>
             <ShieldCheck size={16} />
@@ -680,18 +678,23 @@ export default function SettingsPage() {
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const active = activeTab === tab.label;
+                const disabled = !tab.enabled;
 
                 return (
                   <button
                     key={tab.label}
                     type="button"
+                    title={disabled ? "Membutuhkan izin admin untuk mengakses menu ini" : undefined}
                     className={cn(
                       "flex w-full min-w-0 items-center justify-between gap-3 rounded-[22px] border px-4 py-4 text-left transition-colors",
-                      active
+                      disabled
+                        ? "cursor-not-allowed border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] opacity-40"
+                        : active
                         ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]"
                         : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] hover:text-[color:var(--text-strong)]",
                     )}
-                    onClick={() => setActiveTab(tab.label)}
+                    onClick={() => !disabled && setActiveTab(tab.label)}
+                    aria-disabled={disabled}
                   >
                     <span className="flex min-w-0 items-center gap-3">
                       <span className="inline-flex h-10 w-10 items-center justify-center rounded-[16px] border border-[color:var(--border-soft)] bg-white/70 dark:bg-white/[0.04]">
@@ -699,7 +702,7 @@ export default function SettingsPage() {
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate font-semibold">{tab.label}</span>
-                        <span className="block truncate text-xs text-[color:var(--muted-2)]">{tab.note}</span>
+                        <span className="block truncate text-xs text-[color:var(--muted-2)]">{disabled ? "Izin admin diperlukan" : tab.note}</span>
                       </span>
                     </span>
                     <ChevronRight size={16} />
