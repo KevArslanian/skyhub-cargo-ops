@@ -1,17 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   BellRing,
   Boxes,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   FileCheck2,
   PackageCheck,
   PlaneTakeoff,
-  RefreshCw,
   ShieldAlert,
   TowerControl,
 } from "lucide-react";
@@ -132,7 +130,6 @@ type ShiftScopedItem<T extends object> = T & {
   isFallbackContext: boolean;
 };
 
-const SHIFT_OPTIONS: readonly ShiftName[] = ["Pagi", "Siang", "Malam"];
 const DASHBOARD_PAGE_SIZE = 6;
 const DASHBOARD_COMPACT_PAGE_SIZE = 5;
 const DASHBOARD_FLIGHT_PAGE_SIZE = 3;
@@ -165,6 +162,12 @@ function getOpsHour(value: string) {
       timeZone: "Asia/Makassar",
     }).format(new Date(value)),
   );
+}
+
+function toDateInputValue(value: string) {
+  const date = new Date(value);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
 }
 
 function getShiftForTimestamp(value: string): ShiftName {
@@ -216,6 +219,26 @@ function getPageWindow<T>(items: T[], page: number, pageSize = DASHBOARD_PAGE_SI
     visibleEnd: Math.min(start + pageSize, items.length),
     items: items.slice(start, start + pageSize),
   };
+}
+
+function sortFlightsByCutoff<T extends { cargoCutoffTime: string; departureTime: string; status: string }>(flights: T[]) {
+  const now = Date.now();
+
+  return [...flights].sort((left, right) => {
+    const leftCutoff = new Date(left.cargoCutoffTime).getTime();
+    const rightCutoff = new Date(right.cargoCutoffTime).getTime();
+    const leftDeparture = new Date(left.departureTime).getTime();
+    const rightDeparture = new Date(right.departureTime).getTime();
+    const leftDeparted = left.status === "departed" || leftDeparture < now;
+    const rightDeparted = right.status === "departed" || rightDeparture < now;
+    const leftUpcomingCutoff = leftCutoff >= now;
+    const rightUpcomingCutoff = rightCutoff >= now;
+
+    if (leftDeparted !== rightDeparted) return leftDeparted ? 1 : -1;
+    if (leftUpcomingCutoff !== rightUpcomingCutoff) return leftUpcomingCutoff ? -1 : 1;
+    if (leftUpcomingCutoff && rightUpcomingCutoff) return leftCutoff - rightCutoff;
+    return rightCutoff - leftCutoff;
+  });
 }
 
 function DashboardPagination({
@@ -294,8 +317,6 @@ function ShiftContextBadge({
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [shift, setShift] = useState<ShiftName>(getCurrentShift);
   const [dashboardQuery, setDashboardQuery] = useState("");
   const [dashboardShipmentPage, setDashboardShipmentPage] = useState(1);
@@ -324,6 +345,23 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    function handleDashboardShift(event: Event) {
+      const nextShift = (event as CustomEvent<{ shift?: ShiftName }>).detail?.shift;
+      if (nextShift === "Pagi" || nextShift === "Siang" || nextShift === "Malam") {
+        setShift(nextShift);
+        setDashboardShipmentPage(1);
+        setDashboardFlightPage(1);
+        setDashboardAlertPage(1);
+        setCustomerShipmentPage(1);
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent("skyhub:dashboard-shift-changed", { detail: { shift } }));
+    window.addEventListener("skyhub:dashboard-shift", handleDashboardShift as EventListener);
+    return () => window.removeEventListener("skyhub:dashboard-shift", handleDashboardShift as EventListener);
+  }, [shift]);
+
+  useEffect(() => {
     const syncViewportDensity = () => {
       setCompactViewport(window.innerHeight <= 740 || window.innerWidth < 1366);
     };
@@ -345,7 +383,6 @@ export default function DashboardPage() {
   const applyDashboardPayload = useCallback((payload: DashboardData) => {
     setData(payload);
     setLoading(false);
-    setLastUpdated(new Date().toISOString());
   }, []);
 
   const loadDashboard = useCallback(async () => {
@@ -398,15 +435,6 @@ export default function DashboardPage() {
     return () => window.clearInterval(timer);
   }, [loadDashboard, refreshSettings.autoRefresh, refreshSettings.refreshIntervalSeconds]);
 
-  async function handleRefresh() {
-    setRefreshing(true);
-    try {
-      await loadDashboard();
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
   const internalData = data?.variant === "internal" ? data : null;
   const customerData = data?.variant === "customer" ? data : null;
 
@@ -451,8 +479,10 @@ export default function DashboardPage() {
       dashboardQuery,
     ),
   );
-  const filteredFlights = flightShift.displayed.filter((flight) =>
-    textMatchesQuery([flight.flightNumber, flight.route, flight.statusLabel, flight.airlineName, flight.aircraftType, flight.registration], dashboardQuery),
+  const filteredFlights = sortFlightsByCutoff(
+    flightShift.displayed.filter((flight) =>
+      textMatchesQuery([flight.flightNumber, flight.route, flight.statusLabel, flight.airlineName, flight.aircraftType, flight.registration], dashboardQuery),
+    ),
   );
   const filteredAlerts = alertShift.displayed.filter((alert) =>
     textMatchesQuery([alert.awb, alert.title, alert.detail], dashboardQuery),
@@ -509,29 +539,6 @@ export default function DashboardPage() {
   ] as const;
   const operatorSummaryMax = Math.max(1, ...operatorSummaryItems.map((item) => item.value));
 
-  useEffect(() => {
-    setDashboardShipmentPage(1);
-    setDashboardFlightPage(1);
-    setDashboardAlertPage(1);
-    setCustomerShipmentPage(1);
-  }, [dashboardQuery, shift]);
-
-  useEffect(() => {
-    setDashboardShipmentPage((current) => Math.min(current, shipmentPage.totalPages));
-  }, [shipmentPage.totalPages]);
-
-  useEffect(() => {
-    setDashboardFlightPage((current) => Math.min(current, flightPage.totalPages));
-  }, [flightPage.totalPages]);
-
-  useEffect(() => {
-    setDashboardAlertPage((current) => Math.min(current, alertPage.totalPages));
-  }, [alertPage.totalPages]);
-
-  useEffect(() => {
-    setCustomerShipmentPage((current) => Math.min(current, customerShipmentWindow.totalPages));
-  }, [customerShipmentWindow.totalPages]);
-
   if (customerData) {
     return (
       <div className="page-workspace dashboard-viewport h-full min-h-0">
@@ -539,23 +546,6 @@ export default function DashboardPage() {
           eyebrow="Portal Pelanggan"
           title="Dashboard Pelanggan"
           subtitle={`Ringkasan shipment milik ${customerData.viewer.customerAccountName || "akun Anda"} dengan status, dokumen, dan pencarian AWB terbaru.`}
-          actions={
-            <>
-              <button type="button" className="topbar-button" onClick={handleRefresh}>
-                <RefreshCw size={16} className={cn(refreshing && "animate-spin")} />
-                <span>{refreshing ? "Memuat ulang..." : "Muat ulang"}</span>
-              </button>
-              <div className="topbar-button hidden xl:flex">
-                <Clock3 size={16} />
-                <span>
-                  {refreshSettings.autoRefresh
-                    ? `Otomatis ${Math.max(5, refreshSettings.refreshIntervalSeconds)} detik`
-                    : "Penyegaran otomatis nonaktif"}
-                  {lastUpdated ? ` • diperbarui ${formatRelativeShort(lastUpdated)}` : ""}
-                </span>
-              </div>
-            </>
-          }
         />
 
         <div className="grid gap-4 xl:grid-cols-4">
@@ -714,44 +704,6 @@ export default function DashboardPage() {
 
   return (
     <div className="page-workspace dashboard-viewport h-full min-h-0">
-      <PageHeader
-        eyebrow="Kontrol Kargo"
-        title="Dashboard Operator"
-        subtitle="Ringkasan shift, status flight, papan manifest, dan alert operasional dalam satu layar kontrol desktop yang stabil."
-        actions={
-          <>
-            <div className="segmented-control inline-flex max-w-full overflow-x-auto rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-1 shadow-[var(--shadow-soft)]">
-              {SHIFT_OPTIONS.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={cn(
-                    "shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
-                    shift === option ? "bg-[color:var(--brand-primary)] text-white" : "text-[color:var(--muted-fg)]",
-                  )}
-                  onClick={() => setShift(option)}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-            <button type="button" className="topbar-button" onClick={handleRefresh}>
-              <RefreshCw size={16} className={cn(refreshing && "animate-spin")} />
-              <span>{refreshing ? "Memuat ulang..." : "Muat ulang"}</span>
-            </button>
-            <div className="topbar-button hidden xl:flex">
-              <Clock3 size={16} />
-              <span>
-                {refreshSettings.autoRefresh
-                  ? `Otomatis ${Math.max(5, refreshSettings.refreshIntervalSeconds)} detik`
-                  : "Penyegaran otomatis nonaktif"}
-                {lastUpdated ? ` • diperbarui ${formatRelativeShort(lastUpdated)}` : ""}
-              </span>
-            </div>
-          </>
-        }
-      />
-
       <section className="dashboard-summary-chart" aria-label="Ringkasan shift dalam statistik tangga">
         <div className="dashboard-summary-copy">
           <p>Ringkasan Shift</p>
@@ -760,13 +712,15 @@ export default function DashboardPage() {
         <div className="dashboard-summary-steps">
           {operatorSummaryItems.map((item, index) => {
             const Icon = item.icon;
-            const stepHeight = loading ? 44 : Math.max(44, 46 + Math.round((item.value / operatorSummaryMax) * 56));
+            const scaledValue =
+              operatorSummaryMax <= 1 ? item.value : Math.log1p(item.value) / Math.log1p(operatorSummaryMax);
+            const stepHeight = loading ? 44 : Math.max(44, 46 + Math.round(scaledValue * 56));
 
             return (
               <div
                 key={item.label}
                 className={cn("dashboard-summary-step", `dashboard-summary-${item.tone}`)}
-                style={{ "--step-height": `${stepHeight}px`, "--step-index": index } as React.CSSProperties}
+                style={{ "--step-height": `${stepHeight}px`, "--step-index": index } as CSSProperties}
               >
                 <div className="dashboard-summary-step-bar">
                   <Icon size={13} />
@@ -821,6 +775,12 @@ export default function DashboardPage() {
                 {flight.cutoffAtRisk ? (
                   <p className="dashboard-cutoff-warning">Cutoff mendekat</p>
                 ) : null}
+                <div className="dashboard-cutoff-actions">
+                  <Link href={`/flight-board?date=${encodeURIComponent(toDateInputValue(flight.departureTime))}&query=${encodeURIComponent(flight.flightNumber)}`}>
+                    Ubah flight
+                  </Link>
+                  <Link href={`/shipment-ledger?flight=${encodeURIComponent(flight.id)}`}>Verifikasi kargo</Link>
+                </div>
               </div>
             ))
           ) : (

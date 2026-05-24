@@ -78,6 +78,28 @@ const navGroupIconMap = {
   sistem: Settings2,
 } as const;
 
+type ShiftName = "Pagi" | "Siang" | "Malam";
+
+const SHIFT_OPTIONS: readonly ShiftName[] = ["Pagi", "Siang", "Malam"];
+
+function getShiftFromHour(hour: number): ShiftName {
+  if (hour >= 6 && hour < 14) return "Pagi";
+  if (hour >= 14 && hour < 22) return "Siang";
+  return "Malam";
+}
+
+function getCurrentShift(): ShiftName {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Makassar",
+    }).format(new Date()),
+  );
+
+  return getShiftFromHour(hour);
+}
+
 export function AppShell({ user, settings, notifications, children }: ShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -90,6 +112,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationItems, setNotificationItems] = useState(notifications);
   const [mounted, setMounted] = useState(false);
+  const [dashboardShift, setDashboardShift] = useState<ShiftName>(getCurrentShift);
   const themePreference = shellSettings.theme === "dark" ? "dark" : "light";
   const activeTheme = mounted ? (resolvedTheme === "dark" ? "dark" : "light") : themePreference;
   const sidebarWidth = collapsed ? "88px" : "min(284px, 24vw)";
@@ -111,6 +134,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const visibleNotifications = notificationItems.slice(0, 10);
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
   const showShellSearch = pathname === "/shipment-ledger" || pathname === "/awb-tracking" || pathname === "/flight-board";
+  const showDashboardShiftControl = pathname === "/dashboard";
   const displayedNavigationItems = navigation.items.filter((item) => item.href !== "/settings");
   const displayedNavigationGroups = navigation.groups
     .map((group) => ({ ...group, items: group.items.filter((item) => item.href !== "/settings") }))
@@ -198,6 +222,23 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   useEffect(() => {
     setOpenGroupId(activeGroupId);
   }, [activeGroupId]);
+
+  useEffect(() => {
+    function handleDashboardShiftChange(event: Event) {
+      const nextShift = (event as CustomEvent<{ shift?: ShiftName }>).detail?.shift;
+      if (nextShift === "Pagi" || nextShift === "Siang" || nextShift === "Malam") {
+        setDashboardShift(nextShift);
+      }
+    }
+
+    window.addEventListener("skyhub:dashboard-shift-changed", handleDashboardShiftChange as EventListener);
+    return () => window.removeEventListener("skyhub:dashboard-shift-changed", handleDashboardShiftChange as EventListener);
+  }, []);
+
+  function handleDashboardShiftSelect(nextShift: ShiftName) {
+    setDashboardShift(nextShift);
+    window.dispatchEvent(new CustomEvent("skyhub:dashboard-shift", { detail: { shift: nextShift } }));
+  }
 
   async function persistSettings(payload: Record<string, unknown>) {
     const response = await fetch("/api/settings", {
@@ -567,78 +608,98 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                 </form>
               ) : null}
 
-              <button type="button" className="topbar-button" onClick={handleThemeToggle}>
-                {activeTheme === "dark" ? <SunMedium size={18} /> : <MoonStar size={18} />}
-                <span className="hidden sm:inline">{activeTheme === "dark" ? "Terang" : "Gelap"}</span>
-              </button>
-
-              <div className="relative">
-                <button
-                  type="button"
-                  className="topbar-button relative shrink-0 overflow-visible pr-5 sm:pr-8"
-                  onClick={() => setNotificationOpen((value) => !value)}
-                >
-                  <Bell size={18} />
-                  <span className="hidden sm:inline">Notifikasi</span>
-                  {unreadCount > 0 ? (
-                    <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[color:var(--panel-bg)] bg-[color:var(--brand-primary)] px-1 text-[10px] font-bold leading-none text-white shadow-[0_6px_16px_rgba(0,61,155,0.24)]">
-                      {unreadCount}
-                    </span>
-                  ) : null}
-                </button>
-
-                {notificationOpen ? (
-                  <div className="dropdown-panel right-0 top-14 w-[min(360px,calc(100vw-1.5rem))] sm:w-[360px]">
-                    <div className="flex items-center justify-between border-b border-[color:var(--border-soft)] px-4 py-4">
-                      <div>
-                        <p className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
-                          Notifikasi
-                        </p>
-                        <p className="text-sm text-[color:var(--muted-fg)]">{unreadCount} belum dibaca</p>
-                      </div>
-                      <button type="button" className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--brand-primary)]" onClick={handleMarkAllRead}>
-                        Tandai semua
+              <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
+                {showDashboardShiftControl ? (
+                  <div className="segmented-control inline-flex max-w-full rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-1 shadow-[var(--shadow-soft)]">
+                    {SHIFT_OPTIONS.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        className={cn(
+                          "shrink-0 rounded-full px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm",
+                          dashboardShift === option ? "bg-[color:var(--brand-primary)] text-white" : "text-[color:var(--muted-fg)]",
+                        )}
+                        onClick={() => handleDashboardShiftSelect(option)}
+                      >
+                        {option}
                       </button>
-                    </div>
-                    <div className="notifications-dropdown-list">
-                      {visibleNotifications.length ? (
-                        visibleNotifications.map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            className="block w-full border-b border-[color:var(--border-soft)] px-4 py-4 text-left last:border-b-0 hover:bg-[color:var(--panel-muted)]"
-                            onClick={() => handleNotificationClick(item)}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold text-[color:var(--text-strong)]">{item.title}</p>
-                                <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">{item.message}</p>
-                                <p className="mt-2 text-xs text-[color:var(--muted-2)]">{formatRelativeShort(item.createdAt)}</p>
-                              </div>
-                              {!item.read ? <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[color:var(--brand-primary)]" /> : null}
-                            </div>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-4 py-6 text-sm text-[color:var(--muted-fg)]">Tidak ada notifikasi.</div>
-                      )}
-                    </div>
-                    {hasMoreNotifications ? (
-                      <div className="border-t border-[color:var(--border-soft)] px-4 py-3">
-                        <button
-                          type="button"
-                          className="w-full rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-3 text-sm font-semibold text-[color:var(--text-strong)]"
-                          onClick={() => {
-                            setNotificationOpen(false);
-                            router.push("/activity-log");
-                          }}
-                        >
-                          Buka Log Aktivitas
-                        </button>
-                      </div>
-                    ) : null}
+                    ))}
                   </div>
                 ) : null}
+
+                <button type="button" className="topbar-button" onClick={handleThemeToggle}>
+                  {activeTheme === "dark" ? <SunMedium size={18} /> : <MoonStar size={18} />}
+                  <span className="hidden sm:inline">{activeTheme === "dark" ? "Terang" : "Gelap"}</span>
+                </button>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    className="topbar-button relative shrink-0 overflow-visible pr-5 sm:pr-8"
+                    onClick={() => setNotificationOpen((value) => !value)}
+                  >
+                    <Bell size={18} />
+                    <span className="hidden sm:inline">Notifikasi</span>
+                    {unreadCount > 0 ? (
+                      <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[color:var(--panel-bg)] bg-[color:var(--brand-primary)] px-1 text-[10px] font-bold leading-none text-white shadow-[0_6px_16px_rgba(0,61,155,0.24)]">
+                        {unreadCount}
+                      </span>
+                    ) : null}
+                  </button>
+
+                  {notificationOpen ? (
+                    <div className="dropdown-panel right-0 top-14 w-[min(360px,calc(100vw-1.5rem))] sm:w-[360px]">
+                      <div className="flex items-center justify-between border-b border-[color:var(--border-soft)] px-4 py-4">
+                        <div>
+                          <p className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
+                            Notifikasi
+                          </p>
+                          <p className="text-sm text-[color:var(--muted-fg)]">{unreadCount} belum dibaca</p>
+                        </div>
+                        <button type="button" className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--brand-primary)]" onClick={handleMarkAllRead}>
+                          Tandai semua
+                        </button>
+                      </div>
+                      <div className="notifications-dropdown-list">
+                        {visibleNotifications.length ? (
+                          visibleNotifications.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              className="block w-full border-b border-[color:var(--border-soft)] px-4 py-4 text-left last:border-b-0 hover:bg-[color:var(--panel-muted)]"
+                              onClick={() => handleNotificationClick(item)}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-[color:var(--text-strong)]">{item.title}</p>
+                                  <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">{item.message}</p>
+                                  <p className="mt-2 text-xs text-[color:var(--muted-2)]">{formatRelativeShort(item.createdAt)}</p>
+                                </div>
+                                {!item.read ? <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[color:var(--brand-primary)]" /> : null}
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-4 py-6 text-sm text-[color:var(--muted-fg)]">Tidak ada notifikasi.</div>
+                        )}
+                      </div>
+                      {hasMoreNotifications ? (
+                        <div className="border-t border-[color:var(--border-soft)] px-4 py-3">
+                          <button
+                            type="button"
+                            className="w-full rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-3 text-sm font-semibold text-[color:var(--text-strong)]"
+                            onClick={() => {
+                              setNotificationOpen(false);
+                              router.push("/activity-log");
+                            }}
+                          >
+                            Buka Log Aktivitas
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
             </div>
