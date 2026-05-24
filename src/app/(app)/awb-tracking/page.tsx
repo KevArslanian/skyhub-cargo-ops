@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   FileCheck2,
   History,
@@ -62,6 +64,8 @@ type RecentSearch = {
   flightNumber: string | null;
 };
 
+const RECENT_PAGE_SIZE = 4;
+
 export default function AwbTrackingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -75,6 +79,7 @@ export default function AwbTrackingPage() {
   const [shipment, setShipment] = useState<ShipmentPayload>(null);
   const [notFound, setNotFound] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
+  const [recentPage, setRecentPage] = useState(1);
 
   const fetchRecentSearches = useCallback(() => {
     fetch("/api/awb/recent")
@@ -96,6 +101,10 @@ export default function AwbTrackingPage() {
     const timer = window.setTimeout(() => setActionMessage(""), 2200);
     return () => window.clearTimeout(timer);
   }, [actionMessage]);
+
+  useEffect(() => {
+    setRecentPage(1);
+  }, [recentSearches.length]);
 
   useEffect(() => {
     async function lookup() {
@@ -125,6 +134,12 @@ export default function AwbTrackingPage() {
   }, [awbFromQuery, fetchRecentSearches]);
 
   const activeLog = useMemo(() => shipment?.trackingLogs.at(-1) ?? null, [shipment?.trackingLogs]);
+  const totalRecentPages = Math.max(1, Math.ceil(recentSearches.length / RECENT_PAGE_SIZE));
+  const currentRecentPage = Math.min(recentPage, totalRecentPages);
+  const recentPageStart = (currentRecentPage - 1) * RECENT_PAGE_SIZE;
+  const pagedRecentSearches = recentSearches.slice(recentPageStart, recentPageStart + RECENT_PAGE_SIZE);
+  const recentVisibleStart = recentSearches.length ? recentPageStart + 1 : 0;
+  const recentVisibleEnd = Math.min(recentPageStart + pagedRecentSearches.length, recentSearches.length);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -178,9 +193,9 @@ export default function AwbTrackingPage() {
         subtitle="Input tracking dan history tracking dalam alur yang ringkas."
       />
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.92fr)]">
+      <div className="awb-tracking-layout grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.92fr)]">
         <div className="page-stack">
-          <OpsPanel className="page-pane awb-tracking-panel overflow-hidden p-0">
+          <OpsPanel className="page-pane awb-tracking-panel h-full overflow-hidden p-0">
             <div className="border-b border-[color:var(--border-soft)] p-6">
               <SectionHeader
                 title="Input Tracking"
@@ -328,11 +343,11 @@ export default function AwbTrackingPage() {
           </OpsPanel>
         </div>
 
-        <OpsPanel className="p-5">
+        <OpsPanel className="awb-history-panel p-5">
           <SectionHeader title="History Tracking" subtitle="Riwayat pencarian AWB terakhir untuk akses cepat." />
-          <div className="page-scroll mt-5 space-y-3">
+          <div className="awb-history-list mt-5 space-y-3">
             {recentSearches.length ? (
-              recentSearches.map((item) => (
+              pagedRecentSearches.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -362,6 +377,31 @@ export default function AwbTrackingPage() {
               <p className="text-sm text-[color:var(--muted-fg)]">Belum ada riwayat tracking.</p>
             )}
           </div>
+          {recentSearches.length > RECENT_PAGE_SIZE ? (
+            <div className="table-pagination-footer mt-4">
+              <button
+                type="button"
+                className="topbar-button"
+                onClick={() => setRecentPage((current) => Math.max(1, current - 1))}
+                disabled={currentRecentPage <= 1}
+              >
+                <ChevronLeft size={16} />
+                Sebelumnya
+              </button>
+              <p>
+                {recentVisibleStart}-{recentVisibleEnd} dari {recentSearches.length} • Halaman {currentRecentPage}/{totalRecentPages}
+              </p>
+              <button
+                type="button"
+                className="topbar-button"
+                onClick={() => setRecentPage((current) => Math.min(totalRecentPages, current + 1))}
+                disabled={currentRecentPage >= totalRecentPages}
+              >
+                Berikutnya
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          ) : null}
         </OpsPanel>
       </div>
     </div>

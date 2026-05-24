@@ -1875,6 +1875,27 @@ input[type="checkbox"] {
   overflow: visible;
 }
 
+.awb-tracking-layout > .page-stack {
+  height: 100%;
+}
+
+.awb-history-panel {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+}
+
+.awb-history-list {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.awb-history-panel .table-pagination-footer {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 12px;
+}
+
 .activity-log-filter-bar {
   grid-template-columns: minmax(0, 1fr) minmax(150px, 0.32fr) auto;
   align-items: end;
