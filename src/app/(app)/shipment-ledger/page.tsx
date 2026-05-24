@@ -15,6 +15,7 @@ import {
   PlaneTakeoff,
   Plus,
   RefreshCw,
+  RotateCcw,
   Save,
   ShieldAlert,
   Trash2,
@@ -409,6 +410,7 @@ export default function ShipmentLedgerPage() {
   const activeFilterCount = [Boolean(deferredQuery.trim()), status !== "all", flight !== "all", sortBy !== "updated"].filter(
     Boolean,
   ).length;
+  const filtersDirty = status !== "all" || flight !== "all" || sortBy !== "updated";
 
   const exportParams = new URLSearchParams();
   if (deferredQuery.trim()) exportParams.set("query", deferredQuery.trim());
@@ -642,6 +644,18 @@ export default function ShipmentLedgerPage() {
     setSelectedId(null);
   }
 
+  function handleRefresh() {
+    void loadShipments(selectedIdRef.current, "refresh");
+  }
+
+  function handleResetFilters() {
+    setStatus("all");
+    setFlight("all");
+    setSortBy("updated");
+    setListPage(1);
+    setSelectedId(null);
+  }
+
   return (
     <div className="page-workspace">
       <section className="ledger-control-header">
@@ -649,22 +663,28 @@ export default function ShipmentLedgerPage() {
           <p>Ruang Kontrol</p>
           <h1>{isReadOnly ? "Shipment Saya" : "Ledger Shipment"}</h1>
         </div>
-        {!isReadOnly && (data?.permissions.canExport || data?.permissions.canCreate) ? (
-          <div className="ledger-control-actions">
-            {data?.permissions.canExport ? (
-              <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">
-                <FileText size={16} />
-                Print
-              </Link>
-            ) : null}
-            {data?.permissions.canCreate ? (
-              <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
-                <Plus size={16} />
-                Buat Shipment
-              </button>
-            ) : null}
+        <div className="ledger-control-actions">
+          {!isReadOnly && data?.permissions.canExport ? (
+            <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">
+              <FileText size={16} />
+              Print
+            </Link>
+          ) : null}
+          <button type="button" className="topbar-button" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
+            <span>{refreshing ? "Memuat..." : "Muat ulang"}</span>
+          </button>
+          <div className="topbar-button hidden xl:flex" aria-live="polite">
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
+            <span>{lastSyncedAt ? `Tersinkron ${formatRelativeShort(lastSyncedAt)}` : "Menunggu data"}</span>
           </div>
-        ) : null}
+          {!isReadOnly && data?.permissions.canCreate ? (
+            <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+              <Plus size={16} />
+              Buat Shipment
+            </button>
+          ) : null}
+        </div>
       </section>
 
       <div className="ledger-compact-stats grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -672,7 +692,7 @@ export default function ShipmentLedgerPage() {
           label="Total Shipment"
           value={data?.shipments.length ?? 0}
           note="Data tampil."
-          meta={`${activeFilterCount} filter aktif${lastSyncedAt ? ` • Sinkron ${formatRelativeShort(lastSyncedAt)}` : ""}`}
+          meta={activeFilterCount ? "Filter aktif" : "Semua data"}
           icon={Boxes}
           tone="primary"
           className="ledger-stat-card"
@@ -682,7 +702,7 @@ export default function ShipmentLedgerPage() {
           label="Berat Total"
           value={formatWeight(totalWeight)}
           note="Total berat."
-          meta={`${assignedFlightCount} shipment sudah assigned ke flight`}
+          meta="Sudah di-assign"
           icon={PackageSearch}
           tone="info"
           className="ledger-stat-card"
@@ -692,7 +712,7 @@ export default function ShipmentLedgerPage() {
           label="Assigned Flight"
           value={assignedFlightCount}
           note="Terhubung flight."
-          meta={`${(data?.flights ?? []).length} pilihan flight tersedia`}
+          meta="Flight tersedia"
           icon={PlaneTakeoff}
           tone="success"
           className="ledger-stat-card"
@@ -702,7 +722,7 @@ export default function ShipmentLedgerPage() {
           label="Perlu Review"
           value={pendingDocsCount + holdCount + readinessIssuesCount}
           note="Hold, dokumen, readiness."
-          meta={`${holdCount} hold • ${pendingDocsCount} dokumen • ${readinessIssuesCount} readiness`}
+          meta="Hold • Dokumen • Readiness"
           icon={CircleAlert}
           tone="warning"
           className="ledger-stat-card"
@@ -710,7 +730,7 @@ export default function ShipmentLedgerPage() {
         />
       </div>
 
-      <FilterBar className="ledger-compact-filter xl:grid-cols-[170px_170px_200px]">
+      <FilterBar className="ledger-compact-filter xl:grid-cols-[170px_170px_200px_auto]">
         <div>
           <label className="label">Status</label>
           <select className="select-field" value={status} onChange={(event) => setStatus(event.target.value)}>
@@ -735,13 +755,17 @@ export default function ShipmentLedgerPage() {
           </select>
         </div>
         <div>
-          <label className="label">Urutan</label>
+          <label className="label">Urutkan</label>
           <select className="select-field" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
             <option value="updated">Update Terbaru</option>
             <option value="received">Penerimaan Terbaru</option>
             <option value="priority">Prioritas Review</option>
           </select>
         </div>
+        <button type="button" className="topbar-button self-end" onClick={handleResetFilters} disabled={!filtersDirty}>
+          <RotateCcw size={16} />
+          <span>Reset</span>
+        </button>
       </FilterBar>
 
       {actionNotice ? (
@@ -755,22 +779,12 @@ export default function ShipmentLedgerPage() {
           <div className="border-b border-[color:var(--border-soft)] p-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="ops-eyebrow">Manifest Board</p>
                 <h2 className="mt-1 font-[family:var(--font-heading)] text-[1.25rem] font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
-                  Papan manifest aktif
+                  Manifest aktif
                 </h2>
                 <p className="mt-1 text-xs font-semibold text-[color:var(--muted-fg)]">
                   {shipments.length ? `${pageStart + 1}-${pageEnd} dari ${shipments.length} shipment` : "Belum ada shipment"}
                 </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge value={refreshing ? "live" : "synced"} label={refreshing ? "Memuat ulang" : "Tersinkron"} />
-                {lastSyncedAt ? (
-                  <span className="inline-flex min-h-[36px] items-center gap-2 rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 text-xs font-semibold text-[color:var(--muted-fg)]">
-                    <RefreshCw size={13} className={cn(refreshing && "animate-spin")} />
-                    {formatDateTime(lastSyncedAt)}
-                  </span>
-                ) : null}
               </div>
             </div>
           </div>
@@ -850,8 +864,8 @@ export default function ShipmentLedgerPage() {
                       <ChevronLeft size={16} />
                       Sebelumnya
                     </button>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-fg)]">
-                      Halaman {listPage} / {totalPages}
+                    <p className="text-xs font-semibold text-[color:var(--muted-fg)]">
+                      {shipments.length ? `${pageStart + 1}-${pageEnd}` : "0-0"} dari {shipments.length} • Halaman {listPage}/{totalPages}
                     </p>
                     <button
                       type="button"
@@ -867,8 +881,8 @@ export default function ShipmentLedgerPage() {
               ) : (
                 <EmptyState
                   icon={PackageSearch}
-                  title="Tidak ada shipment yang cocok"
-                  copy="Ubah kata kunci atau filter untuk melihat shipment lain yang tersedia di manifest."
+                  title="Belum ada shipment"
+                  copy="Coba ubah filter status atau flight, atau tunggu hingga manifest baru masuk."
                   className="m-0"
                 />
               )}

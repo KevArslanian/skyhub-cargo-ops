@@ -272,14 +272,6 @@ function parsePageParam(value: string | null) {
   return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
-function getPaginationItems(currentPage: number, totalPages: number) {
-  const pages = new Set<number>([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
-
-  return Array.from(pages)
-    .filter((item) => item >= 1 && item <= totalPages)
-    .sort((left, right) => left - right);
-}
-
 export default function FlightBoardPage() {
   const pathname = usePathname();
   const router = useRouter();
@@ -718,7 +710,8 @@ export default function FlightBoardPage() {
   const highlightedFlights = (activeFlights.length ? activeFlights : visibleFlights).slice(0, 3);
   const totalFlightPages = data?.pagination.totalPages ?? 1;
   const totalFlightItems = data?.pagination.totalItems ?? 0;
-  const flightPageItems = getPaginationItems(page, totalFlightPages);
+  const visibleFlightStart = totalFlightItems ? (page - 1) * 10 + 1 : 0;
+  const visibleFlightEnd = Math.min((page - 1) * 10 + visibleFlights.length, totalFlightItems);
   const canGoPrevious = page > 1;
   const canGoNext = page < totalFlightPages;
   const flightExportQuery = useMemo(() => {
@@ -944,28 +937,8 @@ export default function FlightBoardPage() {
               <ChevronLeft size={16} />
               Sebelumnya
             </button>
-            <div className="flightboard-page-numbers" aria-label="Navigasi halaman flight">
-              {flightPageItems.map((item, index) => {
-                const previous = flightPageItems[index - 1];
-                const hasGap = previous !== undefined && item - previous > 1;
-
-                return (
-                  <span key={item} className="contents">
-                    {hasGap ? <span className="flightboard-page-gap">...</span> : null}
-                    <button
-                      type="button"
-                      className={cn("flightboard-page-button", item === page && "flightboard-page-button-active")}
-                      onClick={() => void handleManifestPageChange(item)}
-                      aria-current={item === page ? "page" : undefined}
-                    >
-                      {item}
-                    </button>
-                  </span>
-                );
-              })}
-            </div>
             <p>
-              {visibleFlights.length} dari {totalFlightItems} flight
+              {visibleFlightStart}-{visibleFlightEnd} dari {totalFlightItems} • Halaman {page}/{totalFlightPages}
             </p>
             <button
               type="button"

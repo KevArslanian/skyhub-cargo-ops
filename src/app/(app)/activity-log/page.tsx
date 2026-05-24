@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
-import { formatDateTime } from "@/lib/format";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, History, RefreshCw, RotateCcw, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
+import { cn, formatDateTime } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 
@@ -29,21 +29,22 @@ export default function ActivityLogPage() {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<ActivityPayload | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadActivityLog = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (query.trim()) params.set("query", query.trim());
+    if (action !== "all") params.set("action", action);
+    if (userId !== "all") params.set("userId", userId);
+    const response = await fetch(`/api/activity-log?${params.toString()}`, { cache: "no-store" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as ActivityPayload;
+    setData(payload);
+  }, [action, query, userId]);
 
   useEffect(() => {
-    async function load() {
-      const params = new URLSearchParams();
-      if (query.trim()) params.set("query", query.trim());
-      if (action !== "all") params.set("action", action);
-      if (userId !== "all") params.set("userId", userId);
-      const response = await fetch(`/api/activity-log?${params.toString()}`, { cache: "no-store" });
-      if (!response.ok) return;
-      const payload = (await response.json()) as ActivityPayload;
-      setData(payload);
-    }
-
-    void load();
-  }, [action, query, userId]);
+    void loadActivityLog();
+  }, [loadActivityLog]);
 
   useEffect(() => {
     function handleContextSearch(event: Event) {
@@ -74,6 +75,23 @@ export default function ActivityLogPage() {
   const pagedLogs = (data?.logs ?? []).slice(pageStart, pageStart + ACTIVITY_PAGE_SIZE);
   const visibleStart = data?.logs.length ? pageStart + 1 : 0;
   const visibleEnd = Math.min(pageStart + pagedLogs.length, data?.logs.length ?? 0);
+  const filtersDirty = action !== "all" || userId !== "all" || query.trim() !== "";
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await loadActivityLog();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  function handleResetFilters() {
+    setAction("all");
+    setUserId("all");
+    setQuery("");
+    setPage(1);
+  }
 
   return (
     <div className="page-workspace activity-log-workspace">
@@ -81,6 +99,12 @@ export default function ActivityLogPage() {
         eyebrow="Jejak Audit"
         title="Log Aktivitas"
         subtitle="Audit internal."
+        actions={
+          <button type="button" className="topbar-button" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw size={16} className={cn(refreshing && "animate-spin")} />
+            <span>{refreshing ? "Memuat..." : "Muat ulang"}</span>
+          </button>
+        }
       />
 
       <div className="grid gap-4 xl:grid-cols-4">
@@ -127,6 +151,10 @@ export default function ActivityLogPage() {
             ))}
           </select>
         </div>
+        <button type="button" className="topbar-button self-end" onClick={handleResetFilters} disabled={!filtersDirty}>
+          <RotateCcw size={16} />
+          <span>Reset</span>
+        </button>
       </FilterBar>
 
       <OpsPanel className="page-pane activity-log-panel p-5">

@@ -1627,7 +1627,7 @@ input[type="checkbox"] {
 }
 
 .activity-log-filter-bar {
-  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.32fr) minmax(150px, 0.32fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.32fr) auto;
   align-items: end;
   gap: 10px;
   min-height: 0;
@@ -2713,6 +2713,13 @@ input[type="checkbox"] {
   gap: 0.75rem;
 }
 
+.dashboard-summary-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .dashboard-summary-step {
   display: flex;
   min-width: 0;
@@ -2885,7 +2892,7 @@ input[type="checkbox"] {
 
 @media (min-width: 1024px) {
   .dashboard-summary-chart {
-    grid-template-columns: minmax(170px, 0.22fr) minmax(0, 1fr);
+    grid-template-columns: minmax(170px, 0.22fr) minmax(0, 1fr) auto;
     align-items: stretch;
   }
 
