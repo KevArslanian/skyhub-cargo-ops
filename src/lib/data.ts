@@ -3119,7 +3119,7 @@ export async function searchScoped(user: AccessUser, query: string, scope: Searc
     }
   }
 
-  if (scope === "global" || scope === "ledger" || scope === "dashboard") {
+  if (scope === "global" || scope === "ledger" || scope === "awb" || scope === "dashboard") {
     const shipments = await db.shipment.findMany({
       where: {
         ...scopeShipmentWhere(user),
@@ -3130,14 +3130,14 @@ export async function searchScoped(user: AccessUser, query: string, scope: Searc
       orderBy: { updatedAt: "desc" },
     });
 
-    results.push(
-      ...shipments.map((shipment) => ({
-        path: `/shipment-ledger?query=${shipment.awb}`,
-        label: shipment.awb,
-        kind: "Shipment",
-        description: `${shipment.origin}-${shipment.destination} - ${shipment.commodity}`,
-      })),
-    );
+	    results.push(
+	      ...shipments.map((shipment) => ({
+	        path: scope === "awb" ? `/awb-tracking?awb=${shipment.awb}` : `/shipment-ledger?query=${shipment.awb}`,
+	        label: shipment.awb,
+	        kind: scope === "awb" ? "AWB" : "Shipment",
+	        description: `${shipment.origin}-${shipment.destination} - ${shipment.commodity}`,
+	      })),
+	    );
   }
 
   if (isInternalRole(user.role) && (scope === "global" || scope === "flight" || scope === "dashboard")) {

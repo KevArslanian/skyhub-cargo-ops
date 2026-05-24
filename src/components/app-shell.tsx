@@ -62,6 +62,13 @@ type ShellProps = {
   children: React.ReactNode;
 };
 
+type ShellSearchResult = {
+  path: string;
+  label: string;
+  kind: string;
+  description?: string;
+};
+
 const navIconMap = {
   "/dashboard": LayoutDashboard,
   "/shipment-ledger": PackageSearch,
@@ -113,6 +120,9 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [notificationItems, setNotificationItems] = useState(notifications);
   const [mounted, setMounted] = useState(false);
   const [dashboardShift, setDashboardShift] = useState<ShiftName>(getCurrentShift);
+  const [searchPreviewOpen, setSearchPreviewOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState<ShellSearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const themePreference = shellSettings.theme === "dark" ? "dark" : "light";
   const activeTheme = mounted ? (resolvedTheme === "dark" ? "dark" : "light") : themePreference;
   const sidebarWidth = collapsed ? "88px" : "min(284px, 24vw)";
@@ -135,6 +145,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
   const showShellSearch = pathname === "/shipment-ledger" || pathname === "/awb-tracking" || pathname === "/flight-board";
   const showDashboardShiftControl = pathname === "/dashboard";
+  const topbarLabel = pathname === "/shipment-ledger" ? "" : activeNav.label;
   const displayedNavigationItems = navigation.items.filter((item) => item.href !== "/settings");
   const displayedNavigationGroups = navigation.groups
     .map((group) => ({ ...group, items: group.items.filter((item) => item.href !== "/settings") }))
@@ -224,6 +235,52 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   }, [activeGroupId]);
 
   useEffect(() => {
+    setSearch("");
+    setSearchResults([]);
+    setSearchPreviewOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!showShellSearch || !search.trim()) {
+      setSearchResults([]);
+      setSearchPreviewOpen(false);
+      setSearchLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      const scope = pathname === "/shipment-ledger" ? "ledger" : pathname === "/awb-tracking" ? "awb" : "flight";
+      setSearchLoading(true);
+
+      try {
+        const response = await fetch(`/api/search?query=${encodeURIComponent(search.trim())}&scope=${scope}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+
+        const result = (await response.json()) as { results?: ShellSearchResult[] };
+        setSearchResults(result.results?.slice(0, 6) ?? []);
+        setSearchPreviewOpen(true);
+      } catch (error) {
+        if ((error as DOMException).name !== "AbortError") {
+          setSearchResults([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setSearchLoading(false);
+        }
+      }
+    }, 160);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [pathname, search, showShellSearch]);
+
+  useEffect(() => {
     function handleDashboardShiftChange(event: Event) {
       const nextShift = (event as CustomEvent<{ shift?: ShiftName }>).detail?.shift;
       if (nextShift === "Pagi" || nextShift === "Siang" || nextShift === "Malam") {
@@ -261,32 +318,45 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
     }
   }
 
+  function runContextSearch(nextQuery: string, targetPath = pathname) {
+    if (!nextQuery.trim()) return;
+    const trimmedQuery = nextQuery.trim();
+
+    window.dispatchEvent(
+      new CustomEvent("skyhub:context-search", {
+        detail: {
+          pathname: targetPath,
+          query: trimmedQuery,
+          focusDetail: true,
+        },
+      }),
+    );
+
+    if (targetPath === "/shipment-ledger") {
+      router.push(`/shipment-ledger?query=${encodeURIComponent(trimmedQuery)}`);
+      return;
+    }
+
+    if (targetPath === "/awb-tracking") {
+      router.push(`/awb-tracking?awb=${encodeURIComponent(trimmedQuery)}`);
+      return;
+    }
+
+    if (targetPath === "/flight-board") {
+      router.push(`/flight-board?query=${encodeURIComponent(trimmedQuery)}`);
+      return;
+    }
+  }
+
   async function handleSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!search.trim()) return;
     const nextQuery = search.trim();
 
-    window.dispatchEvent(
-      new CustomEvent("skyhub:context-search", {
-        detail: {
-          pathname,
-          query: nextQuery,
-        },
-      }),
-    );
+    setSearchPreviewOpen(false);
 
-    if (pathname === "/shipment-ledger") {
-      router.push(`/shipment-ledger?query=${encodeURIComponent(nextQuery)}`);
-      return;
-    }
-
-    if (pathname === "/awb-tracking") {
-      router.push(`/awb-tracking?awb=${encodeURIComponent(nextQuery)}`);
-      return;
-    }
-
-    if (pathname === "/flight-board") {
-      router.push(`/flight-board?query=${encodeURIComponent(nextQuery)}`);
+    if (showShellSearch) {
+      runContextSearch(nextQuery);
       return;
     }
 
@@ -301,6 +371,28 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       router.push(result.path);
       setSearch("");
     }
+  }
+
+  function handleSearchResultSelect(result: ShellSearchResult) {
+    setSearch(result.label);
+    setSearchPreviewOpen(false);
+
+    if (result.path.startsWith("/shipment-ledger")) {
+      runContextSearch(result.label, "/shipment-ledger");
+      return;
+    }
+
+    if (result.path.startsWith("/awb-tracking")) {
+      runContextSearch(result.label, "/awb-tracking");
+      return;
+    }
+
+    if (result.path.startsWith("/flight-board")) {
+      runContextSearch(result.label, "/flight-board");
+      return;
+    }
+
+    router.push(result.path);
   }
 
   async function handleMarkAllRead() {
@@ -587,7 +679,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               <div className="min-w-0 flex-[1_1_140px] sm:flex-[0_1_auto]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Ruang Kontrol</p>
                 <p className="mt-1 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
-                  {activeNav.label}
+                  {topbarLabel}
                 </p>
               </div>
 
@@ -601,10 +693,44 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                   </button>
                   <input
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    onChange={(event) => {
+                      setSearch(event.target.value);
+                      setSearchPreviewOpen(Boolean(event.target.value.trim()));
+                    }}
+                    onFocus={() => setSearchPreviewOpen(Boolean(search.trim()))}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        setSearchPreviewOpen(false);
+                      }
+                    }}
                     placeholder={searchPlaceholder}
                     className="input-field input-field-leading w-full"
                   />
+                  {searchPreviewOpen ? (
+                    <div className="shell-search-preview">
+                      {searchLoading ? (
+                        <div className="shell-search-preview-empty">Mencari kecocokan...</div>
+                      ) : searchResults.length ? (
+                        searchResults.map((result) => (
+                          <button
+                            key={`${result.kind}-${result.path}`}
+                            type="button"
+                            className="shell-search-preview-item"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => handleSearchResultSelect(result)}
+                          >
+                            <span className="shell-search-preview-kind">{result.kind}</span>
+                            <span className="min-w-0">
+                              <strong>{result.label}</strong>
+                              {result.description ? <small>{result.description}</small> : null}
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="shell-search-preview-empty">Belum ada kecocokan karakter.</div>
+                      )}
+                    </div>
+                  ) : null}
                 </form>
               ) : null}
 

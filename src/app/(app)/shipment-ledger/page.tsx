@@ -36,7 +36,6 @@ import {
   EmptyState,
   FilterBar,
   OpsPanel,
-  PageHeader,
   SectionHeader,
   SkeletonBlock,
 } from "@/components/ops-ui";
@@ -286,15 +285,22 @@ export default function ShipmentLedgerPage() {
   const [listPage, setListPage] = useState(1);
   const selectedIdRef = useRef<string | null>(null);
   const hasLoadedRef = useRef(false);
+  const splitPaneRef = useRef<HTMLDivElement | null>(null);
 
   const deferredQuery = useDeferredValue(query);
 
   useEffect(() => {
     function handleContextSearch(event: Event) {
-      const detail = (event as CustomEvent<{ pathname?: string; query?: string }>).detail;
+      const detail = (event as CustomEvent<{ pathname?: string; query?: string; focusDetail?: boolean }>).detail;
       if (detail?.pathname !== "/shipment-ledger" || !detail.query) return;
       setQuery(detail.query);
       setListPage(1);
+
+      if (detail.focusDetail) {
+        window.setTimeout(() => {
+          splitPaneRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 120);
+      }
     }
 
     window.addEventListener("skyhub:context-search", handleContextSearch as EventListener);
@@ -616,31 +622,22 @@ export default function ShipmentLedgerPage() {
 
   return (
     <div className="page-workspace">
-      <PageHeader
-        eyebrow="Kontrol Manifest"
-        title={isReadOnly ? "Shipment Saya" : "Ledger Shipment"}
-        subtitle={
-          isReadOnly
-            ? `Daftar shipment milik ${data?.viewer.customerAccountName || "akun Anda"}.`
-            : "Tambah, cari, ubah, dan hapus shipment."
-        }
-        actions={
-          <>
-            {!isReadOnly && data?.permissions.canExport ? (
-              <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">
-                <FileText size={16} />
-                Print
-              </Link>
-            ) : null}
-            {data?.permissions.canCreate ? (
-              <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
-                <Plus size={16} />
-                Buat Shipment
-              </button>
-            ) : null}
-          </>
-        }
-      />
+      {!isReadOnly && (data?.permissions.canExport || data?.permissions.canCreate) ? (
+        <div className="flex flex-wrap justify-end gap-2">
+          {data?.permissions.canExport ? (
+            <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">
+              <FileText size={16} />
+              Print
+            </Link>
+          ) : null}
+          {data?.permissions.canCreate ? (
+            <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+              <Plus size={16} />
+              Buat Shipment
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-4">
         <DataCard
@@ -717,7 +714,7 @@ export default function ShipmentLedgerPage() {
         </div>
       ) : null}
 
-      <div className="page-grid-2 split-pane-shell">
+      <div ref={splitPaneRef} className="page-grid-2 split-pane-shell">
         <OpsPanel className="page-pane split-pane-left internal-scrollbar flex min-h-0 flex-col overflow-hidden p-0">
           <div className="border-b border-[color:var(--border-soft)] p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
