@@ -1,12 +1,20 @@
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 
-const pnpmCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+let pnpmCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+let baseArgs = [];
+
+try {
+  execSync(process.platform === "win32" ? "where pnpm" : "which pnpm", { stdio: "ignore" });
+} catch {
+  pnpmCmd = "npx";
+  baseArgs = ["pnpm"];
+}
 
 function run(args, env = process.env) {
   return new Promise((resolve, reject) => {
-    const child = spawn(pnpmCmd, args, {
+    const child = spawn(pnpmCmd, [...baseArgs, ...args], {
       env,
-      shell: process.platform === "win32",
+      shell: true,
       stdio: "inherit",
     });
 

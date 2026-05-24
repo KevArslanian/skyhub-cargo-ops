@@ -9,11 +9,13 @@ import {
   ChevronRight,
   Clock3,
   FileCheck2,
+  HelpCircle,
   PackageCheck,
   PlaneTakeoff,
   RefreshCw,
   ShieldAlert,
   TowerControl,
+  X,
 } from "lucide-react";
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
@@ -303,6 +305,7 @@ export default function DashboardPage() {
     autoRefresh: true,
     refreshIntervalSeconds: 5,
   });
+  const [showGuide, setShowGuide] = useState(true);
 
   useEffect(() => {
     function handleContextSearch(event: Event) {
@@ -697,6 +700,17 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              className={cn(
+                "topbar-button transition-colors",
+                showGuide && "border-[color:var(--brand-primary)] text-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]"
+              )}
+              onClick={() => setShowGuide((prev) => !prev)}
+            >
+              <HelpCircle size={16} />
+              <span>{showGuide ? "Tutup Panduan" : "Panduan Operasi"}</span>
+            </button>
             <button type="button" className="topbar-button" onClick={handleRefresh}>
               <RefreshCw size={16} className={cn(refreshing && "animate-spin")} />
               <span>{refreshing ? "Memuat ulang..." : "Muat ulang"}</span>
@@ -713,6 +727,68 @@ export default function DashboardPage() {
           </>
         }
       />
+
+      {showGuide && (
+        <div className="rounded-[28px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5 mb-5 relative overflow-hidden transition-all duration-200">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]">
+                <HelpCircle size={20} />
+              </div>
+              <div>
+                <h3 className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
+                  Panduan Cepat Memulai (Quick Start Guide)
+                </h3>
+                <p className="mt-1 text-sm text-[color:var(--muted-fg)]">
+                  Selamat datang di SkyHub Cargo Ops. Panel kontrol ini dirancang dengan tingkat kepadatan informasi yang tinggi untuk memantau pergerakan kargo udara secara real-time. Simak rincian sistem operasional di bawah ini:
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="topbar-button shrink-0"
+              onClick={() => setShowGuide(false)}
+              aria-label="Tutup panduan"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
+              <span className="text-xs font-bold text-[color:var(--brand-primary)] uppercase tracking-wider block">01 / Sistem Shift</span>
+              <p className="mt-2 text-sm font-semibold text-[color:var(--text-strong)]">Partisi Rentang Jam</p>
+              <p className="mt-1 text-xs leading-5 text-[color:var(--muted-fg)]">
+                Data disortir per shift: **Pagi** (06:00 - 14:00), **Siang** (14:00 - 22:00), dan **Malam** (22:00 - 06:00 WITA/Makassar). Pilih shift di atas untuk memfilter manifest dan flight aktif.
+              </p>
+            </div>
+
+            <div className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
+              <span className="text-xs font-bold text-[color:var(--brand-primary)] uppercase tracking-wider block">02 / Konteks Luar Shift</span>
+              <p className="mt-2 text-sm font-semibold text-[color:var(--text-strong)]">Rujukan Rantai Kargo</p>
+              <p className="mt-1 text-xs leading-5 text-[color:var(--muted-fg)]">
+                Kargo bertanda <span className="text-[10px] font-semibold px-1 py-0.5 rounded border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)]">Luar shift</span> adalah kargo terbaru dari shift sebelum/sesudahnya. Ditampilkan agar rantai logistik tidak terputus.
+              </p>
+            </div>
+
+            <div className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
+              <span className="text-xs font-bold text-[color:var(--brand-primary)] uppercase tracking-wider block">03 / Cutoff Kargo</span>
+              <p className="mt-2 text-sm font-semibold text-[color:var(--text-strong)]">Disiplin Waktu Muat</p>
+              <p className="mt-1 text-xs leading-5 text-[color:var(--muted-fg)]">
+                Setiap flight memiliki batas **Cutoff** kargo (70 menit sebelum lepas landas). Penerimaan kargo di stasiun ditutup otomatis saat cutoff tercapai demi menjamin ketepatan waktu.
+              </p>
+            </div>
+
+            <div className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
+              <span className="text-xs font-bold text-[color:var(--brand-primary)] uppercase tracking-wider block">04 / Kontrol & Peran</span>
+              <p className="mt-2 text-sm font-semibold text-[color:var(--text-strong)]">Izin Tim Terpadu</p>
+              <p className="mt-1 text-xs leading-5 text-[color:var(--muted-fg)]">
+                {"Hak untuk membuat, mengedit, atau menghapus kargo/flight dikunci berdasarkan peran Anda. Kelola hak akses granular di menu Settings \u2192 Tim & Akses."}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="dashboard-stats grid gap-3 xl:grid-cols-4">
         <StatCard label="Kargo Masuk" value={loading ? "..." : shipmentShift.shiftMatched.length} note={appendFallbackNote(`Manifest aktif pada shift ${shift.toLowerCase()}.`, shipmentFallbackCount)} icon={Boxes} tone="primary" />

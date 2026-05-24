@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 
 const unpooledUrl = process.env.DATABASE_URL_UNPOOLED;
 
@@ -13,14 +13,22 @@ const env = {
   DATABASE_URL: unpooledUrl,
 };
 
-const pnpmCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+let pnpmCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+let baseArgs = [];
+
+try {
+  execSync(process.platform === "win32" ? "where pnpm" : "which pnpm", { stdio: "ignore" });
+} catch {
+  pnpmCmd = "npx";
+  baseArgs = ["pnpm"];
+}
 
 function run(args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(pnpmCmd, args, {
+    const child = spawn(pnpmCmd, [...baseArgs, ...args], {
       stdio: "inherit",
       env,
-      shell: process.platform === "win32",
+      shell: true,
     });
 
     child.on("error", reject);

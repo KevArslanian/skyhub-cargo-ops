@@ -26,16 +26,16 @@ import { DataCard, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/
 import { OpsDrawer } from "@/components/ops-drawer";
 
 const CAPABILITY_OPTIONS = [
-  { value: "shipment:create", label: "Buat shipment" },
-  { value: "shipment:update", label: "Edit shipment" },
-  { value: "shipment:delete", label: "Hapus shipment" },
-  { value: "shipment:document", label: "Dokumen shipment" },
-  { value: "flight:manage", label: "Kelola flight" },
-  { value: "payment:verify", label: "Verifikasi bayar" },
-  { value: "reports:export", label: "Export laporan" },
-  { value: "users:manage", label: "Kelola user" },
-  { value: "customer_accounts:manage", label: "Kelola pelanggan" },
-  { value: "settings:workspace", label: "Workspace" },
+  { value: "shipment:create", label: "Buat shipment", description: "Membuat AWB kargo & manifest baru" },
+  { value: "shipment:update", label: "Edit shipment", description: "Mengubah detail berat, koli, & status kargo" },
+  { value: "shipment:delete", label: "Hapus shipment", description: "Menghapus entri kargo dari ledger" },
+  { value: "shipment:document", label: "Dokumen shipment", description: "Mengupload & memvalidasi file dokumen manifest" },
+  { value: "flight:manage", label: "Kelola flight", description: "Membuat, mengedit, & menjadwalkan flight baru" },
+  { value: "payment:verify", label: "Verifikasi bayar", description: "Menyetujui verifikasi pembayaran AWB" },
+  { value: "reports:export", label: "Export laporan", description: "Mengekspor data operasional ke PDF/Print" },
+  { value: "users:manage", label: "Kelola user", description: "Mengundang & mengelola hak akses anggota tim" },
+  { value: "customer_accounts:manage", label: "Kelola pelanggan", description: "Mengelola kode & profil akun pelanggan" },
+  { value: "settings:workspace", label: "Workspace", description: "Mengatur preferensi & tampilan default sistem" },
 ] as const;
 
 type SettingsCapability = (typeof CAPABILITY_OPTIONS)[number]["value"];
@@ -1031,77 +1031,85 @@ export default function SettingsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {pagedUsers.map((user) => {
-                        return (
-                          <tr key={user.id}>
-                            <td className="font-semibold text-[color:var(--text-strong)]">
-                              {user.name}
-                            </td>
-                            <td>
-                              {user.email}
-                            </td>
-                            <td>
-                              <p className="font-medium text-[color:var(--text-strong)]">{ROLE_LABELS[user.role]}</p>
-                            </td>
-                            <td>
-                              <div className="flex min-w-[220px] flex-wrap gap-2">
-                                {user.capabilities.slice(0, 3).map((capability) => (
-                                  <span
-                                    key={capability}
-                                    className="rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-2.5 py-1 text-xs font-semibold text-[color:var(--muted-fg)]"
+                      {pagedUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center py-8 text-[color:var(--muted-fg)] font-medium">
+                            Tidak ada anggota tim yang cocok dengan pencarian Anda.
+                          </td>
+                        </tr>
+                      ) : (
+                        pagedUsers.map((user) => {
+                          return (
+                            <tr key={user.id}>
+                              <td className="font-semibold text-[color:var(--text-strong)]">
+                                {user.name}
+                              </td>
+                              <td>
+                                {user.email}
+                              </td>
+                              <td>
+                                <p className="font-medium text-[color:var(--text-strong)]">{ROLE_LABELS[user.role]}</p>
+                              </td>
+                              <td>
+                                <div className="flex min-w-[220px] flex-wrap gap-2">
+                                  {user.capabilities.slice(0, 3).map((capability) => (
+                                    <span
+                                      key={capability}
+                                      className="rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-2.5 py-1 text-xs font-semibold text-[color:var(--muted-fg)]"
+                                    >
+                                      {CAPABILITY_OPTIONS.find((item) => item.value === capability)?.label ?? capability}
+                                    </span>
+                                  ))}
+                                  {user.capabilities.length > 3 ? (
+                                    <span className="rounded-full bg-[color:var(--brand-primary-soft)] px-2.5 py-1 text-xs font-bold text-[color:var(--brand-primary)]">
+                                      +{user.capabilities.length - 3}
+                                    </span>
+                                  ) : null}
+                                  {!user.capabilities.length ? <span className="text-xs text-[color:var(--muted-2)]">Read-only</span> : null}
+                                </div>
+                              </td>
+                              <td>
+                                <span className="font-semibold text-[color:var(--brand-primary)]">{user.station}</span>
+                              </td>
+                              <td>
+                                <span className="text-sm text-[color:var(--muted-fg)]">{user.customerAccountName || "-"}</span>
+                              </td>
+                              <td>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <StatusBadge value={user.status} label={USER_STATUS_LABELS[user.status]} />
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary h-8 px-3 text-xs"
+                                    onClick={() => toggleUserStatus(user)}
+                                    disabled={togglingUserId === user.id || user.id === data.profile.id}
                                   >
-                                    {CAPABILITY_OPTIONS.find((item) => item.value === capability)?.label ?? capability}
-                                  </span>
-                                ))}
-                                {user.capabilities.length > 3 ? (
-                                  <span className="rounded-full bg-[color:var(--brand-primary-soft)] px-2.5 py-1 text-xs font-bold text-[color:var(--brand-primary)]">
-                                    +{user.capabilities.length - 3}
-                                  </span>
-                                ) : null}
-                                {!user.capabilities.length ? <span className="text-xs text-[color:var(--muted-2)]">Read-only</span> : null}
-                              </div>
-                            </td>
-                            <td>
-                              <span className="font-semibold text-[color:var(--brand-primary)]">{user.station}</span>
-                            </td>
-                            <td>
-                              <span className="text-sm text-[color:var(--muted-fg)]">{user.customerAccountName || "-"}</span>
-                            </td>
-                            <td>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <StatusBadge value={user.status} label={USER_STATUS_LABELS[user.status]} />
+                                    {togglingUserId === user.id
+                                      ? "Memproses..."
+                                      : user.status === "active"
+                                        ? "Matikan"
+                                        : "Aktifkan"}
+                                  </button>
+                                  {user.id === data.profile.id ? (
+                                    <span className="text-xs text-[color:var(--muted-2)]">Akun Anda</span>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="text-right">
                                 <button
                                   type="button"
-                                  className="btn btn-secondary h-8 px-3 text-xs"
-                                  onClick={() => toggleUserStatus(user)}
-                                  disabled={togglingUserId === user.id || user.id === data.profile.id}
+                                  className="btn btn-secondary h-10 px-4"
+                                  onClick={() => {
+                                    setEditingUserId(user.id);
+                                    setEditingUserDraft(user);
+                                  }}
                                 >
-                                  {togglingUserId === user.id
-                                    ? "Memproses..."
-                                    : user.status === "active"
-                                      ? "Matikan"
-                                      : "Aktifkan"}
+                                  Edit
                                 </button>
-                                {user.id === data.profile.id ? (
-                                  <span className="text-xs text-[color:var(--muted-2)]">Akun Anda</span>
-                                ) : null}
-                              </div>
-                            </td>
-                            <td className="text-right">
-                              <button
-                                type="button"
-                                className="btn btn-secondary h-10 px-4"
-                                onClick={() => {
-                                  setEditingUserId(user.id);
-                                  setEditingUserDraft(user);
-                                }}
-                              >
-                                Edit
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1278,18 +1286,79 @@ export default function SettingsPage() {
                         </select>
                       </div>
 
+                      <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Pratinjau Akses Menu</p>
+                        <div className="mt-3 space-y-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white",
+                              editingUserDraft.status === "disabled"
+                                ? "bg-[color:var(--tone-danger)]"
+                                : "bg-[color:var(--tone-success)]"
+                            )}>
+                              {editingUserDraft.status === "disabled" ? "✗" : "✓"}
+                            </span>
+                            <span className="font-semibold text-[color:var(--text-strong)]">
+                              Operasional: {editingUserDraft.role === "customer" ? "Pelacakan AWB" : "Dashboard, Ledger, Pelacakan AWB"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white",
+                              editingUserDraft.status === "disabled" || editingUserDraft.role === "customer"
+                                ? "bg-[color:var(--tone-danger)]"
+                                : "bg-[color:var(--tone-success)]"
+                            )}>
+                              {editingUserDraft.status === "disabled" || editingUserDraft.role === "customer" ? "✗" : "✓"}
+                            </span>
+                            <span className={cn(
+                              "font-semibold",
+                              editingUserDraft.status === "disabled" || editingUserDraft.role === "customer"
+                                ? "text-[color:var(--muted-fg)] line-through"
+                                : "text-[color:var(--text-strong)]"
+                            )}>
+                              Pemantauan: Papan Penerbangan, Alert Center, Log Aktivitas
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white",
+                              editingUserDraft.status === "disabled" || editingUserDraft.role === "customer"
+                                ? "bg-[color:var(--tone-danger)]"
+                                : "bg-[color:var(--tone-success)]"
+                            )}>
+                              {editingUserDraft.status === "disabled" || editingUserDraft.role === "customer" ? "✗" : "✓"}
+                            </span>
+                            <span className={cn(
+                              "font-semibold",
+                              editingUserDraft.status === "disabled" || editingUserDraft.role === "customer"
+                                ? "text-[color:var(--muted-fg)] line-through"
+                                : "text-[color:var(--text-strong)]"
+                            )}>
+                              Sistem: Pengaturan
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
                       <div>
                         <label className="label">Izin Granular (Capabilities)</label>
                         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          {CAPABILITY_OPTIONS.map((capability) => {
+                           {CAPABILITY_OPTIONS.map((capability) => {
                             const checked = editingUserDraft.capabilities.includes(capability.value);
                             return (
                               <label
                                 key={capability.value}
-                                className="flex items-center gap-2.5 rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 py-3 text-xs font-semibold text-[color:var(--text-strong)] transition-all hover:bg-[color:var(--panel-bg)]"
+                                className={cn(
+                                  "flex items-start gap-3 rounded-[18px] border p-3 text-left transition-all cursor-pointer hover:bg-[color:var(--panel-bg)]",
+                                  checked
+                                    ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]/20"
+                                    : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]"
+                                )}
                               >
                                 <input
                                   type="checkbox"
+                                  className="mt-1 shrink-0"
                                   checked={checked}
                                   onChange={(event) =>
                                     setEditingUserDraft((current) => {
@@ -1301,7 +1370,10 @@ export default function SettingsPage() {
                                     })
                                   }
                                 />
-                                {capability.label}
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-[color:var(--text-strong)]">{capability.label}</p>
+                                  <p className="mt-1 text-[11px] leading-5 text-[color:var(--muted-fg)]">{capability.description}</p>
+                                </div>
                               </label>
                             );
                           })}
@@ -1406,148 +1478,159 @@ export default function SettingsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {pagedAccounts.map((account) => {
-                        const accountRowDraft = editingAccountId === account.id ? editingAccountDraft : null;
-                        const isEditing = Boolean(accountRowDraft);
+                      {pagedAccounts.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center py-8 text-[color:var(--muted-fg)] font-medium">
+                            Tidak ada akun pelanggan yang cocok dengan pencarian Anda.
+                          </td>
+                        </tr>
+                      ) : (
+                        pagedAccounts.map((account) => {
+                          const accountRowDraft = editingAccountId === account.id ? editingAccountDraft : null;
+                          const isEditing = Boolean(accountRowDraft);
 
-                        return (
-                          <tr key={account.id}>
-                            <td>
-                              {isEditing ? (
-                                <input
-                                  className="input-field h-10"
-                                  value={accountRowDraft?.code ?? account.code}
-                                  onChange={(event) =>
-                                    setEditingAccountDraft((current) =>
-                                      current ? { ...current, code: event.target.value } : current,
-                                    )
-                                  }
-                                />
-                              ) : (
-                                <span className="font-semibold text-[color:var(--brand-primary)]">{account.code}</span>
-                              )}
-                            </td>
-                            <td>
-                              {isEditing ? (
-                                <input
-                                  className="input-field h-10"
-                                  value={accountRowDraft?.name ?? account.name}
-                                  onChange={(event) =>
-                                    setEditingAccountDraft((current) =>
-                                      current ? { ...current, name: event.target.value } : current,
-                                    )
-                                  }
-                                />
-                              ) : (
-                                account.name
-                              )}
-                            </td>
-                            <td>
-                              {isEditing ? (
-                                <input
-                                  className="input-field h-10"
-                                  value={accountRowDraft?.contactName || ""}
-                                  onChange={(event) =>
-                                    setEditingAccountDraft((current) =>
-                                      current ? { ...current, contactName: event.target.value } : current,
-                                    )
-                                  }
-                                />
-                              ) : (
-                                account.contactName || "-"
-                              )}
-                            </td>
-                            <td>
-                              {isEditing ? (
-                                <input
-                                  className="input-field h-10"
-                                  value={accountRowDraft?.contactEmail || ""}
-                                  onChange={(event) =>
-                                    setEditingAccountDraft((current) =>
-                                      current ? { ...current, contactEmail: event.target.value } : current,
-                                    )
-                                  }
-                                />
-                              ) : (
-                                account.contactEmail || "-"
-                              )}
-                            </td>
-                            <td>
-                              {isEditing ? (
-                                <input
-                                  className="input-field h-10"
-                                  value={accountRowDraft?.contactPhone || ""}
-                                  onChange={(event) =>
-                                    setEditingAccountDraft((current) =>
-                                      current ? { ...current, contactPhone: event.target.value } : current,
-                                    )
-                                  }
-                                />
-                              ) : (
-                                account.contactPhone || "-"
-                              )}
-                            </td>
-                            <td>
-                              {isEditing ? (
-                                <select
-                                  className="select-field h-10"
-                                  value={accountRowDraft?.status ?? account.status}
-                                  onChange={(event) =>
-                                    setEditingAccountDraft((current) =>
-                                      current
-                                        ? {
-                                            ...current,
-                                            status: event.target.value as SettingsPayload["customerAccounts"][number]["status"],
-                                          }
-                                        : current,
-                                    )
-                                  }
-                                >
-                                  <option value="active">Aktif</option>
-                                  <option value="disabled">Nonaktif</option>
-                                </select>
-                              ) : (
-                                <StatusBadge value={account.status} label={CUSTOMER_ACCOUNT_STATUS_LABELS[account.status]} />
-                              )}
-                            </td>
-                            <td className="text-sm text-[color:var(--muted-fg)]">
-                              {account.userCount} pengguna • {account.shipmentCount} shipment
-                            </td>
-                            <td className="text-right">
-                              {isEditing ? (
-                                <div className="flex justify-end gap-2">
-                                  <button type="button" className="btn btn-primary h-10 px-4" onClick={saveCustomerAccount}>
-                                    <Check size={15} />
-                                    Simpan
-                                  </button>
+                          return (
+                            <tr key={account.id}>
+                              <td>
+                                {isEditing ? (
+                                  <input
+                                    className="input-field h-10"
+                                    value={accountRowDraft?.code ?? account.code}
+                                    onChange={(event) =>
+                                      setEditingAccountDraft((current) =>
+                                        current ? { ...current, code: event.target.value } : current,
+                                      )
+                                    }
+                                  />
+                                ) : (
+                                  <span className="font-semibold text-[color:var(--brand-primary)]">{account.code}</span>
+                                )}
+                              </td>
+                              <td>
+                                {isEditing ? (
+                                  <input
+                                    className="input-field h-10"
+                                    value={accountRowDraft?.name ?? account.name}
+                                    onChange={(event) =>
+                                      setEditingAccountDraft((current) =>
+                                        current ? { ...current, name: event.target.value } : current,
+                                      )
+                                    }
+                                  />
+                                ) : (
+                                  account.name
+                                )}
+                              </td>
+                              <td>
+                                {isEditing ? (
+                                  <input
+                                    className="input-field h-10"
+                                    value={accountRowDraft?.contactName || ""}
+                                    onChange={(event) =>
+                                      setEditingAccountDraft((current) =>
+                                        current ? { ...current, contactName: event.target.value } : current,
+                                      )
+                                    }
+                                  />
+                                ) : (
+                                  account.contactName || "-"
+                                )}
+                              </td>
+                              <td>
+                                {isEditing ? (
+                                  <input
+                                    className="input-field h-10"
+                                    value={accountRowDraft?.contactEmail || ""}
+                                    onChange={(event) =>
+                                      setEditingAccountDraft((current) =>
+                                        current ? { ...current, contactEmail: event.target.value } : current,
+                                      )
+                                    }
+                                  />
+                                ) : (
+                                  account.contactEmail || "-"
+                                )}
+                              </td>
+                              <td>
+                                {isEditing ? (
+                                  <input
+                                    className="input-field h-10"
+                                    value={accountRowDraft?.contactPhone || ""}
+                                    onChange={(event) =>
+                                      setEditingAccountDraft((current) =>
+                                        current ? { ...current, contactPhone: event.target.value } : current,
+                                      )
+                                    }
+                                  />
+                                ) : (
+                                  account.contactPhone || "-"
+                                )}
+                              </td>
+                              <td>
+                                {isEditing ? (
+                                  <select
+                                    className="select-field h-10"
+                                    value={accountRowDraft?.status ?? account.status}
+                                    onChange={(event) =>
+                                      setEditingAccountDraft((current) =>
+                                        current
+                                          ? {
+                                              ...current,
+                                              status: event.target.value as SettingsPayload["customerAccounts"][number]["status"],
+                                            }
+                                          : current,
+                                      )
+                                    }
+                                  >
+                                    <option value="active">Aktif</option>
+                                    <option value="disabled">Nonaktif</option>
+                                  </select>
+                                ) : (
+                                  <StatusBadge value={account.status} label={CUSTOMER_ACCOUNT_STATUS_LABELS[account.status]} />
+                                )}
+                              </td>
+                              <td>
+                                <div className="min-w-[120px] text-xs font-semibold text-[color:var(--muted-fg)]">
+                                  <p>{account.userCount} User</p>
+                                  <p className="mt-1">{account.shipmentCount} Shipment</p>
+                                </div>
+                              </td>
+                              <td className="text-right">
+                                {isEditing ? (
+                                  <div className="flex justify-end gap-2">
+                                    <button type="button" className="btn btn-primary h-10 px-4" onClick={saveCustomerAccount}>
+                                      <Check size={15} />
+                                      Simpan
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn btn-secondary h-10 px-4"
+                                      onClick={() => {
+                                        setEditingAccountId(null);
+                                        setEditingAccountDraft(null);
+                                      }}
+                                    >
+                                      <X size={15} />
+                                      Batal
+                                    </button>
+                                  </div>
+                                ) : (
                                   <button
                                     type="button"
                                     className="btn btn-secondary h-10 px-4"
                                     onClick={() => {
-                                      setEditingAccountId(null);
-                                      setEditingAccountDraft(null);
+                                      setEditingAccountId(account.id);
+                                      setEditingAccountDraft(account);
                                     }}
                                   >
-                                    <X size={15} />
-                                    Batal
+                                    Edit
                                   </button>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary h-10 px-4"
-                                  onClick={() => {
-                                    setEditingAccountId(account.id);
-                                    setEditingAccountDraft(account);
-                                  }}
-                                >
-                                  Edit
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
