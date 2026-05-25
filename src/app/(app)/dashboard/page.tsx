@@ -371,6 +371,49 @@ export default function DashboardPage() {
   const delayedFlights = flightsToday.filter((flight) => flight.status === "delayed").length;
   const departedFlights = flightsToday.filter((flight) => flight.status === "departed").length;
   const activeFlightSummary = `${scheduledFlights} terjadwal, ${delayedFlights} terlambat, ${departedFlights} berangkat.`;
+  const shipmentFlowTotal = Math.max(1, shipmentsToday.length);
+  const flightFlowTotal = Math.max(1, flightsToday.length);
+  const actionFlowTotal = Math.max(1, shipmentsToday.length + alertsToday.length);
+  const toShare = (value: number, total: number) => (value ? Math.max(7, Math.round((value / total) * 100)) : 0);
+  const shipmentFlowSegments = [
+    { label: "Diterima", value: shipmentsToday.filter((shipment) => shipment.status === "received").length, tone: "primary" },
+    { label: "Sortasi", value: shipmentsToday.filter((shipment) => shipment.status === "sortation").length, tone: "info" },
+    { label: "Siap Muat", value: activeLoaded, tone: "success" },
+    { label: "Berangkat/Tiba", value: shipmentsToday.filter((shipment) => shipment.status === "departed" || shipment.status === "arrived").length, tone: "neutral" },
+    { label: "Tertahan", value: shipmentsToday.filter((shipment) => shipment.status === "hold").length, tone: "warning" },
+  ] as const;
+  const flightFlowSegments = [
+    { label: "Terjadwal", value: scheduledFlights, tone: "success" },
+    { label: "Terlambat", value: delayedFlights, tone: "warning" },
+    { label: "Berangkat", value: departedFlights, tone: "info" },
+  ] as const;
+  const actionFlowSegments = [
+    { label: "Normal", value: Math.max(0, shipmentsToday.length - alertsToday.length), tone: "success" },
+    { label: "Perlu Tindakan", value: alertsToday.length, tone: "warning" },
+  ] as const;
+  const flowLanes = [
+    {
+      label: "Alur Shipment",
+      value: shipmentsToday.length,
+      helper: `${activeLoaded} siap muat dari ${shipmentsToday.length} shipment`,
+      total: shipmentFlowTotal,
+      segments: shipmentFlowSegments,
+    },
+    {
+      label: "Status Flight",
+      value: flightsToday.length,
+      helper: activeFlightSummary,
+      total: flightFlowTotal,
+      segments: flightFlowSegments,
+    },
+    {
+      label: "Beban Tindakan",
+      value: alertsToday.length,
+      helper: `${alertsToday.length} alert dari ${shipmentsToday.length} shipment`,
+      total: actionFlowTotal,
+      segments: actionFlowSegments,
+    },
+  ] as const;
   const operatorSummaryItems = [
     {
       label: "Kargo Masuk",
@@ -402,7 +445,6 @@ export default function DashboardPage() {
     },
   ] as const;
   const summaryTotal = operatorSummaryItems.reduce((total, item) => total + item.value, 0);
-  const summaryMax = Math.max(1, ...operatorSummaryItems.map((item) => item.value));
   const activeSummary = operatorSummaryItems[activeSummaryIndex] ?? operatorSummaryItems[0];
 
   if (customerData) {
@@ -581,31 +623,31 @@ export default function DashboardPage() {
           <p>Ringkasan Operasional</p>
           <span>{loading ? "Memuat data operasional" : `Hari ini | ${summaryTotal} sinyal aktif`}</span>
         </div>
-        <div className="dashboard-summary-radial" aria-live="polite">
-          <svg className="dashboard-summary-svg" viewBox="0 0 168 168" role="img" aria-label="Chart ringkasan operasional hari ini">
-            <circle className="dashboard-summary-track" cx="84" cy="84" r="70" />
-            {operatorSummaryItems.map((item, index) => {
-              const radius = 66 - index * 11;
-              const circumference = 2 * Math.PI * radius;
-              const progress = loading ? 0 : Math.max(0.04, item.value / summaryMax);
-
-              return (
-                <circle
-                  key={item.label}
-                  className={cn("dashboard-summary-ring", `dashboard-summary-ring-${item.tone}`, index === activeSummaryIndex && "dashboard-summary-ring-active")}
-                  cx="84"
-                  cy="84"
-                  r={radius}
-                  strokeDasharray={circumference}
-                  strokeDashoffset={circumference * (1 - progress)}
-                />
-              );
-            })}
-          </svg>
-          <div className="dashboard-summary-center">
+        <div className="dashboard-flow-chart" aria-live="polite">
+          <div className="dashboard-flow-focus">
             <span>{activeSummary.label}</span>
             <strong>{loading ? "..." : activeSummary.value}</strong>
             <small>{activeSummary.note}</small>
+          </div>
+          <div className="dashboard-flow-lanes" role="img" aria-label="Chart alur operasional hari ini">
+            {flowLanes.map((lane) => (
+              <div key={lane.label} className="dashboard-flow-lane">
+                <div className="dashboard-flow-lane-header">
+                  <span>{lane.label}</span>
+                  <strong>{loading ? "..." : lane.value}</strong>
+                </div>
+                <div className="dashboard-flow-stack" aria-hidden="true">
+                  {lane.segments.map((segment) => (
+                    <span
+                      key={segment.label}
+                      className={cn("dashboard-flow-segment", `dashboard-flow-${segment.tone}`)}
+                      style={{ width: `${loading ? 0 : toShare(segment.value, lane.total)}%` }}
+                    />
+                  ))}
+                </div>
+                <p>{lane.helper}</p>
+              </div>
+            ))}
           </div>
         </div>
         <div className="dashboard-summary-selector" role="list" aria-label="Pilih metrik ringkasan operasional">
