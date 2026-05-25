@@ -2946,12 +2946,12 @@ input[type="checkbox"] {
 .dashboard-summary-chart {
   display: grid;
   min-width: 0;
-  gap: 1rem;
+  gap: 1.1rem;
   border: 1px solid var(--border-soft);
   border-radius: 24px;
   background: var(--panel-bg);
   box-shadow: var(--shadow-soft);
-  padding: 0.95rem;
+  padding: clamp(0.95rem, 1.4vw, 1.25rem);
 }
 
 .dashboard-summary-copy {
@@ -2975,7 +2975,113 @@ input[type="checkbox"] {
   font-weight: 600;
 }
 
-.dashboard-summary-steps {
+.dashboard-summary-radial {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 190px;
+  place-items: center;
+}
+
+.dashboard-summary-svg {
+  width: min(100%, 190px);
+  max-width: 190px;
+  aspect-ratio: 1;
+  overflow: visible;
+  transform: rotate(-90deg);
+}
+
+.dashboard-summary-track,
+.dashboard-summary-ring {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.dashboard-summary-track {
+  stroke: var(--panel-strong);
+  stroke-width: 8;
+}
+
+.dashboard-summary-ring {
+  opacity: 0.76;
+  stroke-width: 7;
+  transition: stroke-dashoffset 0.3s ease, opacity 0.18s ease, stroke-width 0.18s ease;
+}
+
+.dashboard-summary-ring-active {
+  opacity: 1;
+  stroke-width: 9;
+}
+
+.dashboard-summary-ring-primary {
+  stroke: var(--brand-primary);
+}
+
+.dashboard-summary-ring-info {
+  stroke: var(--tone-info);
+}
+
+.dashboard-summary-ring-success {
+  stroke: var(--tone-success);
+}
+
+.dashboard-summary-ring-warning {
+  stroke: var(--tone-warning);
+}
+
+.dashboard-summary-center {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  display: grid;
+  width: 122px;
+  min-height: 122px;
+  place-items: center;
+  align-content: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  box-shadow: 0 18px 36px rgba(11, 30, 52, 0.08);
+  padding: 0.85rem;
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.dashboard-summary-center span,
+.dashboard-summary-center small {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted-fg);
+  text-overflow: ellipsis;
+}
+
+.dashboard-summary-center span {
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.dashboard-summary-center strong {
+  color: var(--text-strong);
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.dashboard-summary-center small {
+  display: -webkit-box;
+  margin-top: 0.2rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 0.64rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.dashboard-summary-selector {
   display: grid;
   min-width: 0;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2990,7 +3096,7 @@ input[type="checkbox"] {
   justify-content: flex-end;
 }
 
-.dashboard-summary-step {
+.dashboard-summary-metric {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -2999,6 +3105,17 @@ input[type="checkbox"] {
   border-radius: 18px;
   background: var(--panel-muted);
   padding: 0.85rem;
+  text-align: left;
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.dashboard-summary-metric:hover,
+.dashboard-summary-metric:focus-visible,
+.dashboard-summary-metric-active {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+  box-shadow: 0 12px 28px rgba(11, 30, 52, 0.08);
+  transform: translateY(-1px);
 }
 
 .dashboard-summary-step-icon {
@@ -3162,8 +3279,8 @@ input[type="checkbox"] {
 
 @media (min-width: 1024px) {
   .dashboard-summary-chart {
-    grid-template-columns: minmax(170px, 0.22fr) minmax(0, 1fr) auto;
-    align-items: stretch;
+    grid-template-columns: minmax(170px, 0.22fr) minmax(220px, 0.32fr) minmax(0, 1fr) auto;
+    align-items: center;
   }
 
   .dashboard-summary-copy {
@@ -3173,11 +3290,27 @@ input[type="checkbox"] {
     border-right: 1px solid var(--border-soft);
     padding-right: 1rem;
   }
+
+  .dashboard-summary-radial {
+    justify-self: center;
+  }
+
+  .dashboard-summary-selector {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
-  .dashboard-summary-steps {
+  .dashboard-summary-selector {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-summary-actions {
+    justify-content: stretch;
+  }
+
+  .dashboard-summary-actions .topbar-button {
+    width: 100%;
   }
 }
 

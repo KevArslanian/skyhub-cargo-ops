@@ -326,6 +326,7 @@ export default function DashboardPage() {
   const [customerShipmentPage, setCustomerShipmentPage] = useState(1);
   const [compactViewport, setCompactViewport] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeSummaryIndex, setActiveSummaryIndex] = useState(0);
   const [refreshSettings, setRefreshSettings] = useState({
     autoRefresh: true,
     refreshIntervalSeconds: 5,
@@ -548,6 +549,9 @@ export default function DashboardPage() {
       tone: "warning",
     },
   ] as const;
+  const summaryTotal = operatorSummaryItems.reduce((total, item) => total + item.value, 0);
+  const summaryMax = Math.max(1, ...operatorSummaryItems.map((item) => item.value));
+  const activeSummary = operatorSummaryItems[activeSummaryIndex] ?? operatorSummaryItems[0];
 
   if (customerData) {
     return (
@@ -720,25 +724,61 @@ export default function DashboardPage() {
 
   return (
     <div className="page-workspace dashboard-viewport h-full min-h-0">
-      <section className="dashboard-summary-chart" aria-label="Ringkasan shift dalam statistik tangga">
+      <section className="dashboard-summary-chart" aria-label="Ringkasan shift interaktif">
         <div className="dashboard-summary-copy">
           <p>Ringkasan Shift</p>
-          <span>{loading ? "Memuat data operasional" : `${shift} | ${operatorSummaryItems.reduce((total, item) => total + item.value, 0)} sinyal aktif`}</span>
+          <span>{loading ? "Memuat data operasional" : `${shift} | ${summaryTotal} sinyal aktif`}</span>
         </div>
-        <div className="dashboard-summary-steps">
-          {operatorSummaryItems.map((item) => {
+        <div className="dashboard-summary-radial" aria-live="polite">
+          <svg className="dashboard-summary-svg" viewBox="0 0 168 168" role="img" aria-label={`Chart ringkasan shift ${shift}`}>
+            <circle className="dashboard-summary-track" cx="84" cy="84" r="70" />
+            {operatorSummaryItems.map((item, index) => {
+              const radius = 66 - index * 11;
+              const circumference = 2 * Math.PI * radius;
+              const progress = loading ? 0 : Math.max(0.04, item.value / summaryMax);
+
+              return (
+                <circle
+                  key={item.label}
+                  className={cn("dashboard-summary-ring", `dashboard-summary-ring-${item.tone}`, index === activeSummaryIndex && "dashboard-summary-ring-active")}
+                  cx="84"
+                  cy="84"
+                  r={radius}
+                  strokeDasharray={circumference}
+                  strokeDashoffset={circumference * (1 - progress)}
+                />
+              );
+            })}
+          </svg>
+          <div className="dashboard-summary-center">
+            <span>{activeSummary.label}</span>
+            <strong>{loading ? "..." : activeSummary.value}</strong>
+            <small>{activeSummary.note}</small>
+          </div>
+        </div>
+        <div className="dashboard-summary-selector" role="list" aria-label="Pilih metrik ringkasan shift">
+          {operatorSummaryItems.map((item, index) => {
             const Icon = item.icon;
+            const selected = activeSummary.label === item.label;
 
             return (
-              <div key={item.label} className={cn("dashboard-summary-step", `dashboard-summary-${item.tone}`)}>
-                <span className="dashboard-summary-step-icon">
+              <button
+                key={item.label}
+                type="button"
+                className={cn("dashboard-summary-metric", `dashboard-summary-${item.tone}`, selected && "dashboard-summary-metric-active")}
+                aria-pressed={selected}
+                onClick={() => setActiveSummaryIndex(index)}
+                onFocus={() => setActiveSummaryIndex(index)}
+                onMouseEnter={() => setActiveSummaryIndex(index)}
+              >
+                <span className="dashboard-summary-step-icon" aria-hidden="true">
                   <Icon size={15} />
                 </span>
                 <div className="dashboard-summary-step-copy">
                   <strong>{loading ? "..." : item.value}</strong>
                   <span>{item.label}</span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
