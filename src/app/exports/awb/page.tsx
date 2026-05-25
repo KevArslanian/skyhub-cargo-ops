@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { getShipmentByAwb } from "@/lib/data";
 import { formatDateTime, formatWeight } from "@/lib/format";
+import { PrintReportActions } from "@/components/print-report-actions";
 import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
 import { PrintCenterLayout } from "@deltaoga/skyhub-print-center/layout";
 
@@ -34,7 +35,9 @@ export default async function AwbPrintPage({
     : [{ label: "AWB tidak ditemukan", tone: "warning" as const }];
 
   return (
-    <PrintCenterLayout
+    <>
+      <PrintReportActions fallbackHref="/awb-tracking" />
+      <PrintCenterLayout
       scriptId="print-awb"
       documentTitle={shipment ? `AWB ${shipment.awb}` : "AWB Tracking"}
       documentSubtitle="Dokumen Pelacakan AWB"
@@ -110,6 +113,7 @@ export default async function AwbPrintPage({
           Data AWB belum tersedia untuk dicetak.
         </section>
       )}
-    </PrintCenterLayout>
+      </PrintCenterLayout>
+    </>
   );
 }

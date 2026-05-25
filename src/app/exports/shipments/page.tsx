@@ -3,6 +3,7 @@ import { canExportReports, requireInternalUser } from "@/lib/access";
 import { redirect } from "next/navigation";
 import { listShipments } from "@/lib/data";
 import { formatDateTime } from "@/lib/format";
+import { PrintReportActions } from "@/components/print-report-actions";
 import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
 import { PrintCenterLayout } from "@deltaoga/skyhub-print-center/layout";
 
@@ -47,7 +48,9 @@ export default async function ShipmentsPrintPage({
     .map(([label, count]) => ({ label: `${count} ${label}`, tone: "neutral" as const }));
 
   return (
-    <PrintCenterLayout
+    <>
+      <PrintReportActions fallbackHref="/shipment-ledger" />
+      <PrintCenterLayout
       scriptId="print-shipments"
       documentTitle="Ledger Shipment"
       documentSubtitle="Manifest Shipment Operasional"
@@ -101,6 +104,7 @@ export default async function ShipmentsPrintPage({
           </tbody>
         </table>
       </section>
-    </PrintCenterLayout>
+      </PrintCenterLayout>
+    </>
   );
 }

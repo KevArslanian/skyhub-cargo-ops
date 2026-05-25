@@ -12,7 +12,6 @@ import {
   SunMedium,
   UserCircle2,
   Users2,
-  X,
 } from "lucide-react";
 import {
   CUSTOMER_ACCOUNT_STATUS_LABELS,
@@ -603,7 +602,7 @@ export default function SettingsPage() {
         contactName: editingAccountDraft.contactName,
         contactEmail: editingAccountDraft.contactEmail,
         contactPhone: editingAccountDraft.contactPhone,
-      status: editingAccountDraft.status,
+        status: editingAccountDraft.status,
       }),
     });
 
@@ -764,17 +763,9 @@ export default function SettingsPage() {
                 </OpsPanel>
 
                 <div className="sticky bottom-0 z-10 rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/92 px-5 py-4 shadow-[0_14px_34px_rgba(11,30,52,0.10)] backdrop-blur">
-                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-[color:var(--text-strong)]">
-                        {hasDraftChanges ? "Perubahan profil belum disimpan" : "Profil sudah sinkron"}
-                      </p>
-                    </div>
-                    <button type="button" className="btn btn-primary" onClick={saveSettings} disabled={saving}>
-                      <ShieldCheck size={16} />
-                      {saving ? "Menyimpan..." : "Simpan Perubahan"}
-                    </button>
-                  </div>
+                  <p className="font-semibold text-[color:var(--text-strong)]">
+                    {hasDraftChanges ? "Perubahan profil belum disimpan" : "Profil sudah sinkron"}
+                  </p>
                 </div>
               </>
             ) : null}
@@ -911,10 +902,6 @@ export default function SettingsPage() {
                         Preview perubahan diterapkan ke shell saat Anda mengatur, lalu dipermanenkan melalui tombol simpan.
                       </p>
                     </div>
-                    <button type="button" className="btn btn-primary" onClick={saveSettings} disabled={saving}>
-                      <ShieldCheck size={16} />
-                      {saving ? "Menyimpan..." : "Simpan Preferensi"}
-                    </button>
                   </div>
                 </div>
               </>
@@ -1167,7 +1154,7 @@ export default function SettingsPage() {
                         onClick={saveUser}
                         disabled={saving}
                       >
-                        {saving ? "Menyimpan..." : "Simpan Perubahan"}
+                        {saving ? "Menyimpan..." : "Simpan"}
                       </button>
                     </div>
                   }
@@ -1488,151 +1475,38 @@ export default function SettingsPage() {
                           </td>
                         </tr>
                       ) : (
-                        pagedAccounts.map((account) => {
-                          const accountRowDraft = editingAccountId === account.id ? editingAccountDraft : null;
-                          const isEditing = Boolean(accountRowDraft);
-
-                          return (
-                            <tr key={account.id}>
-                              <td>
-                                {isEditing ? (
-                                  <input
-                                    className="input-field h-10"
-                                    value={accountRowDraft?.code ?? account.code}
-                                    onChange={(event) =>
-                                      setEditingAccountDraft((current) =>
-                                        current ? { ...current, code: event.target.value } : current,
-                                      )
-                                    }
-                                  />
-                                ) : (
-                                  <span className="font-semibold text-[color:var(--brand-primary)]">{account.code}</span>
-                                )}
-                              </td>
-                              <td>
-                                {isEditing ? (
-                                  <input
-                                    className="input-field h-10"
-                                    value={accountRowDraft?.name ?? account.name}
-                                    onChange={(event) =>
-                                      setEditingAccountDraft((current) =>
-                                        current ? { ...current, name: event.target.value } : current,
-                                      )
-                                    }
-                                  />
-                                ) : (
-                                  account.name
-                                )}
-                              </td>
-                              <td>
-                                {isEditing ? (
-                                  <input
-                                    className="input-field h-10"
-                                    value={accountRowDraft?.contactName || ""}
-                                    onChange={(event) =>
-                                      setEditingAccountDraft((current) =>
-                                        current ? { ...current, contactName: event.target.value } : current,
-                                      )
-                                    }
-                                  />
-                                ) : (
-                                  account.contactName || "-"
-                                )}
-                              </td>
-                              <td>
-                                {isEditing ? (
-                                  <input
-                                    className="input-field h-10"
-                                    value={accountRowDraft?.contactEmail || ""}
-                                    onChange={(event) =>
-                                      setEditingAccountDraft((current) =>
-                                        current ? { ...current, contactEmail: event.target.value } : current,
-                                      )
-                                    }
-                                  />
-                                ) : (
-                                  account.contactEmail || "-"
-                                )}
-                              </td>
-                              <td>
-                                {isEditing ? (
-                                  <input
-                                    className="input-field h-10"
-                                    value={accountRowDraft?.contactPhone || ""}
-                                    onChange={(event) =>
-                                      setEditingAccountDraft((current) =>
-                                        current ? { ...current, contactPhone: event.target.value } : current,
-                                      )
-                                    }
-                                  />
-                                ) : (
-                                  account.contactPhone || "-"
-                                )}
-                              </td>
-                              <td>
-                                {isEditing ? (
-                                  <select
-                                    className="select-field h-10"
-                                    value={accountRowDraft?.status ?? account.status}
-                                    onChange={(event) =>
-                                      setEditingAccountDraft((current) =>
-                                        current
-                                          ? {
-                                              ...current,
-                                              status: event.target.value as SettingsPayload["customerAccounts"][number]["status"],
-                                            }
-                                          : current,
-                                      )
-                                    }
-                                  >
-                                    <option value="active">Aktif</option>
-                                    <option value="disabled">Nonaktif</option>
-                                  </select>
-                                ) : (
-                                  <StatusBadge value={account.status} label={CUSTOMER_ACCOUNT_STATUS_LABELS[account.status]} />
-                                )}
-                              </td>
-                              <td>
-                                <div className="min-w-[120px] text-xs font-semibold text-[color:var(--muted-fg)]">
-                                  <p>{account.userCount} User</p>
-                                  <p className="mt-1">{account.shipmentCount} Shipment</p>
-                                </div>
-                              </td>
-                              <td className="text-right">
-                                {isEditing ? (
-                                  <div className="flex justify-end gap-2">
-                                    <button type="button" className="btn btn-primary h-10 px-4" onClick={saveCustomerAccount}>
-                                      <Check size={15} />
-                                      Simpan
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="btn btn-secondary h-10 px-4"
-                                      onClick={() => {
-                                        setEditingAccountId(null);
-                                        setEditingAccountDraft(null);
-                                      }}
-                                    >
-                                      <X size={15} />
-                                      Batal
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className="btn btn-secondary h-10 px-4"
-                                    onClick={() => {
-                                      setEditingAccountId(account.id);
-                                      setEditingAccountDraft(account);
-                                    }}
-                                  >
-                                    Edit
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })
+                        pagedAccounts.map((account) => (
+                          <tr key={account.id}>
+                            <td>
+                              <span className="font-semibold text-[color:var(--brand-primary)]">{account.code}</span>
+                            </td>
+                            <td>{account.name}</td>
+                            <td>{account.contactName || "-"}</td>
+                            <td>{account.contactEmail || "-"}</td>
+                            <td>{account.contactPhone || "-"}</td>
+                            <td>
+                              <StatusBadge value={account.status} label={CUSTOMER_ACCOUNT_STATUS_LABELS[account.status]} />
+                            </td>
+                            <td>
+                              <div className="min-w-[120px] text-xs font-semibold text-[color:var(--muted-fg)]">
+                                <p>{account.userCount} User</p>
+                                <p className="mt-1">{account.shipmentCount} Shipment</p>
+                              </div>
+                            </td>
+                            <td className="text-right">
+                              <button
+                                type="button"
+                                className="btn btn-secondary h-10 px-4"
+                                onClick={() => {
+                                  setEditingAccountId(account.id);
+                                  setEditingAccountDraft(account);
+                                }}
+                              >
+                                Edit
+                              </button>
+                            </td>
+                          </tr>
+                        ))
                       )}
                     </tbody>
                   </table>
@@ -1660,6 +1534,134 @@ export default function SettingsPage() {
                     <ChevronRight size={16} />
                   </button>
                 </div>
+
+                <OpsDrawer
+                  open={Boolean(editingAccountId && editingAccountDraft)}
+                  title="Edit Akun Pelanggan"
+                  eyebrow="Kelola Pelanggan"
+                  description="Perbarui kode, profil kontak, dan status akun pelanggan dari panel terpisah."
+                  onClose={() => {
+                    setEditingAccountId(null);
+                    setEditingAccountDraft(null);
+                  }}
+                  footer={
+                    <div className="flex w-full items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setEditingAccountId(null);
+                          setEditingAccountDraft(null);
+                        }}
+                      >
+                        Batal
+                      </button>
+                      <button type="button" className="btn btn-primary" onClick={saveCustomerAccount}>
+                        <Check size={16} />
+                        Simpan
+                      </button>
+                    </div>
+                  }
+                >
+                  {editingAccountDraft ? (
+                    <div className="space-y-5">
+                      <div className="grid gap-4 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+                        <div>
+                          <label className="label">Kode</label>
+                          <input
+                            className="input-field mt-2"
+                            value={editingAccountDraft.code}
+                            onChange={(event) =>
+                              setEditingAccountDraft((current) =>
+                                current ? { ...current, code: event.target.value } : current,
+                              )
+                            }
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Nama Akun</label>
+                          <input
+                            className="input-field mt-2"
+                            value={editingAccountDraft.name}
+                            onChange={(event) =>
+                              setEditingAccountDraft((current) =>
+                                current ? { ...current, name: event.target.value } : current,
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="label">PIC</label>
+                        <input
+                          className="input-field mt-2"
+                          value={editingAccountDraft.contactName || ""}
+                          onChange={(event) =>
+                            setEditingAccountDraft((current) =>
+                              current ? { ...current, contactName: event.target.value } : current,
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label">Email Kontak</label>
+                        <input
+                          className="input-field mt-2"
+                          value={editingAccountDraft.contactEmail || ""}
+                          onChange={(event) =>
+                            setEditingAccountDraft((current) =>
+                              current ? { ...current, contactEmail: event.target.value } : current,
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label">Telepon</label>
+                        <input
+                          className="input-field mt-2"
+                          value={editingAccountDraft.contactPhone || ""}
+                          onChange={(event) =>
+                            setEditingAccountDraft((current) =>
+                              current ? { ...current, contactPhone: event.target.value } : current,
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label">Status</label>
+                        <select
+                          className="select-field mt-2"
+                          value={editingAccountDraft.status}
+                          onChange={(event) =>
+                            setEditingAccountDraft((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    status: event.target.value as SettingsPayload["customerAccounts"][number]["status"],
+                                  }
+                                : current,
+                            )
+                          }
+                        >
+                          <option value="active">Aktif</option>
+                          <option value="disabled">Nonaktif</option>
+                        </select>
+                      </div>
+
+                      <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Relasi Akun</p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <DataCard label="User terhubung" value={editingAccountDraft.userCount} />
+                          <DataCard label="Shipment terhubung" value={editingAccountDraft.shipmentCount} />
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </OpsDrawer>
               </OpsPanel>
             ) : null}
           </div>
