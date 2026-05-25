@@ -207,12 +207,17 @@ export default function AwbTrackingPage() {
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
                     <input
+                      id="awb-tracking-input"
                       value={awb}
                       onChange={(event) => setAwb(event.target.value)}
                       className="input-field input-field-leading h-[56px] text-lg font-semibold tracking-[0.03em]"
-                      placeholder="160-12345678"
+                      placeholder="Contoh: 123-45678901"
+                      aria-describedby="awb-helper-text"
                     />
                   </div>
+                  <p id="awb-helper-text" className="mt-2 text-xs text-[color:var(--muted-fg)]">
+                    Format: 3 digit - 8 digit (contoh: 123-45678901)
+                  </p>
                   {error ? <p className="mt-2 text-sm text-[color:var(--tone-warning)]">{error}</p> : null}
                 </div>
                 <button type="submit" className="btn btn-primary h-[56px] self-end px-6">
