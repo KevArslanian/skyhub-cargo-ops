@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, History, RotateCcw, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
@@ -78,14 +78,7 @@ export default function ActivityLogPage() {
   const pagedLogs = (data?.logs ?? []).slice(pageStart, pageStart + ACTIVITY_PAGE_SIZE);
   const visibleStart = data?.logs.length ? pageStart + 1 : 0;
   const visibleEnd = Math.min(pageStart + pagedLogs.length, data?.logs.length ?? 0);
-  const filtersDirty = action !== "all" || userId !== "all" || query.trim() !== "";
 
-  function handleResetFilters() {
-    setAction("all");
-    setUserId("all");
-    setQuery("");
-    setPage(1);
-  }
 
   return (
     <div className="page-workspace activity-log-workspace">
@@ -139,10 +132,6 @@ export default function ActivityLogPage() {
             ))}
           </select>
         </div>
-        <button type="button" className="topbar-button self-end" onClick={handleResetFilters} disabled={!filtersDirty}>
-          <RotateCcw size={16} />
-          <span>Reset</span>
-        </button>
       </FilterBar>
 
       <OpsPanel className="page-pane activity-log-panel p-5">

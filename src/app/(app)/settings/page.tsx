@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
   Check,
+
   ChevronLeft,
   ChevronRight,
   Monitor,
@@ -377,32 +378,6 @@ export default function SettingsPage() {
     return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
   }, [activeTab, tabs]);
 
-  const preferenceSummary = [
-    {
-      label: "Tema aktif",
-      value: draft.theme === "light" ? "Terang" : draft.theme === "dark" ? "Gelap" : "Ikuti Sistem",
-      note: "Shell.",
-      tone: "primary" as const,
-    },
-    {
-      label: "Densitas kerja",
-      value: draft.compactRows ? "Baris ringkas" : "Baris standar",
-      note: draft.sidebarCollapsed ? "Sidebar default terlipat" : "Sidebar default terbuka",
-      tone: "info" as const,
-    },
-    {
-      label: "Notifikasi aktif",
-      value: [draft.cutoffAlert, draft.exceptionAlert].filter(Boolean).length,
-      note: "Cutoff dan exception.",
-      tone: "success" as const,
-    },
-    {
-      label: "Refresh behavior",
-      value: draft.autoRefresh ? `${draft.refreshIntervalSeconds} detik` : "Manual",
-      note: "Sinkronisasi.",
-      tone: "warning" as const,
-    },
-  ];
 
   const filteredUsers = useMemo(() => {
     const normalized = userSearch.trim().toLowerCase();
@@ -623,12 +598,6 @@ export default function SettingsPage() {
         eyebrow="Sistem"
         title="Pengaturan"
         subtitle="Kelola profil, tampilan dashboard, tim & akses pengguna, serta akun pelanggan."
-        actions={
-          <button type="button" className="btn btn-primary" onClick={saveSettings} disabled={saving}>
-            <ShieldCheck size={16} />
-            {saving ? "Menyimpan..." : "Simpan"}
-          </button>
-        }
       />
 
       {notice ? (
@@ -786,18 +755,6 @@ export default function SettingsPage() {
 
             {activeTab === "Preferensi" ? (
               <>
-                <div className="grid gap-4 xl:grid-cols-4">
-                  {preferenceSummary.map((item) => (
-                    <DataCard
-                      key={item.label}
-                      label={item.label}
-                      value={item.value}
-                      note={item.note}
-                      tone={item.tone}
-                    />
-                  ))}
-                </div>
-
                 <div className="grid gap-5 xl:grid-cols-2">
                   <OpsPanel className="p-5">
                     <SectionHeader
@@ -963,24 +920,12 @@ export default function SettingsPage() {
                   </OpsPanel>
                 </div>
 
-                <div className="sticky bottom-0 z-10 mt-4 rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/92 px-5 py-4 shadow-[0_14px_34px_rgba(11,30,52,0.10)] backdrop-blur">
-                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-[color:var(--text-strong)]">
-                        {notice ? "✅ " + notice : hasDraftChanges ? "Preferensi belum disimpan" : "Semua preferensi sinkron"}
-                      </p>
-                      <p className="mt-1 text-sm text-[color:var(--muted-fg)]">
-                        {notice ? "Pengaturan berhasil dipermanenkan." : "Preview perubahan diterapkan langsung ke shell. Simpan untuk mempermanenkan."}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={saveSettings}
-                      disabled={!hasDraftChanges || saving}
-                    >
-                      {saving ? "Menyimpan..." : "Simpan Preferensi"}
-                    </button>
+                <div className="sticky bottom-0 z-10 mt-4 rounded-[26px] border border-[color:var(--tone-success-border)] bg-[color:var(--tone-success-soft)] px-5 py-3">
+                  <div className="flex items-center gap-2">
+                    <Check size={14} className="text-[color:var(--tone-success)]" />
+                    <p className="text-xs font-semibold text-[color:var(--tone-success)]">
+                      Tersimpan otomatis — perubahan langsung diterapkan
+                    </p>
                   </div>
                 </div>
               </>

@@ -9,7 +9,6 @@ import {
   ChevronRight,
   CheckCircle2,
   Clock3,
-  RotateCcw,
   ShieldAlert,
   SlidersHorizontal,
 } from "lucide-react";
@@ -156,7 +155,6 @@ export default function AlertsPage() {
   }, [filteredAlerts, pageStartIndex]);
   const visibleStart = filteredAlerts.length ? pageStartIndex + 1 : 0;
   const visibleEnd = Math.min(pageStartIndex + paginatedAlerts.length, filteredAlerts.length);
-  const filtersDirty = query.trim() !== "" || severity !== "all" || kind !== "all";
 
   const selectedAlert = useMemo<AlertRow | null>(() => {
     return paginatedAlerts.find((alert) => alert.id === selectedAlertId) ?? paginatedAlerts[0] ?? null;
@@ -189,13 +187,6 @@ export default function AlertsPage() {
 
     return () => window.clearTimeout(timer);
   }, [totalAlertPages]);
-
-  function handleResetFilters() {
-    setQuery("");
-    setSeverity("all");
-    setKind("all");
-    setAlertPage(1);
-  }
 
   return (
     <div className="page-workspace alerts-viewport">
@@ -288,10 +279,6 @@ export default function AlertsPage() {
           <SlidersHorizontal size={16} />
           <span>{filteredAlerts.length} tampil</span>
         </div>
-        <button type="button" className="topbar-button self-end" onClick={handleResetFilters} disabled={!filtersDirty}>
-          <RotateCcw size={16} />
-          <span>Reset</span>
-        </button>
       </FilterBar>
 
       <div className="alerts-content-grid grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">

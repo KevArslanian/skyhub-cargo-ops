@@ -17,7 +17,6 @@ import {
   Pencil,
   PlaneTakeoff,
   Plus,
-  RotateCcw,
   Save,
   Search,
   ShieldAlert,
@@ -594,7 +593,6 @@ export default function ShipmentLedgerPage() {
   const activeFilterCount = [Boolean(query.trim()), status !== "all", flight !== "all", sortBy !== "updated"].filter(
     Boolean,
   ).length;
-  const filtersDirty = query.trim() !== "" || status !== "all" || flight !== "all" || sortBy !== "updated";
 
   const exportParams = new URLSearchParams();
   if (debouncedQuery.trim()) exportParams.set("query", debouncedQuery.trim());
@@ -828,14 +826,6 @@ export default function ShipmentLedgerPage() {
     setSelectedId(null);
   }
 
-  function handleResetFilters() {
-    setQuery("");
-    setStatus("all");
-    setFlight("all");
-    setSortBy("updated");
-    setListPage(1);
-    setSelectedId(null);
-  }
 
   return (
     <main className="page-workspace" aria-labelledby="shipment-ledger-title">
@@ -914,10 +904,7 @@ export default function ShipmentLedgerPage() {
             <option value="received">Penerimaan Terbaru</option>
             <option value="priority">Prioritas Review</option>
           </select>
-          <button type="button" className="topbar-button ledger-reset-button" onClick={handleResetFilters} disabled={!filtersDirty}>
-            <RotateCcw size={16} />
-            <span>Reset Semua</span>
-          </button>
+
           {activeFilterCount > 0 ? (
             <span className="ledger-filter-count" aria-label={`${activeFilterCount} filter aktif`}>
               <Filter size={14} />
@@ -1017,12 +1004,7 @@ export default function ShipmentLedgerPage() {
                   variant="filtered"
                   title="Tidak ada pengiriman ditemukan"
                   copy="Coba ubah filter status atau flight, atau tunggu hingga manifest baru masuk."
-                  action={
-                    <button type="button" className="btn btn-secondary" onClick={handleResetFilters} disabled={!filtersDirty}>
-                      <RotateCcw size={16} />
-                      Reset Filter
-                    </button>
-                  }
+
                 />
               )}
             </div>

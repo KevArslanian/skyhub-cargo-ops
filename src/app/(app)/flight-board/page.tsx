@@ -12,8 +12,8 @@ import {
   Pencil,
   PlaneTakeoff,
   Plus,
-  RotateCcw,
   Save,
+  Search,
   TowerControl,
   X,
 } from "lucide-react";
@@ -472,16 +472,6 @@ export default function FlightBoardPage() {
     [replaceFlightBoardUrl],
   );
 
-  function handleResetFilters() {
-    initialDateResolvedRef.current = false;
-    setStatus("all");
-    setQuery("");
-    setDate("");
-    setPage(1);
-    setSelectedFlightId(null);
-    setEditDraft(createFlightDraft(null));
-    replaceFlightBoardUrl({ status: "all", query: "", date: "", page: 1 });
-  }
 
   function toIso(value: string) {
     return new Date(value).toISOString();
@@ -741,10 +731,6 @@ export default function FlightBoardPage() {
                   Print Flight
                 </Link>
               ) : null}
-              <button type="button" className="topbar-button" onClick={handleResetFilters}>
-                <RotateCcw size={16} />
-                <span>Reset</span>
-              </button>
               {data?.permissions.canManageFlights ? (
                 <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
                   <Plus size={16} />
@@ -763,9 +749,22 @@ export default function FlightBoardPage() {
       </div>
 
       <FilterBar className="flightboard-filter-bar">
+        <div style={{ flex: 1, minWidth: 280 }}>
+          <label className="label" htmlFor="flightboard-search">Cari</label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={15} />
+            <input
+              id="flightboard-search"
+              className="input-field ledger-search-input"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Cari flight, rute, atau nomor flight..."
+            />
+          </div>
+        </div>
         <div>
-          <label className="label">Status</label>
-          <select className="select-field" value={status} onChange={(event) => handleStatusChange(event.target.value)}>
+          <label className="label" htmlFor="flightboard-status">Status</label>
+          <select id="flightboard-status" className="select-field" value={status} onChange={(event) => handleStatusChange(event.target.value)}>
             <option value="all">Semua</option>
             <option value="on_time">Terjadwal</option>
             <option value="delayed">Terlambat</option>
@@ -777,16 +776,6 @@ export default function FlightBoardPage() {
           <div className="relative">
             <CalendarDays className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
             <input type="date" className="input-field input-field-leading" value={date} onChange={(event) => handleDateChange(event.target.value)} />
-            {date ? (
-              <button
-                type="button"
-                className="absolute right-12 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-[color:var(--muted-fg)] transition-colors hover:bg-[color:var(--panel-muted)] hover:text-[color:var(--text-strong)]"
-                onClick={() => handleDateChange("")}
-                aria-label="Hapus filter tanggal"
-              >
-                <X size={15} />
-              </button>
-            ) : null}
           </div>
         </div>
       </FilterBar>
