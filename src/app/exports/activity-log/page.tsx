@@ -3,6 +3,7 @@ import { canExportReports, requireInternalUser } from "@/lib/access";
 import { redirect } from "next/navigation";
 import { listActivityLogs } from "@/lib/data";
 import { formatDateTime } from "@/lib/format";
+import { AutoPrintReport } from "@/components/auto-print-report";
 import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
 import { PrintCenterLayout } from "@deltaoga/skyhub-print-center/layout";
 
@@ -48,7 +49,9 @@ export default async function ActivityLogPrintPage({
   );
 
   return (
-    <PrintCenterLayout
+    <>
+      <AutoPrintReport />
+      <PrintCenterLayout
       scriptId="print-activity-log"
       documentTitle="Log Aktivitas Operasional"
       documentSubtitle="Audit Trail Aktivitas Pengguna"
@@ -97,6 +100,7 @@ export default async function ActivityLogPrintPage({
           </tbody>
         </table>
       </section>
-    </PrintCenterLayout>
+      </PrintCenterLayout>
+    </>
   );
 }
