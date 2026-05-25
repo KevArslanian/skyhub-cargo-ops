@@ -178,11 +178,11 @@ function DashboardPagination({
   page: number; totalPages: number; visibleStart: number; visibleEnd: number; totalItems: number; onPageChange: (p: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-2 text-xs text-[color:var(--muted-fg)]">
+    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[color:var(--muted-fg)]">
       <button type="button" className="topbar-button h-8 px-3 text-xs" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
         <ChevronLeft size={14} />
       </button>
-      <span className="tabular-nums">{visibleStart}-{visibleEnd} / {totalItems}</span>
+      <span className="tabular-nums whitespace-nowrap">{visibleStart}-{visibleEnd} / {totalItems}</span>
       <button type="button" className="topbar-button h-8 px-3 text-xs" onClick={() => onPageChange(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>
         <ChevronRight size={14} />
       </button>
@@ -407,7 +407,7 @@ export default function DashboardPage() {
      INTERNAL DASHBOARD — REDESIGNED SINGLE-VIEWPORT
      ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="flex h-full flex-col gap-2 overflow-hidden sm:gap-3">
+    <div className="flex h-full flex-col gap-2 overflow-x-hidden sm:gap-3">
       {/* ── ROW 1: Stats + Donut Charts ── */}
       <div className="flex-none">
         <div className="grid gap-2 sm:gap-3 lg:grid-cols-12">
@@ -496,9 +496,9 @@ export default function DashboardPage() {
       </div>
 
       {/* ── ROW 3: Main Content — Table + Action Center ── */}
-      <div className="grid gap-2 sm:gap-3 items-start lg:grid-cols-3">
-        {/* Operational Summary — col-span-2 */}
-        <OpsPanel className="p-4 sm:p-5 lg:col-span-2">
+      <div className="grid grid-cols-1 gap-4 sm:gap-5 items-start lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
+        {/* Operational Summary */}
+        <OpsPanel className="p-4 sm:p-5 min-w-0">
           <SectionHeader
             title="Papan Operasional"
             subtitle={`${filteredShipments.length} manifest aktif hari ini`}
@@ -573,31 +573,31 @@ export default function DashboardPage() {
         </OpsPanel>
 
         {/* Action Center — col-span-1 */}
-        <OpsPanel className="flex min-h-0 flex-col overflow-hidden p-3 sm:p-4">
-          <div className="flex-none">
+        <OpsPanel className="flex min-h-0 flex-col p-3 sm:p-4 min-w-0 w-full">
+          <div className="flex-none min-w-0">
             <SectionHeader title="Pusat Tindakan" subtitle={`${filteredAlerts.length} alert`} />
           </div>
-          <div className="mt-2 flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2 scrollbar-thin">
+          <div className="mt-2 flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2 scrollbar-thin min-w-0">
             {filteredAlerts.length ? alertPage.items.map((alert) => (
-              <div key={alert.id} className="rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/80 px-3 py-2.5 transition-colors hover:bg-[color:var(--panel-muted)]">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-[color:var(--text-strong)]">{alert.title}</p>
-                    <p className="mt-1 text-[11px] leading-5 text-[color:var(--muted-fg)] line-clamp-2">{alert.detail}</p>
+              <div key={alert.id} className="w-full min-w-0 rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/80 px-3 py-2.5 transition-colors hover:bg-[color:var(--panel-muted)]">
+                <div className="flex items-start gap-3 min-w-0">
+                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: DONUT_ROSE }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold leading-5 text-[color:var(--text-strong)] break-words">{alert.title}</p>
+                    <p className="mt-1 text-[11px] leading-5 text-[color:var(--muted-fg)] whitespace-normal break-words">{alert.detail}</p>
+                    <div className="mt-2">
+                      <Link href={`/awb-tracking?awb=${alert.awb}`} className="text-[11px] font-semibold text-[color:var(--brand-primary)] hover:underline break-words">
+                        Buka AWB {alert.awb}
+                      </Link>
+                    </div>
                   </div>
-                  <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: DONUT_ROSE }} />
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Link href={`/awb-tracking?awb=${alert.awb}`} className="text-[11px] font-semibold text-[color:var(--brand-primary)] hover:underline">
-                    Buka AWB {alert.awb}
-                  </Link>
                 </div>
               </div>
             )) : (
               <EmptyState icon={BellRing} title="Tidak ada alert" copy="Semua shipment dalam kondisi normal." />
             )}
           </div>
-          <div className="flex-none border-t border-[color:var(--border-soft)] pt-2">
+          <div className="flex-none border-t border-[color:var(--border-soft)] pt-3 min-w-0">
             <DashboardPagination page={alertPage.currentPage} totalPages={alertPage.totalPages} visibleStart={alertPage.visibleStart} visibleEnd={alertPage.visibleEnd} totalItems={filteredAlerts.length} onPageChange={setDashboardAlertPage} />
           </div>
         </OpsPanel>
