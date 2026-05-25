@@ -714,12 +714,12 @@ export default function SettingsPage() {
 
           </OpsPanel>
 
-          <div className="page-stack split-pane-right page-scroll">
+          <div className="page-stack split-pane-right page-scroll pt-2">
             {activeTab === "Profil" ? (
               <>
                 <OpsPanel className="overflow-hidden p-0">
-                  <div className="grid gap-0 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-                    <div className="p-5">
+                  <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                    <div className="p-6">
                       <SectionHeader
                         title="Profil Pengguna"
                       />
@@ -753,8 +753,9 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <div className="border-t border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/70 p-5 xl:border-l xl:border-t-0">
+                    <div className="border-t border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/70 p-6 xl:border-l xl:border-t-0">
                       <p className="ops-eyebrow">Akses Workspace</p>
+                      <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">Hak akses dan izin yang melekat pada akun Anda.</p>
                       <div className="mt-4 grid gap-3">
                         <DataCard label="Peran" value={ROLE_LABELS[data.profile.role]} />
                         <DataCard label="Stasiun" value={draft.station} />
@@ -764,10 +765,18 @@ export default function SettingsPage() {
                   </div>
                 </OpsPanel>
 
-                <div className="sticky bottom-0 z-10 rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/92 px-5 py-4 shadow-[0_14px_34px_rgba(11,30,52,0.10)] backdrop-blur">
-                  <p className="font-semibold text-[color:var(--text-strong)]">
-                    {hasDraftChanges ? "Perubahan profil belum disimpan" : "Profil sudah sinkron"}
-                  </p>
+                <div className="sticky bottom-0 z-10 mt-4 rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/92 px-5 py-4 shadow-[0_14px_34px_rgba(11,30,52,0.10)] backdrop-blur">
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-[color:var(--text-strong)]">
+                        {hasDraftChanges ? "Perubahan profil belum disimpan" : "Profil sudah sinkron"}
+                      </p>
+                    </div>
+                    <button type="button" className="btn btn-primary" onClick={saveSettings} disabled={saving}>
+                      <ShieldCheck size={16} />
+                      {saving ? "Menyimpan..." : "Simpan Perubahan"}
+                    </button>
+                  </div>
                 </div>
               </>
             ) : null}
@@ -894,7 +903,7 @@ export default function SettingsPage() {
                   </OpsPanel>
                 </div>
 
-                <div className="sticky bottom-0 z-10 rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/92 px-5 py-4 shadow-[0_14px_34px_rgba(11,30,52,0.10)] backdrop-blur">
+                <div className="sticky bottom-0 z-10 mt-4 rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/92 px-5 py-4 shadow-[0_14px_34px_rgba(11,30,52,0.10)] backdrop-blur">
                   <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-semibold text-[color:var(--text-strong)]">
@@ -1129,7 +1138,7 @@ export default function SettingsPage() {
                   </button>
                 </div>
 
-                <OpsDrawer
+              <OpsDrawer
                   open={Boolean(editingUserId && editingUserDraft)}
                   title="Edit Hak Akses & Profil"
                   eyebrow="Kelola Anggota Tim"
@@ -1378,6 +1387,7 @@ export default function SettingsPage() {
             ) : null}
 
             {activeTab === "Akun Pelanggan" && data.permissions.canManageCustomerAccounts ? (
+              <>
               <OpsPanel className="p-5">
                 <SectionHeader
                   title="Akun Pelanggan"
@@ -1386,60 +1396,13 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       className="btn btn-primary"
-                      onClick={() => setCustomerAccountOpen((current) => !current)}
+                      onClick={() => setCustomerAccountOpen(true)}
                     >
                       <Plus size={16} />
-                      {customerAccountOpen ? "Tutup" : "Tambah Akun"}
+                      Tambah Akun
                     </button>
                   }
                 />
-
-                {customerAccountOpen ? (
-                  <div className="mt-5 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
-                    <div className="grid gap-4 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
-                      <input
-                        className="input-field"
-                        placeholder="Kode"
-                        value={accountForm.code}
-                        onChange={(event) => setAccountForm((current) => ({ ...current, code: event.target.value }))}
-                      />
-                      <input
-                        className="input-field"
-                        placeholder="Nama akun"
-                        value={accountForm.name}
-                        onChange={(event) => setAccountForm((current) => ({ ...current, name: event.target.value }))}
-                      />
-                      <input
-                        className="input-field"
-                        placeholder="PIC"
-                        value={accountForm.contactName}
-                        onChange={(event) =>
-                          setAccountForm((current) => ({ ...current, contactName: event.target.value }))
-                        }
-                      />
-                      <input
-                        className="input-field"
-                        placeholder="Email kontak"
-                        value={accountForm.contactEmail}
-                        onChange={(event) =>
-                          setAccountForm((current) => ({ ...current, contactEmail: event.target.value }))
-                        }
-                      />
-                      <input
-                        className="input-field"
-                        placeholder="Telepon"
-                        value={accountForm.contactPhone}
-                        onChange={(event) =>
-                          setAccountForm((current) => ({ ...current, contactPhone: event.target.value }))
-                        }
-                      />
-                      <button type="button" className="btn btn-primary" onClick={createCustomerAccountEntry}>
-                        <Plus size={16} />
-                        Simpan
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
 
                 <div className="settings-table-toolbar">
                   <span>{filteredAccounts.length} akun{accountSearch ? ` cocok "${accountSearch}"` : ""}</span>
@@ -1665,6 +1628,90 @@ export default function SettingsPage() {
                   ) : null}
                 </OpsDrawer>
               </OpsPanel>
+
+              <OpsDrawer
+                  open={customerAccountOpen}
+                title="Tambah Akun Pelanggan"
+                eyebrow="Kelola Pelanggan"
+                description="Buat akun pelanggan baru dengan kode unik dan informasi kontak."
+                onClose={() => {
+                  setCustomerAccountOpen(false);
+                  setAccountForm({ code: "", name: "", contactName: "", contactEmail: "", contactPhone: "" });
+                }}
+                footer={
+                  <div className="flex w-full items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        setCustomerAccountOpen(false);
+                        setAccountForm({ code: "", name: "", contactName: "", contactEmail: "", contactPhone: "" });
+                      }}
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={createCustomerAccountEntry}
+                    >
+                      <Plus size={16} />
+                      Simpan
+                    </button>
+                  </div>
+                }
+              >
+                <div className="space-y-6">
+                  <div>
+                    <label className="label">Kode Akun</label>
+                    <input
+                      className="input-field mt-2"
+                      placeholder="Contoh: CGK-MG-001"
+                      value={accountForm.code}
+                      onChange={(event) => setAccountForm((current) => ({ ...current, code: event.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Nama Akun</label>
+                    <input
+                      className="input-field mt-2"
+                      placeholder="Nama perusahaan atau entitas pelanggan"
+                      value={accountForm.name}
+                      onChange={(event) => setAccountForm((current) => ({ ...current, name: event.target.value }))}
+                    />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <label className="label">PIC (Kontak)</label>
+                      <input
+                        className="input-field mt-2"
+                        placeholder="Nama PIC"
+                        value={accountForm.contactName}
+                        onChange={(event) => setAccountForm((current) => ({ ...current, contactName: event.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Email</label>
+                      <input
+                        className="input-field mt-2"
+                        placeholder="Email kontak"
+                        value={accountForm.contactEmail}
+                        onChange={(event) => setAccountForm((current) => ({ ...current, contactEmail: event.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Telepon</label>
+                      <input
+                        className="input-field mt-2"
+                        placeholder="Nomor telepon"
+                        value={accountForm.contactPhone}
+                        onChange={(event) => setAccountForm((current) => ({ ...current, contactPhone: event.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </OpsDrawer>
+              </>
             ) : null}
           </div>
         </div>
