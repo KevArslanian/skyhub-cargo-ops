@@ -496,9 +496,9 @@ export default function DashboardPage() {
       </div>
 
       {/* ── ROW 3: Main Content — Table + Action Center ── */}
-      <div className="flex-1 grid gap-2 sm:gap-3 min-h-0 overflow-hidden lg:grid-cols-3">
+      <div className="grid gap-2 sm:gap-3 items-start lg:grid-cols-3">
         {/* Operational Summary — col-span-2 */}
-        <OpsPanel className="flex min-h-0 flex-col overflow-hidden p-4 sm:p-5 lg:col-span-2">
+        <OpsPanel className="p-4 sm:p-5 lg:col-span-2">
           <SectionHeader
             title="Papan Operasional"
             subtitle={`${filteredShipments.length} manifest aktif hari ini`}
@@ -509,15 +509,67 @@ export default function DashboardPage() {
             <MiniStatCard label="Tiba" value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : filteredShipments.filter(s => s.status === 'arrived').length} note="Di tujuan" icon={PackageCheck} tone="success" />
             <MiniStatCard label="Tertahan" value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : filteredShipments.filter(s => s.status === 'hold').length} note="Perlu review" icon={ShieldAlert} tone="warning" />
           </div>
-          <div className="mt-4 flex justify-end">
-            <Link
-              href="/shipment-ledger"
-              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] px-5 py-2.5 text-sm font-bold text-[color:var(--brand-primary)] transition-all hover:bg-[color:var(--brand-primary)] hover:text-white"
-            >
-              <PackageSearch size={16} />
-              Lihat semua di Ledger
-            </Link>
-          </div>
+
+          {/* Preview manifest prioritas */}
+          {!loading && filteredShipments.length > 0 ? (
+            <>
+              <div className="mt-5 border-t border-[color:var(--border-soft)] pt-4">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[color:var(--muted-2)]">Manifest prioritas</p>
+              </div>
+              <div className="mt-3 space-y-1.5">
+                {filteredShipments
+                  .sort((a, b) => {
+                    const aPrio = a.status === 'hold' || a.docStatus === 'Review' ? 0 : 1;
+                    const bPrio = b.status === 'hold' || b.docStatus === 'Review' ? 0 : 1;
+                    if (aPrio !== bPrio) return aPrio - bPrio;
+                    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+                  })
+                  .slice(0, 5)
+                  .map((shipment) => (
+                    <Link
+                      key={shipment.id}
+                      href={`/shipment-ledger?id=${shipment.id}`}
+                      className="flex items-center gap-3 rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/70 px-3 py-2.5 transition-colors hover:bg-[color:var(--panel-muted)]"
+                    >
+                      <span className="w-[110px] shrink-0 font-mono text-xs font-semibold text-[color:var(--brand-primary)] truncate">{shipment.awb}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-[color:var(--text-strong)]">{shipment.commodity}</span>
+                      <span className="hidden sm:inline w-[80px] shrink-0 text-[11px] text-[color:var(--muted-fg)] truncate">{shipment.origin} → {shipment.destination}</span>
+                      <MicroBadge value={shipment.status} label={shipment.statusLabel} />
+                      <span className="text-[11px] font-semibold text-[color:var(--brand-primary)] shrink-0">Buka</span>
+                    </Link>
+                  ))}
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Link
+                  href="/shipment-ledger"
+                  className="inline-flex items-center gap-2 rounded-full border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] px-5 py-2.5 text-sm font-bold text-[color:var(--brand-primary)] transition-all hover:bg-[color:var(--brand-primary)] hover:text-white"
+                >
+                  <PackageSearch size={16} />
+                  Lihat semua di Ledger
+                </Link>
+              </div>
+            </>
+          ) : loading ? (
+            <div className="mt-5 space-y-3">
+              <SkeletonBlock className="h-4 w-32 rounded-[6px]" />
+              {Array.from({ length: 4 }).map((_, i) => (
+                <SkeletonBlock key={i} className="h-[52px] w-full rounded-[14px]" />
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5">
+              <EmptyState icon={Boxes} variant="neutral" title="Belum ada manifest aktif" copy="Manifest operasional hari ini akan muncul di area ini." className="py-6" />
+              <div className="mt-4 flex justify-end">
+                <Link
+                  href="/shipment-ledger"
+                  className="inline-flex items-center gap-2 rounded-full border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] px-5 py-2.5 text-sm font-bold text-[color:var(--brand-primary)] transition-all hover:bg-[color:var(--brand-primary)] hover:text-white"
+                >
+                  <PackageSearch size={16} />
+                  Lihat Ledger
+                </Link>
+              </div>
+            </div>
+          )}
         </OpsPanel>
 
         {/* Action Center — col-span-1 */}
