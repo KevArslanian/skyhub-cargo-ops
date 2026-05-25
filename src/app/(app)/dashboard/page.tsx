@@ -128,7 +128,7 @@ type DashboardSettingsPayload = {
 const DASHBOARD_PAGE_SIZE = 6;
 const DASHBOARD_COMPACT_PAGE_SIZE = 5;
 const DASHBOARD_FLIGHT_PAGE_SIZE = 3;
-const DASHBOARD_ALERT_PAGE_SIZE = 4;
+const DASHBOARD_ALERT_PAGE_SIZE = 3;
 const DASHBOARD_COMPACT_ALERT_PAGE_SIZE = 3;
 
 function toDateInputValue(value: string) {
@@ -808,12 +808,12 @@ export default function DashboardPage() {
           </div>
         </OpsPanel>
 
-        <OpsPanel className="dashboard-panel p-4 xl:p-5">
+        <OpsPanel className="dashboard-panel dashboard-action-panel p-4 xl:p-5">
           <SectionHeader title="Pusat Tindakan" subtitle="AWB yang membutuhkan intervensi tim staff operasional." />
-          <div className="dashboard-alert-scroll mt-4 space-y-3">
+          <div className="dashboard-alert-scroll mt-4 space-y-2.5">
             {filteredAlerts.length ? (
               alertPage.items.map((alert) => (
-                <div key={alert.id} className="dashboard-alert-item rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-3">
+                <div key={alert.id} className="dashboard-alert-item rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3.5 py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-[color:var(--tone-warning)]">{alert.title}</p>
@@ -822,7 +822,7 @@ export default function DashboardPage() {
                     <BellRing size={16} className="shrink-0 text-[color:var(--tone-warning)]" />
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Link href={`/awb-tracking?awb=${alert.awb}`} className="inline-flex text-sm font-semibold text-[color:var(--brand-primary)]">
+                    <Link href={`/awb-tracking?awb=${alert.awb}`} className="inline-flex text-xs font-semibold text-[color:var(--brand-primary)]">
                       Buka pelacakan
                     </Link>
                   </div>

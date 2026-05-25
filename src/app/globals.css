@@ -3350,6 +3350,18 @@ input[type="checkbox"] {
   -webkit-line-clamp: 2;
 }
 
+.dashboard-action-panel .dashboard-alert-scroll {
+  flex: 1;
+}
+
+.dashboard-action-panel .dashboard-alert-item {
+  min-height: 0;
+}
+
+.dashboard-action-panel .dashboard-pagination-footer {
+  margin-top: auto;
+}
+
 @media (min-width: 1280px) {
   .dashboard-main {
     grid-template-columns: minmax(0, 1.75fr) minmax(280px, 0.72fr);
