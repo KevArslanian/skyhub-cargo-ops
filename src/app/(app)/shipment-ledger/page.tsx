@@ -1833,12 +1833,12 @@ export default function ShipmentLedgerPage() {
                   </div>
                   <div>
                     <label className="label">Status Barang</label>
-                    <input className="input-field" value="Diproses" readOnly />
+                    <input className="input-field input-readonly" value="Diproses" readOnly />
                     <p className="form-help">Otomatis dari workflow shipment.</p>
                   </div>
                   <div>
                     <label className="label">Status Transaksi</label>
-                    <input className="input-field" value={getDraftTransactionStatus(form.shippingRate)} readOnly />
+                    <input className="input-field input-readonly" value={getDraftTransactionStatus(form.shippingRate)} readOnly />
                     <p className="form-help">Tidak dapat dipilih manual.</p>
                   </div>
                 </div>
