@@ -1124,7 +1124,7 @@ export default function FlightBoardPage() {
                 </div>
                 <div>
                   <label className="label">Batas Terima Cargo Otomatis</label>
-                  <input type="datetime-local" className="input-field" value={createForm.cargoCutoffTime} readOnly />
+                  <input type="datetime-local" className="input-field input-readonly" value={createForm.cargoCutoffTime} readOnly />
                   <p className="form-help">H-70 menit dari waktu berangkat.</p>
                 </div>
                 <div>
@@ -1139,7 +1139,7 @@ export default function FlightBoardPage() {
                 </div>
                 <div>
                   <label className="label">Estimasi Tiba Otomatis</label>
-                  <input type="datetime-local" className="input-field" value={createForm.arrivalTime} readOnly />
+                  <input type="datetime-local" className="input-field input-readonly" value={createForm.arrivalTime} readOnly />
                   <p className="form-help">Dihitung dari durasi rute master.</p>
                 </div>
                 <div className="flight-auto-status-card">
@@ -1149,7 +1149,7 @@ export default function FlightBoardPage() {
                 </div>
                 <div>
                   <label className="label">Gate Otomatis</label>
-                  <input className="input-field" value={createForm.gate} readOnly />
+                  <input className="input-field input-readonly" value={createForm.gate} readOnly />
                   <p className="form-help">Ditetapkan dari station tujuan.</p>
                 </div>
               </div>
@@ -1271,7 +1271,7 @@ export default function FlightBoardPage() {
                 </div>
                 <div>
                   <label className="label">Batas Terima Cargo Otomatis</label>
-                  <input type="datetime-local" className="input-field" value={editDraft.cargoCutoffTime} readOnly />
+                  <input type="datetime-local" className="input-field input-readonly" value={editDraft.cargoCutoffTime} readOnly />
                   <p className="form-help">H-70 menit dari waktu berangkat.</p>
                 </div>
                 <div>
@@ -1286,7 +1286,7 @@ export default function FlightBoardPage() {
                 </div>
                 <div>
                   <label className="label">Estimasi Tiba Otomatis</label>
-                  <input type="datetime-local" className="input-field" value={editDraft.arrivalTime} readOnly />
+                  <input type="datetime-local" className="input-field input-readonly" value={editDraft.arrivalTime} readOnly />
                   <p className="form-help">Dihitung dari durasi rute master.</p>
                 </div>
                 <div className="flight-auto-status-card">
@@ -1296,7 +1296,7 @@ export default function FlightBoardPage() {
                 </div>
                 <div>
                   <label className="label">Gate Otomatis</label>
-                  <input className="input-field" value={editDraft.gate} readOnly />
+                  <input className="input-field input-readonly" value={editDraft.gate} readOnly />
                   <p className="form-help">Ditetapkan dari station tujuan.</p>
                 </div>
               </div>

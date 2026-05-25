@@ -1389,12 +1389,12 @@ export default function ShipmentLedgerPage() {
                         </div>
                         <div>
                           <label className="label">Status Barang</label>
-                          <input className="input-field" value={selectedShipment.goodsStatus} readOnly />
+                          <input className="input-field input-readonly" value={selectedShipment.goodsStatus} readOnly />
                           <p className="form-help">Otomatis dari status workflow shipment.</p>
                         </div>
                         <div>
                           <label className="label">Status Transaksi</label>
-                          <input className="input-field" value={selectedShipment.transactionStatus} readOnly />
+                          <input className="input-field input-readonly" value={selectedShipment.transactionStatus} readOnly />
                           <p className="form-help">Otomatis dari tarif dan bukti pembayaran terverifikasi admin.</p>
                         </div>
                         <div>
@@ -1436,12 +1436,12 @@ export default function ShipmentLedgerPage() {
                         </div>
                         <div>
                           <label className="label">Status Dokumen</label>
-                          <input className="input-field" value={selectedShipment.docStatus} readOnly />
+                          <input className="input-field input-readonly" value={selectedShipment.docStatus} readOnly />
                           <p className="form-help">Otomatis dari dokumen aktif dan bukti bayar.</p>
                         </div>
                         <div>
                           <label className="label">Kesiapan</label>
-                          <input className="input-field" value={selectedShipment.readiness} readOnly />
+                          <input className="input-field input-readonly" value={selectedShipment.readiness} readOnly />
                           <p className="form-help">Ready jika dokumen complete, pembayaran aman, dan tidak hold.</p>
                         </div>
                         <div className="md:col-span-2">

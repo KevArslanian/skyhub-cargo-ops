@@ -734,7 +734,7 @@ export default function SettingsPage() {
                         </div>
                         <div>
                           <label className="label">Email</label>
-                          <input className="input-field" value={data.profile.email} readOnly />
+                          <input className="input-field input-readonly" value={data.profile.email} readOnly />
                         </div>
                         <div>
                           <label className="label">Stasiun</label>

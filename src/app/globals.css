@@ -322,6 +322,31 @@ textarea {
 .dark .textarea-field {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0.008)), var(--panel-muted);
 }
+/* ── Readonly input variant ── system-generated / auto-calculated fields ── */
+.input-readonly,
+.select-readonly,
+.textarea-readonly {
+  background: var(--panel-bg);
+  color: var(--muted-fg);
+  border-color: var(--border-soft);
+  cursor: not-allowed;
+  box-shadow: none;
+  opacity: 0.82;
+}
+
+.input-readonly:focus,
+.select-readonly:focus,
+.textarea-readonly:focus {
+  border-color: var(--border-soft);
+  box-shadow: none;
+}
+
+.dark .input-readonly,
+.dark .select-readonly,
+.dark .textarea-readonly {
+  background: linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.06)), var(--panel-bg);
+}
+
 
 .btn {
   display: inline-flex;
