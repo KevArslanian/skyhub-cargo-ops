@@ -186,7 +186,7 @@ export default function AwbTrackingPage() {
   }
 
   return (
-    <div className="page-workspace">
+    <div className="page-workspace awb-tracking-workspace">
       <PageHeader
         eyebrow="Pelacakan AWB"
         title="Pelacakan AWB"
@@ -260,7 +260,7 @@ export default function AwbTrackingPage() {
                 icon={Radar}
                 title="Tracking siap digunakan"
                 copy="Masukkan AWB valid untuk menampilkan status, ringkasan, dan kronologi pengiriman."
-                className="py-10"
+                className="awb-tracking-empty py-10"
               />
             ) : null}
 
@@ -269,7 +269,7 @@ export default function AwbTrackingPage() {
                 icon={TriangleAlert}
                 title="AWB belum ditemukan"
                 copy="Periksa format AWB lalu coba kembali."
-                className="py-10"
+                className="awb-tracking-empty py-10"
               />
             ) : null}
 

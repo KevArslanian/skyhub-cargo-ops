@@ -1886,20 +1886,49 @@ input[type="checkbox"] {
   overscroll-behavior-x: contain;
 }
 
+.awb-tracking-workspace {
+  flex: 1;
+  min-height: calc(100svh - var(--shell-topbar-height) - 3.25rem);
+}
+
+.awb-tracking-layout {
+  flex: 1;
+  min-height: 0;
+}
+
+.awb-tracking-layout > .page-stack,
 .awb-tracking-panel,
+.awb-history-panel {
+  min-height: 0;
+  height: 100%;
+}
+
+.awb-tracking-panel {
+  overflow: hidden;
+}
+
 .awb-tracking-results {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
   overflow: visible;
 }
 
-.awb-tracking-layout > .page-stack {
-  height: 100%;
+.awb-tracking-empty {
+  flex: 1;
+  min-height: 240px;
+  justify-content: center;
 }
 
 .awb-history-panel {
   display: flex;
-  min-height: 0;
-  height: 100%;
   flex-direction: column;
+}
+
+.awb-history-list {
+  flex: 1;
+  min-height: 0;
 }
 
 .awb-history-list {
