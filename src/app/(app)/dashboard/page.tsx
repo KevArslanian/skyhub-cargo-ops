@@ -138,7 +138,7 @@ type DashboardSettingsPayload = {
 const DASHBOARD_PAGE_SIZE = 6;
 const DASHBOARD_COMPACT_PAGE_SIZE = 5;
 const DASHBOARD_FLIGHT_PAGE_SIZE = 4;
-const DASHBOARD_ALERT_PAGE_SIZE = 3;
+const DASHBOARD_ALERT_PAGE_SIZE = 2;
 
 function getPageWindow<T>(items: T[], page: number, pageSize = DASHBOARD_PAGE_SIZE) {
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
@@ -575,7 +575,7 @@ export default function DashboardPage() {
         {/* Action Center — col-span-1 */}
         <OpsPanel className="flex min-h-0 flex-col p-3 sm:p-4 min-w-0 w-full">
           <div className="flex-none min-w-0">
-            <SectionHeader title="Pusat Tindakan" subtitle={`${filteredAlerts.length} alert`} />
+            <SectionHeader title="Pusat Tindakan" subtitle={filteredAlerts.length > 0 ? `${alertPage.visibleStart}-${alertPage.visibleEnd} dari ${filteredAlerts.length} alert` : "0 alert"} />
           </div>
           <div className="mt-2 flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2 scrollbar-thin min-w-0">
             {filteredAlerts.length ? alertPage.items.map((alert) => (
