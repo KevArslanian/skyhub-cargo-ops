@@ -144,7 +144,7 @@ export const settingsUpdateSchema = z.object({
   sidebarCollapsed: z.boolean().optional(),
   autoRefresh: z.boolean().optional(),
   refreshIntervalSeconds: z.coerce.number().int().min(5).max(60).optional(),
-  theme: z.enum(["light", "dark"]).optional(),
+  theme: z.enum(["light", "dark", "system"]).optional(),
   cutoffAlert: z.boolean().optional(),
   exceptionAlert: z.boolean().optional(),
   soundAlert: z.boolean().optional(),

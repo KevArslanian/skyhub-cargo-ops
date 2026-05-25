@@ -3000,7 +3000,7 @@ export async function updateSettings(
     sidebarCollapsed?: boolean;
     autoRefresh?: boolean;
     refreshIntervalSeconds?: number;
-    theme?: "light" | "dark";
+    theme?: "light" | "dark" | "system";
     cutoffAlert?: boolean;
     exceptionAlert?: boolean;
     soundAlert?: boolean;

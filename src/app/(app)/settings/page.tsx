@@ -58,7 +58,7 @@ type SettingsPayload = {
     customerAccountName: string | null;
   };
   settings: {
-    theme: "light" | "dark";
+    theme: "light" | "dark" | "system";
     compactRows: boolean;
     sidebarCollapsed: boolean;
     autoRefresh: boolean;
