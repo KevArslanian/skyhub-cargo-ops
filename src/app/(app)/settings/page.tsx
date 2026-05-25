@@ -655,25 +655,26 @@ export default function SettingsPage() {
       ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(200px,260px)_minmax(0,1fr)] split-pane-shell split-pane-shell-settings">
           <OpsPanel className="page-pane split-pane-left p-4">
-            <div className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
-              <div className="flex items-start gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-[color:var(--brand-primary)] font-[family:var(--font-heading)] text-xl font-black tracking-[-0.04em] text-white">
-                  {getInitials(draft.name || data.profile.name || "Sky Hub")}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate font-[family:var(--font-heading)] text-[1.45rem] font-black tracking-[-0.04em] text-[color:var(--text-strong)]">
-                    {draft.name || data.profile.name}
-                  </p>
-                  <p className="truncate text-sm text-[color:var(--muted-fg)]">{data.profile.email}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <StatusBadge value="info" label={ROLE_LABELS[data.profile.role]} />
-                    <StatusBadge value="active" label={draft.station} />
+            <div className="space-y-2">
+              <div className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
+                <div className="flex items-start gap-3.5">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[color:var(--brand-primary)] font-[family:var(--font-heading)] text-[1.05rem] font-black tracking-[-0.04em] text-white">
+                    {getInitials(draft.name || data.profile.name || "Sky Hub")}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-[color:var(--text-strong)]">
+                      {draft.name || data.profile.name}
+                    </p>
+                    <p className="truncate text-xs text-[color:var(--muted-2)]">{data.profile.email}</p>
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      <StatusBadge value="info" label={ROLE_LABELS[data.profile.role]} />
+                      <StatusBadge value="active" label={draft.station} />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="mt-4 space-y-2">
+              <div className="space-y-2">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const active = activeTab === tab.label;
@@ -709,6 +710,7 @@ export default function SettingsPage() {
                 );
               })}
             </div>
+            </div>
 
           </OpsPanel>
 
@@ -717,11 +719,11 @@ export default function SettingsPage() {
               <>
                 <OpsPanel className="overflow-hidden p-0">
                   <div className="grid gap-0 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-                    <div className="p-6">
+                    <div className="p-5">
                       <SectionHeader
                         title="Profil Pengguna"
                       />
-                      <div className="mt-6 grid gap-4 xl:grid-cols-2">
+                      <div className="mt-5 grid gap-4 xl:grid-cols-2">
                         <div className="xl:col-span-2">
                           <label className="label">Nama Lengkap</label>
                           <input
