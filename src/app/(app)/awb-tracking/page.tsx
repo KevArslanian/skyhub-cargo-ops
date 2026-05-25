@@ -228,12 +228,18 @@ export default function AwbTrackingPage() {
                     Print
                   </Link>
                 ) : (
-                  <button type="button" className="btn btn-secondary" disabled>
+                  <button type="button" className="btn btn-secondary" disabled title="Cetak tersedia setelah hasil tracking muncul">
                     <Printer size={16} />
                     Print
                   </button>
                 )}
-                <button type="button" className="btn btn-warning" onClick={handleReportIssue} disabled={!awbFromQuery}>
+                <button
+                  type="button"
+                  className="btn btn-warning"
+                  onClick={handleReportIssue}
+                  disabled={!shipment}
+                  title={!shipment ? "Laporkan isu tersedia setelah hasil tracking muncul" : undefined}
+                >
                   <TriangleAlert size={16} />
                   Laporkan Isu
                 </button>

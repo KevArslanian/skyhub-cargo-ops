@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Monitor,
   MoonStar,
   PackageSearch,
   PlaneTakeoff,
@@ -381,10 +382,15 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   }
 
   async function handleThemeToggle() {
-    const nextTheme = activeTheme === "dark" ? "light" : "dark";
+    const themeCycle: Record<string, string> = { light: "dark", dark: "system", system: "light" };
+    const nextTheme = themeCycle[shellSettings.theme] || "light";
     setShellSettings((current) => ({ ...current, theme: nextTheme }));
     window.localStorage.setItem("theme", nextTheme);
-    setTheme(nextTheme);
+    if (nextTheme === "system") {
+      setTheme("system");
+    } else {
+      setTheme(nextTheme);
+    }
     const persisted = await persistSettings({ theme: nextTheme });
     if (persisted) {
       setShellSettings((current) => ({ ...current, ...persisted }));
@@ -628,7 +634,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
           </div>
         </aside>
 
-        <div className="shell-content flex min-h-0 min-w-0 w-full flex-col transition-all duration-200 lg:ml-[var(--sidebar-width)]">
+        <div className="shell-content flex min-h-0 min-w-0 w-full flex-col transition-all duration-200 lg:ml-[var(--sidebar-width)]" data-density={shellSettings.compactRows ? "compact" : "comfortable"}>
           <header className="shell-topbar sticky top-0 z-30 min-w-0 shrink-0 px-3 py-3 sm:px-4 sm:py-4 lg:px-8 lg:py-5">
             <div className="ops-panel shell-topbar-toolbar flex min-w-0 flex-wrap items-center px-4 py-4 lg:px-5">
               <button type="button" className="topbar-button mobile-hamburger-trigger shrink-0" onClick={() => setMobileOpen(true)}>
@@ -694,9 +700,14 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               ) : null}
 
               <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
-                <button type="button" className="topbar-button" onClick={handleThemeToggle}>
-                  {activeTheme === "dark" ? <SunMedium size={18} /> : <MoonStar size={18} />}
-                  <span className="hidden sm:inline">{activeTheme === "dark" ? "Terang" : "Gelap"}</span>
+                <button
+                  type="button"
+                  className="topbar-button"
+                  onClick={handleThemeToggle}
+                  aria-label={shellSettings.theme === "dark" ? "Beralih ke mode terang" : shellSettings.theme === "system" ? "Beralih ke mode sistem" : "Beralih ke mode gelap"}
+                  title={shellSettings.theme === "dark" ? "Mode gelap" : shellSettings.theme === "system" ? "Ikuti sistem" : "Mode terang"}
+                >
+                  {shellSettings.theme === "dark" ? <MoonStar size={18} /> : shellSettings.theme === "system" ? <Monitor size={18} /> : <SunMedium size={18} />}
                 </button>
 
                 <div className="relative">
@@ -723,7 +734,12 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                           </p>
                           <p className="text-sm text-[color:var(--muted-fg)]">{unreadCount} belum dibaca</p>
                         </div>
-                        <button type="button" className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--brand-primary)]" onClick={handleMarkAllRead}>
+                        <button
+                          type="button"
+                          className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--brand-primary)] disabled:text-[color:var(--muted-2)] disabled:cursor-not-allowed"
+                          onClick={handleMarkAllRead}
+                          disabled={unreadCount === 0}
+                        >
                           Tandai semua
                         </button>
                       </div>
@@ -747,7 +763,11 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                             </button>
                           ))
                         ) : (
-                          <div className="px-4 py-6 text-sm text-[color:var(--muted-fg)]">Tidak ada notifikasi.</div>
+                          <div className="px-4 py-10 text-center">
+                            <Bell size={26} className="mx-auto text-[color:var(--muted-2)]" />
+                            <p className="mt-3 text-sm font-medium text-[color:var(--muted-fg)]">Tidak ada notifikasi baru</p>
+                            <p className="mt-1 text-xs text-[color:var(--muted-2)]">Notifikasi akan muncul di sini saat ada aktivitas.</p>
+                          </div>
                         )}
                       </div>
                       {hasMoreNotifications ? (

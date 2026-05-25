@@ -3454,6 +3454,63 @@ input[type="checkbox"] {
   }
 }
 
+
+/* ── Density: Compact mode ── */
+[data-density="compact"] .ledger-manifest-table-row td {
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
+[data-density="compact"] .ledger-manifest-table-row .ledger-row-button {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+[data-density="compact"] .ledger-manifest-table-row .font-mono {
+  font-size: 0.78rem;
+}
+
+[data-density="compact"] .ledger-manifest-table-row .text-xs {
+  font-size: 0.65rem;
+}
+
+[data-density="compact"] .ledger-manifest-table th {
+  padding-bottom: 0.5rem;
+  font-size: 0.62rem;
+}
+
+[data-density="compact"] .dashboard-summary-metric {
+  padding: 0.6rem;
+  gap: 0.5rem;
+}
+
+[data-density="compact"] .metric-card {
+  padding: 0.85rem;
+}
+
+[data-density="compact"] .metric-card .text-\[2rem\] {
+  font-size: 1.5rem;
+}
+
+/* ── Accent ring for color picker ── */
+:root {
+  --accent-ring: rgba(0, 61, 155, 0.35);
+}
+
+.dark {
+  --accent-ring: rgba(109, 167, 255, 0.5);
+}
+
+/* ── Notification empty state ── */
+.notifications-dropdown-list:empty::after {
+  content: "Tidak ada notifikasi baru.";
+  display: block;
+  padding: 1.5rem 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--muted-fg);
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

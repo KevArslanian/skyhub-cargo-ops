@@ -9,6 +9,7 @@ import {
   ChevronRight,
   FileCheck2,
   PackageCheck,
+  PackageSearch,
   PlaneTakeoff,
   ShieldAlert,
   TowerControl,
@@ -16,7 +17,7 @@ import {
 } from "lucide-react";
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
-import { EmptyState, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { EmptyState, OpsPanel, PageHeader, SectionHeader, SkeletonBlock, StatCard } from "@/components/ops-ui";
 import { MiniDonutGroup, type DonutSegment } from "@/components/donut-chart";
 
 /* ── Premium HSL Palette ── */
@@ -347,10 +348,10 @@ export default function DashboardPage() {
           subtitle={`Ringkasan shipment milik ${customerData.viewer.customerAccountName || "akun Anda"}.`}
         />
         <div className="grid gap-4 xl:grid-cols-4">
-          <StatCard label="Shipment Aktif" value={loading ? "..." : customerData.metrics.activeShipments} note="Dalam proses." icon={Boxes} tone="primary" />
-          <StatCard label="Perlu Tindakan" value={loading ? "..." : customerData.metrics.actionRequired} note="Hold / dokumen." icon={ShieldAlert} tone="warning" />
-          <StatCard label="Dokumen Pending" value={loading ? "..." : customerData.metrics.pendingDocuments} note="Masih diproses." icon={FileCheck2} tone="info" />
-          <StatCard label="Tiba" value={loading ? "..." : customerData.metrics.arrived} note="Sudah di tujuan." icon={PackageCheck} tone="success" />
+          <StatCard label="Shipment Aktif" value={loading ? <SkeletonBlock className="mt-4 h-9 w-16 rounded-[10px]" /> : customerData.metrics.activeShipments} note="Dalam proses." icon={Boxes} tone="primary" />
+          <StatCard label="Perlu Tindakan" value={loading ? <SkeletonBlock className="mt-4 h-9 w-16 rounded-[10px]" /> : customerData.metrics.actionRequired} note="Hold / dokumen." icon={ShieldAlert} tone="warning" />
+          <StatCard label="Dokumen Pending" value={loading ? <SkeletonBlock className="mt-4 h-9 w-16 rounded-[10px]" /> : customerData.metrics.pendingDocuments} note="Masih diproses." icon={FileCheck2} tone="info" />
+          <StatCard label="Tiba" value={loading ? <SkeletonBlock className="mt-4 h-9 w-16 rounded-[10px]" /> : customerData.metrics.arrived} note="Sudah di tujuan." icon={PackageCheck} tone="success" />
         </div>
         <div className="page-grid-2">
           <OpsPanel className="page-pane p-5">
@@ -414,28 +415,28 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:col-span-4 lg:grid-cols-2">
             <MiniStatCard
               label="Kargo Masuk"
-              value={loading ? "..." : shipmentsToday.length}
+              value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : shipmentsToday.length}
               note="Manifest hari ini"
               icon={Boxes}
               tone="primary"
             />
             <MiniStatCard
               label="Flight Aktif"
-              value={loading ? "..." : flightsToday.length}
+              value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : flightsToday.length}
               note={`${onTime} on-time · ${delayed} delay`}
               icon={PlaneTakeoff}
               tone="info"
             />
             <MiniStatCard
               label="Sudah Muat"
-              value={loading ? "..." : activeLoaded}
+              value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : activeLoaded}
               note="Siap keberangkatan"
               icon={PackageCheck}
               tone="success"
             />
             <MiniStatCard
               label="Perlu Tindakan"
-              value={loading ? "..." : alertsToday.length}
+              value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : alertsToday.length}
               note="Alert aktif"
               icon={ShieldAlert}
               tone="warning"
@@ -496,54 +497,26 @@ export default function DashboardPage() {
 
       {/* ── ROW 3: Main Content — Table + Action Center ── */}
       <div className="flex-1 grid gap-2 sm:gap-3 min-h-0 overflow-hidden lg:grid-cols-3">
-        {/* Operational Table — col-span-2 */}
-        <OpsPanel className="flex min-h-0 flex-col overflow-hidden p-3 sm:p-4 lg:col-span-2">
-          <div className="flex-none">
-            <SectionHeader
-              title="Papan Operasional"
-              subtitle={`${filteredShipments.length} manifest`}
-              action={
-                <Link href="/shipment-ledger" className="btn btn-secondary h-8 px-3 text-xs">
-                  Ledger
-                </Link>
-              }
-            />
+        {/* Operational Summary — col-span-2 */}
+        <OpsPanel className="flex min-h-0 flex-col overflow-hidden p-4 sm:p-5 lg:col-span-2">
+          <SectionHeader
+            title="Papan Operasional"
+            subtitle={`${filteredShipments.length} manifest aktif hari ini`}
+          />
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MiniStatCard label="Total Manifest" value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : filteredShipments.length} note="Hari ini" icon={Boxes} tone="primary" />
+            <MiniStatCard label="Berangkat" value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : filteredShipments.filter(s => s.status === 'departed').length} note="Sudah terbang" icon={PlaneTakeoff} tone="info" />
+            <MiniStatCard label="Tiba" value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : filteredShipments.filter(s => s.status === 'arrived').length} note="Di tujuan" icon={PackageCheck} tone="success" />
+            <MiniStatCard label="Tertahan" value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : filteredShipments.filter(s => s.status === 'hold').length} note="Perlu review" icon={ShieldAlert} tone="warning" />
           </div>
-          <div className="mt-2 flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin">
-            <table className="w-full min-w-[520px] text-left text-xs">
-              <thead className="sticky top-0 z-10 bg-[color:var(--panel-bg)]">
-                <tr className="border-b border-[color:var(--border-soft)] text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-2)]">
-                  <th className="pb-2 pr-3 font-semibold">AWB</th>
-                  <th className="pb-2 pr-3 font-semibold">Komoditas</th>
-                  <th className="pb-2 pr-3 font-semibold">Rute</th>
-                  <th className="pb-2 pr-3 font-semibold">Status</th>
-                  <th className="pb-2 pr-3 font-semibold">Flight</th>
-                  <th className="pb-2 font-semibold">Update</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredShipments.length ? shipmentPage.items.map((shipment) => (
-                  <tr key={shipment.id} className="border-b border-[color:var(--border-soft)]/50 transition-colors hover:bg-[color:var(--panel-muted)]/50">
-                    <td className="py-2 pr-3 font-mono text-xs font-semibold text-[color:var(--brand-primary)]">{shipment.awb}</td>
-                    <td className="py-2 pr-3">
-                      <p className="text-xs font-semibold text-[color:var(--text-strong)]">{shipment.commodity}</p>
-                      <p className="mt-0.5 text-[10px] text-[color:var(--muted-fg)]">{formatWeight(shipment.weightKg)} · {shipment.pieces} pcs</p>
-                    </td>
-                    <td className="py-2 pr-3 text-xs text-[color:var(--muted-fg)]">{shipment.origin} → {shipment.destination}</td>
-                    <td className="py-2 pr-3">
-                      <MicroBadge value={shipment.status} label={shipment.statusLabel} />
-                    </td>
-                    <td className="py-2 pr-3 text-xs text-[color:var(--muted-fg)]">{shipment.flightNumber ?? "—"}</td>
-                    <td className="py-2 text-[10px] text-[color:var(--muted-2)]">{formatRelativeShort(shipment.updatedAt)}</td>
-                  </tr>
-                )) : (
-                  <tr><td colSpan={6}><EmptyState icon={Boxes} title="Belum ada shipment" copy="Belum ada manifest untuk operasional hari ini." className="m-4" /></td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex-none border-t border-[color:var(--border-soft)] pt-2">
-            <DashboardPagination page={shipmentPage.currentPage} totalPages={shipmentPage.totalPages} visibleStart={shipmentPage.visibleStart} visibleEnd={shipmentPage.visibleEnd} totalItems={filteredShipments.length} onPageChange={setDashboardShipmentPage} />
+          <div className="mt-4 flex justify-end">
+            <Link
+              href="/shipment-ledger"
+              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] px-5 py-2.5 text-sm font-bold text-[color:var(--brand-primary)] transition-all hover:bg-[color:var(--brand-primary)] hover:text-white"
+            >
+              <PackageSearch size={16} />
+              Lihat semua di Ledger
+            </Link>
           </div>
         </OpsPanel>
 
@@ -582,7 +555,7 @@ export default function DashboardPage() {
 }
 
 /* ── Mini Stat Card (compact) ── */
-function MiniStatCard({ label, value, note, icon: Icon, tone }: { label: string; value: number | string; note: string; icon: React.ComponentType<{ size?: number }>; tone: "primary" | "success" | "warning" | "info" }) {
+function MiniStatCard({ label, value, note, icon: Icon, tone }: { label: string; value: React.ReactNode; note: string; icon: React.ComponentType<{ size?: number }>; tone: "primary" | "success" | "warning" | "info" }) {
   const toneBg: Record<string, string> = {
     primary: "bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]",
     success: "bg-[color:var(--tone-success-soft)] text-[color:var(--tone-success)]",

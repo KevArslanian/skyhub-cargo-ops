@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn, formatNumber } from "@/lib/format";
 
 export function PageHeader({
@@ -75,7 +75,7 @@ export function StatCard({
   className,
 }: {
   label: string;
-  value: number | string;
+  value: React.ReactNode;
   note: string;
   icon?: LucideIcon;
   tone?: keyof typeof statToneClasses;
@@ -178,22 +178,31 @@ export function SkeletonBlock({ className }: { className?: string }) {
   return <div aria-hidden="true" className={cn("ops-skeleton rounded-[20px]", className)} />;
 }
 
+const emptyVariantIconClasses: Record<string, string> = {
+  neutral: "text-[color:var(--muted-2)] bg-[color:var(--panel-muted)]",
+  filtered: "text-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]",
+  success: "text-[color:var(--tone-success)] bg-[color:var(--tone-success-soft)]",
+  warning: "text-[color:var(--tone-warning)] bg-[color:var(--tone-warning-soft)]",
+};
+
 export function EmptyState({
   icon: Icon,
   title,
   copy,
   action,
+  variant = "neutral",
   className,
 }: {
   icon: LucideIcon;
   title: string;
   copy: string;
   action?: React.ReactNode;
+  variant?: "neutral" | "filtered" | "success" | "warning";
   className?: string;
 }) {
   return (
     <div className={cn("ops-empty", className)}>
-      <div className="ops-empty-icon">
+      <div className={cn("ops-empty-icon", emptyVariantIconClasses[variant])}>
         <Icon size={26} />
       </div>
       <h3 className="mt-5 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
@@ -201,6 +210,50 @@ export function EmptyState({
       </h3>
       <p className="mx-auto mt-3 max-w-xl text-center text-sm leading-7 text-[color:var(--muted-fg)]">{copy}</p>
       {action ? <div className="mt-5">{action}</div> : null}
+    </div>
+  );
+}
+
+export function PaginationBar({
+  page,
+  totalPages,
+  visibleStart,
+  visibleEnd,
+  totalItems,
+  onPageChange,
+  label = "Halaman",
+}: {
+  page: number;
+  totalPages: number;
+  visibleStart: number;
+  visibleEnd: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
+  label?: string;
+}) {
+  return (
+    <div className="table-pagination-footer">
+      <button
+        type="button"
+        className="topbar-button"
+        onClick={() => onPageChange(Math.max(1, page - 1))}
+        disabled={page <= 1}
+      >
+        <ChevronLeft size={16} />
+        Sebelumnya
+      </button>
+      <p className="text-xs font-semibold text-[color:var(--muted-fg)]">
+        {totalItems > 0 ? `${visibleStart}-${visibleEnd}` : "0-0"} dari {totalItems} • {label} {page}/{totalPages}
+      </p>
+      <button
+        type="button"
+        className="topbar-button"
+        onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+        disabled={page >= totalPages}
+      >
+        Berikutnya
+        <ChevronRight size={16} />
+      </button>
     </div>
   );
 }

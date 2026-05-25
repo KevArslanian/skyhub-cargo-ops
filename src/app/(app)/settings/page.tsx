@@ -100,7 +100,8 @@ type SettingsPayload = {
 type SettingsDraft = {
   name: string;
   station: string;
-  theme: "light" | "dark";
+  theme: "light" | "dark" | "system";
+  accentColor: string;
   compactRows: boolean;
   sidebarCollapsed: boolean;
   autoRefresh: boolean;
@@ -117,7 +118,8 @@ function toDraft(data: SettingsPayload | null): SettingsDraft {
   return {
     name: data?.profile.name ?? "",
     station: data?.profile.station ?? "SOQ",
-    theme: data?.settings?.theme ?? "light",
+    theme: (data?.settings?.theme as "light" | "dark" | "system") ?? "light",
+    accentColor: (typeof window !== "undefined" ? window.localStorage.getItem("skyhub-accent-color") : null) ?? "blue",
     compactRows: data?.settings?.compactRows ?? false,
     sidebarCollapsed: data?.settings?.sidebarCollapsed ?? false,
     autoRefresh: data?.settings?.autoRefresh ?? true,
@@ -199,9 +201,10 @@ function ThemePreviewCard({
   description: string;
   active: boolean;
   onSelect: () => void;
-  mode: "light" | "dark";
+  mode: "light" | "dark" | "system";
 }) {
   const isDark = mode === "dark";
+  const isSystem = mode === "system";
 
   return (
     <button
@@ -221,14 +224,14 @@ function ThemePreviewCard({
           <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{description}</p>
         </div>
         <span className="inline-flex h-10 w-10 items-center justify-center rounded-[16px] border border-[color:var(--border-soft)] bg-white/70 text-[color:var(--brand-primary)] dark:bg-white/[0.04]">
-          {isDark ? <MoonStar size={18} /> : <SunMedium size={18} />}
+          {isDark ? <MoonStar size={18} /> : isSystem ? <Monitor size={18} /> : <SunMedium size={18} />}
         </span>
       </div>
 
       <div
         className={cn(
           "mt-4 overflow-hidden rounded-[20px] border p-3",
-          isDark ? "border-[#203a58] bg-[#0f2037]" : "border-[#d7e2ef] bg-white",
+          isDark ? "border-[#203a58] bg-[#0f2037]" : isSystem ? "border-[#d7e2ef] bg-[linear-gradient(135deg,white_50%,#0f2037_50%)]" : "border-[#d7e2ef] bg-white",
         )}
       >
         <div
@@ -377,7 +380,7 @@ export default function SettingsPage() {
   const preferenceSummary = [
     {
       label: "Tema aktif",
-      value: draft.theme === "light" ? "Terang" : "Gelap",
+      value: draft.theme === "light" ? "Terang" : draft.theme === "dark" ? "Gelap" : "Ikuti Sistem",
       note: "Shell.",
       tone: "primary" as const,
     },
@@ -799,43 +802,100 @@ export default function SettingsPage() {
                   <OpsPanel className="p-5">
                     <SectionHeader
                       title="Tampilan"
-                      subtitle="Preview tema dibuat nyata agar perubahan terasa lebih terkontrol, bukan sekadar toggle."
+                      subtitle="Pilih tema, warna aksen, dan kerapatan tampilan."
                     />
-                    <div className="mt-5 grid gap-4">
-                      <ThemePreviewCard
-                        label="Mode terang"
-                        title="Light operations shell"
-                        description="Fokus tinggi untuk angka, badge, dan tabel di ruang kontrol."
-                        mode="light"
-                        active={draft.theme === "light"}
-                        onSelect={() => applyDraftPatch({ theme: "light" })}
-                      />
-                      <ThemePreviewCard
-                        label="Mode gelap"
-                        title="Dark fallback shell"
-                        description="Dipakai bila lingkungan operasi membutuhkan luminansi lebih rendah."
-                        mode="dark"
-                        active={draft.theme === "dark"}
-                        onSelect={() => applyDraftPatch({ theme: "dark" })}
-                      />
+                    <div className="mt-5 space-y-6">
+                      <div>
+                        <p className="text-sm font-bold text-[color:var(--text-strong)]">Mode Tampilan</p>
+                        <p className="mt-1 text-xs text-[color:var(--muted-fg)]">Tema warna untuk seluruh antarmuka.</p>
+                        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                          <ThemePreviewCard
+                            label="Mode terang"
+                            title="Light shell"
+                            description="Fokus tinggi untuk ruang kontrol."
+                            mode="light"
+                            active={draft.theme === "light"}
+                            onSelect={() => applyDraftPatch({ theme: "light" })}
+                          />
+                          <ThemePreviewCard
+                            label="Mode gelap"
+                            title="Dark shell"
+                            description="Luminansi rendah untuk shift malam."
+                            mode="dark"
+                            active={draft.theme === "dark"}
+                            onSelect={() => applyDraftPatch({ theme: "dark" })}
+                          />
+                          <ThemePreviewCard
+                            label="Ikuti Sistem"
+                            title="System shell"
+                            description="Otomatis mengikuti preferensi perangkat."
+                            mode="system"
+                            active={draft.theme === "system"}
+                            onSelect={() => applyDraftPatch({ theme: "system" })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="border-t border-[color:var(--border-soft)] pt-6">
+                        <p className="text-sm font-bold text-[color:var(--text-strong)]">Warna Aksen</p>
+                        <p className="mt-1 text-xs text-[color:var(--muted-fg)]">Warna utama tombol, link, dan elemen interaktif.</p>
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          {[
+                            { value: "blue", hex: "#003d9b", label: "Biru" },
+                            { value: "teal", hex: "#0d9488", label: "Teal" },
+                            { value: "amber", hex: "#d97706", label: "Amber" },
+                            { value: "rose", hex: "#e11d48", label: "Rose" },
+                            { value: "violet", hex: "#7c3aed", label: "Violet" },
+                          ].map((color) => (
+                            <button
+                              key={color.value}
+                              type="button"
+                              className={cn(
+                                "h-10 w-10 rounded-full border-2 transition-all",
+                                draft.accentColor === color.value
+                                  ? "border-[color:var(--text-strong)] ring-2 ring-[color:var(--brand-primary-soft)] ring-offset-2 ring-offset-[color:var(--panel-bg)]"
+                                  : "border-transparent hover:scale-110"
+                              )}
+                              style={{ backgroundColor: color.hex }}
+                              onClick={() => applyDraftPatch({ accentColor: color.value })}
+                              aria-label={`Warna aksen ${color.label}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </OpsPanel>
 
                   <OpsPanel className="p-5">
                     <SectionHeader
-                      title="Workflow"
-                      subtitle="Kepadatan layar."
+                      title="Kerapatan Tampilan"
+                      subtitle="Sesuaikan jarak antar baris dan elemen."
                     />
-                    <div className="mt-5 space-y-4">
-                      <PreferenceToggleCard
-                        title="Baris ringkas"
-                        copy="Rapatkan tabel."
-                        checked={draft.compactRows}
-                        onChange={(value) => applyDraftPatch({ compactRows: value })}
-                      />
+                    <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                      {[
+                        { value: false, label: "Nyaman", description: "Jarak longgar, mudah dibaca saat inspeksi detail." },
+                        { value: true, label: "Ringkas", description: "Jarak rapat, lebih banyak data dalam satu layar." },
+                      ].map((option) => (
+                        <button
+                          key={String(option.value)}
+                          type="button"
+                          className={cn(
+                            "rounded-[20px] border-2 px-4 py-5 text-left transition-all",
+                            draft.compactRows === option.value
+                              ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]"
+                              : "border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] hover:border-[color:var(--border-strong)]"
+                          )}
+                          onClick={() => applyDraftPatch({ compactRows: option.value })}
+                        >
+                          <p className="text-sm font-bold text-[color:var(--text-strong)]">{option.label}</p>
+                          <p className="mt-1.5 text-xs leading-5 text-[color:var(--muted-fg)]">{option.description}</p>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-5">
                       <PreferenceToggleCard
                         title="Sidebar terlipat"
-                        copy="Beri ruang kerja lebih luas."
+                        copy="Beri ruang kerja lebih luas dengan sidebar default tertutup."
                         checked={draft.sidebarCollapsed}
                         onChange={(value) => applyDraftPatch({ sidebarCollapsed: value })}
                       />
@@ -907,12 +967,20 @@ export default function SettingsPage() {
                   <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-semibold text-[color:var(--text-strong)]">
-                        {hasDraftChanges ? "Preferensi belum disimpan" : "Semua preferensi sinkron"}
+                        {notice ? "✅ " + notice : hasDraftChanges ? "Preferensi belum disimpan" : "Semua preferensi sinkron"}
                       </p>
                       <p className="mt-1 text-sm text-[color:var(--muted-fg)]">
-                        Preview perubahan diterapkan ke shell saat Anda mengatur, lalu dipermanenkan melalui tombol simpan.
+                        {notice ? "Pengaturan berhasil dipermanenkan." : "Preview perubahan diterapkan langsung ke shell. Simpan untuk mempermanenkan."}
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={saveSettings}
+                      disabled={!hasDraftChanges || saving}
+                    >
+                      {saving ? "Menyimpan..." : "Simpan Preferensi"}
+                    </button>
                   </div>
                 </div>
               </>

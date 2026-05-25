@@ -37,6 +37,7 @@ import {
 import { StatusBadge } from "@/components/status-badge";
 import {
   DataCard,
+  EmptyState,
   FilterBar,
   OpsPanel,
   SectionHeader,
@@ -338,10 +339,7 @@ function LedgerStats({
   ] as const;
 
   return (
-    <section aria-labelledby="ledger-stats-title" className="ledger-compact-stats grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-      <h2 id="ledger-stats-title" className="sr-only">
-        Statistik ledger shipment
-      </h2>
+    <section className="ledger-compact-stats grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
       {cards.map((card) => {
         const Icon = card.icon;
 
@@ -397,6 +395,7 @@ const LedgerManifestRow = memo(function LedgerManifestRow({
   onSelect: (shipmentId: string) => void;
 }) {
   const status = getManifestStatus(shipment);
+  const needsReview = shipment.needsReview || shipment.status === "hold" || shipment.docStatus === "Review";
 
   return (
     <tr className={cn("ledger-manifest-table-row", selected && "ledger-manifest-table-row-active")}>
@@ -421,17 +420,19 @@ const LedgerManifestRow = memo(function LedgerManifestRow({
         </button>
       </td>
       <td>
-        <span className="block truncate" title={`${shipment.origin} -> ${shipment.destination}`}>
-          {shipment.origin} {" -> "} {shipment.destination}
+        <span className="block truncate text-xs font-medium text-[color:var(--text-strong)]" title={`${shipment.origin} → ${shipment.destination}`}>
+          {shipment.origin} → {shipment.destination}
         </span>
-        <span className="mt-1 block truncate text-xs text-[color:var(--muted-fg)]" title={shipment.flightNumber || "Belum assigned"}>
-          {shipment.flightNumber || "Belum assigned"}
+      </td>
+      <td>
+        <span className="block truncate text-xs text-[color:var(--muted-fg)]" title={shipment.flightNumber || "Belum assigned"}>
+          {shipment.flightNumber || "—"}
         </span>
       </td>
       <td>
         <div className="flex flex-wrap gap-2">
           <StatusBadge value={status.value} label={status.label} />
-          {shipment.needsReview ? <StatusBadge value="review" label="Butuh Review" /> : null}
+          {needsReview ? <StatusBadge value="review" label="Butuh Review" /> : null}
         </div>
       </td>
       <td>
@@ -440,9 +441,15 @@ const LedgerManifestRow = memo(function LedgerManifestRow({
         </time>
       </td>
       <td className="text-right">
-        <button type="button" className="topbar-button min-h-[34px] px-3" onClick={() => onSelect(shipment.id)}>
-          Detail
-        </button>
+        {needsReview ? (
+          <button type="button" className="topbar-button min-h-[34px] px-3 border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)] hover:bg-[color:var(--tone-warning)] hover:text-white" onClick={() => onSelect(shipment.id)}>
+            Review
+          </button>
+        ) : (
+          <button type="button" className="topbar-button min-h-[34px] px-3" onClick={() => onSelect(shipment.id)}>
+            Detail
+          </button>
+        )}
       </td>
     </tr>
   );
@@ -911,10 +918,12 @@ export default function ShipmentLedgerPage() {
             <RotateCcw size={16} />
             <span>Reset Semua</span>
           </button>
-          <span className="ledger-filter-count" aria-label={`${activeFilterCount} filter aktif`}>
-            <Filter size={14} />
-            {activeFilterCount}
-          </span>
+          {activeFilterCount > 0 ? (
+            <span className="ledger-filter-count" aria-label={`${activeFilterCount} filter aktif`}>
+              <Filter size={14} />
+              {activeFilterCount}
+            </span>
+          ) : null}
         </div>
       </FilterBar>
 
@@ -957,6 +966,7 @@ export default function ShipmentLedgerPage() {
                           <th scope="col">AWB</th>
                           <th scope="col">Shipment</th>
                           <th scope="col">Rute</th>
+                          <th scope="col">Flight</th>
                           <th scope="col">Status</th>
                           <th scope="col">
                             <SortHeader label="Update" active={sortBy === "updated"} onClick={() => setSortBy("updated")} />
@@ -1002,17 +1012,18 @@ export default function ShipmentLedgerPage() {
                   </div>
                 </div>
               ) : (
-                <div className="ledger-empty-state">
-                  <span aria-hidden="true">
-                    <Inbox size={34} />
-                  </span>
-                  <h3>Tidak ada pengiriman ditemukan</h3>
-                  <p>Coba ubah filter status atau flight, atau tunggu hingga manifest baru masuk.</p>
-                  <button type="button" className="btn btn-secondary" onClick={handleResetFilters} disabled={!filtersDirty}>
-                    <RotateCcw size={16} />
-                    Reset Filter
-                  </button>
-                </div>
+                <EmptyState
+                  icon={Inbox}
+                  variant="filtered"
+                  title="Tidak ada pengiriman ditemukan"
+                  copy="Coba ubah filter status atau flight, atau tunggu hingga manifest baru masuk."
+                  action={
+                    <button type="button" className="btn btn-secondary" onClick={handleResetFilters} disabled={!filtersDirty}>
+                      <RotateCcw size={16} />
+                      Reset Filter
+                    </button>
+                  }
+                />
               )}
             </div>
           )}
