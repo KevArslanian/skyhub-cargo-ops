@@ -3,7 +3,6 @@ import { canExportReports, requireInternalUser } from "@/lib/access";
 import { redirect } from "next/navigation";
 import { getFlightBoardData } from "@/lib/data";
 import { formatDateTime } from "@/lib/format";
-import { PrintReportActions } from "@/components/print-report-actions";
 import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
 import { PrintCenterLayout } from "@deltaoga/skyhub-print-center/layout";
 
@@ -50,9 +49,7 @@ export default async function FlightsPrintPage({
     .join(" | ");
 
   return (
-    <>
-      <PrintReportActions fallbackHref="/flight-board" />
-      <PrintCenterLayout
+    <PrintCenterLayout
       scriptId="print-flights"
       documentTitle="Manifest Flight"
       documentSubtitle="Laporan Flight Operasional"
@@ -102,7 +99,6 @@ export default async function FlightsPrintPage({
           </tbody>
         </table>
       </section>
-      </PrintCenterLayout>
-    </>
+    </PrintCenterLayout>
   );
 }

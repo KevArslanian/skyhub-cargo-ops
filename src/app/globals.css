@@ -1961,49 +1961,6 @@ input[type="checkbox"] {
   min-height: 40px;
 }
 
-.print-report-actions {
-  position: fixed;
-  top: 18px;
-  right: 18px;
-  z-index: 80;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.print-report-action-button {
-  display: inline-flex;
-  min-height: 40px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.94);
-  padding: 0 14px;
-  color: #0f172a;
-  font-size: 0.78rem;
-  font-weight: 800;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
-  backdrop-filter: blur(12px);
-}
-
-.print-report-action-button:hover {
-  border-color: rgba(29, 78, 216, 0.35);
-  color: #1d4ed8;
-}
-
-.print-report-close-button {
-  width: 40px;
-  padding: 0;
-}
-
-@media print {
-  .print-report-actions {
-    display: none;
-  }
-}
-
 .activity-log-filter-bar .input-field,
 .activity-log-filter-bar .select-field {
   padding-inline: 14px;
