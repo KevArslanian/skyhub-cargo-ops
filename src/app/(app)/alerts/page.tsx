@@ -434,7 +434,7 @@ export default function AlertsPage() {
               </Link>
             </div>
           ) : (
-            <EmptyState icon={BellRing} title="Tidak ada alert" copy="Tidak ada data." className="m-0" />
+            <EmptyState icon={BellRing} variant="neutral" title="Belum ada alert" copy="Data operasional belum tersedia untuk periode ini." className="m-0" />
           )}
         </OpsPanel>
       </div>

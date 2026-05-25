@@ -385,7 +385,7 @@ export default function AwbTrackingPage() {
                 </button>
               ))
             ) : (
-              <p className="text-sm text-[color:var(--muted-fg)]">Belum ada riwayat tracking.</p>
+              <EmptyState icon={History} variant="neutral" title="Belum ada riwayat" copy="Riwayat pencarian AWB akan muncul di sini setelah kamu melakukan tracking." />
             )}
           </div>
           {recentSearches.length > RECENT_PAGE_SIZE ? (
