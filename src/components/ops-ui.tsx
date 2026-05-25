@@ -2,9 +2,6 @@ import type { LucideIcon } from "lucide-react";
 import { cn, formatNumber } from "@/lib/format";
 
 export function PageHeader({
-  eyebrow,
-  title,
-  subtitle,
   actions,
   className,
 }: {
@@ -14,14 +11,11 @@ export function PageHeader({
   actions?: React.ReactNode;
   className?: string;
 }) {
+  if (!actions) return null;
+
   return (
-    <header className={cn("flex min-w-0 max-w-full flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between", className)}>
-      <div className="min-w-0 space-y-2">
-        {eyebrow ? <p className="ops-eyebrow">{eyebrow}</p> : null}
-        <h1 className="page-title">{title}</h1>
-        {subtitle ? <p className="page-subtitle max-w-3xl">{subtitle}</p> : null}
-      </div>
-      {actions ? <div className="flex max-w-full shrink-0 flex-wrap items-center gap-3 2xl:justify-end">{actions}</div> : null}
+    <header className={cn("page-action-toolbar", className)} aria-label="Aksi halaman">
+      <div className="flex max-w-full shrink-0 flex-wrap items-center gap-3">{actions}</div>
     </header>
   );
 }

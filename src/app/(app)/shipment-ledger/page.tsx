@@ -843,11 +843,8 @@ export default function ShipmentLedgerPage() {
 
   return (
     <main className="page-workspace" aria-labelledby="shipment-ledger-title">
-      <section className="ledger-control-header" aria-labelledby="shipment-ledger-title">
-        <div className="min-w-0">
-          <p>Ruang Kontrol</p>
-          <h1 id="shipment-ledger-title">{isReadOnly ? "Shipment Saya" : "Ledger Shipment"}</h1>
-        </div>
+      <section className="ledger-control-header ledger-control-header-compact" aria-labelledby="shipment-ledger-title">
+        <h1 id="shipment-ledger-title" className="sr-only">{isReadOnly ? "Shipment Saya" : "Ledger Shipment"}</h1>
         <div className="ledger-control-actions">
           {!isReadOnly && data?.permissions.canExport ? (
             <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">

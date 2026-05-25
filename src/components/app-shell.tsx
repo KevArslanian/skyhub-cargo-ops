@@ -121,7 +121,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const visibleNotifications = notificationItems.slice(0, 10);
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
   const showShellSearch = pathname === "/shipment-ledger" || pathname === "/awb-tracking" || pathname === "/flight-board";
-  const topbarLabel = pathname === "/shipment-ledger" ? "" : activeNav.label;
+  const topbarLabel = activeNav.label;
   const displayedNavigationItems = navigation.items.filter((item) => item.href !== "/settings");
   const displayedNavigationGroups = navigation.groups
     .map((group) => ({ ...group, items: group.items.filter((item) => item.href !== "/settings") }))

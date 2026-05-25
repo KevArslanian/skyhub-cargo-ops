@@ -573,6 +573,13 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.page-action-toolbar {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  justify-content: flex-end;
+}
+
 .metric-card {
   border: 1px solid var(--border-soft);
   border-radius: var(--panel-radius);
@@ -937,6 +944,15 @@ textarea {
   background: var(--panel-bg);
   box-shadow: var(--shadow-soft);
   padding: clamp(22px, 2vw, 30px);
+}
+
+.ledger-control-header-compact {
+  justify-content: flex-end;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
 }
 
 .ledger-control-header p {
@@ -2910,6 +2926,10 @@ input[type="checkbox"] {
   .ledger-control-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .ledger-control-header-compact .ledger-control-actions {
+    justify-content: flex-end;
   }
 
   .ledger-section-card,
