@@ -9,14 +9,13 @@ import {
   ChevronRight,
   CheckCircle2,
   Clock3,
-  RefreshCw,
   RotateCcw,
   ShieldAlert,
   SlidersHorizontal,
 } from "lucide-react";
 import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 import { StatusBadge } from "@/components/status-badge";
-import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 
 type AlertSeverity = "critical" | "warning" | "info";
 
@@ -85,7 +84,6 @@ function formatAge(minutes: number) {
 
 export default function AlertsPage() {
   const [data, setData] = useState<AlertCenterPayload | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
   const [severity, setSeverity] = useState("all");
   const [kind, setKind] = useState("all");
@@ -112,17 +110,12 @@ export default function AlertsPage() {
   }
 
   useEffect(() => {
-    void loadAlerts();
-  }, []);
+    const timer = window.setTimeout(() => {
+      void loadAlerts();
+    }, 0);
 
-  async function handleRefresh() {
-    setRefreshing(true);
-    try {
-      await loadAlerts();
-    } finally {
-      setRefreshing(false);
-    }
-  }
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const kindOptions = useMemo(() => {
     return Array.from(new Set((data?.alerts ?? []).map((alert) => alert.kind))).sort();
@@ -170,22 +163,31 @@ export default function AlertsPage() {
   }, [paginatedAlerts, selectedAlertId]);
 
   useEffect(() => {
-    if (!filteredAlerts.length) {
-      setSelectedAlertId(null);
-      return;
-    }
+    const timer = window.setTimeout(() => {
+      if (!filteredAlerts.length) {
+        setSelectedAlertId(null);
+        return;
+      }
 
-    if (!selectedAlertId || !paginatedAlerts.some((alert) => alert.id === selectedAlertId)) {
-      setSelectedAlertId((paginatedAlerts[0] ?? filteredAlerts[0]).id);
-    }
+      if (!selectedAlertId || !paginatedAlerts.some((alert) => alert.id === selectedAlertId)) {
+        setSelectedAlertId((paginatedAlerts[0] ?? filteredAlerts[0]).id);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [filteredAlerts, paginatedAlerts, selectedAlertId]);
 
   useEffect(() => {
-    setAlertPage(1);
+    const timer = window.setTimeout(() => setAlertPage(1), 0);
+    return () => window.clearTimeout(timer);
   }, [kind, query, severity]);
 
   useEffect(() => {
-    setAlertPage((current) => Math.min(current, totalAlertPages));
+    const timer = window.setTimeout(() => {
+      setAlertPage((current) => Math.min(current, totalAlertPages));
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [totalAlertPages]);
 
   function handleResetFilters() {
@@ -201,18 +203,6 @@ export default function AlertsPage() {
         eyebrow="Alert Center"
         title="Pusat Alert Operasional"
         subtitle="Exception dan eskalasi."
-        actions={
-          <>
-            <button type="button" className="topbar-button" onClick={handleRefresh}>
-              <RefreshCw size={16} className={cn(refreshing && "animate-spin")} />
-              <span>{refreshing ? "Memuat..." : "Muat ulang"}</span>
-            </button>
-            <div className="topbar-button hidden xl:flex">
-              <Clock3 size={16} />
-              <span>{data ? formatRelativeShort(data.generatedAt) : "Belum dimuat"}</span>
-            </div>
-          </>
-        }
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

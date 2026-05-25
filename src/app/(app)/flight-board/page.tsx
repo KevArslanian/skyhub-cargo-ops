@@ -12,13 +12,12 @@ import {
   Pencil,
   PlaneTakeoff,
   Plus,
-  RefreshCw,
   RotateCcw,
   Save,
   TowerControl,
   X,
 } from "lucide-react";
-import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
+import { cn, formatDateTime } from "@/lib/format";
 import { AIRCRAFT_TYPE_OPTIONS, STATION_OPTIONS } from "@/lib/constants";
 import {
   getCargoCutoffTime,
@@ -283,9 +282,7 @@ export default function FlightBoardPage() {
   const [page, setPage] = useState(() => parsePageParam(searchParams.get("page")));
   const [data, setData] = useState<FlightBoardPayload | null>(null);
   const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [createForm, setCreateForm] = useState(() => createBlankFlightForm());
@@ -361,7 +358,6 @@ export default function FlightBoardPage() {
 
       setData(payload);
       setPage(payload.pagination.page);
-      setLastUpdated(new Date().toISOString());
       setSelectedFlightId(nextSelectedFlight?.id ?? null);
       setEditDraft(createFlightDraft(nextSelectedFlight));
     },
@@ -441,15 +437,6 @@ export default function FlightBoardPage() {
 
     return () => window.clearInterval(timer);
   }, [createOpen, editOpen, loadFlightBoard, saving]);
-
-  async function handleRefresh() {
-    setRefreshing(true);
-    try {
-      await loadFlightBoard();
-    } finally {
-      setRefreshing(false);
-    }
-  }
 
   const handleSelectFlight = useCallback(
     (flightId: string) => {
@@ -754,10 +741,6 @@ export default function FlightBoardPage() {
                   Print Flight
                 </Link>
               ) : null}
-              <button type="button" className="topbar-button" onClick={handleRefresh}>
-                <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
-                <span>{refreshing ? "Memuat ulang..." : "Muat ulang"}</span>
-              </button>
               <button type="button" className="topbar-button" onClick={handleResetFilters}>
                 <RotateCcw size={16} />
                 <span>Reset</span>
@@ -768,10 +751,6 @@ export default function FlightBoardPage() {
                   Buat Flight
                 </button>
               ) : null}
-              <div className="topbar-button hidden xl:flex">
-                <Clock3 size={16} />
-                <span>{lastUpdated ? `Update ${formatRelativeShort(lastUpdated)}` : "Menunggu data"}</span>
-              </div>
             </>
           }
         />

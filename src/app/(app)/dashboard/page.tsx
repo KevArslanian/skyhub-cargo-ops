@@ -10,7 +10,6 @@ import {
   FileCheck2,
   PackageCheck,
   PlaneTakeoff,
-  RefreshCw,
   ShieldAlert,
   TowerControl,
 } from "lucide-react";
@@ -225,7 +224,6 @@ export default function DashboardPage() {
   const [dashboardAlertPage, setDashboardAlertPage] = useState(1);
   const [customerShipmentPage, setCustomerShipmentPage] = useState(1);
   const [compactViewport, setCompactViewport] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [activeSummaryIndex, setActiveSummaryIndex] = useState(0);
   const [refreshSettings, setRefreshSettings] = useState({
     autoRefresh: true,
@@ -279,15 +277,6 @@ export default function DashboardPage() {
 
     applyDashboardPayload(payload);
   }, [applyDashboardPayload, requestDashboard]);
-
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await loadDashboard();
-    } finally {
-      setRefreshing(false);
-    }
-  }, [loadDashboard]);
 
   useEffect(() => {
     let cancelled = false;
@@ -454,12 +443,6 @@ export default function DashboardPage() {
           eyebrow="Portal Pelanggan"
           title="Dashboard Pelanggan"
           subtitle={`Ringkasan shipment milik ${customerData.viewer.customerAccountName || "akun Anda"} dengan status, dokumen, dan pencarian AWB terbaru.`}
-          actions={
-            <button type="button" className="topbar-button" onClick={handleRefresh} disabled={refreshing}>
-              <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
-              <span>{refreshing ? "Memuat..." : "Muat ulang"}</span>
-            </button>
-          }
         />
 
         <div className="grid gap-4 xl:grid-cols-4">
@@ -675,12 +658,6 @@ export default function DashboardPage() {
               </button>
             );
           })}
-        </div>
-        <div className="dashboard-summary-actions">
-          <button type="button" className="topbar-button" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
-            <span>{refreshing ? "Memuat..." : "Muat ulang"}</span>
-          </button>
         </div>
       </section>
 

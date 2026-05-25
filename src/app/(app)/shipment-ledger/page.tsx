@@ -17,7 +17,6 @@ import {
   Pencil,
   PlaneTakeoff,
   Plus,
-  RefreshCw,
   RotateCcw,
   Save,
   Search,
@@ -461,8 +460,6 @@ export default function ShipmentLedgerPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string>("");
   const [form, setForm] = useState(() => createBlankForm());
   const [drawerDraft, setDrawerDraft] = useState(() => createDrawerDraft(null));
@@ -521,18 +518,14 @@ export default function ShipmentLedgerPage() {
     async (preferredShipmentId: string | null = selectedIdRef.current, mode: "initial" | "refresh" = "refresh") => {
       if (mode === "initial") {
         setLoading(true);
-      } else {
-        setRefreshing(true);
       }
 
       const payload = await requestShipments();
       if (payload) {
         applyShipmentPayload(payload, preferredShipmentId);
-        setLastSyncedAt(new Date().toISOString());
       }
 
       setLoading(false);
-      setRefreshing(false);
     },
     [applyShipmentPayload, requestShipments],
   );
@@ -828,10 +821,6 @@ export default function ShipmentLedgerPage() {
     setSelectedId(null);
   }
 
-  function handleRefresh() {
-    void loadShipments(selectedIdRef.current, "refresh");
-  }
-
   function handleResetFilters() {
     setQuery("");
     setStatus("all");
@@ -852,14 +841,6 @@ export default function ShipmentLedgerPage() {
               Print
             </Link>
           ) : null}
-          <button type="button" className="topbar-button" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
-            <span>{refreshing ? "Memuat..." : "Muat ulang"}</span>
-          </button>
-          <div className="topbar-button hidden xl:flex" aria-live="polite">
-            <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
-            <span>{lastSyncedAt ? `Tersinkron ${formatRelativeShort(lastSyncedAt)}` : "Menunggu data"}</span>
-          </div>
           {!isReadOnly && data?.permissions.canCreate ? (
             <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
               <Plus size={16} />

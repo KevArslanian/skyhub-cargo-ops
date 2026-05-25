@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, History, RefreshCw, RotateCcw, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
-import { cn, formatDateTime } from "@/lib/format";
+import { ChevronLeft, ChevronRight, History, RotateCcw, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
+import { formatDateTime } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 
@@ -29,7 +29,6 @@ export default function ActivityLogPage() {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<ActivityPayload | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
 
   const loadActivityLog = useCallback(async () => {
     const params = new URLSearchParams();
@@ -43,7 +42,11 @@ export default function ActivityLogPage() {
   }, [action, query, userId]);
 
   useEffect(() => {
-    void loadActivityLog();
+    const timer = window.setTimeout(() => {
+      void loadActivityLog();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [loadActivityLog]);
 
   useEffect(() => {
@@ -77,15 +80,6 @@ export default function ActivityLogPage() {
   const visibleEnd = Math.min(pageStart + pagedLogs.length, data?.logs.length ?? 0);
   const filtersDirty = action !== "all" || userId !== "all" || query.trim() !== "";
 
-  async function handleRefresh() {
-    setRefreshing(true);
-    try {
-      await loadActivityLog();
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
   function handleResetFilters() {
     setAction("all");
     setUserId("all");
@@ -99,12 +93,6 @@ export default function ActivityLogPage() {
         eyebrow="Jejak Audit"
         title="Log Aktivitas"
         subtitle="Audit internal."
-        actions={
-          <button type="button" className="topbar-button" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw size={16} className={cn(refreshing && "animate-spin")} />
-            <span>{refreshing ? "Memuat..." : "Muat ulang"}</span>
-          </button>
-        }
       />
 
       <div className="grid gap-4 xl:grid-cols-4">
