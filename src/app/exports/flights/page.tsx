@@ -58,9 +58,9 @@ export default async function FlightsPrintPage({
       summaryTitle={`Ringkasan • ${flights.length} flight`}
       summarySubtitle="Distribusi status flight berdasarkan filter aktif."
       summaryChips={[
-        { label: `${onTimeCount} ON TIME`, tone: "success" },
-        { label: `${delayedCount} DELAYED`, tone: "warning" },
-        { label: `${departedCount} DEPARTED`, tone: "info" },
+        { label: `${onTimeCount} TERJADWAL`, tone: "success" },
+        { label: `${delayedCount} TERLAMBAT`, tone: "warning" },
+        { label: `${departedCount} BERANGKAT`, tone: "info" },
       ]}
       documentCode={buildPrintDocumentCode("FLIGHTS", printedAt)}
     >

@@ -70,7 +70,7 @@ export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
 };
 
 export const FLIGHT_STATUS_LABELS: Record<FlightStatus, string> = {
-  on_time: "Tepat Waktu",
+  on_time: "Terjadwal",
   delayed: "Terlambat",
   departed: "Berangkat",
 };

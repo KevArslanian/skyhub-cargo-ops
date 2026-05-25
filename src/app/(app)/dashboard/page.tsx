@@ -125,87 +125,16 @@ type DashboardSettingsPayload = {
   } | null;
 };
 
-type ShiftName = "Pagi" | "Siang" | "Malam";
-type ShiftScopedItem<T extends object> = T & {
-  shiftLabel: ShiftName;
-  isFallbackContext: boolean;
-};
-
 const DASHBOARD_PAGE_SIZE = 6;
 const DASHBOARD_COMPACT_PAGE_SIZE = 5;
 const DASHBOARD_FLIGHT_PAGE_SIZE = 3;
 const DASHBOARD_ALERT_PAGE_SIZE = 4;
 const DASHBOARD_COMPACT_ALERT_PAGE_SIZE = 3;
 
-function getShiftFromHour(hour: number): ShiftName {
-  if (hour >= 6 && hour < 14) return "Pagi";
-  if (hour >= 14 && hour < 22) return "Siang";
-  return "Malam";
-}
-
-function getCurrentShift(): ShiftName {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-GB", {
-      hour: "2-digit",
-      hour12: false,
-      timeZone: "Asia/Makassar",
-    }).format(new Date()),
-  );
-
-  return getShiftFromHour(hour);
-}
-
-function getOpsHour(value: string) {
-  return Number(
-    new Intl.DateTimeFormat("en-GB", {
-      hour: "2-digit",
-      hour12: false,
-      timeZone: "Asia/Makassar",
-    }).format(new Date(value)),
-  );
-}
-
 function toDateInputValue(value: string) {
   const date = new Date(value);
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
   return date.toISOString().slice(0, 10);
-}
-
-function getShiftForTimestamp(value: string): ShiftName {
-  return getShiftFromHour(getOpsHour(value));
-}
-
-function buildShiftPartition<T extends object>(
-  items: readonly T[],
-  activeShift: ShiftName,
-  limit: number,
-  getTimestamp: (item: T) => string,
-) {
-  const scopedItems: ShiftScopedItem<T>[] = items.map((item) => {
-    const shiftLabel = getShiftForTimestamp(getTimestamp(item));
-    return {
-      ...item,
-      shiftLabel,
-      isFallbackContext: shiftLabel !== activeShift,
-    };
-  });
-
-  const shiftMatched = scopedItems.filter((item) => !item.isFallbackContext);
-  const fallbackContext = scopedItems.filter((item) => item.isFallbackContext);
-
-  return {
-    shiftMatched,
-    fallbackContext,
-    displayed: [...shiftMatched, ...fallbackContext].slice(0, limit),
-  };
-}
-
-function getFallbackCount(items: readonly { isFallbackContext: boolean }[]) {
-  return items.filter((item) => item.isFallbackContext).length;
-}
-
-function appendFallbackNote(note: string, fallbackCount: number) {
-  return fallbackCount ? `${note} +${fallbackCount} konteks terbaru lintas shift.` : note;
 }
 
 function getPageWindow<T>(items: T[], page: number, pageSize = DASHBOARD_PAGE_SIZE) {
@@ -287,38 +216,9 @@ function textMatchesQuery(values: Array<string | number | null | undefined>, que
   return !normalized || values.join(" ").toLowerCase().includes(normalized);
 }
 
-function ShiftContextBadge({
-  isFallbackContext,
-  shiftLabel,
-  className,
-  onImage = false,
-}: {
-  isFallbackContext: boolean;
-  shiftLabel: ShiftName;
-  className?: string;
-  onImage?: boolean;
-}) {
-  if (!isFallbackContext) return null;
-
-  return (
-    <span
-      className={cn(
-        "inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold",
-        onImage
-          ? "border-white/24 bg-white/12 text-white shadow-sm backdrop-blur"
-          : "border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] text-[color:var(--muted-fg)]",
-        className,
-      )}
-    >
-      Luar shift - {shiftLabel}
-    </span>
-  );
-}
-
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [shift, setShift] = useState<ShiftName>(getCurrentShift);
   const [dashboardQuery, setDashboardQuery] = useState("");
   const [dashboardShipmentPage, setDashboardShipmentPage] = useState(1);
   const [dashboardFlightPage, setDashboardFlightPage] = useState(1);
@@ -346,23 +246,6 @@ export default function DashboardPage() {
     window.addEventListener("skyhub:context-search", handleContextSearch as EventListener);
     return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
   }, []);
-
-  useEffect(() => {
-    function handleDashboardShift(event: Event) {
-      const nextShift = (event as CustomEvent<{ shift?: ShiftName }>).detail?.shift;
-      if (nextShift === "Pagi" || nextShift === "Siang" || nextShift === "Malam") {
-        setShift(nextShift);
-        setDashboardShipmentPage(1);
-        setDashboardFlightPage(1);
-        setDashboardAlertPage(1);
-        setCustomerShipmentPage(1);
-      }
-    }
-
-    window.dispatchEvent(new CustomEvent("skyhub:dashboard-shift-changed", { detail: { shift } }));
-    window.addEventListener("skyhub:dashboard-shift", handleDashboardShift as EventListener);
-    return () => window.removeEventListener("skyhub:dashboard-shift", handleDashboardShift as EventListener);
-  }, [shift]);
 
   useEffect(() => {
     const syncViewportDensity = () => {
@@ -450,53 +333,22 @@ export default function DashboardPage() {
   const internalData = data?.variant === "internal" ? data : null;
   const customerData = data?.variant === "customer" ? data : null;
 
-  const shipmentShift = useMemo(
-    () => buildShiftPartition(internalData?.shipmentsToday ?? [], shift, 10, (shipment) => shipment.receivedAt),
-    [internalData?.shipmentsToday, shift],
-  );
+  const shipmentsToday = useMemo(() => internalData?.shipmentsToday ?? [], [internalData?.shipmentsToday]);
+  const flightsToday = useMemo(() => internalData?.flightsSummary ?? [], [internalData?.flightsSummary]);
+  const alertsToday = useMemo(() => internalData?.alerts ?? [], [internalData?.alerts]);
 
-  const flightShift = useMemo(
-    () => buildShiftPartition(internalData?.flightsSummary ?? [], shift, 10, (flight) => flight.departureTime),
-    [internalData?.flightsSummary, shift],
-  );
-
-  const alertShift = useMemo(() => {
-    const shipmentShiftByAwb = new Map(
-      (internalData?.shipmentsToday ?? []).map((shipment) => [shipment.awb, getShiftForTimestamp(shipment.receivedAt)]),
-    );
-    const scopedAlerts = (internalData?.alerts ?? []).flatMap((alert) => {
-      const shiftLabel = shipmentShiftByAwb.get(alert.awb);
-      if (!shiftLabel) return [];
-      return [
-        {
-          ...alert,
-          shiftLabel,
-          isFallbackContext: shiftLabel !== shift,
-        },
-      ];
-    });
-    const shiftMatched = scopedAlerts.filter((alert) => !alert.isFallbackContext);
-    const fallbackContext = scopedAlerts.filter((alert) => alert.isFallbackContext);
-
-    return {
-      shiftMatched,
-      fallbackContext,
-      displayed: [...shiftMatched, ...fallbackContext].slice(0, 10),
-    };
-  }, [internalData?.alerts, internalData?.shipmentsToday, shift]);
-
-  const filteredShipments = shipmentShift.displayed.filter((shipment) =>
+  const filteredShipments = shipmentsToday.filter((shipment) =>
     textMatchesQuery(
       [shipment.awb, shipment.commodity, shipment.origin, shipment.destination, shipment.statusLabel, shipment.flightNumber],
       dashboardQuery,
     ),
   );
   const filteredFlights = sortFlightsByCutoff(
-    flightShift.displayed.filter((flight) =>
+    flightsToday.filter((flight) =>
       textMatchesQuery([flight.flightNumber, flight.route, flight.statusLabel, flight.airlineName, flight.aircraftType, flight.registration], dashboardQuery),
     ),
   );
-  const filteredAlerts = alertShift.displayed.filter((alert) =>
+  const filteredAlerts = alertsToday.filter((alert) =>
     textMatchesQuery([alert.awb, alert.title, alert.detail], dashboardQuery),
   );
   const shipmentPage = getPageWindow(
@@ -514,37 +366,37 @@ export default function DashboardPage() {
     textMatchesQuery([shipment.awb, shipment.commodity, shipment.origin, shipment.destination, shipment.statusLabel, shipment.flightNumber], dashboardQuery),
   );
   const customerShipmentWindow = getPageWindow(customerFilteredShipments, customerShipmentPage);
-  const shipmentFallbackCount = getFallbackCount(filteredShipments);
-  const flightFallbackCount = getFallbackCount(filteredFlights);
-  const alertFallbackCount = getFallbackCount(filteredAlerts);
-  const activeLoaded = shipmentShift.shiftMatched.filter((shipment) => shipment.status === "loaded_to_aircraft").length;
-  const activeFlightSummary = `${flightShift.shiftMatched.filter((flight) => flight.status === "on_time").length} tepat waktu, ${flightShift.shiftMatched.filter((flight) => flight.status === "delayed").length} terlambat.`;
+  const activeLoaded = shipmentsToday.filter((shipment) => shipment.status === "loaded_to_aircraft").length;
+  const scheduledFlights = flightsToday.filter((flight) => flight.status === "on_time").length;
+  const delayedFlights = flightsToday.filter((flight) => flight.status === "delayed").length;
+  const departedFlights = flightsToday.filter((flight) => flight.status === "departed").length;
+  const activeFlightSummary = `${scheduledFlights} terjadwal, ${delayedFlights} terlambat, ${departedFlights} berangkat.`;
   const operatorSummaryItems = [
     {
       label: "Kargo Masuk",
-      value: shipmentShift.shiftMatched.length,
-      note: appendFallbackNote(`Manifest shift ${shift.toLowerCase()}.`, shipmentFallbackCount),
+      value: shipmentsToday.length,
+      note: "Semua manifest hari ini.",
       icon: Boxes,
       tone: "primary",
     },
     {
       label: "Flight Aktif",
-      value: flightShift.shiftMatched.length,
-      note: appendFallbackNote(activeFlightSummary, flightFallbackCount),
+      value: flightsToday.length,
+      note: activeFlightSummary,
       icon: PlaneTakeoff,
       tone: "info",
     },
     {
       label: "Sudah Muat",
       value: activeLoaded,
-      note: appendFallbackNote("Siap berangkat.", shipmentFallbackCount),
+      note: "Shipment siap masuk proses keberangkatan.",
       icon: PackageCheck,
       tone: "success",
     },
     {
       label: "Perlu Tindakan",
-      value: alertShift.shiftMatched.length,
-      note: appendFallbackNote("Alert aktif.", alertFallbackCount),
+      value: alertsToday.length,
+      note: "Alert aktif untuk operasional hari ini.",
       icon: ShieldAlert,
       tone: "warning",
     },
@@ -724,13 +576,13 @@ export default function DashboardPage() {
 
   return (
     <div className="page-workspace dashboard-viewport h-full min-h-0">
-      <section className="dashboard-summary-chart" aria-label="Ringkasan shift interaktif">
+      <section className="dashboard-summary-chart" aria-label="Ringkasan operasional interaktif">
         <div className="dashboard-summary-copy">
-          <p>Ringkasan Shift</p>
-          <span>{loading ? "Memuat data operasional" : `${shift} | ${summaryTotal} sinyal aktif`}</span>
+          <p>Ringkasan Operasional</p>
+          <span>{loading ? "Memuat data operasional" : `Hari ini | ${summaryTotal} sinyal aktif`}</span>
         </div>
         <div className="dashboard-summary-radial" aria-live="polite">
-          <svg className="dashboard-summary-svg" viewBox="0 0 168 168" role="img" aria-label={`Chart ringkasan shift ${shift}`}>
+          <svg className="dashboard-summary-svg" viewBox="0 0 168 168" role="img" aria-label="Chart ringkasan operasional hari ini">
             <circle className="dashboard-summary-track" cx="84" cy="84" r="70" />
             {operatorSummaryItems.map((item, index) => {
               const radius = 66 - index * 11;
@@ -756,7 +608,7 @@ export default function DashboardPage() {
             <small>{activeSummary.note}</small>
           </div>
         </div>
-        <div className="dashboard-summary-selector" role="list" aria-label="Pilih metrik ringkasan shift">
+        <div className="dashboard-summary-selector" role="list" aria-label="Pilih metrik ringkasan operasional">
           {operatorSummaryItems.map((item, index) => {
             const Icon = item.icon;
             const selected = activeSummary.label === item.label;
@@ -839,7 +691,7 @@ export default function DashboardPage() {
               </div>
             ))
           ) : (
-            <p className="text-sm text-[color:var(--muted-fg)]">Tidak ada flight aktif di shift ini.</p>
+            <p className="text-sm text-[color:var(--muted-fg)]">Tidak ada flight aktif hari ini.</p>
           )}
         </div>
       </OpsPanel>
@@ -848,7 +700,7 @@ export default function DashboardPage() {
         <OpsPanel className="dashboard-panel p-4 xl:p-5">
           <SectionHeader
             title="Papan Operasional"
-            subtitle="Manifest yang paling relevan untuk shift aktif."
+            subtitle="Manifest operasional hari ini tanpa pemisahan shift."
             action={
               <Link href="/shipment-ledger" className="btn btn-secondary">
                 Buka ledger
@@ -885,14 +737,7 @@ export default function DashboardPage() {
                           <StatusBadge value={shipment.status} label={shipment.statusLabel} />
                         </td>
                         <td>{shipment.flightNumber ?? "-"}</td>
-                        <td className="text-sm text-[color:var(--muted-fg)]">
-                          <p>{formatRelativeShort(shipment.updatedAt)}</p>
-                          <ShiftContextBadge
-                            isFallbackContext={shipment.isFallbackContext}
-                            shiftLabel={shipment.shiftLabel}
-                            className="mt-2"
-                          />
-                        </td>
+                        <td className="text-sm text-[color:var(--muted-fg)]">{formatRelativeShort(shipment.updatedAt)}</td>
                       </tr>
                     ))
                   ) : (
@@ -900,8 +745,8 @@ export default function DashboardPage() {
                       <td colSpan={6}>
                         <EmptyState
                           icon={Boxes}
-                          title="Belum ada shipment untuk shift ini"
-                          copy="Dashboard tetap aktif, tetapi belum ada manifest yang masuk pada rentang shift yang dipilih."
+                          title="Belum ada shipment hari ini"
+                          copy="Dashboard tetap aktif, tetapi belum ada manifest yang masuk untuk operasional hari ini."
                           className="m-4"
                         />
                       </td>
@@ -938,12 +783,11 @@ export default function DashboardPage() {
                     <Link href={`/awb-tracking?awb=${alert.awb}`} className="inline-flex text-sm font-semibold text-[color:var(--brand-primary)]">
                       Buka pelacakan
                     </Link>
-                    <ShiftContextBadge isFallbackContext={alert.isFallbackContext} shiftLabel={alert.shiftLabel} />
                   </div>
                 </div>
               ))
             ) : (
-              <EmptyState icon={BellRing} title="Tidak ada alert kritis" copy="Semua shipment pada shift ini berada dalam kondisi normal atau sudah tertangani." />
+              <EmptyState icon={BellRing} title="Tidak ada alert kritis" copy="Semua shipment hari ini berada dalam kondisi normal atau sudah tertangani." />
             )}
           </div>
           <DashboardPagination

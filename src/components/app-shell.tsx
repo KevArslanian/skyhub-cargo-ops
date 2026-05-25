@@ -85,28 +85,6 @@ const navGroupIconMap = {
   sistem: Settings2,
 } as const;
 
-type ShiftName = "Pagi" | "Siang" | "Malam";
-
-const SHIFT_OPTIONS: readonly ShiftName[] = ["Pagi", "Siang", "Malam"];
-
-function getShiftFromHour(hour: number): ShiftName {
-  if (hour >= 6 && hour < 14) return "Pagi";
-  if (hour >= 14 && hour < 22) return "Siang";
-  return "Malam";
-}
-
-function getCurrentShift(): ShiftName {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-GB", {
-      hour: "2-digit",
-      hour12: false,
-      timeZone: "Asia/Makassar",
-    }).format(new Date()),
-  );
-
-  return getShiftFromHour(hour);
-}
-
 export function AppShell({ user, settings, notifications, children }: ShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -119,7 +97,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationItems, setNotificationItems] = useState(notifications);
   const [mounted, setMounted] = useState(false);
-  const [dashboardShift, setDashboardShift] = useState<ShiftName>(getCurrentShift);
   const [searchPreviewOpen, setSearchPreviewOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<ShellSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -144,7 +121,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const visibleNotifications = notificationItems.slice(0, 10);
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
   const showShellSearch = pathname === "/shipment-ledger" || pathname === "/awb-tracking" || pathname === "/flight-board";
-  const showDashboardShiftControl = pathname === "/dashboard";
   const topbarLabel = pathname === "/shipment-ledger" ? "" : activeNav.label;
   const displayedNavigationItems = navigation.items.filter((item) => item.href !== "/settings");
   const displayedNavigationGroups = navigation.groups
@@ -279,23 +255,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       controller.abort();
     };
   }, [pathname, search, showShellSearch]);
-
-  useEffect(() => {
-    function handleDashboardShiftChange(event: Event) {
-      const nextShift = (event as CustomEvent<{ shift?: ShiftName }>).detail?.shift;
-      if (nextShift === "Pagi" || nextShift === "Siang" || nextShift === "Malam") {
-        setDashboardShift(nextShift);
-      }
-    }
-
-    window.addEventListener("skyhub:dashboard-shift-changed", handleDashboardShiftChange as EventListener);
-    return () => window.removeEventListener("skyhub:dashboard-shift-changed", handleDashboardShiftChange as EventListener);
-  }, []);
-
-  function handleDashboardShiftSelect(nextShift: ShiftName) {
-    setDashboardShift(nextShift);
-    window.dispatchEvent(new CustomEvent("skyhub:dashboard-shift", { detail: { shift: nextShift } }));
-  }
 
   async function persistSettings(payload: Record<string, unknown>) {
     const response = await fetch("/api/settings", {
@@ -735,24 +694,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               ) : null}
 
               <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
-                {showDashboardShiftControl ? (
-                  <div className="segmented-control inline-flex max-w-full rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-1 shadow-[var(--shadow-soft)]">
-                    {SHIFT_OPTIONS.map((option) => (
-                      <button
-                        key={option}
-                        type="button"
-                        className={cn(
-                          "shrink-0 rounded-full px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm",
-                          dashboardShift === option ? "bg-[color:var(--brand-primary)] text-white" : "text-[color:var(--muted-fg)]",
-                        )}
-                        onClick={() => handleDashboardShiftSelect(option)}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-
                 <button type="button" className="topbar-button" onClick={handleThemeToggle}>
                   {activeTheme === "dark" ? <SunMedium size={18} /> : <MoonStar size={18} />}
                   <span className="hidden sm:inline">{activeTheme === "dark" ? "Terang" : "Gelap"}</span>

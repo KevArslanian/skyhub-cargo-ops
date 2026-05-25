@@ -1,4 +1,4 @@
-import { Prisma, ShipmentDocStatus, ShipmentReadiness, ShipmentStatus, ShipmentTransactionStatus } from "@prisma/client";
+import { FlightStatus, Prisma, ShipmentDocStatus, ShipmentReadiness, ShipmentStatus, ShipmentTransactionStatus } from "@prisma/client";
 import { addMinutes, endOfDay, startOfDay } from "date-fns";
 import {
   AccessError,
@@ -334,12 +334,12 @@ function appendFlightDateFilter(where: Prisma.FlightWhereInput, intervals?: Flig
   where.AND = [...existingAnd, filter];
 }
 
-function deriveFlightStatus(input: { departureTime: Date; arrivalTime: Date }, now = new Date()): DerivedFlightStatus {
-  if (now >= input.arrivalTime) {
+function deriveFlightStatus(input: { status?: FlightStatus | DerivedFlightStatus; departureTime: Date; arrivalTime: Date }, now = new Date()): DerivedFlightStatus {
+  if (input.status === "departed" || now >= input.departureTime) {
     return "departed";
   }
 
-  if (now >= input.departureTime) {
+  if (input.status === "delayed") {
     return "delayed";
   }
 
@@ -613,6 +613,7 @@ type InternalMetricsSnapshot = {
     origin: string;
     destination: string;
     departureTime: Date;
+    arrivalTime: Date;
     cargoCutoffTime: Date;
     status: "on_time" | "delayed" | "departed";
   }>;
@@ -687,8 +688,8 @@ function getAlertResolutionMeta(kind: string) {
       targetModule: "Ledger Shipment",
     },
     "flight-delay": {
-      cause: "Flight terdeteksi delayed dari aturan waktu penerbangan.",
-      clearCondition: "Perbarui jadwal flight sampai status otomatis kembali tepat waktu atau berangkat.",
+      cause: "Flight ditandai terlambat dari status operasional.",
+      clearCondition: "Perbarui jadwal atau tandai flight berangkat saat status operasional sudah jelas.",
       targetModule: "Papan Flight",
     },
     "cutoff-risk": {
@@ -838,21 +839,26 @@ async function getInternalMetricsSnapshot(scopedShipments: Prisma.ShipmentWhereI
         origin: true,
         destination: true,
         departureTime: true,
+        arrivalTime: true,
         cargoCutoffTime: true,
         status: true,
       },
     }),
   ]);
 
-  const onTime = flightsToday.filter((flight) => flight.status === "on_time").length;
-  const delayed = flightsToday.filter((flight) => flight.status === "delayed").length;
-  const departed = flightsToday.filter((flight) => flight.status === "departed").length;
+  const flightsWithDerivedStatus = flightsToday.map((flight) => ({
+    ...flight,
+    status: deriveFlightStatus(flight, now),
+  }));
+  const onTime = flightsWithDerivedStatus.filter((flight) => flight.status === "on_time").length;
+  const delayed = flightsWithDerivedStatus.filter((flight) => flight.status === "delayed").length;
+  const departed = flightsWithDerivedStatus.filter((flight) => flight.status === "departed").length;
   const holds = shipmentsToday.filter((shipment) => shipment.status === "hold").length;
 
   return {
     now,
     shipmentsToday,
-    flightsToday,
+    flightsToday: flightsWithDerivedStatus,
     onTime,
     delayed,
     departed,
@@ -2654,7 +2660,7 @@ export async function createFlight(input: {
         departureTime,
         arrivalTime,
         cargoCutoffTime,
-        status: deriveFlightStatus({ departureTime, arrivalTime }),
+        status: deriveFlightStatus({ status: input.status, departureTime, arrivalTime }),
         gate: input.gate || getGateForDestination(input.destination),
         remarks: input.remarks || null,
         imageUrl: meta.aircraftImageUrl,
@@ -2741,7 +2747,7 @@ export async function updateFlight(input: {
         departureTime: input.departureTime ? departureTime : undefined,
         arrivalTime,
         cargoCutoffTime,
-        status: deriveFlightStatus({ departureTime, arrivalTime }),
+        status: deriveFlightStatus({ status: input.status, departureTime, arrivalTime }),
         gate: input.gate ?? getGateForDestination(nextDestination),
         remarks: input.remarks,
         imageUrl: meta.aircraftImageUrl,

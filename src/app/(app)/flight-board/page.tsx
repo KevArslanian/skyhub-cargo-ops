@@ -105,7 +105,7 @@ type FlightMutationRow = {
 };
 
 const FLIGHT_STATUS_LABELS: Record<string, string> = {
-  on_time: "Tepat Waktu",
+  on_time: "Terjadwal",
   delayed: "Terlambat",
   departed: "Berangkat",
 };
@@ -778,9 +778,9 @@ export default function FlightBoardPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <StatCard label="Tepat Waktu" value={data?.summary.onTime ?? 0} note="Status on time." icon={PlaneTakeoff} tone="success" />
-        <StatCard label="Terlambat" value={data?.summary.delayed ?? 0} note="Status delayed." icon={Clock3} tone="warning" />
-        <StatCard label="Berangkat" value={data?.summary.departed ?? 0} note="Status departed." icon={TowerControl} tone="info" />
+        <StatCard label="Terjadwal" value={data?.summary.onTime ?? 0} note="Belum melewati waktu berangkat." icon={PlaneTakeoff} tone="success" />
+        <StatCard label="Terlambat" value={data?.summary.delayed ?? 0} note="Ditandai butuh penyesuaian jadwal." icon={Clock3} tone="warning" />
+        <StatCard label="Berangkat" value={data?.summary.departed ?? 0} note="Waktu berangkat sudah berjalan." icon={TowerControl} tone="info" />
       </div>
 
       <FilterBar className="flightboard-filter-bar">
@@ -788,7 +788,7 @@ export default function FlightBoardPage() {
           <label className="label">Status</label>
           <select className="select-field" value={status} onChange={(event) => handleStatusChange(event.target.value)}>
             <option value="all">Semua</option>
-            <option value="on_time">Tepat Waktu</option>
+            <option value="on_time">Terjadwal</option>
             <option value="delayed">Terlambat</option>
             <option value="departed">Berangkat</option>
           </select>
@@ -1166,7 +1166,7 @@ export default function FlightBoardPage() {
                 <div className="flight-auto-status-card">
                   <p className="label">Status Otomatis</p>
                   <p className="font-semibold text-[color:var(--text-strong)]">Dihitung sistem</p>
-                  <p className="form-help">Status berubah dari jadwal berangkat dan estimasi tiba.</p>
+                  <p className="form-help">Terjadwal sebelum jam berangkat, lalu berangkat saat waktu berjalan. Terlambat dipakai saat jadwal perlu disesuaikan.</p>
                 </div>
                 <div>
                   <label className="label">Gate Otomatis</label>
@@ -1313,7 +1313,7 @@ export default function FlightBoardPage() {
                 <div className="flight-auto-status-card">
                   <p className="label">Status Otomatis</p>
                   <p className="font-semibold text-[color:var(--text-strong)]">Dihitung sistem</p>
-                  <p className="form-help">Status berubah dari jadwal berangkat dan estimasi tiba.</p>
+                  <p className="form-help">Terjadwal sebelum jam berangkat, lalu berangkat saat waktu berjalan. Terlambat dipakai saat jadwal perlu disesuaikan.</p>
                 </div>
                 <div>
                   <label className="label">Gate Otomatis</label>
