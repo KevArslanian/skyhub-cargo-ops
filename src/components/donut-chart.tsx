@@ -99,31 +99,28 @@ type MiniDonutGroupProps = {
 
 export function MiniDonutGroup({ charts, className }: MiniDonutGroupProps) {
   return (
-    <div className={cn("flex flex-wrap items-start justify-center gap-6 xl:gap-8", className)}>
+    <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-3", className)}>
       {charts.map((chart) => (
-        <div key={chart.title} className="flex items-center gap-4">
-          <DonutChart segments={chart.segments} total={chart.total} size={80} strokeWidth={8} />
-          <div className="min-w-0 max-w-[140px]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
+        <div key={chart.title} className="flex items-center gap-4 rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/60 px-4 py-3.5">
+          <DonutChart segments={chart.segments} total={chart.total} size={96} strokeWidth={12} />
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[color:var(--muted-2)]">
               {chart.title}
             </p>
-            <div className="mt-2 space-y-1.5">
+            <div className="mt-2 space-y-1">
               {chart.segments.map((seg) => (
                 <div key={seg.label} className="flex items-center gap-2">
                   <span
-                    className="h-2 w-2 shrink-0 rounded-full"
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: seg.color }}
                   />
-                  <span className="truncate text-xs font-semibold text-[color:var(--text-strong)]">
+                  <span className="text-xs font-bold text-[color:var(--text-strong)] tabular-nums">
                     {seg.value}
                   </span>
-                  <span className="truncate text-[11px] text-[color:var(--muted-fg)]">{seg.label}</span>
+                  <span className="truncate text-xs text-[color:var(--muted-fg)]">{seg.label}</span>
                 </div>
               ))}
             </div>
-            {chart.note ? (
-              <p className="mt-1.5 text-[10px] leading-4 text-[color:var(--muted-2)]">{chart.note}</p>
-            ) : null}
           </div>
         </div>
       ))}

@@ -306,9 +306,9 @@ export default function DashboardPage() {
   const actionDonutTotal = 8;
 
   const donutCharts = [
-    { title: "Alur Shipment", total: shipmentDonutTotal, segments: shipmentDonut, note: `${shipmentsToday.length} manifest hari ini` },
-    { title: "Status Flight", total: flightDonutTotal, segments: flightDonut, note: `${flightsToday.length} penerbangan` },
-    { title: "Beban Tindakan", total: actionDonutTotal, segments: actionDonut, note: `${actionUrgent} perlu intervensi` },
+    { title: "Alur Shipment", total: shipmentDonutTotal, segments: shipmentDonut },
+    { title: "Status Flight", total: flightDonutTotal, segments: flightDonut },
+    { title: "Beban Tindakan", total: actionDonutTotal, segments: actionDonut },
   ];
 
   /* ── Filtered / paged data ── */
