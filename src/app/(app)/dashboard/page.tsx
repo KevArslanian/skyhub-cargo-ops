@@ -435,9 +435,9 @@ export default function DashboardPage() {
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
             {filteredFlights.length ? sortedFlights.slice(0, 4).map((flight) => (
-              <button
+              <Link
                 key={flight.id}
-                type="button"
+                href={`/flight-board?id=${flight.id}`}
                 className={cn(
                   "inline-flex items-center gap-2 rounded-[12px] border px-3 py-1.5 text-xs font-semibold transition-all hover:-translate-y-px hover:shadow-md",
                   flight.cutoffAtRisk
@@ -451,7 +451,7 @@ export default function DashboardPage() {
                 <span className="text-[10px] text-[color:var(--muted-2)]">{flight.route}</span>
                 {flight.cutoffAtRisk ? <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: DONUT_AMBER }} /> : null}
                 <span className="text-[10px] uppercase tracking-wider text-[color:var(--muted-fg)]">{flight.statusLabel}</span>
-              </button>
+              </Link>
             )) : (
               <p className="py-1 text-xs text-[color:var(--muted-fg)]">Belum ada flight untuk hari ini.</p>
             )}
@@ -478,7 +478,7 @@ export default function DashboardPage() {
                     if (aPrio !== bPrio) return aPrio - bPrio;
                     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
                   })
-                  .slice(0, 5)
+                  .slice(0, 7)
                   .map((shipment) => (
                     <Link
                       key={shipment.id}
