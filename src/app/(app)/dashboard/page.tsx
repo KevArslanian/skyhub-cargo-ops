@@ -409,11 +409,11 @@ export default function DashboardPage() {
      INTERNAL DASHBOARD — REDESIGNED SINGLE-VIEWPORT
      ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="flex h-full flex-col gap-2 overflow-x-hidden sm:gap-3">
+    <div className="flex h-full flex-col gap-2 overflow-x-hidden">
       {/* ── ROW 1: Analitik + Cutoff ── */}
-      <div className="grid grid-cols-1 gap-4 sm:gap-5 items-start lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
+      <div className="grid grid-cols-1 gap-3.5 sm:gap-4 items-start lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Analitik Operasional */}
-        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-4 py-3 shadow-[0_12px_32px_rgba(11,30,52,0.06)] backdrop-blur sm:px-5 sm:py-4 min-w-0">
+        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-3 py-2.5 sm:px-4 sm:py-3 min-w-0">
           <div className="mb-3 flex items-center gap-2">
             <TrendingUp size={16} className="text-[color:var(--brand-primary)]" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Analitik Operasional</p>
@@ -422,7 +422,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Mendekati Cutoff */}
-        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-3 py-2.5 shadow-[0_8px_24px_rgba(11,30,52,0.04)] backdrop-blur sm:px-4 sm:py-3 min-w-0">
+        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-3 py-2 sm:px-3 sm:py-2.5 min-w-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]">
@@ -460,9 +460,9 @@ export default function DashboardPage() {
       </div>
 
       {/* ── ROW 2: Manifest Prioritas + Pusat Tindakan ── */}
-      <div className="grid grid-cols-1 gap-4 sm:gap-5 items-start lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
+      <div className="grid grid-cols-1 gap-3.5 sm:gap-4 items-start lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Manifest Prioritas */}
-        <OpsPanel className="p-4 sm:p-5 min-w-0">
+        <OpsPanel className="p-3 sm:p-4 min-w-0">
           <SectionHeader
             title="Manifest Prioritas"
             subtitle={`${filteredShipments.length} manifest aktif hari ini`}
@@ -515,7 +515,7 @@ export default function DashboardPage() {
         </OpsPanel>
 
         {/* Pusat Tindakan */}
-        <OpsPanel className="flex min-h-0 flex-col p-3 sm:p-4 min-w-0 w-full">
+        <OpsPanel className="flex min-h-0 flex-col p-3 min-w-0 w-full">
           <div className="flex-none min-w-0">
             <SectionHeader title="Pusat Tindakan" subtitle={filteredAlerts.length > 0 ? `${alertPage.visibleStart}-${alertPage.visibleEnd} dari ${filteredAlerts.length} alert` : "0 alert"} />
           </div>
@@ -547,7 +547,7 @@ export default function DashboardPage() {
 
       {/* ── ROW 3: Aktivitas Terakhir ── */}
       {internalData?.recentActivity && internalData.recentActivity.length > 0 ? (
-        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-4 py-3 shadow-[0_8px_24px_rgba(11,30,52,0.04)] backdrop-blur sm:px-5 sm:py-4">
+        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-3 py-2 sm:px-4 sm:py-2.5">
           <div className="flex items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-2">
               <History size={16} className="text-[color:var(--brand-primary)]" />
