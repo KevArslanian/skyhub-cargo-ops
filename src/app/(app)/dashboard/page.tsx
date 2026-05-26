@@ -11,13 +11,12 @@ import {
   History,
   PackageCheck,
   PackageSearch,
-  PlaneTakeoff,
   ShieldAlert,
   TowerControl,
   TriangleAlert,
   TrendingUp,
 } from "lucide-react";
-import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
+import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState, OpsPanel, PageHeader, SectionHeader, SkeletonBlock, StatCard } from "@/components/ops-ui";
 import { MiniDonutGroup, type DonutSegment } from "@/components/donut-chart";
@@ -137,12 +136,14 @@ type DashboardSettingsPayload = {
   } | null;
 };
 
-const DASHBOARD_PAGE_SIZE = 6;
-const DASHBOARD_COMPACT_PAGE_SIZE = 5;
-const DASHBOARD_FLIGHT_PAGE_SIZE = 4;
-const DASHBOARD_ALERT_PAGE_SIZE = 5;
+const EMPTY_SHIPMENTS: BaseShipment[] = [];
+const EMPTY_FLIGHTS: InternalDashboardData["flightsSummary"] = [];
+const EMPTY_ALERTS: InternalDashboardData["alerts"] = [];
 
-function getPageWindow<T>(items: T[], page: number, pageSize = DASHBOARD_PAGE_SIZE) {
+const DASHBOARD_COMPACT_PAGE_SIZE = 5;
+const DASHBOARD_ALERT_PAGE_SIZE = 4;
+
+function getPageWindow<T>(items: T[], page: number, pageSize: number) {
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * pageSize;
@@ -180,12 +181,12 @@ function DashboardPagination({
   page: number; totalPages: number; visibleStart: number; visibleEnd: number; totalItems: number; onPageChange: (p: number) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[color:var(--muted-fg)]">
-      <button type="button" className="topbar-button h-8 px-3 text-xs" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
+    <div className="flex w-full items-center justify-between gap-2 text-xs text-[color:var(--muted-fg)]">
+      <button type="button" className="topbar-button h-8 min-h-8 px-3 text-xs" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
         <ChevronLeft size={14} />
       </button>
       <span className="tabular-nums whitespace-nowrap">{visibleStart}-{visibleEnd} / {totalItems}</span>
-      <button type="button" className="topbar-button h-8 px-3 text-xs" onClick={() => onPageChange(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>
+      <button type="button" className="topbar-button h-8 min-h-8 px-3 text-xs" onClick={() => onPageChange(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>
         <ChevronRight size={14} />
       </button>
     </div>
@@ -201,8 +202,6 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [dashboardQuery, setDashboardQuery] = useState("");
-  const [dashboardShipmentPage, setDashboardShipmentPage] = useState(1);
-  const [dashboardFlightPage, setDashboardFlightPage] = useState(1);
   const [dashboardAlertPage, setDashboardAlertPage] = useState(1);
   const [customerShipmentPage, setCustomerShipmentPage] = useState(1);
   const [refreshSettings, setRefreshSettings] = useState({ autoRefresh: true, refreshIntervalSeconds: 5 });
@@ -212,8 +211,6 @@ export default function DashboardPage() {
       const detail = (event as CustomEvent<{ pathname?: string; query?: string }>).detail;
       if (detail?.pathname !== "/dashboard" || !detail.query) return;
       setDashboardQuery(detail.query);
-      setDashboardShipmentPage(1);
-      setDashboardFlightPage(1);
       setDashboardAlertPage(1);
       setCustomerShipmentPage(1);
     }
@@ -235,7 +232,11 @@ export default function DashboardPage() {
   useEffect(() => {
     let cancelled = false;
     void requestDashboard().then((payload) => {
-      if (!payload || cancelled) return;
+      if (cancelled) return;
+      if (!payload) {
+        setLoading(false);
+        return;
+      }
       applyDashboardPayload(payload);
     });
     return () => { cancelled = true; };
@@ -270,9 +271,9 @@ export default function DashboardPage() {
   const internalData = data?.variant === "internal" ? data : null;
   const customerData = data?.variant === "customer" ? data : null;
 
-  const shipmentsToday = internalData?.shipmentsToday ?? [];
-  const flightsToday = internalData?.flightsSummary ?? [];
-  const alertsToday = internalData?.alerts ?? [];
+  const shipmentsToday = internalData?.shipmentsToday ?? EMPTY_SHIPMENTS;
+  const flightsToday = internalData?.flightsSummary ?? EMPTY_FLIGHTS;
+  const alertsToday = internalData?.alerts ?? EMPTY_ALERTS;
   const sortedFlights = useMemo(() => sortFlightsByCutoff(flightsToday), [flightsToday]);
 
   const activeLoaded = shipmentsToday.filter((s) => s.status === "loaded_to_aircraft").length;
@@ -329,8 +330,6 @@ export default function DashboardPage() {
     return alertsToday.filter((a) => textMatchesQuery([a.awb, a.title, a.detail], dashboardQuery));
   }, [dashboardQuery, alertsToday]);
 
-  const shipmentPage = getPageWindow(filteredShipments, dashboardShipmentPage, DASHBOARD_PAGE_SIZE);
-  const flightPage = getPageWindow(filteredFlights, dashboardFlightPage, DASHBOARD_FLIGHT_PAGE_SIZE);
   const alertPage = getPageWindow(filteredAlerts, dashboardAlertPage, DASHBOARD_ALERT_PAGE_SIZE);
 
   const customerFilteredShipments = useMemo(() => {
@@ -409,12 +408,12 @@ export default function DashboardPage() {
      INTERNAL DASHBOARD — REDESIGNED SINGLE-VIEWPORT
      ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="flex h-full flex-col gap-3 overflow-x-hidden">
+    <div className="dashboard-fixed-viewport flex h-auto flex-col gap-[14px] overflow-x-hidden xl:h-[628px]">
       {/* ── ROW 1: Analitik + Cutoff ── */}
-      <div className="grid grid-cols-1 gap-5 items-start xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid h-auto grid-cols-1 gap-[14px] items-stretch min-w-0 xl:h-[184px] xl:grid-cols-[minmax(0,1fr)_328px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Analitik Operasional */}
-        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-4 py-3 sm:px-5 sm:py-4 min-w-0">
-          <div className="mb-3 flex items-center gap-2">
+        <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-4 min-w-0 overflow-visible">
+          <div className="mb-[10px] flex items-center gap-2">
             <TrendingUp size={16} className="text-[color:var(--brand-primary)]" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Analitik Operasional</p>
           </div>
@@ -422,24 +421,18 @@ export default function DashboardPage() {
         </div>
 
         {/* Mendekati Cutoff */}
-        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-3 py-2 sm:px-3 sm:py-2.5 min-w-0">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]">
-                <TowerControl size={14} />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Mendekati Cutoff</p>
-              </div>
-            </div>
+        <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-4 min-w-0 overflow-visible">
+          <div className="mb-[10px] flex items-center gap-2">
+            <TowerControl size={14} className="text-[color:var(--brand-primary)] shrink-0" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Mendekati Cutoff</p>
           </div>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="flex flex-col gap-2">
             {filteredFlights.length ? sortedFlights.slice(0, 4).map((flight) => (
               <Link
                 key={flight.id}
                 href={`/flight-board?id=${flight.id}`}
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-[12px] border px-3 py-1.5 text-xs font-semibold transition-all hover:-translate-y-px hover:shadow-md",
+                  "inline-flex h-[28px] items-center gap-2 rounded-[10px] border px-[10px] text-xs font-semibold transition-colors",
                   flight.cutoffAtRisk
                     ? "border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]"
                     : flight.status === "departed"
@@ -447,10 +440,9 @@ export default function DashboardPage() {
                     : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--text-strong)]"
                 )}
               >
-                <span className="font-mono">{flight.flightNumber}</span>
-                <span className="text-[10px] text-[color:var(--muted-2)]">{flight.route}</span>
-                {flight.cutoffAtRisk ? <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: DONUT_AMBER }} /> : null}
-                <span className="text-[10px] uppercase tracking-wider text-[color:var(--muted-fg)]">{flight.statusLabel}</span>
+                <span className="shrink-0 font-mono text-[14px] font-bold">{flight.flightNumber}</span>
+                <span className="min-w-0 flex-1 truncate text-[11px] text-[color:var(--muted-fg)]">{flight.route}</span>
+                <span className="shrink-0 text-[10px] uppercase tracking-wider text-[color:var(--muted-fg)]">{flight.statusLabel}</span>
               </Link>
             )) : (
               <p className="py-1 text-xs text-[color:var(--muted-fg)]">Belum ada flight untuk hari ini.</p>
@@ -460,17 +452,26 @@ export default function DashboardPage() {
       </div>
 
       {/* ── ROW 2: Manifest Prioritas + Pusat Tindakan ── */}
-      <div className="grid grid-cols-1 gap-5 items-start xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid h-auto grid-cols-1 gap-[14px] items-stretch min-w-0 xl:h-[324px] xl:grid-cols-[minmax(0,1fr)_328px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Manifest Prioritas */}
-        <OpsPanel className="p-4 sm:p-5 min-w-0">
-          <SectionHeader
-            title="Manifest Prioritas"
-            subtitle={`${filteredShipments.length} manifest aktif hari ini`}
-          />
+        <OpsPanel className="flex h-full flex-col rounded-[18px] p-4 min-w-0 overflow-visible">
+          <div className="flex h-[48px] shrink-0 items-start justify-between gap-3 border-b border-[color:var(--border-soft)]">
+            <div className="min-w-0">
+              <h2 className="truncate font-[family:var(--font-heading)] text-[18px] font-extrabold leading-6 tracking-[-0.03em] text-[color:var(--text-strong)]">Manifest Prioritas</h2>
+              <p className="mt-0.5 truncate text-[13px] leading-[18px] text-[color:var(--muted-fg)]">{filteredShipments.length} manifest aktif hari ini</p>
+            </div>
+          </div>
 
           {!loading && filteredShipments.length > 0 ? (
             <>
-              <div className="mt-4 space-y-1.5">
+              <div className="grid h-[202px] shrink-0 grid-rows-[32px_repeat(5,34px)] min-w-0">
+                <div className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)_76px_86px_38px] items-center gap-3 border-b border-[color:var(--border-soft)] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
+                  <span>AWB</span>
+                  <span>Komoditas</span>
+                  <span className="hidden sm:block">Rute</span>
+                  <span>Status</span>
+                  <span className="text-right">Aksi</span>
+                </div>
                 {filteredShipments
                   .sort((a, b) => {
                     const aPrio = a.status === 'hold' || a.docStatus === 'Review' ? 0 : 1;
@@ -478,25 +479,25 @@ export default function DashboardPage() {
                     if (aPrio !== bPrio) return aPrio - bPrio;
                     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
                   })
-                  .slice(0, 7)
+                  .slice(0, 5)
                   .map((shipment) => (
                     <Link
                       key={shipment.id}
                       href={`/shipment-ledger?id=${shipment.id}`}
-                      className="flex items-center gap-3 rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/70 px-3 py-2.5 transition-colors hover:bg-[color:var(--panel-muted)]"
+                      className="grid h-[34px] min-w-0 grid-cols-[112px_minmax(0,1fr)_76px_86px_38px] items-center gap-3 border-b border-[color:var(--border-soft)] px-3 transition-colors last:border-b-0 hover:bg-[color:var(--panel-muted)]/70"
                     >
-                      <span className="w-[110px] shrink-0 font-mono text-xs font-semibold text-[color:var(--brand-primary)] truncate">{shipment.awb}</span>
+                      <span className="truncate font-mono text-xs font-semibold text-[color:var(--brand-primary)]">{shipment.awb}</span>
                       <span className="min-w-0 flex-1 truncate text-xs font-medium text-[color:var(--text-strong)]">{shipment.commodity}</span>
-                      <span className="hidden sm:inline w-[80px] shrink-0 text-[11px] text-[color:var(--muted-fg)] truncate">{shipment.origin} → {shipment.destination}</span>
+                      <span className="hidden truncate text-[11px] text-[color:var(--muted-fg)] sm:inline">{shipment.origin} → {shipment.destination}</span>
                       <MicroBadge value={shipment.status} label={shipment.statusLabel} />
-                      <span className="text-[11px] font-semibold text-[color:var(--brand-primary)] shrink-0">Buka</span>
+                      <span className="shrink-0 text-right text-[11px] font-semibold text-[color:var(--brand-primary)]">Buka</span>
                     </Link>
                   ))}
               </div>
-              <div className="mt-4 flex justify-end">
+              <div className="mt-[8px] flex h-[42px] shrink-0 items-start justify-end">
                 <Link
                   href="/shipment-ledger"
-                  className="inline-flex items-center gap-2 rounded-full border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] px-5 py-2.5 text-sm font-bold text-[color:var(--brand-primary)] transition-all hover:bg-[color:var(--brand-primary)] hover:text-white"
+                  className="inline-flex h-[36px] items-center gap-2 rounded-full border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] px-5 text-sm font-bold text-[color:var(--brand-primary)] transition-all hover:bg-[color:var(--brand-primary)] hover:text-white"
                 >
                   <PackageSearch size={16} />
                   Lihat semua di Ledger
@@ -504,51 +505,59 @@ export default function DashboardPage() {
               </div>
             </>
           ) : loading ? (
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-2">
               {Array.from({ length: 4 }).map((_, i) => (
-                <SkeletonBlock key={i} className="h-[52px] w-full rounded-[14px]" />
+                <SkeletonBlock key={i} className="h-[34px] w-full rounded-[12px]" />
               ))}
             </div>
           ) : (
-            <EmptyState icon={Boxes} variant="neutral" title="Belum ada manifest aktif" copy="Manifest operasional hari ini akan muncul di area ini." className="py-6" />
+            <div className="flex h-[202px] items-center justify-center">
+              <EmptyState icon={Boxes} variant="neutral" title="Belum ada manifest aktif" copy="Manifest operasional hari ini akan muncul di area ini." className="py-0" />
+            </div>
           )}
         </OpsPanel>
 
         {/* Pusat Tindakan */}
-        <OpsPanel className="flex min-h-0 flex-col p-4 sm:p-5 min-w-0 w-full">
-          <div className="flex-none min-w-0">
-            <SectionHeader title="Pusat Tindakan" subtitle={filteredAlerts.length > 0 ? `${alertPage.visibleStart}-${alertPage.visibleEnd} dari ${filteredAlerts.length} alert` : "0 alert"} />
+        <OpsPanel className="flex h-full flex-col rounded-[18px] p-4 min-w-0 w-full overflow-visible">
+          <div className="flex h-[44px] shrink-0 items-start justify-between gap-3 border-b border-[color:var(--border-soft)] min-w-0">
+            <div className="min-w-0">
+              <h2 className="truncate font-[family:var(--font-heading)] text-[18px] font-extrabold leading-6 tracking-[-0.03em] text-[color:var(--text-strong)]">Pusat Tindakan</h2>
+              <p className="mt-0.5 truncate text-[13px] leading-[17px] text-[color:var(--muted-fg)]">{filteredAlerts.length > 0 ? `${alertPage.visibleStart}-${alertPage.visibleEnd} dari ${filteredAlerts.length} alert` : "0 alert"}</p>
+            </div>
           </div>
-          <div className="mt-2 flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2 scrollbar-thin min-w-0">
+          <div className="mt-0 flex h-[216px] shrink-0 flex-col gap-[8px] min-w-0 overflow-visible">
             {filteredAlerts.length ? alertPage.items.map((alert) => (
-              <div key={alert.id} className="w-full min-w-0 rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/80 px-3 py-2.5 transition-colors hover:bg-[color:var(--panel-muted)]">
-                <div className="flex items-start gap-3 min-w-0">
-                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: DONUT_ROSE }} />
+              <div key={alert.id} className="flex h-[48px] w-full min-w-0 items-center rounded-[12px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/80 px-3 py-[10px] transition-colors hover:bg-[color:var(--panel-muted)]">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: DONUT_ROSE }} />
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold leading-5 text-[color:var(--text-strong)] break-words">{alert.title}</p>
-                    <p className="mt-1 text-[11px] leading-5 text-[color:var(--muted-fg)] whitespace-normal break-words">{alert.detail}</p>
-                    <div className="mt-2">
-                      <Link href={`/awb-tracking?awb=${alert.awb}`} className="text-[11px] font-semibold text-[color:var(--brand-primary)] hover:underline break-words">
-                        Buka AWB {alert.awb}
-                      </Link>
-                    </div>
+                    <p className="truncate text-[12px] font-bold leading-[14px] text-[color:var(--text-strong)] break-words">{alert.title}</p>
+                    <p className="mt-0.5 line-clamp-1 text-[11px] leading-[14px] text-[color:var(--muted-fg)] break-words">{alert.detail}</p>
                   </div>
+                  <Link href={`/awb-tracking?awb=${alert.awb}`} className="max-w-[96px] shrink-0 break-words text-right text-[11px] font-bold leading-[14px] text-[color:var(--brand-primary)] hover:underline" title={`Buka AWB ${alert.awb}`}>
+                    Buka AWB {alert.awb}
+                  </Link>
                 </div>
               </div>
             )) : (
-              <EmptyState icon={BellRing} title="Tidak ada alert" copy="Semua shipment dalam kondisi normal." />
+              <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-[color:var(--border-soft)]">
+                <div className="text-center">
+                  <BellRing size={18} className="mx-auto text-[color:var(--brand-primary)]" />
+                  <p className="mt-2 text-[12px] font-bold text-[color:var(--text-strong)]">Tidak ada alert</p>
+                  <p className="mt-1 text-[11px] leading-[14px] text-[color:var(--muted-fg)]">Semua shipment normal.</p>
+                </div>
+              </div>
             )}
           </div>
-          <div className="flex-none border-t border-[color:var(--border-soft)] pt-3 min-w-0">
+          <div className="mt-[8px] flex h-[36px] shrink-0 items-start border-t border-[color:var(--border-soft)] pt-1 min-w-0">
             <DashboardPagination page={alertPage.currentPage} totalPages={alertPage.totalPages} visibleStart={alertPage.visibleStart} visibleEnd={alertPage.visibleEnd} totalItems={filteredAlerts.length} onPageChange={setDashboardAlertPage} />
           </div>
         </OpsPanel>
       </div>
 
       {/* ── ROW 3: Aktivitas Terakhir ── */}
-      {internalData?.recentActivity && internalData.recentActivity.length > 0 ? (
-        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-3 py-2 sm:px-4 sm:py-2.5">
-          <div className="flex items-center justify-between gap-3 mb-3">
+      <div className="h-auto rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-4 py-3 xl:h-[92px]">
+          <div className="mb-2 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <History size={16} className="text-[color:var(--brand-primary)]" />
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Aktivitas Terakhir</p>
@@ -558,57 +567,34 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {internalData!.recentActivity.slice(0, 3).map((activity) => (
-              <div key={activity.id} className="flex items-start gap-3 rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/60 px-3 py-2.5 min-w-0">
+            {(internalData?.recentActivity ?? []).length > 0 ? internalData!.recentActivity.slice(0, 3).map((activity) => (
+              <div key={activity.id} className="flex h-[48px] items-center gap-3 rounded-[12px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/60 px-3 py-[10px] min-w-0">
                 <div className={cn(
-                  "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px]",
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px]",
                   activity.level === "warning" ? "bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]" :
                   activity.level === "error" ? "bg-[color:var(--tone-danger-soft)] text-[color:var(--tone-danger)]" :
                   "bg-[color:var(--tone-info-soft)] text-[color:var(--tone-info)]"
                 )}>
                   {activity.level === "warning" ? <ShieldAlert size={14} /> :
                    activity.level === "error" ? <TriangleAlert size={14} /> :
-                   <FileCheck2 size={14} />}
+                  <FileCheck2 size={14} />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-[color:var(--text-strong)] truncate">{activity.action}</p>
-                  <p className="mt-0.5 text-[11px] text-[color:var(--muted-fg)] truncate">{activity.description}</p>
-                  <p className="mt-1 text-[10px] text-[color:var(--muted-2)]">{activity.userName} · {formatRelativeShort(activity.createdAt)}</p>
+                  <p className="truncate text-xs font-semibold leading-[14px] text-[color:var(--text-strong)]">{activity.action}</p>
+                  <p className="mt-0.5 truncate text-[11px] leading-[14px] text-[color:var(--muted-fg)]">{activity.userName} · {formatRelativeShort(activity.createdAt)}</p>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="flex h-[48px] items-center rounded-[12px] border border-dashed border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/50 px-3 text-[11px] font-semibold text-[color:var(--muted-fg)] sm:col-span-3">
+                Belum ada aktivitas terbaru.
+              </div>
+            )}
           </div>
         </div>
-      ) : null}
     </div>
   );
 }
 
-
-/* ── Mini Stat Card (compact) ── */
-function MiniStatCard({ label, value, note, icon: Icon, tone }: { label: string; value: React.ReactNode; note: string; icon: React.ComponentType<{ size?: number }>; tone: "primary" | "success" | "warning" | "info" }) {
-  const toneBg: Record<string, string> = {
-    primary: "bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]",
-    success: "bg-[color:var(--tone-success-soft)] text-[color:var(--tone-success)]",
-    warning: "bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]",
-    info: "bg-[color:var(--tone-info-soft)] text-[color:var(--tone-info)]",
-  };
-
-  return (
-    <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-3 py-3 shadow-[0_8px_24px_rgba(11,30,52,0.04)] backdrop-blur transition-all hover:-translate-y-px hover:shadow-[0_12px_28px_rgba(11,30,52,0.08)] sm:px-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">{label}</p>
-          <p className="mt-1.5 font-[family:var(--font-heading)] text-xl font-black tracking-[-0.04em] text-[color:var(--text-strong)]">{value}</p>
-          <p className="mt-1 text-[10px] leading-4 text-[color:var(--muted-fg)]">{note}</p>
-        </div>
-        <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px]", toneBg[tone])}>
-          <Icon size={15} />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ── Micro Badge ── */
 function MicroBadge({ value, label }: { value: string; label: string }) {

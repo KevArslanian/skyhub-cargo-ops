@@ -21,8 +21,6 @@ export function DonutChart({ segments, total, size = 88, strokeWidth = 9, classN
   const circumference = 2 * Math.PI * radius;
   const center = size / 2;
 
-  let cumulativeOffset = 0;
-
   // Filter out zero-value segments and calculate their dash arrays
   const visibleSegments = segments.filter((s) => s.value > 0);
   const gapAngle = visibleSegments.length > 1 ? 2 : 0; // small 2° gap between segments
@@ -30,6 +28,21 @@ export function DonutChart({ segments, total, size = 88, strokeWidth = 9, classN
 
   const totalUsable = circumference - gapDash * visibleSegments.length;
   const totalForCalc = total || visibleSegments.reduce((sum, s) => sum + s.value, 0);
+  const renderedSegments = visibleSegments.reduce<Array<DonutSegment & { dashLength: number; dashOffset: number }>>(
+    (acc, segment) => {
+      const cumulativeOffset = acc.reduce((sum, item) => sum + item.dashLength + gapDash, 0);
+      const dashLength = (segment.value / totalForCalc) * totalUsable;
+      return [
+        ...acc,
+        {
+          ...segment,
+          dashLength,
+          dashOffset: circumference - cumulativeOffset,
+        },
+      ];
+    },
+    [],
+  );
 
   return (
     <div className={cn("relative inline-flex shrink-0 flex-col items-center", className)}>
@@ -51,27 +64,21 @@ export function DonutChart({ segments, total, size = 88, strokeWidth = 9, classN
           className="text-[color:var(--panel-muted)]"
         />
         {/* Segments */}
-        {visibleSegments.map((segment, i) => {
-          const segmentLength = (segment.value / totalForCalc) * totalUsable;
-          const offset = circumference - cumulativeOffset;
-          cumulativeOffset += segmentLength + gapDash;
-
-          return (
-            <circle
-              key={segment.label}
-              cx={center}
-              cy={center}
-              r={radius}
-              fill="none"
-              stroke={segment.color}
-              strokeWidth={strokeWidth}
-              strokeLinecap="round"
-              strokeDasharray={`${segmentLength} ${circumference - segmentLength}`}
-              strokeDashoffset={offset}
-              className="transition-[stroke-dasharray,stroke-dashoffset] duration-700 ease-out"
-            />
-          );
-        })}
+        {renderedSegments.map((segment) => (
+          <circle
+            key={segment.label}
+            cx={center}
+            cy={center}
+            r={radius}
+            fill="none"
+            stroke={segment.color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeDasharray={`${segment.dashLength} ${circumference - segment.dashLength}`}
+            strokeDashoffset={segment.dashOffset}
+            className="transition-[stroke-dasharray,stroke-dashoffset] duration-700 ease-out"
+          />
+        ))}
         {/* Center text */}
         <text
           x={center}
@@ -99,25 +106,25 @@ type MiniDonutGroupProps = {
 
 export function MiniDonutGroup({ charts, className }: MiniDonutGroupProps) {
   return (
-    <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3", className)}>
+    <div className={cn("grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:h-[138px]", className)}>
       {charts.map((chart) => (
-        <div key={chart.title} className="flex flex-col items-center gap-3 rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/60 px-4 py-4 min-h-[148px] xl:flex-row xl:items-center xl:gap-4">
-          <DonutChart segments={chart.segments} total={chart.total} size={120} strokeWidth={14} />
+        <div key={chart.title} className="flex min-w-0 flex-col items-center gap-3 rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/60 px-3 py-3 min-h-[138px] xl:h-[138px] xl:flex-row xl:items-center xl:gap-2 xl:px-2">
+          <DonutChart segments={chart.segments} total={chart.total} size={112} strokeWidth={14} />
           <div className="min-w-0 flex-1 w-full xl:w-auto">
             <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[color:var(--muted-2)]">
               {chart.title}
             </p>
             <div className="mt-2 space-y-1">
               {chart.segments.map((seg) => (
-                <div key={seg.label} className="flex items-center gap-2">
+                <div key={seg.label} className="flex min-w-0 items-center gap-1.5">
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: seg.color }}
                   />
-                  <span className="text-xs font-bold text-[color:var(--text-strong)] tabular-nums">
+                  <span className="text-[12px] font-bold text-[color:var(--text-strong)] tabular-nums">
                     {seg.value}
                   </span>
-                  <span className="truncate text-xs text-[color:var(--muted-fg)]">{seg.label}</span>
+                  <span className="break-words text-[12px] leading-[18px] text-[color:var(--muted-fg)]">{seg.label}</span>
                 </div>
               ))}
             </div>
