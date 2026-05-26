@@ -409,11 +409,11 @@ export default function DashboardPage() {
      INTERNAL DASHBOARD — REDESIGNED SINGLE-VIEWPORT
      ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="flex h-full flex-col gap-2 overflow-x-hidden">
+    <div className="flex h-full flex-col gap-3 overflow-x-hidden">
       {/* ── ROW 1: Analitik + Cutoff ── */}
-      <div className="grid grid-cols-1 gap-3.5 sm:gap-4 items-start lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 gap-5 items-start xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
         {/* Analitik Operasional */}
-        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-3 py-2.5 sm:px-4 sm:py-3 min-w-0">
+        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-4 py-3 sm:px-5 sm:py-4 min-w-0">
           <div className="mb-3 flex items-center gap-2">
             <TrendingUp size={16} className="text-[color:var(--brand-primary)]" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Analitik Operasional</p>
@@ -460,9 +460,9 @@ export default function DashboardPage() {
       </div>
 
       {/* ── ROW 2: Manifest Prioritas + Pusat Tindakan ── */}
-      <div className="grid grid-cols-1 gap-3.5 sm:gap-4 items-start lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 gap-5 items-start xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
         {/* Manifest Prioritas */}
-        <OpsPanel className="p-3 sm:p-4 min-w-0">
+        <OpsPanel className="p-4 sm:p-5 min-w-0">
           <SectionHeader
             title="Manifest Prioritas"
             subtitle={`${filteredShipments.length} manifest aktif hari ini`}
@@ -515,7 +515,7 @@ export default function DashboardPage() {
         </OpsPanel>
 
         {/* Pusat Tindakan */}
-        <OpsPanel className="flex min-h-0 flex-col p-3 min-w-0 w-full">
+        <OpsPanel className="flex min-h-0 flex-col p-4 sm:p-5 min-w-0 w-full">
           <div className="flex-none min-w-0">
             <SectionHeader title="Pusat Tindakan" subtitle={filteredAlerts.length > 0 ? `${alertPage.visibleStart}-${alertPage.visibleEnd} dari ${filteredAlerts.length} alert` : "0 alert"} />
           </div>
