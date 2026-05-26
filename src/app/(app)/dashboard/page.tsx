@@ -8,11 +8,13 @@ import {
   ChevronLeft,
   ChevronRight,
   FileCheck2,
+  History,
   PackageCheck,
   PackageSearch,
   PlaneTakeoff,
   ShieldAlert,
   TowerControl,
+  TriangleAlert,
   TrendingUp,
 } from "lucide-react";
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
@@ -299,16 +301,10 @@ export default function DashboardPage() {
   ];
   const flightDonutTotal = flightsToday.length || 0;
 
-  const actionDonut: DonutSegment[] = [
-    { label: "Mendesak", value: actionUrgent, color: DONUT_ROSE },
-    { label: "Terkendali", value: actionControlled, color: DONUT_SLATE },
-  ];
-  const actionDonutTotal = 8;
 
   const donutCharts = [
     { title: "Alur Shipment", total: shipmentDonutTotal, segments: shipmentDonut },
     { title: "Status Flight", total: flightDonutTotal, segments: flightDonut },
-    { title: "Beban Tindakan", total: actionDonutTotal, segments: actionDonut },
   ];
 
   /* ── Filtered / paged data ── */
@@ -408,56 +404,19 @@ export default function DashboardPage() {
      ══════════════════════════════════════════════════════════════ */
   return (
     <div className="flex h-full flex-col gap-2 overflow-x-hidden sm:gap-3">
-      {/* ── ROW 1: Stats + Donut Charts ── */}
-      <div className="flex-none">
-        <div className="grid gap-2 sm:gap-3 lg:grid-cols-12">
-          {/* Stat cards — 4 columns */}
-          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:col-span-4 lg:grid-cols-2">
-            <MiniStatCard
-              label="Kargo Masuk"
-              value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : shipmentsToday.length}
-              note="Manifest hari ini"
-              icon={Boxes}
-              tone="primary"
-            />
-            <MiniStatCard
-              label="Flight Aktif"
-              value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : flightsToday.length}
-              note={`${onTime} on-time · ${delayed} delay`}
-              icon={PlaneTakeoff}
-              tone="info"
-            />
-            <MiniStatCard
-              label="Sudah Muat"
-              value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : activeLoaded}
-              note="Siap keberangkatan"
-              icon={PackageCheck}
-              tone="success"
-            />
-            <MiniStatCard
-              label="Perlu Tindakan"
-              value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : alertsToday.length}
-              note="Alert aktif"
-              icon={ShieldAlert}
-              tone="warning"
-            />
+      {/* ── ROW 1: Analitik + Cutoff ── */}
+      <div className="grid grid-cols-1 gap-4 sm:gap-5 items-start lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
+        {/* Analitik Operasional */}
+        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-4 py-3 shadow-[0_12px_32px_rgba(11,30,52,0.06)] backdrop-blur sm:px-5 sm:py-4 min-w-0">
+          <div className="mb-3 flex items-center gap-2">
+            <TrendingUp size={16} className="text-[color:var(--brand-primary)]" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Analitik Operasional</p>
           </div>
-          {/* Donut charts — 8 columns */}
-          <div className="lg:col-span-8">
-            <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-4 py-3 shadow-[0_12px_32px_rgba(11,30,52,0.06)] backdrop-blur sm:px-5 sm:py-4">
-              <div className="mb-3 flex items-center gap-2">
-                <TrendingUp size={16} className="text-[color:var(--brand-primary)]" />
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Analitik Operasional</p>
-              </div>
-              <MiniDonutGroup charts={donutCharts} />
-            </div>
-          </div>
+          <MiniDonutGroup charts={donutCharts} />
         </div>
-      </div>
 
-      {/* ── ROW 2: Flight Cutoff Strip ── */}
-      <div className="flex-none">
-        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-3 py-2.5 shadow-[0_8px_24px_rgba(11,30,52,0.04)] backdrop-blur sm:px-4 sm:py-3">
+        {/* Mendekati Cutoff */}
+        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-3 py-2.5 shadow-[0_8px_24px_rgba(11,30,52,0.04)] backdrop-blur sm:px-4 sm:py-3 min-w-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]">
@@ -467,10 +426,9 @@ export default function DashboardPage() {
                 <p className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Mendekati Cutoff</p>
               </div>
             </div>
-            <DashboardPagination page={flightPage.currentPage} totalPages={flightPage.totalPages} visibleStart={flightPage.visibleStart} visibleEnd={flightPage.visibleEnd} totalItems={filteredFlights.length} onPageChange={setDashboardFlightPage} />
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            {filteredFlights.length ? flightPage.items.map((flight) => (
+            {filteredFlights.length ? sortedFlights.slice(0, 4).map((flight) => (
               <button
                 key={flight.id}
                 type="button"
@@ -495,28 +453,18 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── ROW 3: Main Content — Table + Action Center ── */}
+      {/* ── ROW 2: Manifest Prioritas + Pusat Tindakan ── */}
       <div className="grid grid-cols-1 gap-4 sm:gap-5 items-start lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
-        {/* Operational Summary */}
+        {/* Manifest Prioritas */}
         <OpsPanel className="p-4 sm:p-5 min-w-0">
           <SectionHeader
-            title="Papan Operasional"
+            title="Manifest Prioritas"
             subtitle={`${filteredShipments.length} manifest aktif hari ini`}
           />
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <MiniStatCard label="Total Manifest" value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : filteredShipments.length} note="Hari ini" icon={Boxes} tone="primary" />
-            <MiniStatCard label="Berangkat" value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : filteredShipments.filter(s => s.status === 'departed').length} note="Sudah terbang" icon={PlaneTakeoff} tone="info" />
-            <MiniStatCard label="Tiba" value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : filteredShipments.filter(s => s.status === 'arrived').length} note="Di tujuan" icon={PackageCheck} tone="success" />
-            <MiniStatCard label="Tertahan" value={loading ? <SkeletonBlock className="h-7 w-12 rounded-[8px]" /> : filteredShipments.filter(s => s.status === 'hold').length} note="Perlu review" icon={ShieldAlert} tone="warning" />
-          </div>
 
-          {/* Preview manifest prioritas */}
           {!loading && filteredShipments.length > 0 ? (
             <>
-              <div className="mt-5 border-t border-[color:var(--border-soft)] pt-4">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[color:var(--muted-2)]">Manifest prioritas</p>
-              </div>
-              <div className="mt-3 space-y-1.5">
+              <div className="mt-4 space-y-1.5">
                 {filteredShipments
                   .sort((a, b) => {
                     const aPrio = a.status === 'hold' || a.docStatus === 'Review' ? 0 : 1;
@@ -550,29 +498,17 @@ export default function DashboardPage() {
               </div>
             </>
           ) : loading ? (
-            <div className="mt-5 space-y-3">
-              <SkeletonBlock className="h-4 w-32 rounded-[6px]" />
+            <div className="mt-4 space-y-3">
               {Array.from({ length: 4 }).map((_, i) => (
                 <SkeletonBlock key={i} className="h-[52px] w-full rounded-[14px]" />
               ))}
             </div>
           ) : (
-            <div className="mt-5">
-              <EmptyState icon={Boxes} variant="neutral" title="Belum ada manifest aktif" copy="Manifest operasional hari ini akan muncul di area ini." className="py-6" />
-              <div className="mt-4 flex justify-end">
-                <Link
-                  href="/shipment-ledger"
-                  className="inline-flex items-center gap-2 rounded-full border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] px-5 py-2.5 text-sm font-bold text-[color:var(--brand-primary)] transition-all hover:bg-[color:var(--brand-primary)] hover:text-white"
-                >
-                  <PackageSearch size={16} />
-                  Lihat Ledger
-                </Link>
-              </div>
-            </div>
+            <EmptyState icon={Boxes} variant="neutral" title="Belum ada manifest aktif" copy="Manifest operasional hari ini akan muncul di area ini." className="py-6" />
           )}
         </OpsPanel>
 
-        {/* Action Center — col-span-1 */}
+        {/* Pusat Tindakan */}
         <OpsPanel className="flex min-h-0 flex-col p-3 sm:p-4 min-w-0 w-full">
           <div className="flex-none min-w-0">
             <SectionHeader title="Pusat Tindakan" subtitle={filteredAlerts.length > 0 ? `${alertPage.visibleStart}-${alertPage.visibleEnd} dari ${filteredAlerts.length} alert` : "0 alert"} />
@@ -602,9 +538,46 @@ export default function DashboardPage() {
           </div>
         </OpsPanel>
       </div>
+
+      {/* ── ROW 3: Aktivitas Terakhir ── */}
+      {internalData?.recentActivity && internalData.recentActivity.length > 0 ? (
+        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-4 py-3 shadow-[0_8px_24px_rgba(11,30,52,0.04)] backdrop-blur sm:px-5 sm:py-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2">
+              <History size={16} className="text-[color:var(--brand-primary)]" />
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Aktivitas Terakhir</p>
+            </div>
+            <Link href="/activity-log" className="text-[11px] font-semibold text-[color:var(--brand-primary)] hover:underline">
+              Lihat semua aktivitas
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {internalData!.recentActivity.slice(0, 3).map((activity) => (
+              <div key={activity.id} className="flex items-start gap-3 rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/60 px-3 py-2.5 min-w-0">
+                <div className={cn(
+                  "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px]",
+                  activity.level === "warning" ? "bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]" :
+                  activity.level === "error" ? "bg-[color:var(--tone-danger-soft)] text-[color:var(--tone-danger)]" :
+                  "bg-[color:var(--tone-info-soft)] text-[color:var(--tone-info)]"
+                )}>
+                  {activity.level === "warning" ? <ShieldAlert size={14} /> :
+                   activity.level === "error" ? <TriangleAlert size={14} /> :
+                   <FileCheck2 size={14} />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-[color:var(--text-strong)] truncate">{activity.action}</p>
+                  <p className="mt-0.5 text-[11px] text-[color:var(--muted-fg)] truncate">{activity.description}</p>
+                  <p className="mt-1 text-[10px] text-[color:var(--muted-2)]">{activity.userName} · {formatRelativeShort(activity.createdAt)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
+
 
 /* ── Mini Stat Card (compact) ── */
 function MiniStatCard({ label, value, note, icon: Icon, tone }: { label: string; value: React.ReactNode; note: string; icon: React.ComponentType<{ size?: number }>; tone: "primary" | "success" | "warning" | "info" }) {
