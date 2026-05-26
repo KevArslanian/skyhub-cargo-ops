@@ -140,7 +140,7 @@ type DashboardSettingsPayload = {
 const DASHBOARD_PAGE_SIZE = 6;
 const DASHBOARD_COMPACT_PAGE_SIZE = 5;
 const DASHBOARD_FLIGHT_PAGE_SIZE = 4;
-const DASHBOARD_ALERT_PAGE_SIZE = 4;
+const DASHBOARD_ALERT_PAGE_SIZE = 3;
 
 function getPageWindow<T>(items: T[], page: number, pageSize = DASHBOARD_PAGE_SIZE) {
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
