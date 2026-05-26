@@ -99,11 +99,11 @@ type MiniDonutGroupProps = {
 
 export function MiniDonutGroup({ charts, className }: MiniDonutGroupProps) {
   return (
-    <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-3", className)}>
+    <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3", className)}>
       {charts.map((chart) => (
-        <div key={chart.title} className="flex items-center gap-4 rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/60 px-4 py-3.5">
-          <DonutChart segments={chart.segments} total={chart.total} size={96} strokeWidth={12} />
-          <div className="min-w-0 flex-1">
+        <div key={chart.title} className="flex flex-col items-center gap-3 rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/60 px-4 py-4 xl:flex-row xl:items-center xl:gap-4">
+          <DonutChart segments={chart.segments} total={chart.total} size={132} strokeWidth={16} />
+          <div className="min-w-0 flex-1 w-full xl:w-auto">
             <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[color:var(--muted-2)]">
               {chart.title}
             </p>

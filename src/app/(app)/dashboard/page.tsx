@@ -301,10 +301,16 @@ export default function DashboardPage() {
   ];
   const flightDonutTotal = flightsToday.length || 0;
 
+  const actionDonut: DonutSegment[] = [
+    { label: "Mendesak", value: actionUrgent, color: DONUT_ROSE },
+    { label: "Terkendali", value: actionControlled, color: DONUT_SLATE },
+  ];
+  const actionDonutTotal = 8;
 
   const donutCharts = [
     { title: "Alur Shipment", total: shipmentDonutTotal, segments: shipmentDonut },
     { title: "Status Flight", total: flightDonutTotal, segments: flightDonut },
+    { title: "Beban Tindakan", total: actionDonutTotal, segments: actionDonut },
   ];
 
   /* ── Filtered / paged data ── */
