@@ -7,7 +7,6 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   FileText,
   Pencil,
   PlaneTakeoff,
@@ -33,7 +32,7 @@ import {
   type SupportedAirlineCode,
 } from "@/lib/flight-meta";
 import { StatusBadge } from "@/components/status-badge";
-import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
 import { OpsDrawer } from "@/components/ops-drawer";
 
 type FlightBoardPayload = {
@@ -740,12 +739,6 @@ export default function FlightBoardPage() {
             </>
           }
         />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-3">
-        <StatCard label="Terjadwal" value={data?.summary.onTime ?? 0} note="Belum melewati waktu berangkat." icon={PlaneTakeoff} tone="success" />
-        <StatCard label="Terlambat" value={data?.summary.delayed ?? 0} note="Ditandai butuh penyesuaian jadwal." icon={Clock3} tone="warning" />
-        <StatCard label="Berangkat" value={data?.summary.departed ?? 0} note="Waktu berangkat sudah berjalan." icon={TowerControl} tone="info" />
       </div>
 
       <FilterBar className="flightboard-filter-bar">

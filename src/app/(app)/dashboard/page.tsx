@@ -408,7 +408,7 @@ export default function DashboardPage() {
      INTERNAL DASHBOARD — REDESIGNED SINGLE-VIEWPORT
      ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="dashboard-fixed-viewport flex h-auto flex-col gap-[14px] overflow-x-hidden xl:h-[628px]">
+    <div className="dashboard-viewport flex h-full flex-col gap-[14px] overflow-x-hidden">
       {/* ── ROW 1: Analitik + Cutoff ── */}
       <div className="grid h-auto grid-cols-1 gap-[14px] items-stretch min-w-0 xl:h-[184px] xl:grid-cols-[minmax(0,1fr)_328px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Analitik Operasional */}

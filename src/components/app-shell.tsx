@@ -14,14 +14,11 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  Monitor,
-  MoonStar,
   PackageSearch,
   PlaneTakeoff,
   Radar,
   Search,
   Settings2,
-  SunMedium,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { getNavigationForRole } from "@/lib/access";
@@ -102,7 +99,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [searchResults, setSearchResults] = useState<ShellSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const themePreference = shellSettings.theme === "dark" ? "dark" : "light";
-  const activeTheme = mounted ? (resolvedTheme === "dark" ? "dark" : "light") : themePreference;
   const sidebarWidth = collapsed ? "88px" : "min(284px, 24vw)";
   const shellStyle = {
     "--sidebar-width": sidebarWidth,
@@ -379,22 +375,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
     router.refresh();
-  }
-
-  async function handleThemeToggle() {
-    const themeCycle: Record<string, string> = { light: "dark", dark: "system", system: "light" };
-    const nextTheme = themeCycle[shellSettings.theme] || "light";
-    setShellSettings((current) => ({ ...current, theme: nextTheme }));
-    window.localStorage.setItem("theme", nextTheme);
-    if (nextTheme === "system") {
-      setTheme("system");
-    } else {
-      setTheme(nextTheme);
-    }
-    const persisted = await persistSettings({ theme: nextTheme });
-    if (persisted) {
-      setShellSettings((current) => ({ ...current, ...persisted }));
-    }
   }
 
   const searchPlaceholder = useMemo(() => {
@@ -700,16 +680,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               ) : null}
 
               <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
-                <button
-                  type="button"
-                  className="topbar-button"
-                  onClick={handleThemeToggle}
-                  aria-label={shellSettings.theme === "dark" ? "Beralih ke mode terang" : shellSettings.theme === "system" ? "Beralih ke mode sistem" : "Beralih ke mode gelap"}
-                  title={shellSettings.theme === "dark" ? "Mode gelap" : shellSettings.theme === "system" ? "Ikuti sistem" : "Mode terang"}
-                >
-                  {shellSettings.theme === "dark" ? <MoonStar size={18} /> : shellSettings.theme === "system" ? <Monitor size={18} /> : <SunMedium size={18} />}
-                </button>
-
                 <div className="relative">
                   <button
                     type="button"

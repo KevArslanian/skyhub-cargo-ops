@@ -2,20 +2,36 @@ import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn, formatNumber } from "@/lib/format";
 
 export function PageHeader({
+  eyebrow,
+  title,
+  subtitle,
   actions,
   className,
+  id,
 }: {
   eyebrow?: string;
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
   className?: string;
+  id?: string;
 }) {
-  if (!actions) return null;
-
   return (
-    <header className={cn("page-action-toolbar", className)} aria-label="Aksi halaman">
-      <div className="flex max-w-full shrink-0 flex-wrap items-center gap-3">{actions}</div>
+    <header className={cn("flex min-w-0 max-w-full flex-wrap items-start justify-between gap-4", className)} aria-label="Header halaman">
+      <div className="min-w-0">
+        {eyebrow ? (
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">{eyebrow}</p>
+        ) : null}
+        <h1 id={id} className="mt-1 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
+          {title}
+        </h1>
+        {subtitle ? (
+          <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">{subtitle}</p>
+        ) : null}
+      </div>
+      {actions ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-3">{actions}</div>
+      ) : null}
     </header>
   );
 }

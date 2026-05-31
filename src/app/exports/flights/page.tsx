@@ -80,7 +80,7 @@ export default async function FlightsPrintPage({
             {flights.length ? (
               flights.map((flight) => (
                 <tr key={flight.id}>
-                  <td className="whitespace-nowrap font-mono text-xs font-semibold text-[#1d4ed8]">{flight.flightNumber}</td>
+                  <td className="whitespace-nowrap font-mono text-xs font-semibold text-[#0052cc]">{flight.flightNumber}</td>
                   <td className="whitespace-nowrap">{flight.route}</td>
                   <td className="whitespace-nowrap">{formatDateTime(flight.cargoCutoffTime)}</td>
                   <td className="whitespace-nowrap">{formatDateTime(flight.departureTime)}</td>

@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-005",
+  "type": "refactor",
+  "description": "Ensure consistent PageHeader usage across all pages and fix the OpsPanel PageHeader component behavior. Currently, the PageHeader component in ops-ui.tsx only renders when `actions` prop is provided (returns null otherwise). This means the eyebrow/title/subtitle passed to it are never shown - they are wasted props. Each page has inconsistent header patterns: some use PageHeader for layout (dashboard, alerts, activity-log) but the actual title/subtitle display comes from elsewhere or is absent. Apply the Consistency and Standards heuristic (Jakob's Law) - users expect similar page structures. Every page should have a visible compact header section with eyebrow (module category), title, and optional subtitle, rendered consistently.",
+  "status": "completed",
+  "steps": [
+    "In src/components/ops-ui.tsx: Fix the PageHeader component to always render its title section. Currently it returns null when `actions` is not provided. Change it to: always render a flex container with the eyebrow/title/subtitle on the left, and actions (if any) on the right. The eyebrow should use the `ops-eyebrow` class. The title should use `page-title` class (but smaller variant - use text-xl font-extrabold for a compact header). The subtitle should use `page-subtitle` class. Keep the `actions` slot on the right side for buttons.",
+    "Verify all pages that call PageHeader: dashboard, alerts, awb-tracking, flight-board, activity-log, settings, seed, query. They all pass eyebrow/title/subtitle - now those will actually render.",
+    "In src/app/(app)/shipment-ledger/page.tsx: This page uses a `ledger-control-header-compact` section instead of PageHeader. It has an sr-only h1. Add a proper PageHeader call with eyebrow='Operasional', title matching what it currently has ('Ledger Shipment' or 'Shipment Saya' based on isReadOnly), and the existing action buttons.",
+    "Ensure the PageHeader height/spacing is consistent and compact - it should not take excessive vertical space since we want viewport-fitting. Use gap-2 between eyebrow/title/subtitle, and keep total header height minimal."
+  ],
+  "acceptance_criteria": [
+    "Every app page shows a visible PageHeader with eyebrow category, title, and optional subtitle",
+    "PageHeader renders its content even without actions prop",
+    "Layout is consistent: eyebrow above title, subtitle below title, actions on the right",
+    "The header is compact (does not waste vertical space) but clearly establishes the page identity",
+    "pnpm lint passes",
+    "pnpm build passes"
+  ],
+  "verification": [
+    "Run `pnpm lint` and confirm no errors",
+    "Run `pnpm build` and confirm successful compilation",
+    "Read src/components/ops-ui.tsx PageHeader function - should not return null when actions is missing"
+  ],
+  "blocked_reason": null,
+  "findings": "PageHeader rewritten to always render. No pages needed changes besides shipment-ledger since all other pages already pass eyebrow/title/subtitle. The shipment-ledger page was the only one using a custom header section instead of PageHeader. Build and lint pass cleanly."
+}

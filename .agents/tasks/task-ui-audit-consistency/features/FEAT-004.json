@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-004",
+  "type": "fix",
+  "description": "Fix mobile responsiveness and hamburger menu visibility. Currently the mobile hamburger menu trigger uses `display: none` by default and only shows on `(any-hover: none) and (any-pointer: coarse)` which misses desktop users with narrow windows and some tablets. Per WCAG 2.1 and responsive design best practices (Mobile-First principle), the hamburger should show based on viewport width (lg breakpoint = 1024px), not input device. Also ensure all pages are properly responsive with no horizontal overflow on mobile.",
+  "status": "completed",
+  "steps": [
+    "In src/app/globals.css: Change the .mobile-hamburger-trigger display rule from `@media (any-hover: none) and (any-pointer: coarse)` to `@media (max-width: 1023px)` to match the lg:hidden/lg:translate-x-0 breakpoint used on the sidebar in app-shell.tsx. The sidebar already uses lg breakpoint for show/hide, so the hamburger trigger must match.",
+    "In src/app/globals.css: Add `@media (min-width: 1024px) { .mobile-hamburger-trigger { display: none !important; } }` to ensure it hides on desktop.",
+    "Verify that all page content does not have horizontal overflow on mobile - the existing CSS has `overflow-x: clip` on many containers which should handle this. Check that the FilterBar components on mobile use single-column grid (the existing `grid-cols-1` at small viewports).",
+    "In src/app/(app)/dashboard/page.tsx: Ensure the dashboard grid rows use responsive columns - on mobile, all content stacks vertically. The `xl:grid-cols-[...]` already handles this but verify the default (mobile) is single column.",
+    "Verify the sidebar mobile overlay (the backdrop div with lg:hidden) works correctly with the hamburger trigger."
+  ],
+  "acceptance_criteria": [
+    "Hamburger menu button is visible on viewports < 1024px regardless of input device",
+    "Hamburger menu button is hidden on viewports >= 1024px",
+    "Sidebar shows/hides correctly on mobile toggle",
+    "No horizontal overflow/scrollbar appears on any page at mobile widths",
+    "pnpm build passes"
+  ],
+  "verification": [
+    "Run `pnpm lint` and confirm no errors",
+    "Run `pnpm build` and confirm successful compilation",
+    "Grep for 'any-hover.*any-pointer' in globals.css - should not exist for hamburger",
+    "Verify mobile-hamburger-trigger uses max-width: 1023px media query"
+  ],
+  "blocked_reason": null,
+  "findings": "Replaced device-capability media query (any-hover/any-pointer) with viewport-width based rule (min-width: 1024px). Mobile-first approach: hamburger shows by default, hidden at lg breakpoint. Build and lint pass cleanly."
+}

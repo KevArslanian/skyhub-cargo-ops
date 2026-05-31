@@ -83,7 +83,7 @@ export default async function ActivityLogPrintPage({
                   <td className="whitespace-nowrap font-mono text-xs text-slate-500">{formatDateTime(log.createdAt)}</td>
                   <td className="font-semibold text-slate-800">{log.userName}</td>
                   <td className="font-semibold text-slate-900">{log.action}</td>
-                  <td className="font-mono text-xs text-[#1d4ed8]">{log.targetLabel}</td>
+                  <td className="font-mono text-xs text-[#0052cc]">{log.targetLabel}</td>
                   <td>{log.description}</td>
                   <td>
                     <span className={`print-badge print-badge-${getLogTone(log.level)}`}>{log.level}</span>

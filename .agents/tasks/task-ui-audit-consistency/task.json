@@ -1,0 +1,14 @@
+{
+  "task_id": "task-ui-audit-consistency",
+  "task_description": "Full UI/UX audit and fix for SkyHub Cargo Ops: remove redundancies (dark mode toggle from topbar), fix layout consistency (viewport-fitting without scroll/cutoff), ensure mobile responsiveness, fix PageHeader rendering consistency, and remove dead routes (/reports redirect).",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "pnpm lint passes with 0 errors. pnpm build compiles all 22 pages successfully. All review issues addressed (dead sticky CSS, duplicate rules, aria-labelledby, scroll padding)."
+  }
+}
