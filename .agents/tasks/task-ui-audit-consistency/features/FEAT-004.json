@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "fix",
   "description": "Fix mobile responsiveness and hamburger menu visibility. Currently the mobile hamburger menu trigger uses `display: none` by default and only shows on `(any-hover: none) and (any-pointer: coarse)` which misses desktop users with narrow windows and some tablets. Per WCAG 2.1 and responsive design best practices (Mobile-First principle), the hamburger should show based on viewport width (lg breakpoint = 1024px), not input device. Also ensure all pages are properly responsive with no horizontal overflow on mobile.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "In src/app/globals.css: Change the .mobile-hamburger-trigger display rule from `@media (any-hover: none) and (any-pointer: coarse)` to `@media (max-width: 1023px)` to match the lg:hidden/lg:translate-x-0 breakpoint used on the sidebar in app-shell.tsx. The sidebar already uses lg breakpoint for show/hide, so the hamburger trigger must match.",
     "In src/app/globals.css: Add `@media (min-width: 1024px) { .mobile-hamburger-trigger { display: none !important; } }` to ensure it hides on desktop.",
@@ -24,5 +24,5 @@
     "Verify mobile-hamburger-trigger uses max-width: 1023px media query"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Replaced device-capability media query (any-hover/any-pointer) with viewport-width based rule (min-width: 1024px). Mobile-first approach: hamburger shows by default, hidden at lg breakpoint. Build and lint pass cleanly."
 }

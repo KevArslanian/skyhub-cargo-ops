@@ -563,12 +563,12 @@ textarea {
 }
 
 .mobile-hamburger-trigger {
-  display: none;
+  display: inline-flex;
 }
 
-@media (any-hover: none) and (any-pointer: coarse) {
+@media (min-width: 1024px) {
   .mobile-hamburger-trigger {
-    display: inline-flex;
+    display: none;
   }
 }
 
