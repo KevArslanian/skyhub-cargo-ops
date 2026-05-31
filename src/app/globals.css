@@ -1937,7 +1937,7 @@ input[type="checkbox"] {
 
 .awb-tracking-workspace {
   flex: 1;
-  min-height: calc(100svh - var(--shell-topbar-height) - 3.25rem);
+  min-height: 0;
 }
 
 .awb-tracking-layout {
@@ -2599,8 +2599,16 @@ input[type="checkbox"] {
 }
 
 @media (min-width: 1280px) {
+  .shell-content {
+    height: 100svh;
+    overflow: hidden;
+  }
+
   .page-workspace {
+    flex: 1;
     min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .page-stack,
@@ -2610,7 +2618,12 @@ input[type="checkbox"] {
   }
 
   .dashboard-viewport,
-  .flightboard-viewport,
+  .flightboard-viewport {
+    min-height: 0;
+    height: 100%;
+    gap: clamp(1rem, 1.2vw, 1.4rem);
+  }
+
   .alerts-viewport {
     min-height: 100%;
     height: auto;
@@ -2954,6 +2967,8 @@ input[type="checkbox"] {
 @media (max-width: 1279px) {
   .page-workspace {
     height: auto;
+    overflow-y: visible;
+    overflow-x: hidden;
   }
 
   .ops-sticky-footer {

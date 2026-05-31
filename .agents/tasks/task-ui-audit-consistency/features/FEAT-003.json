@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "fix",
   "description": "Fix layout consistency across all pages - ensure viewport-fitting without scroll but without content being cut off, with mobile responsiveness. Apply Fitts's Law (important interactive areas must be large and accessible), the Law of Proximity (related elements grouped together), and Visual Hierarchy principles (consistent spacing, sizing, and alignment across pages). Currently, each page has different layout approaches: dashboard uses fixed 628px height on xl, awb-tracking uses min-height calc, alerts and activity-log have no viewport constraints on xl. Unify these patterns so every page fills available shell viewport without requiring page-level scrolling on desktop, but allows natural scrolling on mobile (< 1280px).",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "In src/app/globals.css: Create a unified viewport-fitting approach for all page-workspace elements. The shell content area (shell-content) already uses flex min-h-0 w-full flex-col. On xl (1280px+), page-workspace should use flex: 1 and min-height: 0 to fill available space. Remove the hardcoded `xl:h-[628px]` from dashboard (it is inline in the component). The pattern should be: on xl+, content fills viewport without page-level overflow-y; on < xl, natural document flow with scrolling.",
     "In src/app/(app)/dashboard/page.tsx: Remove the `xl:h-[628px]` class from `dashboard-fixed-viewport`. The dashboard should use the same viewport-fitting CSS as other pages rather than a hardcoded pixel height. Change `h-auto` to proper flex-grow behavior. Replace `dashboard-fixed-viewport` class usage with the standard page-workspace pattern plus a specific class like `dashboard-viewport` (already exists in CSS).",
