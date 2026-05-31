@@ -7,12 +7,14 @@ export function PageHeader({
   subtitle,
   actions,
   className,
+  id,
 }: {
   eyebrow?: string;
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
   className?: string;
+  id?: string;
 }) {
   return (
     <header className={cn("flex min-w-0 max-w-full flex-wrap items-start justify-between gap-4", className)} aria-label="Header halaman">
@@ -20,7 +22,7 @@ export function PageHeader({
         {eyebrow ? (
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">{eyebrow}</p>
         ) : null}
-        <h1 className="mt-1 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
+        <h1 id={id} className="mt-1 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
           {title}
         </h1>
         {subtitle ? (

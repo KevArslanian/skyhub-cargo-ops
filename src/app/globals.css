@@ -2609,6 +2609,11 @@ input[type="checkbox"] {
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    padding-bottom: 1.5rem;
+  }
+
+  .shell-topbar {
+    position: static;
   }
 
   .page-stack,
@@ -2627,13 +2632,9 @@ input[type="checkbox"] {
   .alerts-viewport {
     min-height: 100%;
     height: auto;
-    gap: clamp(1rem, 1.2vw, 1.4rem);
-  }
-
-  .alerts-viewport {
-    height: auto;
     max-height: none;
     overflow: visible;
+    gap: clamp(1rem, 1.2vw, 1.4rem);
   }
 
   .alerts-viewport > header {

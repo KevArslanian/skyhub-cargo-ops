@@ -829,8 +829,9 @@ export default function ShipmentLedgerPage() {
 
 
   return (
-    <main className="page-workspace">
+    <main className="page-workspace" aria-labelledby="shipment-ledger-title">
       <PageHeader
+        id="shipment-ledger-title"
         eyebrow="Operasional"
         title={isReadOnly ? "Shipment Saya" : "Ledger Shipment"}
         subtitle={isReadOnly ? "Shipment terhubung ke akun Anda." : "Manifest dan detail kiriman aktif."}
