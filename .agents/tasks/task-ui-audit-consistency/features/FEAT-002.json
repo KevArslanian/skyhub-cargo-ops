@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "refactor",
   "description": "Remove dark mode toggle redundancy from topbar - theme controls should ONLY exist in Settings page. Per Nielsen's Heuristic #8 (Aesthetic and Minimalist Design), avoid exposing infrequently-used configuration in the primary workspace. Theme preference is a one-time setup action that belongs in Settings. Also remove the /reports page redirect to /dashboard (it is redundant since reports has no functionality). The seed and query pages are dev utilities with no sidebar link and should remain as-is.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In src/components/app-shell.tsx: Remove the theme toggle button from the topbar area (the button with handleThemeToggle onClick). Remove the import of MoonStar, SunMedium, Monitor icons if they become unused (check if Settings page imports them separately - it does via its own imports). Remove the handleThemeToggle function from the shell. Keep all theme initialization/sync logic intact since Settings page will still emit 'skyhub:settings-preview' events for theme changes.",
     "In src/app/(app)/reports/page.tsx: This page just redirects to /dashboard. Remove this redirect page entirely (delete the file). Reports is not in the navigation items for any role and has no purpose.",
@@ -24,5 +24,5 @@
     "Confirm reports/page.tsx file does not exist"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Lint passes clean (0 warnings). Build compiles 22 pages (down from 23 - reports removed). Theme toggle removed from topbar, all theme sync logic preserved for Settings page. No references to handleThemeToggle, MoonStar, SunMedium, Monitor remain in app-shell.tsx."
 }
