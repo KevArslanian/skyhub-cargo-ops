@@ -39,6 +39,7 @@ import {
   EmptyState,
   FilterBar,
   OpsPanel,
+  PageHeader,
   SectionHeader,
   SkeletonBlock,
 } from "@/components/ops-ui";
@@ -828,24 +829,28 @@ export default function ShipmentLedgerPage() {
 
 
   return (
-    <main className="page-workspace" aria-labelledby="shipment-ledger-title">
-      <section className="ledger-control-header ledger-control-header-compact" aria-labelledby="shipment-ledger-title">
-        <h1 id="shipment-ledger-title" className="sr-only">{isReadOnly ? "Shipment Saya" : "Ledger Shipment"}</h1>
-        <div className="ledger-control-actions">
-          {!isReadOnly && data?.permissions.canExport ? (
-            <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">
-              <FileText size={16} />
-              Print
-            </Link>
-          ) : null}
-          {!isReadOnly && data?.permissions.canCreate ? (
-            <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
-              <Plus size={16} />
-              Buat Shipment
-            </button>
-          ) : null}
-        </div>
-      </section>
+    <main className="page-workspace">
+      <PageHeader
+        eyebrow="Operasional"
+        title={isReadOnly ? "Shipment Saya" : "Ledger Shipment"}
+        subtitle={isReadOnly ? "Shipment terhubung ke akun Anda." : "Manifest dan detail kiriman aktif."}
+        actions={
+          <>
+            {!isReadOnly && data?.permissions.canExport ? (
+              <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">
+                <FileText size={16} />
+                Print
+              </Link>
+            ) : null}
+            {!isReadOnly && data?.permissions.canCreate ? (
+              <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+                <Plus size={16} />
+                Buat Shipment
+              </button>
+            ) : null}
+          </>
+        }
+      />
 
       <LedgerStats
         loading={loading}
