@@ -7,12 +7,9 @@ import {
   BellRing,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
-  Clock3,
-  ShieldAlert,
   SlidersHorizontal,
 } from "lucide-react";
-import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDateTime } from "@/lib/format";
 
@@ -195,37 +192,6 @@ export default function AlertsPage() {
         title="Pusat Alert Operasional"
         subtitle="Exception dan eskalasi."
       />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Butuh Tindakan"
-          value={data?.summary.total ?? 0}
-          note="Alert aktif."
-          icon={BellRing}
-          tone="primary"
-        />
-        <StatCard
-          label="Kritis"
-          value={data?.summary.critical ?? 0}
-          note="Prioritas awal."
-          icon={ShieldAlert}
-          tone="danger"
-        />
-        <StatCard
-          label="Warning"
-          value={data?.summary.warning ?? 0}
-          note="Risiko aktif."
-          icon={Clock3}
-          tone="warning"
-        />
-        <StatCard
-          label="Normal Check"
-          value={(data?.conditionChecks ?? []).filter((item) => item.status === "normal").length}
-          note={`${data?.conditionChecks.length ?? 0} aturan.`}
-          icon={CheckCircle2}
-          tone="success"
-        />
-      </div>
 
       <OpsPanel className="p-5">
         <SectionHeader title="Eskalasi" />

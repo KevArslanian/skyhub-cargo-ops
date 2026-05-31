@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, History } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
-import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
 
 type ActivityPayload = {
   users: { id: string; name: string }[];
@@ -61,16 +61,6 @@ export default function ActivityLogPage() {
     return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
   }, []);
 
-  const levels = useMemo(() => {
-    const counts = { success: 0, info: 0, warning: 0, error: 0 };
-    (data?.logs ?? []).forEach((log) => {
-      if (log.level in counts) {
-        counts[log.level as keyof typeof counts] += 1;
-      }
-    });
-    return counts;
-  }, [data]);
-
   const actions = Array.from(new Set((data?.logs ?? []).map((log) => log.action)));
   const totalPages = Math.max(1, Math.ceil((data?.logs.length ?? 0) / ACTIVITY_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -87,13 +77,6 @@ export default function ActivityLogPage() {
         title="Log Aktivitas"
         subtitle="Audit internal."
       />
-
-      <div className="grid gap-4 xl:grid-cols-4">
-        <StatCard label="Berhasil" value={levels.success} note="Aksi berhasil tersimpan atau dieksekusi." icon={ShieldCheck} tone="success" />
-        <StatCard label="Info" value={levels.info} note="Aktivitas normal staff dan sistem." icon={History} tone="info" />
-        <StatCard label="Peringatan" value={levels.warning} note="Event yang memerlukan perhatian tetapi belum fatal." icon={TriangleAlert} tone="warning" />
-        <StatCard label="Galat" value={levels.error} note="Kejadian gagal atau exception log yang tercatat." icon={ShieldAlert} tone="danger" />
-      </div>
 
       <FilterBar className="activity-log-filter-bar activity-log-filter-bar-compact">
         <div>
