@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Fix layout consistency across all pages - ensure viewport-fitting without scroll but without content being cut off, with mobile responsiveness. Apply Fitts's Law (important interactive areas must be large and accessible), the Law of Proximity (related elements grouped together), and Visual Hierarchy principles (consistent spacing, sizing, and alignment across pages). Currently, each page has different layout approaches: dashboard uses fixed 628px height on xl, awb-tracking uses min-height calc, alerts and activity-log have no viewport constraints on xl. Unify these patterns so every page fills available shell viewport without requiring page-level scrolling on desktop, but allows natural scrolling on mobile (< 1280px).",
+  "status": "pending",
+  "steps": [
+    "In src/app/globals.css: Create a unified viewport-fitting approach for all page-workspace elements. The shell content area (shell-content) already uses flex min-h-0 w-full flex-col. On xl (1280px+), page-workspace should use flex: 1 and min-height: 0 to fill available space. Remove the hardcoded `xl:h-[628px]` from dashboard (it is inline in the component). The pattern should be: on xl+, content fills viewport without page-level overflow-y; on < xl, natural document flow with scrolling.",
+    "In src/app/(app)/dashboard/page.tsx: Remove the `xl:h-[628px]` class from `dashboard-fixed-viewport`. The dashboard should use the same viewport-fitting CSS as other pages rather than a hardcoded pixel height. Change `h-auto` to proper flex-grow behavior. Replace `dashboard-fixed-viewport` class usage with the standard page-workspace pattern plus a specific class like `dashboard-viewport` (already exists in CSS).",
+    "In src/app/globals.css: For the shell-content area, add CSS ensuring `overflow-y: auto` with `min-height: 0` so content pages can scroll internally if needed, but the overall page fits viewport. Ensure .page-workspace on xl+ has `flex: 1; min-height: 0; overflow-y: auto;` to create the scroll container within the viewport.",
+    "In src/app/(app)/dashboard/page.tsx: Ensure the dashboard internal grid rows use `flex: 1` or `min-height: 0` to shrink within available space rather than overflow. The three rows (analytics+cutoff, manifest+actions, activity) should distribute vertically in flex layout.",
+    "In src/app/(app)/alerts/page.tsx: The alerts page should also fit viewport on xl. The alerts-content-grid already has xl CSS handling. Verify the FilterBar + stats + content grid fills available space without overflow.",
+    "In src/app/(app)/activity-log/page.tsx: Same pattern - page-workspace fills available viewport. The table can have internal scrolling (via table-shell overflow-x) but the overall page should not require scrolling on desktop.",
+    "In src/app/(app)/shipment-ledger/page.tsx: The ledger uses a split-pane pattern. Ensure on desktop the split-pane fills available viewport without requiring page scrolling. The detail panel on the right should have internal scrolling if content is long.",
+    "In src/app/(app)/flight-board/page.tsx: Same viewport-fitting pattern. The flight board has a sticky header already. Ensure content below fills remaining space.",
+    "In src/app/(app)/awb-tracking/page.tsx: Currently uses `min-height: calc(100svh - var(--shell-topbar-height) - 3.25rem)`. This is close to correct. Unify to use the same flex-based approach as other pages.",
+    "Ensure all pages on mobile (< 1280px) revert to natural document flow with overflow-y visible/auto so content scrolls normally."
+  ],
+  "acceptance_criteria": [
+    "On desktop (xl+), all app pages fill the viewport height without requiring page-level scrolling",
+    "Content is never cut off - internal scroll containers exist for data tables and lists",
+    "On mobile (< 1280px), pages scroll naturally without viewport-height constraints",
+    "Dashboard no longer has hardcoded xl:h-[628px]",
+    "All pages follow the same page-workspace flex-based layout pattern",
+    "pnpm build passes without errors"
+  ],
+  "verification": [
+    "Run `pnpm build` and confirm successful compilation",
+    "Run `pnpm lint` and confirm no new errors",
+    "Grep for 'h-[628px]' in dashboard page - should not exist",
+    "Verify globals.css has consistent viewport-fitting rules for page-workspace on xl+"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
