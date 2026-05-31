@@ -2047,6 +2047,13 @@ input[type="checkbox"] {
   padding-inline: 14px;
 }
 
+.activity-level-filter {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
 .activity-log-panel .data-table thead th {
   padding: 10px 14px;
 }
