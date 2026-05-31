@@ -295,11 +295,11 @@ export default function AboutUsPage() {
   }
 
   return (
-    <div className="premium-landing bg-[#050505] text-white">
+    <div className="premium-landing bg-[color:var(--landing-bg)] text-white">
       <nav className={`premium-nav ${navSolid ? "premium-nav-solid" : ""}`} id="navbar">
         <div className="premium-fluid-shell flex items-center justify-between">
           <button type="button" className="flex items-center gap-3 text-left" onClick={() => scrollToId("hero")}>
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#0066ff66] bg-[#0066ff1a]">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[color:var(--landing-accent-outline)] bg-[color:var(--landing-accent-surface)]">
               <Image
                 src="/skyhub-logo-icon-clean.png"
                 alt="SkyHub"
@@ -315,23 +315,23 @@ export default function AboutUsPage() {
           </button>
 
           <div className="hidden items-center gap-9 text-sm font-medium md:flex">
-            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("overview")}>
+            <button type="button" className="transition hover:text-[color:var(--landing-accent)]" onClick={() => scrollToId("overview")}>
               Overview
             </button>
-            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("about")}>
+            <button type="button" className="transition hover:text-[color:var(--landing-accent)]" onClick={() => scrollToId("about")}>
               About Us
             </button>
             <button
               type="button"
-              className="transition hover:text-[#0066ff]"
+              className="transition hover:text-[color:var(--landing-accent)]"
               onClick={() => scrollToId("capabilities")}
             >
               Capabilities
             </button>
-            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("operations")}>
+            <button type="button" className="transition hover:text-[color:var(--landing-accent)]" onClick={() => scrollToId("operations")}>
               Operations
             </button>
-            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("contact")}>
+            <button type="button" className="transition hover:text-[color:var(--landing-accent)]" onClick={() => scrollToId("contact")}>
               Contact
             </button>
           </div>
@@ -343,10 +343,10 @@ export default function AboutUsPage() {
         <div className="premium-animated-grid absolute inset-0" />
 
         <div className="pointer-events-none absolute right-12 top-16 hidden lg:block">
-          <div className="relative h-40 w-40 rounded-full border border-[#00a3ff4d]">
-            <div className="absolute inset-4 rounded-full border border-[#00a3ff33]" />
-            <div className="absolute inset-8 rounded-full border border-[#00a3ff1a]" />
-            <div className="premium-radar-sweep absolute inset-0 rounded-full border-t-2 border-[#00a3ff] [clip-path:polygon(50%_50%,100%_0,100%_100%)]" />
+          <div className="relative h-40 w-40 rounded-full border border-[color:var(--landing-accent-2-30)]">
+            <div className="absolute inset-4 rounded-full border border-[color:var(--landing-accent-2-20)]" />
+            <div className="absolute inset-8 rounded-full border border-[color:var(--landing-accent-2-10)]" />
+            <div className="premium-radar-sweep absolute inset-0 rounded-full border-t-2 border-[color:var(--landing-accent-2)] [clip-path:polygon(50%_50%,100%_0,100%_100%)]" />
           </div>
         </div>
 
@@ -362,7 +362,7 @@ export default function AboutUsPage() {
 
         <div className="premium-fluid-shell relative z-10 text-left">
           <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-5 py-1 text-xs tracking-[3px]">
-            <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#00a3ff]" />
+            <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-[color:var(--landing-accent-2)]" />
             LIVE • SOEDIRMAN CONTROL CENTER
           </div>
 
@@ -376,7 +376,7 @@ export default function AboutUsPage() {
             <button
               type="button"
               onClick={() => setModalOpen(true)}
-              className="premium-magnetic-btn group flex h-16 items-center justify-center gap-3 rounded-3xl bg-white px-14 text-lg font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white"
+              className="premium-magnetic-btn group flex h-16 items-center justify-center gap-3 rounded-3xl bg-white px-14 text-lg font-semibold text-black transition-all hover:bg-[color:var(--landing-accent)] hover:text-white"
             >
               LOGIN
               <ArrowRight className="transition group-hover:-rotate-45" />
@@ -395,7 +395,7 @@ export default function AboutUsPage() {
       <section id="about" className="premium-fluid-shell border-t border-white/10 py-24">
         <div className="premium-about-grid grid items-center gap-16">
           <div className="premium-reveal">
-            <div className="mb-4 text-xs tracking-[4px] text-[#0066ff]">OUR STORY</div>
+            <div className="mb-4 text-xs tracking-[4px] text-[color:var(--landing-accent)]">OUR STORY</div>
             <h2 className="mb-8 text-6xl font-semibold leading-none tracking-tight">
               Built for those who
               <br />
@@ -415,8 +415,8 @@ export default function AboutUsPage() {
 
           <div className="premium-glass premium-reveal rounded-3xl border border-white/10 p-9">
             <div className="mb-8 flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0066ff1a]">
-                <Building2 className="text-[#0066ff]" size={30} />
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[color:var(--landing-accent-surface)]">
+                <Building2 className="text-[color:var(--landing-accent)]" size={30} />
               </div>
               <div>
                 <div className="text-2xl font-semibold">{officeContact?.value ?? "SkyHub Operations Center"}</div>
@@ -426,7 +426,7 @@ export default function AboutUsPage() {
 
             <div className="space-y-6 text-sm">
               <div className="flex gap-4">
-                <div className="w-8 text-[#0066ff]">
+                <div className="w-8 text-[color:var(--landing-accent)]">
                   <MapPin size={20} />
                 </div>
                 <div>
@@ -435,7 +435,7 @@ export default function AboutUsPage() {
                 </div>
               </div>
               <div className="flex gap-4">
-                <div className="w-8 text-[#0066ff]">
+                <div className="w-8 text-[color:var(--landing-accent)]">
                   <Phone size={20} />
                 </div>
                 <div>
@@ -444,7 +444,7 @@ export default function AboutUsPage() {
                 </div>
               </div>
               <div className="flex gap-4">
-                <div className="w-8 text-[#0066ff]">
+                <div className="w-8 text-[color:var(--landing-accent)]">
                   <Mail size={20} />
                 </div>
                 <div>
@@ -453,7 +453,7 @@ export default function AboutUsPage() {
                 </div>
               </div>
               <div className="flex gap-4">
-                <div className="w-8 text-[#0066ff]">
+                <div className="w-8 text-[color:var(--landing-accent)]">
                   <Clock3 size={20} />
                 </div>
                 <div>
@@ -473,7 +473,7 @@ export default function AboutUsPage() {
       <section id="capabilities" className="border-y border-white/10 bg-black py-20">
         <div className="premium-fluid-shell">
           <div className="premium-reveal mb-16">
-            <div className="text-xs tracking-[4px] text-[#0066ff]">WHAT WE DELIVER</div>
+            <div className="text-xs tracking-[4px] text-[color:var(--landing-accent)]">WHAT WE DELIVER</div>
             <h3 className="mt-4 text-6xl font-semibold tracking-tight">{capabilityCard?.title ?? "Capabilities that define the edge."}</h3>
           </div>
 
@@ -482,7 +482,7 @@ export default function AboutUsPage() {
               const Icon = item.icon;
               return (
                 <div key={item.title} className="premium-glass premium-tilt-card premium-reveal rounded-3xl p-9">
-                  <div className="mb-8 text-[#0066ff]">
+                  <div className="mb-8 text-[color:var(--landing-accent)]">
                     <Icon size={40} />
                   </div>
                   <h4 className="mb-4 text-3xl font-semibold">{item.title}</h4>
@@ -496,7 +496,7 @@ export default function AboutUsPage() {
 
       <section id="operations" className="premium-fluid-shell py-24">
         <div className="premium-reveal mb-12">
-          <div className="text-xs tracking-[4px] text-[#0066ff]">THE RHYTHM OF CARGO</div>
+          <div className="text-xs tracking-[4px] text-[color:var(--landing-accent)]">THE RHYTHM OF CARGO</div>
           <h3 className="mt-3 text-6xl font-semibold tracking-tight">Operations that never sleep.</h3>
         </div>
 
@@ -505,7 +505,7 @@ export default function AboutUsPage() {
             <div key={item.index} className="premium-glass premium-reveal rounded-3xl p-8">
               <div className="text-xs text-white/50">{item.index}</div>
               <div className="mb-2 mt-3 text-3xl font-semibold">{item.title}</div>
-              <div className="text-sm text-[#00a3ff]">{item.duration}</div>
+              <div className="text-sm text-[color:var(--landing-accent-2)]">{item.duration}</div>
               <p className="mt-4 text-sm text-white/70">{item.copy}</p>
             </div>
           ))}
@@ -514,7 +514,7 @@ export default function AboutUsPage() {
 
       <section id="metrics" className="border-y border-white/10 bg-black py-20">
         <div className="premium-reveal premium-fluid-shell">
-          <div className="text-xs tracking-[4px] text-[#0066ff]">PROVEN AT SCALE</div>
+          <div className="text-xs tracking-[4px] text-[color:var(--landing-accent)]">PROVEN AT SCALE</div>
           <h3 className="mt-4 text-6xl font-semibold tracking-tight">Numbers that matter.</h3>
         </div>
 
@@ -541,7 +541,7 @@ export default function AboutUsPage() {
       <section id="contact" className="premium-fluid-shell py-24">
         <div className="premium-contact-grid grid gap-16">
           <div className="premium-reveal">
-            <div className="text-xs tracking-[4px] text-[#0066ff]">GET IN TOUCH</div>
+            <div className="text-xs tracking-[4px] text-[color:var(--landing-accent)]">GET IN TOUCH</div>
             <h3 className="mb-8 mt-3 text-6xl font-semibold tracking-tight">
               Let&apos;s build the future of air cargo together.
             </h3>
@@ -549,25 +549,25 @@ export default function AboutUsPage() {
             <div className="space-y-6 text-lg">
               <div>
                 <div className="font-medium">{infoEmailContact?.label ?? "Email umum"}</div>
-                <a href={infoEmailContact?.href ?? "mailto:info@skyhub.co"} className="text-[#0066ff]">
+                <a href={infoEmailContact?.href ?? "mailto:info@skyhub.co"} className="text-[color:var(--landing-accent)]">
                   {infoEmailContact?.value ?? "info@skyhub.co"}
                 </a>
               </div>
               <div>
                 <div className="font-medium">{opsEmailContact?.label ?? "Email operasional"}</div>
-                <a href={opsEmailContact?.href ?? "mailto:ops@skyhub.co"} className="text-[#0066ff]">
+                <a href={opsEmailContact?.href ?? "mailto:ops@skyhub.co"} className="text-[color:var(--landing-accent)]">
                   {opsEmailContact?.value ?? "ops@skyhub.co"}
                 </a>
               </div>
               <div>
                 <div className="font-medium">{supportEmailContact?.label ?? "Email dukungan"}</div>
-                <a href={supportEmailContact?.href ?? "mailto:support@skyhub.co"} className="text-[#0066ff]">
+                <a href={supportEmailContact?.href ?? "mailto:support@skyhub.co"} className="text-[color:var(--landing-accent)]">
                   {supportEmailContact?.value ?? "support@skyhub.co"}
                 </a>
               </div>
               <div>
                 <div className="font-medium">Link resmi aplikasi</div>
-                <a href={APP_CANONICAL_URL} className="text-[#0066ff]">
+                <a href={APP_CANONICAL_URL} className="text-[color:var(--landing-accent)]">
                   {APP_CANONICAL_URL}
                 </a>
               </div>
@@ -580,7 +580,7 @@ export default function AboutUsPage() {
                 <label className="text-xs tracking-widest text-white/60">YOUR NAME</label>
                 <input
                   type="text"
-                  className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[color:var(--landing-accent)] focus:outline-none"
                   value={contactState.name}
                   onChange={(event) => setContactState((current) => ({ ...current, name: event.target.value }))}
                 />
@@ -589,7 +589,7 @@ export default function AboutUsPage() {
                 <label className="text-xs tracking-widest text-white/60">EMAIL ADDRESS</label>
                 <input
                   type="email"
-                  className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[color:var(--landing-accent)] focus:outline-none"
                   value={contactState.email}
                   onChange={(event) => setContactState((current) => ({ ...current, email: event.target.value }))}
                 />
@@ -598,18 +598,18 @@ export default function AboutUsPage() {
                 <label className="text-xs tracking-widest text-white/60">MESSAGE</label>
                 <textarea
                   rows={5}
-                  className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[color:var(--landing-accent)] focus:outline-none"
                   value={contactState.message}
                   onChange={(event) => setContactState((current) => ({ ...current, message: event.target.value }))}
                 />
               </div>
               <button
                 type="submit"
-                className="w-full rounded-2xl bg-white py-4 font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white"
+                className="w-full rounded-2xl bg-white py-4 font-semibold text-black transition-all hover:bg-[color:var(--landing-accent)] hover:text-white"
               >
                 SEND MESSAGE
               </button>
-              {contactNotice ? <p className="text-center text-sm text-[#66a8ff]">{contactNotice}</p> : null}
+              {contactNotice ? <p className="text-center text-sm text-[color:var(--landing-accent-tint)]">{contactNotice}</p> : null}
             </form>
           </div>
         </div>
@@ -634,7 +634,7 @@ export default function AboutUsPage() {
             </button>
 
             <div className="mb-7 text-center">
-              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-[18px] border border-[#0066ff66] bg-[#0066ff1a]">
+              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-[18px] border border-[color:var(--landing-accent-outline)] bg-[color:var(--landing-accent-surface)]">
                 <Image
                   src="/skyhub-logo-icon-clean.png"
                   alt="SkyHub logo"
@@ -652,7 +652,7 @@ export default function AboutUsPage() {
                 <label className="mb-2 block text-xs tracking-widest text-white/60">EMAIL</label>
                 <input
                   type="email"
-                  className="h-12 w-full rounded-[18px] border border-white/15 bg-white/[0.06] px-4 text-sm text-white outline-none transition focus:border-[#0066ff] focus:bg-white/[0.08]"
+                  className="h-12 w-full rounded-[18px] border border-white/15 bg-white/[0.06] px-4 text-sm text-white outline-none transition focus:border-[color:var(--landing-accent)] focus:bg-white/[0.08]"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                 />
@@ -661,7 +661,7 @@ export default function AboutUsPage() {
                 <label className="mb-2 block text-xs tracking-widest text-white/60">PASSWORD</label>
                 <input
                   type="password"
-                  className="h-12 w-full rounded-[18px] border border-white/15 bg-white/[0.06] px-4 text-sm text-white outline-none transition focus:border-[#0066ff] focus:bg-white/[0.08]"
+                  className="h-12 w-full rounded-[18px] border border-white/15 bg-white/[0.06] px-4 text-sm text-white outline-none transition focus:border-[color:var(--landing-accent)] focus:bg-white/[0.08]"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                 />
@@ -679,7 +679,7 @@ export default function AboutUsPage() {
 
               <button
                 type="submit"
-                className="mt-3 h-12 w-full rounded-[18px] bg-white font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+                className="mt-3 h-12 w-full rounded-[18px] bg-white font-semibold text-black transition-all hover:bg-[color:var(--landing-accent)] hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={submitting}
               >
                 {submitting ? "LOGGING IN..." : "LOGIN"}
@@ -803,7 +803,7 @@ export default function AboutUsPage() {
 
         .premium-tilt-card:hover {
           transform: perspective(1200px) rotateX(7deg) rotateY(10deg) scale(1.02);
-          box-shadow: 0 40px 90px -25px rgba(0, 102, 255, 0.3);
+          box-shadow: 0 40px 90px -25px color-mix(in srgb, var(--landing-accent) 30%, transparent);
         }
 
         .premium-magnetic-btn {
@@ -833,8 +833,8 @@ export default function AboutUsPage() {
 
         .premium-animated-grid {
           background-image:
-            linear-gradient(rgba(0, 102, 255, 0.04) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0, 102, 255, 0.04) 1px, transparent 1px);
+            linear-gradient(color-mix(in srgb, var(--landing-accent) 4%, transparent) 1px, transparent 1px),
+            linear-gradient(90deg, color-mix(in srgb, var(--landing-accent) 4%, transparent) 1px, transparent 1px);
           background-size: 42px 42px;
           animation: premium-grid-move 25s linear infinite;
         }
@@ -845,8 +845,8 @@ export default function AboutUsPage() {
 
         .premium-parallax-plane {
           position: absolute;
-          color: #0066ff;
-          filter: drop-shadow(0 0 18px #0066ff);
+          color: var(--landing-accent);
+          filter: drop-shadow(0 0 18px var(--landing-accent));
           transition: transform 0.1s ease-out;
           z-index: 1;
           pointer-events: none;

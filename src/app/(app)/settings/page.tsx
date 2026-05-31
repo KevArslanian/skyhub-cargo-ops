@@ -232,33 +232,44 @@ function ThemePreviewCard({
       <div
         className={cn(
           "mt-4 overflow-hidden rounded-[20px] border p-3",
-          isDark ? "border-[#203a58] bg-[#0f2037]" : isSystem ? "border-[#d7e2ef] bg-[linear-gradient(135deg,white_50%,#0f2037_50%)]" : "border-[#d7e2ef] bg-white",
+          isDark
+            ? "border-[color:var(--swatch-dark-border)] bg-[color:var(--swatch-dark-bg)]"
+            : isSystem
+              ? "border-[color:var(--swatch-light-border)] bg-[linear-gradient(135deg,var(--swatch-light-bg)_50%,var(--swatch-dark-bg)_50%)]"
+              : "border-[color:var(--swatch-light-border)] bg-[color:var(--swatch-light-bg)]",
         )}
       >
         <div
           className={cn(
             "flex h-8 items-center justify-between rounded-[14px] px-3",
-            isDark ? "bg-[#122840] text-[#d9e7fb]" : "bg-[#f4f7fb] text-[#0b1d33]",
+            isDark
+              ? "bg-[color:var(--swatch-dark-chrome)] text-[color:var(--swatch-dark-text)]"
+              : "bg-[color:var(--swatch-light-chrome)] text-[color:var(--swatch-light-text)]",
           )}
         >
           <div className="flex items-center gap-2 text-[11px] font-semibold">
-            <span className={cn("h-2 w-2 rounded-full", isDark ? "bg-[#6da7ff]" : "bg-[#003d9b]")} />
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full",
+                isDark ? "bg-[color:var(--swatch-dark-accent)]" : "bg-[color:var(--swatch-light-accent)]",
+              )}
+            />
             SkyHub
           </div>
           <div className="h-2 w-16 rounded-full bg-current/15" />
         </div>
         <div className="mt-3 grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-3">
-          <div className={cn("rounded-[16px] p-3", isDark ? "bg-[#122840]" : "bg-[#eff4fa]")}>
+          <div className={cn("rounded-[16px] p-3", isDark ? "bg-[color:var(--swatch-dark-surface)]" : "bg-[color:var(--swatch-light-surface)]")}>
             <div className="h-2 w-14 rounded-full bg-current/15" />
             <div className="mt-3 h-6 w-24 rounded-full bg-current/12" />
             <div className="mt-3 h-14 rounded-[12px] bg-current/10" />
           </div>
           <div className="space-y-3">
-            <div className={cn("rounded-[16px] p-3", isDark ? "bg-[#122840]" : "bg-[#eff4fa]")}>
+            <div className={cn("rounded-[16px] p-3", isDark ? "bg-[color:var(--swatch-dark-surface)]" : "bg-[color:var(--swatch-light-surface)]")}>
               <div className="h-3 w-10 rounded-full bg-current/15" />
               <div className="mt-3 h-5 w-16 rounded-full bg-current/12" />
             </div>
-            <div className={cn("rounded-[16px] p-3", isDark ? "bg-[#122840]" : "bg-[#eff4fa]")}>
+            <div className={cn("rounded-[16px] p-3", isDark ? "bg-[color:var(--swatch-dark-surface)]" : "bg-[color:var(--swatch-light-surface)]")}>
               <div className="h-3 w-12 rounded-full bg-current/15" />
               <div className="mt-3 h-5 w-20 rounded-full bg-current/12" />
             </div>

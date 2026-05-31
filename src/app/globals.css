@@ -76,6 +76,38 @@
   --auth-gold: #d8bf9d;
   --auth-glow: rgba(255, 241, 219, 0.8);
   --shell-topbar-height: 92px;
+  /* ── Theme-preview swatches (Settings) ── theme-INDEPENDENT on purpose: the
+     theme picker must render the literal light AND dark palettes side by side
+     regardless of the active theme, so these must NOT be overridden in .dark. */
+  --swatch-light-border: #d7e2ef;
+  --swatch-light-bg: #ffffff;
+  --swatch-light-chrome: #f4f7fb;
+  --swatch-light-surface: #eff4fa;
+  --swatch-light-text: #0b1d33;
+  --swatch-light-accent: #003d9b;
+  --swatch-dark-border: #203a58;
+  --swatch-dark-bg: #0f2037;
+  --swatch-dark-chrome: #122840;
+  --swatch-dark-surface: #122840;
+  --swatch-dark-text: #d9e7fb;
+  --swatch-dark-accent: #6da7ff;
+}
+
+/* ── Premium landing accent system ──
+   The marketing landing (/about-us) is a deliberately distinct dark surface
+   (near-black background) where the app's navy brand would be invisible. It uses
+   a brighter brand-derived accent. These tokens centralize what were ~40 scattered
+   literals into a single source of truth (one accent, not three different blues). */
+.premium-landing {
+  --landing-bg: #050505;
+  --landing-accent: #0066ff;
+  --landing-accent-2: #00a3ff;
+  --landing-accent-tint: #66a8ff;
+  --landing-accent-surface: rgba(0, 102, 255, 0.1);
+  --landing-accent-outline: rgba(0, 102, 255, 0.4);
+  --landing-accent-2-30: rgba(0, 163, 255, 0.3);
+  --landing-accent-2-20: rgba(0, 163, 255, 0.2);
+  --landing-accent-2-10: rgba(0, 163, 255, 0.1);
 }
 
 @theme inline {

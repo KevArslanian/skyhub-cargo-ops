@@ -77,7 +77,7 @@ export default async function ShipmentsPrintPage({
             {data.shipments.length ? (
               data.shipments.map((shipment) => (
                 <tr key={shipment.id}>
-                  <td className="whitespace-nowrap font-mono text-xs font-semibold text-[#1d4ed8]">{shipment.awb}</td>
+                  <td className="whitespace-nowrap font-mono text-xs font-semibold text-[#0052cc]">{shipment.awb}</td>
                   <td className="whitespace-nowrap">{formatDateTime(shipment.sentAt)}</td>
                   <td>{shipment.commodity}</td>
                   <td>
