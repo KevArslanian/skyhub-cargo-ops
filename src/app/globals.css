@@ -2037,6 +2037,47 @@ input[type="checkbox"] {
   max-width: 100%;
 }
 
+.dashboard-summary-strip {
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+}
+
+.dashboard-summary-card {
+  min-height: 42px;
+}
+
+.dashboard-adaptive-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 14px;
+  min-width: 0;
+}
+
+.dashboard-analytics-row,
+.dashboard-manifest-action-row {
+  height: auto;
+}
+
+@media (min-width: 1500px) {
+  .dashboard-adaptive-row {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 340px);
+  }
+
+  .dashboard-analytics-row {
+    height: 164px;
+  }
+
+  .dashboard-manifest-action-row {
+    height: 286px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .dashboard-summary-strip {
+    grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  }
+}
+
 .flightboard-main,
 .flightboard-main > *,
 .flightboard-pane,

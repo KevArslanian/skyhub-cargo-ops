@@ -157,11 +157,11 @@ export default function AboutUsPage() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.classList.add("premium-scrollbar-hidden");
-    document.body.classList.add("premium-scrollbar-hidden");
+    document.documentElement.classList.add("premium-page-scroll");
+    document.body.classList.add("premium-page-scroll");
     return () => {
-      document.documentElement.classList.remove("premium-scrollbar-hidden");
-      document.body.classList.remove("premium-scrollbar-hidden");
+      document.documentElement.classList.remove("premium-page-scroll");
+      document.body.classList.remove("premium-page-scroll");
     };
   }, []);
 
@@ -390,7 +390,7 @@ export default function AboutUsPage() {
         </div>
       </nav>
 
-      <ScrollScene variant="heroOut" id="hero" data-video-clip="0" className="relative flex min-h-screen items-center overflow-hidden pt-16">
+      <ScrollScene variant="heroOut" id="hero" data-video-clip="0" className="relative flex min-h-screen items-center overflow-x-clip overflow-y-visible pt-16">
         <div id="overview" className="pointer-events-none absolute -top-16" />
         <div className="premium-animated-grid pointer-events-none absolute inset-0 opacity-40" />
 
@@ -429,7 +429,7 @@ export default function AboutUsPage() {
       <ScrollScene variant="left" id="about" data-video-clip="1" className="premium-fluid-shell border-t border-white/10 py-24">
         <div className="premium-about-grid grid items-center gap-16">
           <div className="premium-reveal">
-            <div className="mb-4 text-xs tracking-[4px] text-[#0066ff]">OUR STORY</div>
+            <div className="premium-kicker mb-4 text-xs tracking-[4px]">OUR STORY</div>
             <h2 className="mb-8 text-6xl font-semibold leading-none tracking-tight">
               Built for those who
               <br />
@@ -507,7 +507,7 @@ export default function AboutUsPage() {
       <ScrollScene variant="depth" id="capabilities" data-video-clip="2" className="border-y border-white/10 bg-black/35 py-20">
         <div className="premium-fluid-shell">
           <div className="premium-reveal mb-16">
-            <div className="text-xs tracking-[4px] text-[#0066ff]">WHAT WE DELIVER</div>
+            <div className="premium-kicker text-xs tracking-[4px]">WHAT WE DELIVER</div>
             <h3 className="mt-4 text-6xl font-semibold tracking-tight">{capabilityCard?.title ?? "Capabilities that define the edge."}</h3>
           </div>
 
@@ -530,7 +530,7 @@ export default function AboutUsPage() {
 
       <ScrollScene variant="right" id="operations" data-video-clip="3" className="premium-fluid-shell py-24">
         <div className="premium-reveal mb-12">
-          <div className="text-xs tracking-[4px] text-[#0066ff]">THE RHYTHM OF CARGO</div>
+          <div className="premium-kicker text-xs tracking-[4px]">THE RHYTHM OF CARGO</div>
           <h3 className="mt-3 text-6xl font-semibold tracking-tight">Operations that never sleep.</h3>
         </div>
 
@@ -539,7 +539,7 @@ export default function AboutUsPage() {
             <div key={item.index} className="premium-glass premium-reveal rounded-3xl p-8">
               <div className="text-xs text-white/50">{item.index}</div>
               <div className="mb-2 mt-3 text-3xl font-semibold">{item.title}</div>
-              <div className="text-sm text-[#00a3ff]">{item.duration}</div>
+              <div className="premium-blue-note text-sm">{item.duration}</div>
               <p className="mt-4 text-sm text-white/70">{item.copy}</p>
             </div>
           ))}
@@ -548,7 +548,7 @@ export default function AboutUsPage() {
 
       <ScrollScene variant="depth" id="metrics" data-video-clip="2" className="border-y border-white/10 bg-black/35 py-20">
         <div className="premium-reveal premium-fluid-shell">
-          <div className="text-xs tracking-[4px] text-[#0066ff]">PROVEN AT SCALE</div>
+          <div className="premium-kicker text-xs tracking-[4px]">PROVEN AT SCALE</div>
           <h3 className="mt-4 text-6xl font-semibold tracking-tight">Numbers that matter.</h3>
         </div>
 
@@ -575,7 +575,7 @@ export default function AboutUsPage() {
       <ScrollScene revealOnce variant="left" id="contact" data-video-clip="3" className="premium-fluid-shell pt-24 pb-8">
         <div className="premium-contact-grid grid gap-16">
           <div className="premium-reveal">
-            <div className="text-xs tracking-[4px] text-[#0066ff]">GET IN TOUCH</div>
+            <div className="premium-kicker text-xs tracking-[4px]">GET IN TOUCH</div>
             <h3 className="mb-8 mt-3 text-6xl font-semibold tracking-tight">
               Let&apos;s build the future of air cargo together.
             </h3>
@@ -583,25 +583,25 @@ export default function AboutUsPage() {
             <div className="space-y-6 text-lg">
               <div>
                 <div className="font-medium">{infoEmailContact?.label ?? "Email umum"}</div>
-                <a href={infoEmailContact?.href ?? "mailto:info@skyhub.co"} className="text-[#0066ff]">
+                <a href={infoEmailContact?.href ?? "mailto:info@skyhub.co"} className="premium-link">
                   {infoEmailContact?.value ?? "info@skyhub.co"}
                 </a>
               </div>
               <div>
                 <div className="font-medium">{opsEmailContact?.label ?? "Email operasional"}</div>
-                <a href={opsEmailContact?.href ?? "mailto:ops@skyhub.co"} className="text-[#0066ff]">
+                <a href={opsEmailContact?.href ?? "mailto:ops@skyhub.co"} className="premium-link">
                   {opsEmailContact?.value ?? "ops@skyhub.co"}
                 </a>
               </div>
               <div>
                 <div className="font-medium">{supportEmailContact?.label ?? "Email dukungan"}</div>
-                <a href={supportEmailContact?.href ?? "mailto:support@skyhub.co"} className="text-[#0066ff]">
+                <a href={supportEmailContact?.href ?? "mailto:support@skyhub.co"} className="premium-link">
                   {supportEmailContact?.value ?? "support@skyhub.co"}
                 </a>
               </div>
               <div>
                 <div className="font-medium">Link resmi aplikasi</div>
-                <a href={APP_CANONICAL_URL} className="text-[#0066ff]">
+                <a href={APP_CANONICAL_URL} className="premium-link">
                   {APP_CANONICAL_URL}
                 </a>
               </div>
@@ -724,34 +724,23 @@ export default function AboutUsPage() {
       ) : null}
 
       <style jsx global>{`
-        html.premium-scrollbar-hidden {
-          position: relative;
-        }
-
-        html.premium-scrollbar-hidden,
-        body.premium-scrollbar-hidden {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
+        html.premium-page-scroll {
+          height: auto;
+          min-height: 100%;
+          overflow-x: clip;
+          overflow-y: auto;
           scrollbar-gutter: auto;
           background: #050505 !important;
         }
 
-        html.premium-scrollbar-hidden::-webkit-scrollbar,
-        body.premium-scrollbar-hidden::-webkit-scrollbar,
-        html.premium-scrollbar-hidden *::-webkit-scrollbar,
-        body.premium-scrollbar-hidden *::-webkit-scrollbar {
-          width: 0 !important;
-          height: 0 !important;
-          display: none !important;
-          background: transparent !important;
+        body.premium-page-scroll {
+          height: auto;
+          min-height: 100%;
+          overflow: visible;
+          background: #050505 !important;
         }
 
-        html.premium-scrollbar-hidden *,
-        body.premium-scrollbar-hidden * {
-          scrollbar-width: none;
-        }
-
-        body.premium-scrollbar-hidden::before {
+        body.premium-page-scroll::before {
           opacity: 0;
         }
 
@@ -777,7 +766,8 @@ export default function AboutUsPage() {
         .premium-landing {
           min-height: 100vh;
           max-width: 100%;
-          overflow-x: hidden;
+          overflow-x: clip;
+          overflow-y: visible;
           font-family: var(--font-body), "Inter", system-ui, sans-serif;
         }
 
@@ -901,6 +891,32 @@ export default function AboutUsPage() {
           backdrop-filter: blur(26px) saturate(140%);
           -webkit-backdrop-filter: blur(26px) saturate(140%);
           border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .premium-kicker,
+        .premium-blue-note,
+        .premium-link {
+          color: #8bdcff;
+          text-shadow: 0 0 22px rgba(0, 163, 255, 0.42);
+        }
+
+        .premium-kicker {
+          font-weight: 800;
+          letter-spacing: 0.34em;
+        }
+
+        .premium-blue-note,
+        .premium-link {
+          font-weight: 700;
+        }
+
+        .premium-link {
+          text-decoration-color: rgba(139, 220, 255, 0.36);
+          text-underline-offset: 0.18em;
+        }
+
+        .premium-link:hover {
+          color: #c9f1ff;
         }
 
         .premium-login-modal {

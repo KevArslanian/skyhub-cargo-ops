@@ -103,12 +103,9 @@ export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
       targetTime = Math.max(0, Math.min(durationRef.current - 0.04, durationRef.current * progress));
 
       const delta = targetTime - video.currentTime;
-      if (Math.abs(delta) > 0.018) {
+      if (Math.abs(delta) > 0.055) {
         try {
-          video.currentTime = video.currentTime + delta * 0.42;
-          if (Math.abs(targetTime - video.currentTime) > 0.035) {
-            requestSync();
-          }
+          video.currentTime = video.currentTime + delta * 0.26;
         } catch {
           // Browser may reject a seek before metadata is fully ready.
         }
@@ -130,8 +127,6 @@ export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
     requestSync();
     video.addEventListener("loadedmetadata", handleMetadata);
     window.addEventListener("scroll", requestSync, { passive: true });
-    document.body.addEventListener("scroll", requestSync, { passive: true });
-    document.documentElement.addEventListener("scroll", requestSync, { passive: true });
     window.addEventListener("resize", requestSync);
 
     return () => {
@@ -140,8 +135,6 @@ export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
       }
       video.removeEventListener("loadedmetadata", handleMetadata);
       window.removeEventListener("scroll", requestSync);
-      document.body.removeEventListener("scroll", requestSync);
-      document.documentElement.removeEventListener("scroll", requestSync);
       window.removeEventListener("resize", requestSync);
     };
   }, [scrubVideo]);

@@ -218,16 +218,16 @@ function DashboardSummaryCard({
   return (
     <Link
       href={href}
-      className="group flex min-w-0 items-center gap-2 rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-2.5 py-2.5 transition-colors hover:border-[color:var(--brand-primary)]/35 hover:bg-[color:var(--panel-muted)]"
+      className="dashboard-summary-card group flex min-w-0 items-center gap-1.5 rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-2.5 py-2.5 transition-colors hover:border-[color:var(--brand-primary)]/35 hover:bg-[color:var(--panel-muted)]"
     >
-      <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px]", toneClass)}>
-        <Icon size={16} />
+      <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px]", toneClass)}>
+        <Icon size={14} />
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--muted-2)]">
+        <span className="block truncate text-[9px] font-bold uppercase tracking-[0.04em] text-[color:var(--muted-2)]">
           {label}
         </span>
-        <strong className="mt-1 block truncate font-[family:var(--font-heading)] text-[0.98rem] font-black leading-none tracking-[-0.03em] text-[color:var(--text-strong)]">
+        <strong className="mt-1 block truncate font-[family:var(--font-heading)] text-[0.92rem] font-black leading-none tracking-[-0.01em] text-[color:var(--text-strong)]">
           {value}
         </strong>
       </span>
@@ -470,14 +470,14 @@ export default function DashboardPage() {
      ══════════════════════════════════════════════════════════════ */
   return (
     <div className="dashboard-fixed-viewport flex h-auto flex-col gap-[14px] overflow-x-hidden">
-      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-9">
+      <div className="dashboard-summary-strip grid min-w-0 gap-2">
         {moduleSummaryCards.map((card) => (
           <DashboardSummaryCard key={`${card.href}-${card.label}`} {...card} />
         ))}
       </div>
 
       {/* ── ROW 1: Analitik + Cutoff ── */}
-      <div className="grid h-auto grid-cols-1 gap-[14px] items-stretch min-w-0 xl:h-[164px] xl:grid-cols-[minmax(0,1fr)_328px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="dashboard-adaptive-row dashboard-analytics-row">
         {/* Analitik Operasional */}
         <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-4 min-w-0 overflow-visible">
           <div className="mb-[10px] flex items-center gap-2">
@@ -519,7 +519,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── ROW 2: Manifest Prioritas + Pusat Tindakan ── */}
-      <div className="grid h-auto grid-cols-1 gap-[14px] items-stretch min-w-0 xl:h-[286px] xl:grid-cols-[minmax(0,1fr)_328px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="dashboard-adaptive-row dashboard-manifest-action-row">
         {/* Manifest Prioritas */}
         <OpsPanel className="flex h-full flex-col rounded-[18px] p-4 min-w-0 overflow-visible">
           <div className="flex h-[48px] shrink-0 items-start justify-between gap-3 border-b border-[color:var(--border-soft)]">
