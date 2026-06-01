@@ -1,5 +1,11 @@
 import Link from "next/link";
 import { Compass } from "lucide-react";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Halaman Tidak Ditemukan",
+  description: "Halaman error ketika alamat SkyHub tidak tersedia atau sudah dipindahkan.",
+};
 
 export default function NotFound() {
   return (

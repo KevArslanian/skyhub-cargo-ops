@@ -13,6 +13,24 @@ const UNIQUE_CONSTRAINT_MESSAGES: Record<string, string> = {
   Shipment_awb_key: "AWB sudah terdaftar.",
 };
 
+const PRISMA_ERROR_MESSAGES: Record<string, { status: number; code: string; message: string }> = {
+  P2000: {
+    status: 400,
+    code: "VALUE_TOO_LONG",
+    message: "Input terlalu panjang untuk kolom database.",
+  },
+  P2003: {
+    status: 400,
+    code: "RELATION_CONSTRAINT",
+    message: "Data terkait tidak valid atau sudah tidak tersedia.",
+  },
+  P2025: {
+    status: 404,
+    code: "RECORD_NOT_FOUND",
+    message: "Data tidak ditemukan atau sudah dihapus.",
+  },
+};
+
 function getUniqueConstraintMessage(error: Prisma.PrismaClientKnownRequestError) {
   const target = error.meta?.target;
 
@@ -58,6 +76,27 @@ export function routeErrorResponse(error: unknown, fallbackMessage: string) {
         code: "UNIQUE_CONSTRAINT",
       },
       { status: 409 },
+    );
+  }
+
+  if (error instanceof Prisma.PrismaClientKnownRequestError && PRISMA_ERROR_MESSAGES[error.code]) {
+    const mapped = PRISMA_ERROR_MESSAGES[error.code];
+    return NextResponse.json(
+      {
+        error: mapped.message,
+        code: mapped.code,
+      },
+      { status: mapped.status },
+    );
+  }
+
+  if (error instanceof Prisma.PrismaClientInitializationError) {
+    return NextResponse.json(
+      {
+        error: "Koneksi database belum tersedia. Coba beberapa saat lagi.",
+        code: "DATABASE_UNAVAILABLE",
+      },
+      { status: 503 },
     );
   }
 

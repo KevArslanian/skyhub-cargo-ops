@@ -2,7 +2,7 @@ import { jwtVerify } from "jose";
 import type { UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { INTRO_COOKIE, SESSION_COOKIE } from "@/lib/auth";
+import { SESSION_COOKIE } from "@/lib/auth";
 import { isCustomerAllowedPath } from "@/lib/access";
 import { AUTH_BYPASS_ENABLED } from "@/lib/runtime-flags";
 
@@ -124,7 +124,6 @@ export async function proxy(request: NextRequest) {
   }
 
   const session = await getSession(request);
-  const hasIntro = request.cookies.get(INTRO_COOKIE)?.value === "1";
   const authenticatedHome = session?.role === "customer" ? "/awb-tracking" : "/dashboard";
 
   if (isApiPath(pathname)) {
@@ -162,15 +161,11 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL(authenticatedHome, request.url));
     }
 
-    if (!hasIntro) {
-      return NextResponse.redirect(new URL("/about-us", request.url));
-    }
-
     return NextResponse.next();
   }
 
   if (!session) {
-    return NextResponse.redirect(new URL("/about-us", request.url));
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   if (session.role === "customer" && !isCustomerAllowedPath(pathname)) {

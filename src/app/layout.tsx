@@ -22,7 +22,10 @@ const cormorantGaramond = Cormorant_Garamond({
 
 export const metadata: Metadata = {
   metadataBase: new URL(APP_CANONICAL_URL),
-  title: APP_NAME,
+  title: {
+    default: APP_NAME,
+    template: `%s | ${APP_NAME}`,
+  },
   description: `${APP_SUBTITLE} untuk pelacakan AWB, papan flight, dan dashboard staff operasional.`,
   alternates: {
     canonical: "/",
