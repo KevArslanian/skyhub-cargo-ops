@@ -6,23 +6,19 @@ import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useStat
 import {
   ArrowDown,
   ArrowUpDown,
-  CircleAlert,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
   FileText,
   Filter,
   Inbox,
-  Package,
   Pencil,
-  PlaneTakeoff,
   Plus,
   Save,
   Search,
   ShieldAlert,
   Trash2,
   Upload,
-  Weight,
   X,
 } from "lucide-react";
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
@@ -37,12 +33,12 @@ import { StatusBadge } from "@/components/status-badge";
 import {
   DataCard,
   EmptyState,
-  FilterBar,
   OpsPanel,
   SectionHeader,
   SkeletonBlock,
 } from "@/components/ops-ui";
 import { OpsDrawer } from "@/components/ops-drawer";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type ShipmentRow = {
   id: string;
@@ -293,78 +289,6 @@ function getManifestStatus(shipment: ShipmentRow) {
   return { value: shipment.status, label: shipment.statusLabel };
 }
 
-function LedgerStats({
-  loading,
-  totalShipments,
-  totalWeight,
-  assignedFlightCount,
-  reviewCount,
-}: {
-  loading: boolean;
-  totalShipments: number;
-  totalWeight: string;
-  assignedFlightCount: number;
-  reviewCount: number;
-}) {
-  const cards = [
-    {
-      label: "Total Shipment",
-      value: totalShipments,
-      description: "Semua pengiriman tercatat",
-      icon: Package,
-      tone: "blue",
-    },
-    {
-      label: "Berat Total",
-      value: totalWeight,
-      description: "Sudah ditimbang & divalidasi",
-      icon: Weight,
-      tone: "green",
-    },
-    {
-      label: "Assigned Flight",
-      value: assignedFlightCount,
-      description: "Penerbangan aktif & terhubung",
-      icon: PlaneTakeoff,
-      tone: "orange",
-    },
-    {
-      label: "Perlu Review",
-      value: reviewCount,
-      description: "Dokumen & kesiapan diperiksa",
-      icon: CircleAlert,
-      tone: "red",
-    },
-  ] as const;
-
-  return (
-    <section className="ledger-compact-stats grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-      {cards.map((card) => {
-        const Icon = card.icon;
-
-        return (
-          <article
-            key={card.label}
-            aria-label={card.label}
-            className={cn("ledger-stat-card ledger-stat-gradient-card", `ledger-stat-${card.tone}`)}
-          >
-            <div className="flex min-w-0 items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p>{card.label}</p>
-                {loading ? <SkeletonBlock className="mt-3 h-8 w-24 rounded-[12px]" /> : <strong>{card.value}</strong>}
-              </div>
-              <span aria-hidden="true">
-                <Icon size={19} />
-              </span>
-            </div>
-            <small>{card.description}</small>
-          </article>
-        );
-      })}
-    </section>
-  );
-}
-
 function SortHeader({
   label,
   active,
@@ -467,6 +391,9 @@ export default function ShipmentLedgerPage() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionNotice, setActionNotice] = useState<string>("");
+  const [actionNoticeTone, setActionNoticeTone] = useState<"info" | "warning">("info");
+  const [confirmShipmentDelete, setConfirmShipmentDelete] = useState(false);
+  const [confirmDocumentDelete, setConfirmDocumentDelete] = useState<string | null>(null);
   const [form, setForm] = useState(() => createBlankForm());
   const [drawerDraft, setDrawerDraft] = useState(() => createDrawerDraft(null));
   const [listPage, setListPage] = useState(1);
@@ -577,19 +504,6 @@ export default function ShipmentLedgerPage() {
     [data?.shipments],
   );
 
-  const totalWeight = useMemo(
-    () => (data?.shipments ?? []).reduce((sum, shipment) => sum + shipment.weightKg, 0),
-    [data?.shipments],
-  );
-
-  const holdCount = (data?.shipments ?? []).filter((shipment) => shipment.status === "hold").length;
-  const assignedFlightCount = (data?.shipments ?? []).filter((shipment) => shipment.flightNumber).length;
-  const pendingDocsCount = (data?.shipments ?? []).filter(
-    (shipment) => shipment.docStatus.toLowerCase() !== "complete",
-  ).length;
-  const readinessIssuesCount = (data?.shipments ?? []).filter(
-    (shipment) => shipment.readiness.toLowerCase() !== "ready",
-  ).length;
   const activeFilterCount = [Boolean(query.trim()), status !== "all", flight !== "all", sortBy !== "updated"].filter(
     Boolean,
   ).length;
@@ -683,9 +597,11 @@ export default function ShipmentLedgerPage() {
         setSelectedId(payload.shipment.id);
         setDrawerDraft(createDrawerDraft(payload.shipment));
       }
+      setActionNoticeTone("info");
       setActionNotice("Shipment berhasil dibuat.");
       void loadShipments(payload.shipment?.id ?? selectedId, "refresh");
     } else {
+      setActionNoticeTone("warning");
       setActionNotice(await resolveErrorMessage(response, "Gagal membuat shipment."));
     }
 
@@ -722,9 +638,11 @@ export default function ShipmentLedgerPage() {
         setDrawerDraft(createDrawerDraft(payload.shipment));
       }
       setEditOpen(false);
+      setActionNoticeTone("info");
       setActionNotice("Perubahan shipment berhasil disimpan.");
       void loadShipments(selectedShipment.id, "refresh");
     } else {
+      setActionNoticeTone("warning");
       setActionNotice(await resolveErrorMessage(response, "Gagal menyimpan shipment."));
     }
 
@@ -742,9 +660,11 @@ export default function ShipmentLedgerPage() {
     });
 
     if (response.ok) {
+      setActionNoticeTone("info");
       setActionNotice("Dokumen berhasil diunggah dan tersimpan di database.");
       await loadShipments(selectedShipment.id, "refresh");
     } else {
+      setActionNoticeTone("warning");
       setActionNotice(await resolveErrorMessage(response, "Gagal mengunggah dokumen. Gunakan PDF, JPG, atau JPEG."));
     }
 
@@ -758,10 +678,14 @@ export default function ShipmentLedgerPage() {
       method: "DELETE",
     });
 
-    const payload = (await response.json()) as { warning?: string | null };
+    const payload = (await response.json().catch(() => ({}))) as { warning?: string | null };
     if (response.ok) {
+      setActionNoticeTone(payload.warning ? "warning" : "info");
       setActionNotice(payload.warning || "Dokumen berhasil dihapus dari tampilan kerja.");
       await loadShipments(selectedShipment.id, "refresh");
+    } else {
+      setActionNoticeTone("warning");
+      setActionNotice(await resolveErrorMessage(response, "Gagal menghapus dokumen."));
     }
   }
 
@@ -788,8 +712,10 @@ export default function ShipmentLedgerPage() {
         );
         setDrawerDraft(createDrawerDraft(payload.shipment));
       }
+      setActionNoticeTone("info");
       setActionNotice("Pembayaran berhasil diverifikasi admin.");
     } else {
+      setActionNoticeTone("warning");
       setActionNotice(await resolveErrorMessage(response, "Gagal verifikasi pembayaran."));
     }
 
@@ -813,9 +739,13 @@ export default function ShipmentLedgerPage() {
           : current,
       );
       setSelectedId(null);
+      setEditOpen(false);
+      setConfirmShipmentDelete(false);
+      setActionNoticeTone("info");
       setActionNotice(`Shipment ${selectedShipment.awb} berhasil dihapus dari database.`);
       void loadShipments(null, "refresh");
     } else {
+      setActionNoticeTone("warning");
       setActionNotice(await resolveErrorMessage(response, "Gagal menghapus shipment."));
     }
   }
@@ -826,53 +756,24 @@ export default function ShipmentLedgerPage() {
     setSelectedId(null);
   }
 
-
-  return (
-    <main className="page-workspace" aria-labelledby="shipment-ledger-title">
-      <section className="ledger-control-header ledger-control-header-compact" aria-labelledby="shipment-ledger-title">
-        <h1 id="shipment-ledger-title" className="sr-only">{isReadOnly ? "Shipment Saya" : "Ledger Shipment"}</h1>
-        <div className="ledger-control-actions">
-          {!isReadOnly && data?.permissions.canExport ? (
-            <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">
-              <FileText size={16} />
-              Print
-            </Link>
-          ) : null}
-          {!isReadOnly && data?.permissions.canCreate ? (
-            <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
-              <Plus size={16} />
-              Buat Shipment
-            </button>
-          ) : null}
-        </div>
-      </section>
-
-      <LedgerStats
-        loading={loading}
-        totalShipments={data?.shipments.length ?? 0}
-        totalWeight={formatWeight(totalWeight)}
-        assignedFlightCount={assignedFlightCount}
-        reviewCount={pendingDocsCount + holdCount + readinessIssuesCount}
-      />
-
-      <FilterBar className="ledger-compact-filter grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
-        <div>
-          <label className="label" htmlFor="ledger-search">
-            Cari
-          </label>
+  const filterControls = useMemo(
+    () => (
+      <section className="ops-filter-strip" aria-label="Pencarian dan filter Ledger Shipment">
+        <div className="ops-filter-search">
+          <label className="label" htmlFor="ledger-query">Cari Shipment</label>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={15} />
+            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
             <input
-              id="ledger-search"
-              className="input-field ledger-search-input"
+              id="ledger-query"
+              className="input-field input-field-leading"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="AWB, komoditas, pengirim"
-              aria-label="Cari shipment"
+              placeholder="Cari AWB, komoditas, pemilik, atau flight"
             />
           </div>
         </div>
-        <div>
+      <div className="shell-inline-filters" aria-label="Filter Ledger Shipment">
+        <div className="shell-filter-field">
           <label className="label" htmlFor="ledger-status">Status</label>
           <select id="ledger-status" className="select-field" value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="all">Semua Status</option>
@@ -886,7 +787,7 @@ export default function ShipmentLedgerPage() {
             <option value="loaded_to_aircraft">Muat ke Pesawat</option>
           </select>
         </div>
-        <div>
+        <div className="shell-filter-field">
           <label className="label" htmlFor="ledger-flight">Flight</label>
           <select id="ledger-flight" className="select-field" value={flight} onChange={(event) => setFlight(event.target.value)}>
             <option value="all">Semua</option>
@@ -897,28 +798,45 @@ export default function ShipmentLedgerPage() {
             ))}
           </select>
         </div>
-        <div className="ledger-filter-action-cell">
+        <div className="shell-filter-field">
           <label className="label" htmlFor="ledger-sort">Urutkan</label>
           <select id="ledger-sort" className="select-field" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
             <option value="updated">Update Terbaru</option>
             <option value="received">Penerimaan Terbaru</option>
             <option value="priority">Prioritas Review</option>
           </select>
-
-          {activeFilterCount > 0 ? (
-            <span className="ledger-filter-count" aria-label={`${activeFilterCount} filter aktif`}>
-              <Filter size={14} />
-              {activeFilterCount}
-            </span>
-          ) : null}
         </div>
-      </FilterBar>
+        {activeFilterCount > 0 ? (
+          <span className="shell-filter-count" aria-label={`${activeFilterCount} filter aktif`}>
+            <Filter size={14} />
+            {activeFilterCount}
+          </span>
+        ) : null}
+      </div>
+      </section>
+    ),
+    [activeFilterCount, data?.flights, flight, query, sortBy, status],
+  );
 
-      {actionNotice ? (
-        <div className="rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]">
-          {actionNotice}
-        </div>
-      ) : null}
+  return (
+    <main className="page-workspace" aria-labelledby="shipment-ledger-title">
+      <h1 id="shipment-ledger-title" className="sr-only">{isReadOnly ? "Shipment Saya" : "Ledger Shipment"}</h1>
+
+      {filterControls}
+
+      <div role="status" aria-live="polite">
+        {actionNotice ? (
+          <div
+            className={
+              actionNoticeTone === "warning"
+                ? "rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-warning)]"
+                : "rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]"
+            }
+          >
+            {actionNotice}
+          </div>
+        ) : null}
+      </div>
 
       <div ref={splitPaneRef} className={splitPaneClassName}>
         <OpsPanel className="page-pane split-pane-left internal-scrollbar flex min-h-0 flex-col overflow-hidden p-0">
@@ -931,6 +849,20 @@ export default function ShipmentLedgerPage() {
                 <p className="mt-1 text-xs font-semibold text-[color:var(--muted-fg)]">
                   {shipments.length ? `${pageStart + 1}-${pageEnd} dari ${shipments.length} shipment` : "Belum ada shipment"}
                 </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {!isReadOnly && data?.permissions.canExport ? (
+                  <Link href={`/exports/shipments?${exportParams.toString()}`} className="btn btn-secondary">
+                    <FileText size={16} />
+                    Print
+                  </Link>
+                ) : null}
+                {!isReadOnly && data?.permissions.canCreate ? (
+                  <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+                    <Plus size={16} />
+                    Buat Shipment
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>
@@ -1131,7 +1063,7 @@ export default function ShipmentLedgerPage() {
                             </label>
                           ) : null}
                           {data?.permissions.canDelete ? (
-                            <button type="button" className="btn btn-warning" onClick={handleDeleteShipment}>
+                            <button type="button" className="btn btn-danger" onClick={() => setConfirmShipmentDelete(true)}>
                               <Trash2 size={16} />
                               Hapus
                             </button>
@@ -1210,11 +1142,16 @@ export default function ShipmentLedgerPage() {
                           <label className="label">No Telepon</label>
                           <input
                             className="input-field"
+                            type="tel"
+                            inputMode="tel"
+                            autoComplete="tel"
+                            placeholder="Contoh: 08123456789"
                             value={drawerDraft.senderPhone}
                             onChange={(event) =>
                               setDrawerDraft((current) => ({ ...current, senderPhone: event.target.value }))
                             }
                           />
+                          <p className="form-help">Format Indonesia, minimal 8 digit (08xx / +62xx).</p>
                         </div>
                         <div>
                           <label className="label">Nama Barang</label>
@@ -1458,7 +1395,7 @@ export default function ShipmentLedgerPage() {
                         <button type="button" className="btn btn-secondary" onClick={() => setEditOpen(false)}>
                           Batal
                         </button>
-                        <button type="button" className="btn btn-warning" onClick={handleDeleteShipment}>
+                        <button type="button" className="btn btn-danger" onClick={() => setConfirmShipmentDelete(true)}>
                           <Trash2 size={16} />
                           Hapus
                         </button>
@@ -1541,7 +1478,8 @@ export default function ShipmentLedgerPage() {
                                     <button
                                       type="button"
                                       className="topbar-button"
-                                      onClick={() => handleDeleteDocument(document.id)}
+                                      onClick={() => setConfirmDocumentDelete(document.id)}
+                                      aria-label="Hapus dokumen"
                                     >
                                       <Trash2 size={16} />
                                     </button>
@@ -1609,6 +1547,8 @@ export default function ShipmentLedgerPage() {
                     <input
                       className="input-field"
                       placeholder="Kosongkan untuk generate otomatis"
+                      pattern="\d{3}-\d{8}"
+                      title="Format AWB: 3 digit - 8 digit (contoh 123-45678901), atau kosongkan."
                       value={form.awb}
                       onChange={(event) => setForm((current) => ({ ...current, awb: event.target.value }))}
                     />
@@ -1627,6 +1567,8 @@ export default function ShipmentLedgerPage() {
                     <input
                       className="input-field"
                       placeholder="Komoditas"
+                      required
+                      minLength={2}
                       value={form.commodity}
                       onChange={(event) => setForm((current) => ({ ...current, commodity: event.target.value }))}
                     />
@@ -1650,6 +1592,8 @@ export default function ShipmentLedgerPage() {
                     <input
                       className="input-field"
                       placeholder="Penanggung jawab"
+                      required
+                      minLength={2}
                       value={form.ownerName}
                       onChange={(event) => setForm((current) => ({ ...current, ownerName: event.target.value }))}
                     />
@@ -1658,10 +1602,17 @@ export default function ShipmentLedgerPage() {
                     <label className="label">No Telepon</label>
                     <input
                       className="input-field"
-                      placeholder="Nomor pengirim/penerima"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      required
+                      pattern="(\+62|62|0)8[1-9][0-9]{6,11}"
+                      title="No telepon Indonesia, contoh 08123456789."
+                      placeholder="Contoh: 08123456789"
                       value={form.senderPhone}
                       onChange={(event) => setForm((current) => ({ ...current, senderPhone: event.target.value }))}
                     />
+                    <p className="form-help">Format Indonesia, minimal 8 digit (08xx / +62xx).</p>
                   </div>
                 </div>
               </div>
@@ -1702,6 +1653,9 @@ export default function ShipmentLedgerPage() {
                     <input
                       className="input-field"
                       type="number"
+                      min={1}
+                      step={1}
+                      required
                       value={form.pieces}
                       onChange={(event) => setForm((current) => ({ ...current, pieces: Number(event.target.value) }))}
                     />
@@ -1711,6 +1665,9 @@ export default function ShipmentLedgerPage() {
                     <input
                       className="input-field"
                       type="number"
+                      min={0.1}
+                      step={0.1}
+                      required
                       value={form.weightKg}
                       onChange={(event) => setForm((current) => ({ ...current, weightKg: Number(event.target.value) }))}
                     />
@@ -1744,6 +1701,8 @@ export default function ShipmentLedgerPage() {
                     <input
                       className="input-field"
                       type="number"
+                      min={0}
+                      step={1000}
                       value={form.shippingRate}
                       onChange={(event) =>
                         setForm((current) => ({ ...current, shippingRate: Number(event.target.value) }))
@@ -1804,6 +1763,8 @@ export default function ShipmentLedgerPage() {
                     <input
                       className="input-field"
                       type="number"
+                      min={1}
+                      step={1}
                       value={form.vehicleCapacityKg}
                       onChange={(event) =>
                         setForm((current) => ({ ...current, vehicleCapacityKg: Number(event.target.value) }))
@@ -1845,6 +1806,8 @@ export default function ShipmentLedgerPage() {
                     <input
                       className="input-field"
                       placeholder="Nama pengirim"
+                      required
+                      minLength={2}
                       value={form.shipper}
                       onChange={(event) => setForm((current) => ({ ...current, shipper: event.target.value }))}
                     />
@@ -1854,6 +1817,8 @@ export default function ShipmentLedgerPage() {
                     <input
                       className="input-field"
                       placeholder="Nama penerima"
+                      required
+                      minLength={2}
                       value={form.consignee}
                       onChange={(event) => setForm((current) => ({ ...current, consignee: event.target.value }))}
                     />
@@ -1863,6 +1828,8 @@ export default function ShipmentLedgerPage() {
                     <input
                       className="input-field"
                       placeholder="Nama forwarder"
+                      required
+                      minLength={2}
                       value={form.forwarder}
                       onChange={(event) => setForm((current) => ({ ...current, forwarder: event.target.value }))}
                     />
@@ -1921,6 +1888,35 @@ export default function ShipmentLedgerPage() {
               </div>
             </form>
       </OpsDrawer>
+
+      <ConfirmDialog
+        open={confirmShipmentDelete}
+        title="Hapus shipment ini?"
+        description={
+          selectedShipment
+            ? `Shipment ${selectedShipment.awb} akan dihapus dari database dan hilang dari manifest. Tindakan ini tidak bisa dibatalkan.`
+            : "Shipment akan dihapus permanen dari database."
+        }
+        confirmLabel="Ya, hapus shipment"
+        tone="danger"
+        loading={saving}
+        onConfirm={() => void handleDeleteShipment()}
+        onCancel={() => setConfirmShipmentDelete(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmDocumentDelete !== null}
+        title="Hapus dokumen ini?"
+        description="Dokumen akan dihapus dari shipment dan tidak lagi tampil di tampilan kerja. Tindakan ini tidak bisa dibatalkan."
+        confirmLabel="Ya, hapus dokumen"
+        tone="danger"
+        onConfirm={() => {
+          const documentId = confirmDocumentDelete;
+          setConfirmDocumentDelete(null);
+          if (documentId) void handleDeleteDocument(documentId);
+        }}
+        onCancel={() => setConfirmDocumentDelete(null)}
+      />
     </main>
   );
 }

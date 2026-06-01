@@ -21,7 +21,7 @@ import {
 import { AWB_REGEX } from "@/lib/constants";
 import { formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
-import { DataCard, EmptyState, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
+import { DataCard, EmptyState, OpsPanel, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
 
 type TrackingLog = {
   id: string;
@@ -187,12 +187,6 @@ export default function AwbTrackingPage() {
 
   return (
     <div className="page-workspace awb-tracking-workspace">
-      <PageHeader
-        eyebrow="Pelacakan AWB"
-        title="Pelacakan AWB"
-        subtitle="Input tracking dan history tracking dalam alur yang ringkas."
-      />
-
       <div className="awb-tracking-layout grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.92fr)]">
         <div className="page-stack">
           <OpsPanel className="page-pane awb-tracking-panel h-full overflow-hidden p-0">

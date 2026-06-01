@@ -24,6 +24,16 @@ const optionalAwbSchema = z
     message: "Format AWB harus XXX-XXXXXXXX.",
   });
 
+const PHONE_REGEX = /^(\+62|62|0)8[1-9][0-9]{6,11}$/;
+
+const requiredPhoneSchema = z
+  .string()
+  .trim()
+  .min(8, "No telepon wajib diisi.")
+  .regex(PHONE_REGEX, "No telepon tidak valid. Gunakan format Indonesia, contoh: 08123456789.");
+
+const optionalPhoneSchema = requiredPhoneSchema.optional();
+
 const optionalPositiveVolumeSchema = z.preprocess(
   (value) => (value === "" || value === undefined ? undefined : value),
   z.coerce.number().positive("Volume harus lebih dari 0.").optional().nullable(),
@@ -80,7 +90,7 @@ export const shipmentCreateSchema = z.object({
   sentAt: optionalCargoDateSchema,
   commodity: z.string().trim().min(2, "Komoditas wajib diisi."),
   cargoMode: z.enum(CARGO_MODE_OPTIONS).optional().default("Udara"),
-  senderPhone: z.string().trim().min(6, "No telepon wajib diisi.").optional().default("0800000000"),
+  senderPhone: requiredPhoneSchema,
   origin: z.enum(STATION_OPTIONS),
   destination: z.enum(STATION_OPTIONS),
   pieces: z.coerce.number().int().positive("Pieces harus lebih dari 0."),
@@ -109,7 +119,7 @@ export const shipmentUpdateSchema = z.object({
   ownerName: z.string().trim().optional(),
   sentAt: optionalCargoDateSchema,
   cargoMode: z.enum(CARGO_MODE_OPTIONS).optional(),
-  senderPhone: z.string().trim().min(6).optional(),
+  senderPhone: optionalPhoneSchema,
   commodity: z.string().trim().min(2).optional(),
   origin: z.enum(STATION_OPTIONS).optional(),
   destination: z.enum(STATION_OPTIONS).optional(),
@@ -272,3 +282,21 @@ export const flightListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(50).optional(),
 });
+
+export const alertActionSchema = z
+  .object({
+    alertKey: z.string().trim().min(3, "Kunci alert wajib diisi."),
+    action: z.enum(["acknowledge", "assign", "snooze", "resolve", "reopen"]),
+    assigneeId: z.string().trim().min(1).optional().nullable(),
+    snoozeMinutes: z.coerce.number().int().min(5).max(1440).optional().nullable(),
+    note: z.string().trim().max(500, "Catatan maksimal 500 karakter.").optional().nullable(),
+  })
+  .superRefine((value, context) => {
+    if (value.action === "assign" && !value.assigneeId) {
+      context.addIssue({
+        code: "custom",
+        path: ["assigneeId"],
+        message: "Pilih staff untuk assignment alert.",
+      });
+    }
+  });

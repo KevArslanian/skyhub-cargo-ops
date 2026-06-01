@@ -1,40 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
-  BellRing,
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
   Clock3,
+  Hand,
+  RotateCcw,
+  Search,
   ShieldAlert,
   SlidersHorizontal,
+  Timer,
+  UserCheck,
 } from "lucide-react";
-import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { EmptyState, OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDateTime } from "@/lib/format";
 
 type AlertSeverity = "critical" | "warning" | "info";
+type AlertWorkflowStatus = "open" | "acknowledged" | "snoozed" | "resolved";
 
 type AlertCenterPayload = {
   generatedAt: string;
+  viewer: { id: string; name: string };
+  assignableUsers: { id: string; name: string; role: string; station: string }[];
   summary: {
     total: number;
     critical: number;
     warning: number;
     info: number;
+    acknowledged: number;
+    assigned: number;
+    slaBreached: number;
     unreadNotifications: number;
   };
   alerts: {
     id: string;
+    alertKey: string;
     kind: string;
     title: string;
     detail: string;
     severity: AlertSeverity;
     tone: string;
     entityType: string;
+    entityId: string;
     entityLabel: string;
     href: string;
     route: string;
@@ -47,6 +59,15 @@ type AlertCenterPayload = {
     targetModule: string;
     triggeredAt: string;
     ageMinutes: number;
+    slaMinutes: number;
+    slaRemainingMinutes: number;
+    workflowStatus: AlertWorkflowStatus;
+    assignedToId: string | null;
+    assignedToName: string | null;
+    acknowledgedByName: string | null;
+    acknowledgedAt: string | null;
+    snoozedUntil: string | null;
+    note: string | null;
   }[];
   conditionChecks: {
     id: string;
@@ -64,12 +85,27 @@ type AlertCenterPayload = {
 };
 
 type AlertRow = AlertCenterPayload["alerts"][number];
+type AlertAction = "acknowledge" | "assign" | "snooze" | "resolve" | "reopen";
 
 const severityLabels: Record<string, string> = {
   all: "Semua severity",
   critical: "Kritis",
   warning: "Warning",
   info: "Info",
+};
+
+const workflowLabels: Record<AlertWorkflowStatus, string> = {
+  open: "Terbuka",
+  acknowledged: "Ditangani",
+  snoozed: "Ditunda",
+  resolved: "Selesai",
+};
+
+const workflowBadgeTone: Record<AlertWorkflowStatus, string> = {
+  open: "warning",
+  acknowledged: "info",
+  snoozed: "pending",
+  resolved: "success",
 };
 
 const ALERT_PAGE_SIZE = 12;
@@ -81,13 +117,35 @@ function formatAge(minutes: number) {
   return rest ? `${hours} jam ${rest} menit` : `${hours} jam`;
 }
 
+function formatSla(remaining: number) {
+  if (remaining < 0) {
+    return { label: `Lewat ${formatAge(Math.abs(remaining))}`, tone: "danger" as const };
+  }
+  if (remaining <= 30) {
+    return { label: `${formatAge(remaining)} lagi`, tone: "warning" as const };
+  }
+  return { label: `${formatAge(remaining)} lagi`, tone: "success" as const };
+}
+
+const slaTextClass: Record<"danger" | "warning" | "success", string> = {
+  danger: "text-[color:var(--tone-danger)]",
+  warning: "text-[color:var(--tone-warning)]",
+  success: "text-[color:var(--tone-success)]",
+};
+
 export default function AlertsPage() {
   const [data, setData] = useState<AlertCenterPayload | null>(null);
   const [query, setQuery] = useState("");
   const [severity, setSeverity] = useState("all");
   const [kind, setKind] = useState("all");
+  const [owner, setOwner] = useState("all");
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const [alertPage, setAlertPage] = useState(1);
+  const [actionNotice, setActionNotice] = useState("");
+  const [actionNoticeTone, setActionNoticeTone] = useState<"info" | "warning">("info");
+  const [pendingAction, setPendingAction] = useState(false);
+  const [assigneeChoice, setAssigneeChoice] = useState("");
+  const [snoozeChoice, setSnoozeChoice] = useState("60");
 
   useEffect(() => {
     function handleContextSearch(event: Event) {
@@ -101,12 +159,12 @@ export default function AlertsPage() {
     return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
   }, []);
 
-  async function loadAlerts() {
+  const loadAlerts = useCallback(async () => {
     const response = await fetch("/api/alerts", { cache: "no-store" });
     if (!response.ok) return;
     const payload = (await response.json()) as AlertCenterPayload;
     setData(payload);
-  }
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -114,7 +172,13 @@ export default function AlertsPage() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [loadAlerts]);
+
+  useEffect(() => {
+    if (!actionNotice) return;
+    const timer = window.setTimeout(() => setActionNotice(""), 2800);
+    return () => window.clearTimeout(timer);
+  }, [actionNotice]);
 
   const kindOptions = useMemo(() => {
     return Array.from(new Set((data?.alerts ?? []).map((alert) => alert.kind))).sort();
@@ -125,6 +189,11 @@ export default function AlertsPage() {
     return (data?.alerts ?? []).filter((alert) => {
       const matchesSeverity = severity === "all" || alert.severity === severity;
       const matchesKind = kind === "all" || alert.kind === kind;
+      const matchesOwner =
+        owner === "all" ||
+        (owner === "unassigned" && !alert.assignedToId) ||
+        (owner === "mine" && alert.assignedToId === data?.viewer.id) ||
+        alert.assignedToId === owner;
       const matchesQuery =
         !normalizedQuery ||
         [
@@ -134,6 +203,7 @@ export default function AlertsPage() {
           alert.route,
           alert.station,
           alert.ownerName,
+          alert.assignedToName ?? "",
           alert.recommendedAction,
           alert.cause,
           alert.clearCondition,
@@ -143,9 +213,9 @@ export default function AlertsPage() {
           .toLowerCase()
           .includes(normalizedQuery);
 
-      return matchesSeverity && matchesKind && matchesQuery;
+      return matchesSeverity && matchesKind && matchesOwner && matchesQuery;
     });
-  }, [data?.alerts, kind, query, severity]);
+  }, [data?.alerts, data?.viewer.id, kind, owner, query, severity]);
 
   const totalAlertPages = Math.max(1, Math.ceil(filteredAlerts.length / ALERT_PAGE_SIZE));
   const currentAlertPage = Math.min(alertPage, totalAlertPages);
@@ -159,6 +229,67 @@ export default function AlertsPage() {
   const selectedAlert = useMemo<AlertRow | null>(() => {
     return paginatedAlerts.find((alert) => alert.id === selectedAlertId) ?? paginatedAlerts[0] ?? null;
   }, [paginatedAlerts, selectedAlertId]);
+
+  const filterControls = useMemo(
+    () => (
+      <section className="ops-filter-strip" aria-label="Pencarian dan filter Alert Center">
+        <div className="ops-filter-search">
+          <label className="label" htmlFor="alerts-query">Cari Alert</label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
+            <input
+              id="alerts-query"
+              className="input-field input-field-leading"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Cari alert, rute, station, owner, atau tindakan"
+            />
+          </div>
+        </div>
+      <div className="shell-inline-filters" aria-label="Filter Alert Center">
+        <div className="shell-filter-field">
+          <label className="label" htmlFor="alerts-severity">Severity</label>
+          <select id="alerts-severity" className="select-field" value={severity} onChange={(event) => setSeverity(event.target.value)}>
+            {Object.entries(severityLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="shell-filter-field">
+          <label className="label" htmlFor="alerts-kind">Jenis</label>
+          <select id="alerts-kind" className="select-field" value={kind} onChange={(event) => setKind(event.target.value)}>
+            <option value="all">Semua jenis</option>
+            {kindOptions.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="shell-filter-field">
+          <label className="label" htmlFor="alerts-owner">Owner</label>
+          <select id="alerts-owner" className="select-field" value={owner} onChange={(event) => setOwner(event.target.value)}>
+            <option value="all">Semua owner</option>
+            <option value="mine">Ditugaskan ke saya</option>
+            <option value="unassigned">Belum ada owner</option>
+            {(data?.assignableUsers ?? []).map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <span className="shell-filter-count" aria-label={`${filteredAlerts.length} alert tampil`}>
+          <SlidersHorizontal size={14} />
+          {filteredAlerts.length}
+        </span>
+      </div>
+      </section>
+    ),
+    [data?.assignableUsers, filteredAlerts.length, kind, kindOptions, owner, query, severity],
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -178,53 +309,71 @@ export default function AlertsPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => setAlertPage(1), 0);
     return () => window.clearTimeout(timer);
-  }, [kind, query, severity]);
+  }, [severity, kind, owner, query]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setAlertPage((current) => Math.min(current, totalAlertPages));
-    }, 0);
+    setAssigneeChoice(selectedAlert?.assignedToId ?? "");
+  }, [selectedAlert?.alertKey, selectedAlert?.assignedToId]);
 
-    return () => window.clearTimeout(timer);
-  }, [totalAlertPages]);
+  const runAction = useCallback(
+    async (alert: AlertRow, action: AlertAction, extra?: { assigneeId?: string; snoozeMinutes?: number }) => {
+      setPendingAction(true);
+      try {
+        const response = await fetch("/api/alerts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            alertKey: alert.alertKey,
+            action,
+            assigneeId: extra?.assigneeId,
+            snoozeMinutes: extra?.snoozeMinutes,
+          }),
+        });
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => ({}))) as { error?: string };
+          setActionNoticeTone("warning");
+          setActionNotice(payload.error || "Gagal memperbarui status alert.");
+          return;
+        }
+
+        const messages: Record<AlertAction, string> = {
+          acknowledge: `Alert ${alert.entityLabel} ditandai sedang ditangani.`,
+          assign: `Alert ${alert.entityLabel} berhasil ditugaskan.`,
+          snooze: `Alert ${alert.entityLabel} ditunda sementara.`,
+          resolve: `Alert ${alert.entityLabel} ditandai selesai.`,
+          reopen: `Alert ${alert.entityLabel} dibuka kembali.`,
+        };
+        setActionNoticeTone("info");
+        setActionNotice(messages[action]);
+        await loadAlerts();
+      } finally {
+        setPendingAction(false);
+      }
+    },
+    [loadAlerts],
+  );
+
+  const conditionChecks = data?.conditionChecks ?? [];
 
   return (
     <div className="page-workspace alerts-viewport">
-      <PageHeader
-        eyebrow="Alert Center"
-        title="Pusat Alert Operasional"
-        subtitle="Exception dan eskalasi."
-      />
+      <PageHeader eyebrow="Alert Center" title="Pusat Alert Operasional" subtitle="Exception dan eskalasi." />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Butuh Tindakan"
-          value={data?.summary.total ?? 0}
-          note="Alert aktif."
-          icon={BellRing}
-          tone="primary"
-        />
-        <StatCard
-          label="Kritis"
-          value={data?.summary.critical ?? 0}
-          note="Prioritas awal."
-          icon={ShieldAlert}
-          tone="danger"
-        />
-        <StatCard
-          label="Warning"
-          value={data?.summary.warning ?? 0}
-          note="Risiko aktif."
-          icon={Clock3}
-          tone="warning"
-        />
-        <StatCard
-          label="Normal Check"
-          value={(data?.conditionChecks ?? []).filter((item) => item.status === "normal").length}
-          note={`${data?.conditionChecks.length ?? 0} aturan.`}
-          icon={CheckCircle2}
-          tone="success"
-        />
+      {filterControls}
+
+      <div role="status" aria-live="polite">
+        {actionNotice ? (
+          <div
+            className={
+              actionNoticeTone === "warning"
+                ? "rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-warning)]"
+                : "rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]"
+            }
+          >
+            {actionNotice}
+          </div>
+        ) : null}
       </div>
 
       <OpsPanel className="p-5">
@@ -240,67 +389,40 @@ export default function AlertsPage() {
               </tr>
             </thead>
             <tbody>
-            {(data?.conditionChecks ?? []).map((item) => (
-              <tr key={item.id}>
-                <td className="font-semibold text-[color:var(--text-strong)]">{item.label}</td>
-                <td><StatusBadge value={item.status === "action" ? "warning" : "success"} label={item.statusLabel} /></td>
-                <td>{item.count}</td>
-                <td className="text-sm text-[color:var(--muted-fg)]">{item.mechanism}</td>
-              </tr>
-            ))}
+              {conditionChecks.map((item) => (
+                <tr key={item.id}>
+                  <td className="font-semibold text-[color:var(--text-strong)]">{item.label}</td>
+                  <td>
+                    <StatusBadge value={item.status === "action" ? "warning" : "success"} label={item.statusLabel} />
+                  </td>
+                  <td>{item.count}</td>
+                  <td className="text-sm text-[color:var(--muted-fg)]">{item.mechanism}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       </OpsPanel>
 
-      <FilterBar className="alerts-filter-bar xl:grid-cols-[minmax(0,220px)_minmax(0,220px)_auto_auto]">
-        <div>
-          <label className="label">Severity</label>
-          <select className="select-field" value={severity} onChange={(event) => setSeverity(event.target.value)}>
-            {Object.entries(severityLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="label">Jenis</label>
-          <select className="select-field" value={kind} onChange={(event) => setKind(event.target.value)}>
-            <option value="all">Semua jenis</option>
-            {kindOptions.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="topbar-button self-end">
-          <SlidersHorizontal size={16} />
-          <span>{filteredAlerts.length} tampil</span>
-        </div>
-      </FilterBar>
-
       <div className="alerts-content-grid grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
         <OpsPanel className="page-pane alerts-panel p-5">
-          <SectionHeader title="Daftar Alert" subtitle="Klik row untuk detail." />
+          <SectionHeader title="Daftar Alert" subtitle="Klik row untuk detail dan aksi." />
           <div className="page-scroll internal-scrollbar alerts-table-scroll mt-5 table-shell">
             {paginatedAlerts.length ? (
-              <table className="data-table min-w-[920px]">
+              <table className="data-table min-w-[720px]">
                 <thead>
                   <tr>
                     <th>Severity</th>
-                    <th>Jenis</th>
-                    <th>Entity</th>
-                    <th>Rute</th>
-                    <th>Umur</th>
+                    <th>Alert</th>
+                    <th>SLA</th>
                     <th>Status</th>
-                    <th>Aksi</th>
+                    <th className="text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedAlerts.map((alert) => {
                     const selected = selectedAlert?.id === alert.id;
+                    const sla = formatSla(alert.slaRemainingMinutes);
                     return (
                       <tr
                         key={alert.id}
@@ -311,20 +433,30 @@ export default function AlertsPage() {
                           <StatusBadge value={alert.tone} label={severityLabels[alert.severity]} />
                         </td>
                         <td>
-                          <StatusBadge value={alert.entityType === "flight" ? "live" : "review"} label={alert.kind} />
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-[color:var(--text-strong)]">{alert.entityLabel}</p>
+                            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
+                              {alert.kind}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-xs text-[color:var(--muted-fg)]">{alert.title}</p>
+                          <p className="mt-0.5 text-xs text-[color:var(--muted-2)]">{alert.route}</p>
                         </td>
                         <td>
-                          <p className="font-semibold text-[color:var(--text-strong)]">{alert.entityLabel}</p>
-                          <p className="text-xs text-[color:var(--muted-fg)]">{alert.title}</p>
+                          <span className={`text-sm font-semibold ${slaTextClass[sla.tone]}`}>{sla.label}</span>
                         </td>
-                        <td>{alert.route}</td>
-                        <td>{formatAge(alert.ageMinutes)}</td>
-                        <td>{alert.statusLabel}</td>
                         <td>
+                          <StatusBadge value={workflowBadgeTone[alert.workflowStatus]} label={workflowLabels[alert.workflowStatus]} />
+                          <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
+                            {alert.assignedToName || "Belum ada owner"}
+                          </p>
+                        </td>
+                        <td className="text-right">
                           <Link
                             href={alert.href}
                             className="topbar-button"
                             onClick={(event) => event.stopPropagation()}
+                            aria-label={`Buka data ${alert.entityLabel}`}
                           >
                             <ArrowUpRight size={15} />
                           </Link>
@@ -336,9 +468,10 @@ export default function AlertsPage() {
               </table>
             ) : (
               <EmptyState
-                icon={BellRing}
+                icon={CheckCircle2}
+                variant="success"
                 title="Tidak ada alert pada filter ini"
-                copy="Tidak ada data."
+                copy="Semua kondisi pada filter ini sudah aman atau sudah ditangani."
                 className="m-4"
               />
             )}
@@ -374,10 +507,7 @@ export default function AlertsPage() {
             <div className="page-scroll internal-scrollbar alerts-detail-scroll mt-5 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge value={selectedAlert.tone} label={severityLabels[selectedAlert.severity]} />
-                <StatusBadge
-                  value={selectedAlert.entityType === "flight" ? "live" : "review"}
-                  label={selectedAlert.kind}
-                />
+                <StatusBadge value={workflowBadgeTone[selectedAlert.workflowStatus]} label={workflowLabels[selectedAlert.workflowStatus]} />
                 <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
                   {selectedAlert.station}
                 </span>
@@ -390,6 +520,29 @@ export default function AlertsPage() {
                 <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{selectedAlert.detail}</p>
               </div>
 
+              {(() => {
+                const sla = formatSla(selectedAlert.slaRemainingMinutes);
+                return (
+                  <div
+                    className={
+                      sla.tone === "danger"
+                        ? "rounded-[18px] border border-[color:var(--tone-danger-border)] bg-[color:var(--tone-danger-soft)] px-4 py-3"
+                        : sla.tone === "warning"
+                          ? "rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3"
+                          : "rounded-[18px] border border-[color:var(--tone-success-border)] bg-[color:var(--tone-success-soft)] px-4 py-3"
+                    }
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
+                        <Timer size={14} />
+                        SLA {formatAge(selectedAlert.slaMinutes)}
+                      </span>
+                      <span className={`text-sm font-bold ${slaTextClass[sla.tone]}`}>{sla.label}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="grid gap-3">
                 <div className="ops-panel-muted p-4">
                   <p className="label">Rute</p>
@@ -397,44 +550,131 @@ export default function AlertsPage() {
                 </div>
                 <div className="ops-panel-muted p-4">
                   <p className="label">Umur</p>
-                  <p className="mt-2 font-semibold text-[color:var(--text-strong)]">
-                    {formatAge(selectedAlert.ageMinutes)}
-                  </p>
-                  <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
-                    {formatDateTime(selectedAlert.triggeredAt)}
-                  </p>
+                  <p className="mt-2 font-semibold text-[color:var(--text-strong)]">{formatAge(selectedAlert.ageMinutes)}</p>
+                  <p className="mt-1 text-xs text-[color:var(--muted-fg)]">{formatDateTime(selectedAlert.triggeredAt)}</p>
                 </div>
                 <div className="ops-panel-muted p-4">
                   <p className="label">Owner</p>
-                  <p className="mt-2 font-semibold text-[color:var(--text-strong)]">{selectedAlert.ownerName}</p>
-                </div>
-                <div className="ops-panel-muted p-4">
-                  <p className="label">Penyebab</p>
-                  <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{selectedAlert.cause}</p>
-                </div>
-                <div className="ops-panel-muted p-4">
-                  <p className="label">Aksi</p>
-                  <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">
-                    {selectedAlert.recommendedAction}
+                  <p className="mt-2 font-semibold text-[color:var(--text-strong)]">
+                    {selectedAlert.assignedToName || "Belum ditugaskan"}
                   </p>
+                  {selectedAlert.acknowledgedByName ? (
+                    <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
+                      Di-acknowledge oleh {selectedAlert.acknowledgedByName}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="ops-panel-muted p-4">
+                  <p className="label">Aksi Disarankan</p>
+                  <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{selectedAlert.recommendedAction}</p>
                 </div>
                 <div className="ops-panel-muted p-4">
                   <p className="label">Kriteria Selesai</p>
                   <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{selectedAlert.clearCondition}</p>
                 </div>
-                <div className="ops-panel-muted p-4">
-                  <p className="label">Modul Tujuan</p>
-                  <p className="mt-2 font-semibold text-[color:var(--text-strong)]">{selectedAlert.targetModule}</p>
+              </div>
+
+              <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
+                <p className="label">Tindakan</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedAlert.workflowStatus !== "acknowledged" ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={pendingAction}
+                      onClick={() => void runAction(selectedAlert, "acknowledge")}
+                    >
+                      <Hand size={16} />
+                      Tangani
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={pendingAction}
+                    onClick={() => void runAction(selectedAlert, "resolve")}
+                  >
+                    <CheckCircle2 size={16} />
+                    Selesai
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={pendingAction}
+                    onClick={() => void runAction(selectedAlert, "reopen")}
+                  >
+                    <RotateCcw size={16} />
+                    Reset
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="label" htmlFor="alert-assignee">Tugaskan ke</label>
+                    <div className="mt-1 flex gap-2">
+                      <select
+                        id="alert-assignee"
+                        className="select-field"
+                        value={assigneeChoice}
+                        onChange={(event) => setAssigneeChoice(event.target.value)}
+                      >
+                        <option value="">Pilih staff</option>
+                        {(data?.assignableUsers ?? []).map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.name} • {user.station}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn-secondary shrink-0"
+                        disabled={pendingAction || !assigneeChoice}
+                        onClick={() => void runAction(selectedAlert, "assign", { assigneeId: assigneeChoice })}
+                      >
+                        <UserCheck size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="alert-snooze">Tunda</label>
+                    <div className="mt-1 flex gap-2">
+                      <select
+                        id="alert-snooze"
+                        className="select-field"
+                        value={snoozeChoice}
+                        onChange={(event) => setSnoozeChoice(event.target.value)}
+                      >
+                        <option value="30">30 menit</option>
+                        <option value="60">1 jam</option>
+                        <option value="120">2 jam</option>
+                        <option value="240">4 jam</option>
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn-secondary shrink-0"
+                        disabled={pendingAction}
+                        onClick={() => void runAction(selectedAlert, "snooze", { snoozeMinutes: Number(snoozeChoice) })}
+                      >
+                        <Clock3 size={16} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <Link href={selectedAlert.href} className="btn btn-primary w-full justify-center">
                 <ArrowUpRight size={16} />
-                Buka Data
+                Buka Data di {selectedAlert.targetModule}
               </Link>
             </div>
           ) : (
-            <EmptyState icon={BellRing} variant="neutral" title="Belum ada alert" copy="Data operasional belum tersedia untuk periode ini." className="m-0" />
+            <EmptyState
+              icon={ShieldAlert}
+              variant="neutral"
+              title="Belum ada alert"
+              copy="Data operasional belum tersedia atau semua exception sudah ditangani."
+              className="m-0"
+            />
           )}
         </OpsPanel>
       </div>

@@ -654,6 +654,27 @@ function getAlertTone(severity: AlertSeverity) {
   return "info";
 }
 
+// SLA target (in minutes) before each exception kind is considered breached.
+const ALERT_SLA_MINUTES: Record<string, number> = {
+  "shipment-hold": 240,
+  "document-gate": 180,
+  "readiness-gate": 240,
+  "stale-update": 360,
+  "unassigned-flight": 180,
+  "flight-delay": 120,
+  "cutoff-risk": 120,
+  "capacity-risk": 60,
+};
+
+function getAlertSlaMinutes(kind: string) {
+  return ALERT_SLA_MINUTES[kind] ?? 240;
+}
+
+// Returns minutes remaining until SLA breach (negative = already breached).
+function getAlertSlaRemainingMinutes(kind: string, ageMinutes: number) {
+  return getAlertSlaMinutes(kind) - ageMinutes;
+}
+
 function getAlertResolutionMeta(kind: string) {
   const fallback = {
     cause: "Kondisi operasional melewati aturan pantau sistem.",
@@ -720,6 +741,8 @@ function createShipmentAlert(input: {
   const triggeredAt = input.triggeredAt ?? input.shipment.updatedAt;
   const resolutionMeta = getAlertResolutionMeta(input.kind);
 
+  const ageMinutes = getAlertAgeMinutes(triggeredAt, input.now);
+
   return {
     id: `${input.kind}-${input.shipment.id}`,
     kind: input.kind,
@@ -728,6 +751,7 @@ function createShipmentAlert(input: {
     severity: input.severity,
     tone: getAlertTone(input.severity),
     entityType: "shipment",
+    entityId: input.shipment.id,
     entityLabel: input.shipment.awb,
     href: `/shipment-ledger?query=${input.shipment.awb}`,
     route: serializeRoute(input.shipment.origin, input.shipment.destination),
@@ -739,7 +763,9 @@ function createShipmentAlert(input: {
     clearCondition: resolutionMeta.clearCondition,
     targetModule: resolutionMeta.targetModule,
     triggeredAt: triggeredAt.toISOString(),
-    ageMinutes: getAlertAgeMinutes(triggeredAt, input.now),
+    ageMinutes,
+    slaMinutes: getAlertSlaMinutes(input.kind),
+    slaRemainingMinutes: getAlertSlaRemainingMinutes(input.kind, ageMinutes),
   };
 }
 
@@ -887,7 +913,7 @@ export async function getLandingMetricsData() {
   };
 }
 
-export async function getAlertCenterData(user: AccessUser) {
+export async function getAlertCenterData(user: AccessUser & { name: string }) {
   if (!isInternalRole(user.role)) {
     throw new AccessError("Alert center hanya untuk pengguna internal.", 403, "INTERNAL_ROUTE_ONLY");
   }
@@ -1059,6 +1085,7 @@ export async function getAlertCenterData(user: AccessUser) {
         severity: "warning",
         tone: "warning",
         entityType: "flight",
+        entityId: flight.id,
         entityLabel: flight.flightNumber,
         href: `/flight-board?query=${flight.flightNumber}`,
         route,
@@ -1071,6 +1098,8 @@ export async function getAlertCenterData(user: AccessUser) {
         targetModule: resolutionMeta.targetModule,
         triggeredAt: triggeredAt.toISOString(),
         ageMinutes: getAlertAgeMinutes(triggeredAt, now),
+        slaMinutes: getAlertSlaMinutes("flight-delay"),
+        slaRemainingMinutes: getAlertSlaRemainingMinutes("flight-delay", getAlertAgeMinutes(triggeredAt, now)),
       });
     }
 
@@ -1084,6 +1113,7 @@ export async function getAlertCenterData(user: AccessUser) {
         severity: minutesToCutoff < 0 ? "critical" : "warning",
         tone: minutesToCutoff < 0 ? "error" : "warning",
         entityType: "flight",
+        entityId: flight.id,
         entityLabel: flight.flightNumber,
         href: `/flight-board?query=${flight.flightNumber}`,
         route,
@@ -1096,6 +1126,8 @@ export async function getAlertCenterData(user: AccessUser) {
         targetModule: resolutionMeta.targetModule,
         triggeredAt: flight.cargoCutoffTime.toISOString(),
         ageMinutes: Math.abs(minutesToCutoff),
+        slaMinutes: getAlertSlaMinutes("cutoff-risk"),
+        slaRemainingMinutes: minutesToCutoff,
       });
     }
 
@@ -1109,6 +1141,7 @@ export async function getAlertCenterData(user: AccessUser) {
         severity: loadRatio > 1 ? "critical" : "warning",
         tone: loadRatio > 1 ? "error" : "warning",
         entityType: "flight",
+        entityId: flight.id,
         entityLabel: flight.flightNumber,
         href: `/flight-board?query=${flight.flightNumber}`,
         route,
@@ -1121,14 +1154,54 @@ export async function getAlertCenterData(user: AccessUser) {
         targetModule: resolutionMeta.targetModule,
         triggeredAt: triggeredAt.toISOString(),
         ageMinutes: getAlertAgeMinutes(triggeredAt, now),
+        slaMinutes: getAlertSlaMinutes("capacity-risk"),
+        slaRemainingMinutes: getAlertSlaRemainingMinutes("capacity-risk", getAlertAgeMinutes(triggeredAt, now)),
       });
     }
   }
 
-  const sortedAlerts = alerts
+  // Merge persisted workflow state (acknowledge / assign / snooze / resolve).
+  const alertKeys = alerts.map((alert) => `${alert.kind}:${alert.entityId}`);
+  const persistedStates = alertKeys.length
+    ? await db.alertState.findMany({
+        where: { alertKey: { in: alertKeys } },
+        include: { acknowledgedBy: { select: { name: true } } },
+      })
+    : [];
+  const stateByKey = new Map(persistedStates.map((state) => [state.alertKey, state]));
+
+  const decoratedAlerts = alerts
+    .map((alert) => {
+      const alertKey = `${alert.kind}:${alert.entityId}`;
+      const state = stateByKey.get(alertKey);
+
+      // Snooze auto-expires; treat an expired snooze as open again.
+      const snoozeActive = Boolean(state?.snoozedUntil && state.snoozedUntil > now);
+      const workflowStatus =
+        state?.status === "snoozed" && !snoozeActive ? "open" : state?.status ?? "open";
+
+      return {
+        ...alert,
+        alertKey,
+        workflowStatus,
+        assignedToId: state?.assignedToId ?? null,
+        assignedToName: state?.assignedToName ?? null,
+        acknowledgedByName: state?.acknowledgedBy?.name ?? null,
+        acknowledgedAt: state?.acknowledgedAt ? state.acknowledgedAt.toISOString() : null,
+        snoozedUntil: snoozeActive && state?.snoozedUntil ? state.snoozedUntil.toISOString() : null,
+        note: state?.note ?? null,
+      };
+    })
+    // Resolved + still-snoozed alerts drop out of the active board.
+    .filter((alert) => alert.workflowStatus !== "resolved" && alert.workflowStatus !== "snoozed");
+
+  const sortedAlerts = decoratedAlerts
     .sort((left, right) => {
       const severityDiff = getAlertPriority(left.severity) - getAlertPriority(right.severity);
       if (severityDiff) return severityDiff;
+      // Most SLA-urgent first within the same severity.
+      const slaDiff = left.slaRemainingMinutes - right.slaRemainingMinutes;
+      if (slaDiff) return slaDiff;
       return new Date(right.triggeredAt).getTime() - new Date(left.triggeredAt).getTime();
     })
     .slice(0, ALERT_LOOKBACK_LIMIT);
@@ -1147,14 +1220,37 @@ export async function getAlertCenterData(user: AccessUser) {
   const cutoffRiskCount = sortedAlerts.filter((alert) => alert.kind === "cutoff-risk").length;
   const capacityRiskCount = sortedAlerts.filter((alert) => alert.kind === "capacity-risk").length;
   const staleUpdateCount = sortedAlerts.filter((alert) => alert.kind === "stale-update").length;
+  const acknowledgedCount = sortedAlerts.filter((alert) => alert.workflowStatus === "acknowledged").length;
+  const assignedCount = sortedAlerts.filter((alert) => alert.assignedToId).length;
+  const slaBreachedCount = sortedAlerts.filter((alert) => alert.slaRemainingMinutes < 0).length;
+
+  // Distinct staff that can own an alert, surfaced for the assignment picker.
+  const assignableUsers = await db.user.findMany({
+    where: { status: "active", role: { in: ["admin", "staff"] } },
+    orderBy: [{ name: "asc" }],
+    select: { id: true, name: true, role: true, station: true },
+  });
 
   return {
     generatedAt: now.toISOString(),
+    viewer: {
+      id: user.id,
+      name: user.name,
+    },
+    assignableUsers: assignableUsers.map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      role: entry.role,
+      station: entry.station,
+    })),
     summary: {
       total: sortedAlerts.length,
       critical: counts.critical,
       warning: counts.warning,
       info: counts.info,
+      acknowledged: acknowledgedCount,
+      assigned: assignedCount,
+      slaBreached: slaBreachedCount,
       unreadNotifications: notificationCount,
     },
     alerts: sortedAlerts,
@@ -1237,6 +1333,196 @@ export async function getAlertCenterData(user: AccessUser) {
       },
     ],
   };
+}
+
+export type AlertAction = "acknowledge" | "assign" | "snooze" | "resolve" | "reopen";
+
+function parseAlertKey(alertKey: string) {
+  const separatorIndex = alertKey.indexOf(":");
+  if (separatorIndex <= 0) {
+    throw new AccessError("Kunci alert tidak valid.", 400, "ALERT_KEY_INVALID");
+  }
+
+  return {
+    kind: alertKey.slice(0, separatorIndex),
+    entityId: alertKey.slice(separatorIndex + 1),
+  };
+}
+
+export async function updateAlertState(input: {
+  userId: string;
+  actorName: string;
+  alertKey: string;
+  action: AlertAction;
+  assigneeId?: string | null;
+  snoozeMinutes?: number | null;
+  note?: string | null;
+}) {
+  const actor = await getActorWithRelations(input.userId);
+  if (!actor) {
+    throw new AccessError("Sesi tidak valid.", 401, "UNAUTHENTICATED");
+  }
+
+  if (!isInternalRole(actor.role)) {
+    throw new AccessError("Alert center hanya untuk pengguna internal.", 403, "INTERNAL_ROUTE_ONLY");
+  }
+
+  const { kind, entityId } = parseAlertKey(input.alertKey);
+  const now = new Date();
+
+  let assignedToName: string | null = null;
+  if (input.action === "assign") {
+    if (!input.assigneeId) {
+      throw new AccessError("Pilih staff untuk assignment alert.", 400, "ALERT_ASSIGNEE_REQUIRED");
+    }
+
+    const assignee = await db.user.findFirst({
+      where: { id: input.assigneeId, status: "active", role: { in: ["admin", "staff"] } },
+      select: { name: true },
+    });
+
+    if (!assignee) {
+      throw new AccessError("Staff tujuan assignment tidak ditemukan atau nonaktif.", 400, "ALERT_ASSIGNEE_INVALID");
+    }
+
+    assignedToName = assignee.name;
+  }
+
+  const baseRecord = {
+    alertKey: input.alertKey,
+    kind,
+    entityType: kind.startsWith("flight") || kind === "cutoff-risk" || kind === "capacity-risk" ? "flight" : "shipment",
+    entityId,
+    lastSeenAt: now,
+  };
+
+  const noteValue = typeof input.note === "string" && input.note.trim() ? input.note.trim() : undefined;
+
+  let createData: Prisma.AlertStateUncheckedCreateInput;
+  let updateData: Prisma.AlertStateUncheckedUpdateInput;
+  let logAction: string;
+  let logDescription: string;
+
+  switch (input.action) {
+    case "acknowledge": {
+      createData = {
+        ...baseRecord,
+        status: "acknowledged",
+        acknowledgedById: actor.id,
+        acknowledgedAt: now,
+        note: noteValue,
+      };
+      updateData = {
+        status: "acknowledged",
+        acknowledgedById: actor.id,
+        acknowledgedAt: now,
+        lastSeenAt: now,
+        ...(noteValue !== undefined ? { note: noteValue } : {}),
+      };
+      logAction = "Acknowledge Alert";
+      logDescription = `Alert ${input.alertKey} di-acknowledge oleh ${input.actorName}.`;
+      break;
+    }
+    case "assign": {
+      createData = {
+        ...baseRecord,
+        status: "acknowledged",
+        assignedToId: input.assigneeId,
+        assignedToName,
+        note: noteValue,
+      };
+      updateData = {
+        assignedToId: input.assigneeId,
+        assignedToName,
+        lastSeenAt: now,
+        ...(noteValue !== undefined ? { note: noteValue } : {}),
+      };
+      logAction = "Assign Alert";
+      logDescription = `Alert ${input.alertKey} ditugaskan ke ${assignedToName} oleh ${input.actorName}.`;
+      break;
+    }
+    case "snooze": {
+      const minutes = input.snoozeMinutes && input.snoozeMinutes > 0 ? Math.min(input.snoozeMinutes, 1440) : 60;
+      const snoozedUntil = new Date(now.getTime() + minutes * 60000);
+      createData = {
+        ...baseRecord,
+        status: "snoozed",
+        snoozedUntil,
+        note: noteValue,
+      };
+      updateData = {
+        status: "snoozed",
+        snoozedUntil,
+        lastSeenAt: now,
+        ...(noteValue !== undefined ? { note: noteValue } : {}),
+      };
+      logAction = "Snooze Alert";
+      logDescription = `Alert ${input.alertKey} di-snooze ${minutes} menit oleh ${input.actorName}.`;
+      break;
+    }
+    case "resolve": {
+      createData = {
+        ...baseRecord,
+        status: "resolved",
+        resolvedById: actor.id,
+        resolvedAt: now,
+        note: noteValue,
+      };
+      updateData = {
+        status: "resolved",
+        resolvedById: actor.id,
+        resolvedAt: now,
+        lastSeenAt: now,
+        ...(noteValue !== undefined ? { note: noteValue } : {}),
+      };
+      logAction = "Resolve Alert";
+      logDescription = `Alert ${input.alertKey} ditandai selesai oleh ${input.actorName}.`;
+      break;
+    }
+    case "reopen": {
+      createData = {
+        ...baseRecord,
+        status: "open",
+      };
+      updateData = {
+        status: "open",
+        snoozedUntil: null,
+        resolvedById: null,
+        resolvedAt: null,
+        acknowledgedById: null,
+        acknowledgedAt: null,
+        lastSeenAt: now,
+      };
+      logAction = "Reopen Alert";
+      logDescription = `Alert ${input.alertKey} dibuka kembali oleh ${input.actorName}.`;
+      break;
+    }
+    default: {
+      throw new AccessError("Aksi alert tidak dikenal.", 400, "ALERT_ACTION_INVALID");
+    }
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.alertState.upsert({
+      where: { alertKey: input.alertKey },
+      create: createData,
+      update: updateData,
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId: actor.id,
+        action: logAction,
+        targetType: "alert",
+        targetId: entityId,
+        targetLabel: input.alertKey,
+        description: logDescription,
+        level: input.action === "resolve" ? "success" : "info",
+      },
+    });
+  });
+
+  return { success: true as const };
 }
 
 export async function getDashboardData(user: AccessUser) {
@@ -1381,14 +1667,14 @@ export async function listShipments(
 
   if (filters?.query) {
     where.OR = [
-      { awb: { contains: filters.query } },
-      { commodity: { contains: filters.query } },
-      { shipper: { contains: filters.query } },
-      { consignee: { contains: filters.query } },
-      { ownerName: { contains: filters.query } },
-      { senderPhone: { contains: filters.query } },
-      { vehicleCode: { contains: filters.query } },
-      { vehicleName: { contains: filters.query } },
+      { awb: { contains: filters.query, mode: "insensitive" } },
+      { commodity: { contains: filters.query, mode: "insensitive" } },
+      { shipper: { contains: filters.query, mode: "insensitive" } },
+      { consignee: { contains: filters.query, mode: "insensitive" } },
+      { ownerName: { contains: filters.query, mode: "insensitive" } },
+      { senderPhone: { contains: filters.query, mode: "insensitive" } },
+      { vehicleCode: { contains: filters.query, mode: "insensitive" } },
+      { vehicleName: { contains: filters.query, mode: "insensitive" } },
     ];
   }
 
@@ -2525,9 +2811,9 @@ export async function getFlightBoardData(
 
   if (filters?.query) {
     where.OR = [
-      { flightNumber: { contains: filters.query } },
-      { origin: { contains: filters.query.toUpperCase() } },
-      { destination: { contains: filters.query.toUpperCase() } },
+      { flightNumber: { contains: filters.query, mode: "insensitive" } },
+      { origin: { contains: filters.query.toUpperCase(), mode: "insensitive" } },
+      { destination: { contains: filters.query.toUpperCase(), mode: "insensitive" } },
     ];
   }
 
@@ -2864,9 +3150,9 @@ export async function listActivityLogs(
 
   if (filters?.query) {
     where.OR = [
-      { targetLabel: { contains: filters.query } },
-      { description: { contains: filters.query } },
-      { action: { contains: filters.query } },
+      { targetLabel: { contains: filters.query, mode: "insensitive" } },
+      { description: { contains: filters.query, mode: "insensitive" } },
+      { action: { contains: filters.query, mode: "insensitive" } },
     ];
   }
 
@@ -3150,7 +3436,7 @@ export async function searchScoped(user: AccessUser, query: string, scope: Searc
     const shipments = await db.shipment.findMany({
       where: {
         ...scopeShipmentWhere(user),
-        OR: [{ awb: { contains: term } }, { commodity: { contains: term } }, { shipper: { contains: term } }, { consignee: { contains: term } }],
+        OR: [{ awb: { contains: term, mode: "insensitive" } }, { commodity: { contains: term, mode: "insensitive" } }, { shipper: { contains: term, mode: "insensitive" } }, { consignee: { contains: term, mode: "insensitive" } }],
       },
       select: { awb: true, commodity: true, origin: true, destination: true },
       take: 6,
@@ -3171,7 +3457,7 @@ export async function searchScoped(user: AccessUser, query: string, scope: Searc
     const flights = await db.flight.findMany({
       where: {
         ...scopeFlightWhere(),
-        OR: [{ flightNumber: { contains: term } }, { origin: { contains: term } }, { destination: { contains: term } }],
+        OR: [{ flightNumber: { contains: term, mode: "insensitive" } }, { origin: { contains: term, mode: "insensitive" } }, { destination: { contains: term, mode: "insensitive" } }],
       },
       select: { flightNumber: true, origin: true, destination: true, status: true },
       take: 6,
@@ -3217,7 +3503,7 @@ export async function searchGlobalLegacy(user: AccessUser, query: string) {
     const flight = await db.flight.findFirst({
       where: {
         ...scopeFlightWhere(),
-        flightNumber: { contains: query },
+        flightNumber: { contains: query, mode: "insensitive" },
       },
     });
 
@@ -3229,7 +3515,7 @@ export async function searchGlobalLegacy(user: AccessUser, query: string) {
   const shipment = await db.shipment.findFirst({
     where: {
       ...scopeShipmentWhere(user),
-      OR: [{ awb: { contains: query } }, { commodity: { contains: query } }],
+      OR: [{ awb: { contains: query, mode: "insensitive" } }, { commodity: { contains: query, mode: "insensitive" } }],
     },
     select: {
       awb: true,

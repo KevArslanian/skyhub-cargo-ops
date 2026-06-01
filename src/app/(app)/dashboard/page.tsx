@@ -15,8 +15,9 @@ import {
   TowerControl,
   TriangleAlert,
   TrendingUp,
+  type LucideIcon,
 } from "lucide-react";
-import { cn, formatDateTime, formatRelativeShort } from "@/lib/format";
+import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState, OpsPanel, PageHeader, SectionHeader, SkeletonBlock, StatCard } from "@/components/ops-ui";
 import { MiniDonutGroup, type DonutSegment } from "@/components/donut-chart";
@@ -193,6 +194,47 @@ function DashboardPagination({
   );
 }
 
+function DashboardSummaryCard({
+  href,
+  label,
+  value,
+  icon: Icon,
+  tone,
+}: {
+  href: string;
+  label: string;
+  value: string | number;
+  icon: LucideIcon;
+  tone: "primary" | "success" | "warning" | "danger" | "info";
+}) {
+  const toneClass = {
+    primary: "bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]",
+    success: "bg-[color:var(--tone-success-soft)] text-[color:var(--tone-success)]",
+    warning: "bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]",
+    danger: "bg-[color:var(--tone-danger-soft)] text-[color:var(--tone-danger)]",
+    info: "bg-[color:var(--tone-info-soft)] text-[color:var(--tone-info)]",
+  }[tone];
+
+  return (
+    <Link
+      href={href}
+      className="group flex min-w-0 items-center gap-2 rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 px-2.5 py-2.5 transition-colors hover:border-[color:var(--brand-primary)]/35 hover:bg-[color:var(--panel-muted)]"
+    >
+      <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px]", toneClass)}>
+        <Icon size={16} />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--muted-2)]">
+          {label}
+        </span>
+        <strong className="mt-1 block truncate font-[family:var(--font-heading)] text-[0.98rem] font-black leading-none tracking-[-0.03em] text-[color:var(--text-strong)]">
+          {value}
+        </strong>
+      </span>
+    </Link>
+  );
+}
+
 function textMatchesQuery(values: Array<string | number | null | undefined>, query: string) {
   const n = query.trim().toLowerCase();
   return !n || values.join(" ").toLowerCase().includes(n);
@@ -314,6 +356,25 @@ export default function DashboardPage() {
     { title: "Beban Tindakan", total: actionDonutTotal, segments: actionDonut },
   ];
 
+  const totalWeightKg = shipmentsToday.reduce((sum, shipment) => sum + shipment.weightKg, 0);
+  const assignedFlightCount = shipmentsToday.filter((shipment) => shipment.flightNumber).length;
+  const pendingDocsCount = shipmentsToday.filter((shipment) => shipment.docStatus.toLowerCase() !== "complete").length;
+  const readinessIssuesCount = shipmentsToday.filter((shipment) => shipment.status === "hold").length + pendingDocsCount;
+  const activityIssueCount = (internalData?.recentActivity ?? []).filter(
+    (activity) => activity.level === "warning" || activity.level === "error",
+  ).length;
+  const moduleSummaryCards = [
+    { href: "/shipment-ledger", label: "Shipment", value: shipmentsToday.length, icon: Boxes, tone: "primary" as const },
+    { href: "/shipment-ledger", label: "Berat", value: formatWeight(totalWeightKg), icon: PackageSearch, tone: "success" as const },
+    { href: "/shipment-ledger", label: "Assigned", value: assignedFlightCount, icon: PackageCheck, tone: "info" as const },
+    { href: "/shipment-ledger?status=review", label: "Review", value: readinessIssuesCount, icon: ShieldAlert, tone: "warning" as const },
+    { href: "/flight-board?status=on_time", label: "On-Time", value: onTime, icon: TowerControl, tone: "success" as const },
+    { href: "/flight-board?status=delayed", label: "Delayed", value: delayed, icon: TriangleAlert, tone: "warning" as const },
+    { href: "/flight-board?status=departed", label: "Departed", value: departed, icon: FileCheck2, tone: "info" as const },
+    { href: "/alerts", label: "Alert", value: alertsToday.length, icon: BellRing, tone: alertsToday.length ? "danger" as const : "success" as const },
+    { href: "/activity-log", label: "Log Risk", value: activityIssueCount, icon: History, tone: activityIssueCount ? "warning" as const : "info" as const },
+  ];
+
   /* ── Filtered / paged data ── */
   const filteredShipments = useMemo(() => {
     if (!dashboardQuery) return shipmentsToday;
@@ -408,9 +469,15 @@ export default function DashboardPage() {
      INTERNAL DASHBOARD — REDESIGNED SINGLE-VIEWPORT
      ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="dashboard-fixed-viewport flex h-auto flex-col gap-[14px] overflow-x-hidden xl:h-[628px]">
+    <div className="dashboard-fixed-viewport flex h-auto flex-col gap-[14px] overflow-x-hidden">
+      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-9">
+        {moduleSummaryCards.map((card) => (
+          <DashboardSummaryCard key={`${card.href}-${card.label}`} {...card} />
+        ))}
+      </div>
+
       {/* ── ROW 1: Analitik + Cutoff ── */}
-      <div className="grid h-auto grid-cols-1 gap-[14px] items-stretch min-w-0 xl:h-[184px] xl:grid-cols-[minmax(0,1fr)_328px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid h-auto grid-cols-1 gap-[14px] items-stretch min-w-0 xl:h-[164px] xl:grid-cols-[minmax(0,1fr)_328px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Analitik Operasional */}
         <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-4 min-w-0 overflow-visible">
           <div className="mb-[10px] flex items-center gap-2">
@@ -452,7 +519,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── ROW 2: Manifest Prioritas + Pusat Tindakan ── */}
-      <div className="grid h-auto grid-cols-1 gap-[14px] items-stretch min-w-0 xl:h-[324px] xl:grid-cols-[minmax(0,1fr)_328px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid h-auto grid-cols-1 gap-[14px] items-stretch min-w-0 xl:h-[286px] xl:grid-cols-[minmax(0,1fr)_328px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Manifest Prioritas */}
         <OpsPanel className="flex h-full flex-col rounded-[18px] p-4 min-w-0 overflow-visible">
           <div className="flex h-[48px] shrink-0 items-start justify-between gap-3 border-b border-[color:var(--border-soft)]">
@@ -464,7 +531,7 @@ export default function DashboardPage() {
 
           {!loading && filteredShipments.length > 0 ? (
             <>
-              <div className="grid h-[202px] shrink-0 grid-rows-[32px_repeat(5,34px)] min-w-0">
+              <div className="grid h-[176px] shrink-0 grid-rows-[32px_repeat(4,34px)] min-w-0">
                 <div className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)_76px_86px_38px] items-center gap-3 border-b border-[color:var(--border-soft)] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
                   <span>AWB</span>
                   <span>Komoditas</span>
@@ -472,14 +539,14 @@ export default function DashboardPage() {
                   <span>Status</span>
                   <span className="text-right">Aksi</span>
                 </div>
-                {filteredShipments
+                {[...filteredShipments]
                   .sort((a, b) => {
                     const aPrio = a.status === 'hold' || a.docStatus === 'Review' ? 0 : 1;
                     const bPrio = b.status === 'hold' || b.docStatus === 'Review' ? 0 : 1;
                     if (aPrio !== bPrio) return aPrio - bPrio;
                     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
                   })
-                  .slice(0, 5)
+                  .slice(0, 4)
                   .map((shipment) => (
                     <Link
                       key={shipment.id}
@@ -511,7 +578,7 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <div className="flex h-[202px] items-center justify-center">
+            <div className="flex h-[176px] items-center justify-center">
               <EmptyState icon={Boxes} variant="neutral" title="Belum ada manifest aktif" copy="Manifest operasional hari ini akan muncul di area ini." className="py-0" />
             </div>
           )}
@@ -525,7 +592,7 @@ export default function DashboardPage() {
               <p className="mt-0.5 truncate text-[13px] leading-[17px] text-[color:var(--muted-fg)]">{filteredAlerts.length > 0 ? `${alertPage.visibleStart}-${alertPage.visibleEnd} dari ${filteredAlerts.length} alert` : "0 alert"}</p>
             </div>
           </div>
-          <div className="mt-0 flex h-[216px] shrink-0 flex-col gap-[8px] min-w-0 overflow-visible">
+          <div className="mt-0 flex h-[180px] shrink-0 flex-col gap-[8px] min-w-0 overflow-visible">
             {filteredAlerts.length ? alertPage.items.map((alert) => (
               <div key={alert.id} className="flex h-[48px] w-full min-w-0 items-center rounded-[12px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/80 px-3 py-[10px] transition-colors hover:bg-[color:var(--panel-muted)]">
                 <div className="flex min-w-0 flex-1 items-center gap-3">

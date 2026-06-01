@@ -2,6 +2,9 @@ import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn, formatNumber } from "@/lib/format";
 
 export function PageHeader({
+  eyebrow,
+  title,
+  subtitle,
   actions,
   className,
 }: {
@@ -11,12 +14,18 @@ export function PageHeader({
   actions?: React.ReactNode;
   className?: string;
 }) {
-  if (!actions) return null;
-
+  // The visible page title lives in the app topbar; expose a semantic heading
+  // here for screen readers and landmark navigation, then render the action bar.
   return (
-    <header className={cn("page-action-toolbar", className)} aria-label="Aksi halaman">
-      <div className="flex max-w-full shrink-0 flex-wrap items-center gap-3">{actions}</div>
-    </header>
+    <>
+      <h1 className="sr-only">{eyebrow ? `${eyebrow} — ${title}` : title}</h1>
+      {subtitle ? <p className="sr-only">{subtitle}</p> : null}
+      {actions ? (
+        <header className={cn("page-action-toolbar", className)} aria-label="Aksi halaman">
+          <div className="flex max-w-full shrink-0 flex-wrap items-center gap-3">{actions}</div>
+        </header>
+      ) : null}
+    </>
   );
 }
 

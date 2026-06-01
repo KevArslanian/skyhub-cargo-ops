@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, History, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, History, Search } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
-import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { EmptyState, OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
 
 type ActivityPayload = {
   users: { id: string; name: string }[];
@@ -61,44 +61,39 @@ export default function ActivityLogPage() {
     return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
   }, []);
 
-  const levels = useMemo(() => {
-    const counts = { success: 0, info: 0, warning: 0, error: 0 };
-    (data?.logs ?? []).forEach((log) => {
-      if (log.level in counts) {
-        counts[log.level as keyof typeof counts] += 1;
-      }
-    });
-    return counts;
-  }, [data]);
-
-  const actions = Array.from(new Set((data?.logs ?? []).map((log) => log.action)));
+  const actions = useMemo(() => Array.from(new Set((data?.logs ?? []).map((log) => log.action))), [data?.logs]);
   const totalPages = Math.max(1, Math.ceil((data?.logs.length ?? 0) / ACTIVITY_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * ACTIVITY_PAGE_SIZE;
   const pagedLogs = (data?.logs ?? []).slice(pageStart, pageStart + ACTIVITY_PAGE_SIZE);
   const visibleStart = data?.logs.length ? pageStart + 1 : 0;
   const visibleEnd = Math.min(pageStart + pagedLogs.length, data?.logs.length ?? 0);
+  const activeFilterCount = [action !== "all", userId !== "all", Boolean(query.trim())].filter(Boolean).length;
 
-
-  return (
-    <div className="page-workspace activity-log-workspace">
-      <PageHeader
-        eyebrow="Jejak Audit"
-        title="Log Aktivitas"
-        subtitle="Audit internal."
-      />
-
-      <div className="grid gap-4 xl:grid-cols-4">
-        <StatCard label="Berhasil" value={levels.success} note="Aksi berhasil tersimpan atau dieksekusi." icon={ShieldCheck} tone="success" />
-        <StatCard label="Info" value={levels.info} note="Aktivitas normal staff dan sistem." icon={History} tone="info" />
-        <StatCard label="Peringatan" value={levels.warning} note="Event yang memerlukan perhatian tetapi belum fatal." icon={TriangleAlert} tone="warning" />
-        <StatCard label="Galat" value={levels.error} note="Kejadian gagal atau exception log yang tercatat." icon={ShieldAlert} tone="danger" />
-      </div>
-
-      <FilterBar className="activity-log-filter-bar activity-log-filter-bar-compact">
-        <div>
-          <label className="label">Aksi</label>
+  const filterControls = useMemo(
+    () => (
+      <section className="ops-filter-strip" aria-label="Pencarian dan filter Log Aktivitas">
+        <div className="ops-filter-search">
+          <label className="label" htmlFor="activity-query">Cari Log</label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
+            <input
+              id="activity-query"
+              className="input-field input-field-leading"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Cari aksi, target, user, atau deskripsi"
+            />
+          </div>
+        </div>
+      <div className="shell-inline-filters" aria-label="Filter Log Aktivitas">
+        <div className="shell-filter-field">
+          <label className="label" htmlFor="activity-action">Aksi</label>
           <select
+            id="activity-action"
             className="select-field"
             value={action}
             onChange={(event) => {
@@ -114,9 +109,10 @@ export default function ActivityLogPage() {
             ))}
           </select>
         </div>
-        <div>
-          <label className="label">Pengguna</label>
+        <div className="shell-filter-field">
+          <label className="label" htmlFor="activity-user">Pengguna</label>
           <select
+            id="activity-user"
             className="select-field"
             value={userId}
             onChange={(event) => {
@@ -132,7 +128,27 @@ export default function ActivityLogPage() {
             ))}
           </select>
         </div>
-      </FilterBar>
+        {activeFilterCount > 0 ? (
+          <span className="shell-filter-count" aria-label={`${activeFilterCount} filter aktif`}>
+            <Filter size={14} />
+            {activeFilterCount}
+          </span>
+        ) : null}
+      </div>
+      </section>
+    ),
+    [action, actions, activeFilterCount, data?.users, query, userId],
+  );
+
+  return (
+    <div className="page-workspace activity-log-workspace">
+      <PageHeader
+        eyebrow="Jejak Audit"
+        title="Log Aktivitas"
+        subtitle="Audit internal."
+      />
+
+      {filterControls}
 
       <OpsPanel className="page-pane activity-log-panel p-5">
         <SectionHeader title="Timeline Aktivitas" />

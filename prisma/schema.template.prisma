@@ -64,6 +64,13 @@ enum BlobCleanupStatus {
   failed
 }
 
+enum AlertWorkflowStatus {
+  open
+  acknowledged
+  snoozed
+  resolved
+}
+
 model CustomerAccount {
   id           String                @id @default(cuid())
   code         String                @unique
@@ -177,6 +184,9 @@ model User {
   activityLogs      ActivityLog[]
   recentAwbSearches RecentAwbSearch[]
   capabilityOverrides UserCapabilityOverride[]
+  assignedAlerts      AlertState[]       @relation("AlertAssignee")
+  acknowledgedAlerts  AlertState[]       @relation("AlertAcknowledger")
+  resolvedAlerts      AlertState[]       @relation("AlertResolver")
   createdShipments  Shipment[]        @relation("ShipmentCreator")
   trackingLogs      TrackingLog[]      @relation("TrackingActor")
   customerAccount   CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
@@ -421,4 +431,31 @@ model RecentAwbSearch {
 
   @@index([userId, createdAt])
   @@index([awb])
+}
+
+model AlertState {
+  id               String              @id @default(cuid())
+  alertKey         String              @unique
+  kind             String
+  entityType       String
+  entityId         String
+  status           AlertWorkflowStatus @default(open)
+  assignedToId     String?
+  assignedToName   String?
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+  snoozedUntil     DateTime?
+  resolvedById     String?
+  resolvedAt       DateTime?
+  note             String?
+  lastSeenAt       DateTime            @default(now())
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  assignedTo       User?               @relation("AlertAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  acknowledgedBy   User?               @relation("AlertAcknowledger", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  resolvedBy       User?               @relation("AlertResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([status, updatedAt])
+  @@index([assignedToId])
+  @@index([entityType, entityId])
 }

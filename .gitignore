@@ -4,3 +4,11 @@ node_modules
 .next
 *.log
 *.tsbuildinfo
+
+# dev scratch / context-bloat artifacts (see: pnpm compact)
+audit-shot*.png
+shot-*.png
+audit-shot.mjs
+debug-login.mjs
+shot.mjs
+/_scratch_backup

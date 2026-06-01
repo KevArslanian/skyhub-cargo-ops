@@ -70,7 +70,7 @@ const AIRLINE_META: Record<SupportedAirlineCode, Omit<FlightVisualMeta, "airline
     aircraftType: "Boeing 737-900ER",
     registration: "PK-LFH",
     category: "Narrow-body",
-    aircraftImageUrl: "/aircraft/jt-lion-air-737-900er.jpg",
+    aircraftImageUrl: FALLBACK_IMAGE,
     airlineLogoUrl: "https://www.gstatic.com/flights/airline_logos/70px/JT.png",
     brandColor: "#D71920",
   },

@@ -4,10 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   FileText,
   Pencil,
   PlaneTakeoff,
@@ -33,8 +31,9 @@ import {
   type SupportedAirlineCode,
 } from "@/lib/flight-meta";
 import { StatusBadge } from "@/components/status-badge";
-import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { EmptyState, OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
 import { OpsDrawer } from "@/components/ops-drawer";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type FlightBoardPayload = {
   permissions: {
@@ -289,6 +288,7 @@ export default function FlightBoardPage() {
   const [editDraft, setEditDraft] = useState(() => createBlankFlightForm());
   const [notice, setNotice] = useState("");
   const [noticeTone, setNoticeTone] = useState<"info" | "warning">("info");
+  const [confirmFlightDelete, setConfirmFlightDelete] = useState(false);
   const initialDateResolvedRef = useRef(false);
   const latestUrlParamsRef = useRef(searchParams.toString());
 
@@ -667,6 +667,7 @@ export default function FlightBoardPage() {
       );
       setSelectedFlightId(null);
       setEditDraft(createFlightDraft(null));
+      setConfirmFlightDelete(false);
       setNoticeTone("info");
       setNotice(`Flight ${selectedFlight.flightNumber} berhasil dihapus dari database.`);
       void loadFlightBoard();
@@ -716,53 +717,24 @@ export default function FlightBoardPage() {
     [applyFlightBoardPayload, date, replaceFlightBoardUrl, requestFlightBoard, totalFlightPages],
   );
 
-  return (
-    <div className="page-workspace flightboard-viewport">
-      <div className="flightboard-header-sticky">
-        <PageHeader
-          eyebrow="Pemantauan Keberangkatan"
-          title="Papan Flight"
-          subtitle="Tambah, cari, ubah, dan hapus flight."
-          actions={
-            <>
-              {data?.permissions.canExport ? (
-                <Link href={`/exports/flights?${flightExportQuery}`} className="btn btn-secondary">
-                  <FileText size={16} />
-                  Print Flight
-                </Link>
-              ) : null}
-              {data?.permissions.canManageFlights ? (
-                <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
-                  <Plus size={16} />
-                  Buat Flight
-                </button>
-              ) : null}
-            </>
-          }
-        />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-3">
-        <StatCard label="Terjadwal" value={data?.summary.onTime ?? 0} note="Belum melewati waktu berangkat." icon={PlaneTakeoff} tone="success" />
-        <StatCard label="Terlambat" value={data?.summary.delayed ?? 0} note="Ditandai butuh penyesuaian jadwal." icon={Clock3} tone="warning" />
-        <StatCard label="Berangkat" value={data?.summary.departed ?? 0} note="Waktu berangkat sudah berjalan." icon={TowerControl} tone="info" />
-      </div>
-
-      <FilterBar className="flightboard-filter-bar">
-        <div style={{ flex: 1, minWidth: 280 }}>
-          <label className="label" htmlFor="flightboard-search">Cari</label>
+  const filterControls = useMemo(
+    () => (
+      <section className="ops-filter-strip" aria-label="Pencarian dan filter Papan Flight">
+        <div className="ops-filter-search">
+          <label className="label" htmlFor="flightboard-query">Cari Flight</label>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-2)]" size={15} />
+            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
             <input
-              id="flightboard-search"
-              className="input-field ledger-search-input"
+              id="flightboard-query"
+              className="input-field input-field-leading"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari flight, rute, atau nomor flight..."
+              placeholder="Cari nomor flight, rute, atau station"
             />
           </div>
         </div>
-        <div>
+      <div className="shell-inline-filters" aria-label="Filter Papan Flight">
+        <div className="shell-filter-field">
           <label className="label" htmlFor="flightboard-status">Status</label>
           <select id="flightboard-status" className="select-field" value={status} onChange={(event) => handleStatusChange(event.target.value)}>
             <option value="all">Semua</option>
@@ -771,17 +743,38 @@ export default function FlightBoardPage() {
             <option value="departed">Berangkat</option>
           </select>
         </div>
-        <div>
-          <label className="label">Tanggal</label>
-          <div className="relative">
-            <CalendarDays className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
-            <input type="date" className="input-field input-field-leading" value={date} onChange={(event) => handleDateChange(event.target.value)} />
-          </div>
+        <div className="shell-filter-field shell-filter-field-wide">
+          <label className="label" htmlFor="flightboard-date">Tanggal</label>
+          <input
+            id="flightboard-date"
+            type="date"
+            className="input-field"
+            value={date}
+            onChange={(event) => handleDateChange(event.target.value)}
+          />
         </div>
-      </FilterBar>
+      </div>
+      </section>
+    ),
+    [date, handleDateChange, handleStatusChange, query, status],
+  );
+
+  return (
+    <div className="page-workspace flightboard-viewport">
+      <div className="flightboard-header-sticky">
+        <PageHeader
+          eyebrow="Pemantauan Keberangkatan"
+          title="Papan Flight"
+          subtitle="Tambah, cari, ubah, dan hapus flight."
+        />
+      </div>
+
+      {filterControls}
 
       {notice ? (
         <div
+          role="status"
+          aria-live="polite"
           className={
             noticeTone === "warning"
               ? "rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-warning)]"
@@ -846,7 +839,23 @@ export default function FlightBoardPage() {
             selectedFlight ? "flightboard-editor-list-pane" : null,
           )}
         >
-          <SectionHeader title="Manifest Flight" subtitle="Daftar flight yang sudah difilter dan siap dipilih untuk detail lebih lanjut." />
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[color:var(--border-soft)] p-5">
+            <SectionHeader title="Manifest Flight" subtitle="Daftar flight yang sudah difilter dan siap dipilih untuk detail lebih lanjut." />
+            <div className="flex flex-wrap gap-2">
+              {data?.permissions.canExport ? (
+                <Link href={`/exports/flights?${flightExportQuery}`} className="btn btn-secondary">
+                  <FileText size={16} />
+                  Print Flight
+                </Link>
+              ) : null}
+              {data?.permissions.canManageFlights ? (
+                <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+                  <Plus size={16} />
+                  Buat Flight
+                </button>
+              ) : null}
+            </div>
+          </div>
           <div className="flightboard-manifest-scroll flight-manifest-table-space internal-scrollbar table-shell">
             <table className="data-table">
               <thead>
@@ -975,7 +984,7 @@ export default function FlightBoardPage() {
                     <Pencil size={16} />
                     Edit Flight
                   </button>
-                  <button type="button" className="btn btn-warning" onClick={handleDeleteFlight}>
+                  <button type="button" className="btn btn-danger" onClick={() => setConfirmFlightDelete(true)}>
                     <X size={16} />
                     Hapus
                   </button>
@@ -1311,6 +1320,20 @@ export default function FlightBoardPage() {
             </div>
             ) : null}
       </OpsDrawer>
+
+      <ConfirmDialog
+        open={confirmFlightDelete}
+        title="Hapus flight ini?"
+        description={
+          selectedFlight
+            ? `Flight ${selectedFlight.flightNumber} (${selectedFlight.route}) akan dihapus dari database. Tindakan ini tidak bisa dibatalkan.`
+            : "Flight akan dihapus permanen dari database."
+        }
+        confirmLabel="Ya, hapus flight"
+        tone="danger"
+        onConfirm={() => void handleDeleteFlight()}
+        onCancel={() => setConfirmFlightDelete(false)}
+      />
     </div>
   );
 }

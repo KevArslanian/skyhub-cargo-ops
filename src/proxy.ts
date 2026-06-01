@@ -193,6 +193,8 @@ export const config = {
     "/activity-log/:path*",
     "/reports/:path*",
     "/settings/:path*",
+    "/seed/:path*",
+    "/query/:path*",
     "/exports/:path*",
   ],
 };

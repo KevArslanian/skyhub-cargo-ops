@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import {
   Bell,
   BellRing,
@@ -14,14 +14,11 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  Monitor,
-  MoonStar,
   PackageSearch,
   PlaneTakeoff,
   Radar,
   Search,
   Settings2,
-  SunMedium,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { getNavigationForRole } from "@/lib/access";
@@ -29,7 +26,7 @@ import { APP_NAME, APP_SUBTITLE, ROLE_LABELS } from "@/lib/constants";
 import { cn, formatRelativeShort } from "@/lib/format";
 import { BrandMark } from "./brand-mark";
 import { ShellSearchProvider } from "./shell-search-provider";
-import { StatusBadge } from "./status-badge";
+import { ShellTopbarControlsContext } from "./shell-topbar-controls";
 
 type ShellProps = {
   user: {
@@ -89,7 +86,7 @@ const navGroupIconMap = {
 export function AppShell({ user, settings, notifications, children }: ShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { resolvedTheme, setTheme } = useTheme();
+  const { setTheme } = useTheme();
   const navigation = getNavigationForRole(user.role);
   const [search, setSearch] = useState("");
   const [shellSettings, setShellSettings] = useState(settings);
@@ -101,8 +98,9 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [searchPreviewOpen, setSearchPreviewOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<ShellSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const themePreference = shellSettings.theme === "dark" ? "dark" : "light";
-  const activeTheme = mounted ? (resolvedTheme === "dark" ? "dark" : "light") : themePreference;
+  const [topbarControls, setTopbarControls] = useState<ReactNode>(null);
+  const themePreference =
+    shellSettings.theme === "dark" || shellSettings.theme === "system" ? shellSettings.theme : "light";
   const sidebarWidth = collapsed ? "88px" : "min(284px, 24vw)";
   const shellStyle = {
     "--sidebar-width": sidebarWidth,
@@ -121,7 +119,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [openGroupId, setOpenGroupId] = useState<(typeof navigation.groups)[number]["id"]>(activeGroupId);
   const visibleNotifications = notificationItems.slice(0, 10);
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
-  const showShellSearch = pathname === "/shipment-ledger" || pathname === "/awb-tracking" || pathname === "/flight-board";
+  const showShellSearch = false;
   const topbarLabel = activeNav.label;
   const displayedNavigationItems = navigation.items.filter((item) => item.href !== "/settings");
   const displayedNavigationGroups = navigation.groups
@@ -138,17 +136,16 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
     }
 
     const storedTheme = window.localStorage.getItem("theme");
-    const storedPreference = storedTheme === "dark" || storedTheme === "light" ? storedTheme : null;
+    const storedPreference =
+      storedTheme === "dark" || storedTheme === "light" || storedTheme === "system" ? storedTheme : null;
     const nextPreference = storedPreference ?? themePreference;
 
     if (storedPreference && storedPreference !== themePreference) {
       setShellSettings((current) => ({ ...current, theme: storedPreference }));
     }
 
-    if (resolvedTheme !== nextPreference) {
-      setTheme(nextPreference);
-    }
-  }, [mounted, resolvedTheme, setTheme, themePreference]);
+    setTheme(nextPreference);
+  }, [mounted, setTheme, themePreference]);
 
   useEffect(() => {
     setCollapsed(shellSettings.sidebarCollapsed);
@@ -161,7 +158,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       if (!nextSettings) return;
 
       setShellSettings((current) => ({ ...current, ...nextSettings }));
-      if (nextSettings.theme === "dark" || nextSettings.theme === "light") {
+      if (nextSettings.theme === "dark" || nextSettings.theme === "light" || nextSettings.theme === "system") {
         window.localStorage.setItem("theme", nextSettings.theme);
         setTheme(nextSettings.theme);
       }
@@ -227,7 +224,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
-      const scope = pathname === "/shipment-ledger" ? "ledger" : pathname === "/awb-tracking" ? "awb" : "flight";
+      const scope = pathname === "/shipment-ledger" ? "ledger" : "flight";
       setSearchLoading(true);
 
       try {
@@ -381,26 +378,9 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
     router.refresh();
   }
 
-  async function handleThemeToggle() {
-    const themeCycle: Record<string, string> = { light: "dark", dark: "system", system: "light" };
-    const nextTheme = themeCycle[shellSettings.theme] || "light";
-    setShellSettings((current) => ({ ...current, theme: nextTheme }));
-    window.localStorage.setItem("theme", nextTheme);
-    if (nextTheme === "system") {
-      setTheme("system");
-    } else {
-      setTheme(nextTheme);
-    }
-    const persisted = await persistSettings({ theme: nextTheme });
-    if (persisted) {
-      setShellSettings((current) => ({ ...current, ...persisted }));
-    }
-  }
-
   const searchPlaceholder = useMemo(() => {
     if (pathname === "/dashboard") return "Cari dashboard";
     if (pathname === "/shipment-ledger") return "Cari shipment";
-    if (pathname === "/awb-tracking") return "Cari AWB";
     if (pathname === "/flight-board") return "Cari flight";
     if (pathname === "/alerts") return "Cari alert";
     if (pathname === "/activity-log") return "Cari log";
@@ -415,16 +395,18 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
     }),
     [activeNav.label, pathname, searchPlaceholder],
   );
+  const topbarControlsContext = useMemo(() => ({ setControls: setTopbarControls }), []);
 
   return (
     <ShellSearchProvider value={shellSearchConfig}>
-    <div
-      style={shellStyle}
-      className={cn(
-        "h-svh w-full min-w-0 overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
-        shellSettings.compactRows && "compact-table",
-      )}
-    >
+      <ShellTopbarControlsContext.Provider value={topbarControlsContext}>
+        <div
+          style={shellStyle}
+          className={cn(
+            "h-svh w-full min-w-0 overflow-x-clip bg-[color:var(--app-bg)] text-[color:var(--app-fg)]",
+            shellSettings.compactRows && "compact-table",
+          )}
+        >
       <div className="flex h-full min-h-0 min-w-0">
         <div className={cn("fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm lg:hidden", mobileOpen ? "block" : "hidden")} onClick={() => setMobileOpen(false)} />
 
@@ -470,22 +452,10 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               )}
             </div>
 
-            <div className="px-4 py-5">
-              {!collapsed && (
-                <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Modul Aktif</p>
-                  <p className="mt-2 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
-                    {activeNav.label}
-                  </p>
-                  <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{activeNav.hint}</p>
-                </div>
-              )}
-            </div>
-
             <nav
               className={cn(
                 "min-h-0 flex-1 overflow-y-auto ops-scrollbar",
-                collapsed ? "flex flex-col items-center gap-3 px-4 py-2" : "space-y-3 px-4 pb-4",
+                collapsed ? "flex flex-col items-center gap-3 px-4 py-2" : "space-y-3 px-4 py-5",
               )}
             >
               {collapsed
@@ -584,9 +554,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">{user.name}</p>
                         <p className="truncate text-xs text-[color:var(--muted-fg)]">{ROLE_LABELS[user.role]} | {user.customerAccountName || user.station}</p>
-                        <div className="mt-2">
-                          <StatusBadge value="normal" label="Normal" />
-                        </div>
                       </div>
                     </div>
                     <div className="grid gap-1 border-t border-[color:var(--border-soft)] pt-3">
@@ -699,17 +666,9 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                 </form>
               ) : null}
 
-              <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
-                <button
-                  type="button"
-                  className="topbar-button"
-                  onClick={handleThemeToggle}
-                  aria-label={shellSettings.theme === "dark" ? "Beralih ke mode terang" : shellSettings.theme === "system" ? "Beralih ke mode sistem" : "Beralih ke mode gelap"}
-                  title={shellSettings.theme === "dark" ? "Mode gelap" : shellSettings.theme === "system" ? "Ikuti sistem" : "Mode terang"}
-                >
-                  {shellSettings.theme === "dark" ? <MoonStar size={18} /> : shellSettings.theme === "system" ? <Monitor size={18} /> : <SunMedium size={18} />}
-                </button>
+              {topbarControls ? <div className="shell-topbar-controls">{topbarControls}</div> : null}
 
+              <div className="shell-topbar-actions ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
                 <div className="relative">
                   <button
                     type="button"
@@ -797,7 +756,8 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
           </main>
         </div>
       </div>
-    </div>
+        </div>
+      </ShellTopbarControlsContext.Provider>
     </ShellSearchProvider>
   );
 }

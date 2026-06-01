@@ -30,6 +30,8 @@ import {
   COMPANY_SWIPE_CARDS,
 } from "@/lib/company-profile";
 import { APP_CANONICAL_URL, APP_NAME } from "@/lib/constants";
+import { AboutScrollVideo, type AboutClip } from "@/components/about-scroll-video";
+import { ScrollScene } from "@/components/about-scroll-scene";
 
 type CounterState = {
   shipments: number;
@@ -72,6 +74,18 @@ const OPERATIONS = COMPANY_SUPPORT_TIMELINE.map((item) => ({
   copy: item.description,
 }));
 
+const ABOUT_CLIPS: AboutClip[] = [
+  { src: "/media/about/sky-clouds.mp4", poster: "/media/about/sky-clouds.jpg", label: "In transit" },
+  { src: "/media/about/takeoff-sunrise.mp4", poster: "/media/about/takeoff-sunrise.jpg", label: "Departure" },
+  { src: "/media/about/data-network.mp4", poster: "/media/about/data-network.jpg", label: "Network" },
+  { src: "/media/about/city-aerial.mp4", poster: "/media/about/city-aerial.jpg", label: "Ground ops" },
+];
+
+const ABOUT_SCRUB_VIDEO = {
+  src: "/media/about/cargolux-sky-120fps-scrub.mp4",
+  poster: "/media/about/cargolux-sky-120fps-scrub.jpg",
+};
+
 function getContact(label: string) {
   return COMPANY_CONTACT_ITEMS.find((item) => item.label === label);
 }
@@ -87,9 +101,6 @@ const supportPathContact = getContact("Support path");
 
 export default function AboutUsPage() {
   const router = useRouter();
-  const plane1Ref = useRef<HTMLDivElement | null>(null);
-  const plane2Ref = useRef<HTMLDivElement | null>(null);
-  const plane3Ref = useRef<HTMLDivElement | null>(null);
   const hasAnimatedCountersRef = useRef(false);
 
   const [navSolid, setNavSolid] = useState(false);
@@ -155,13 +166,51 @@ export default function AboutUsPage() {
   }, []);
 
   useEffect(() => {
-    const handleScroll = () => {
-      const currentY = window.scrollY;
-      setNavSolid(currentY > 80);
+    let clampFrame = 0;
 
-      if (plane1Ref.current) plane1Ref.current.style.transform = `translateY(${currentY * 0.08}px)`;
-      if (plane2Ref.current) plane2Ref.current.style.transform = `translateY(${currentY * 0.12}px)`;
-      if (plane3Ref.current) plane3Ref.current.style.transform = `translateY(${currentY * 0.06}px)`;
+    const clampContactTail = () => {
+      if (clampFrame) {
+        return;
+      }
+
+      clampFrame = window.requestAnimationFrame(() => {
+        clampFrame = 0;
+
+        const contact = document.getElementById("contact");
+        const contactGrid = document.querySelector<HTMLElement>(".premium-contact-grid");
+        if (!contact || !contactGrid) {
+          return;
+        }
+
+        const scrollMax = Math.max(document.documentElement.scrollHeight - window.innerHeight, 0);
+        const contactTop = contact.getBoundingClientRect().top + window.scrollY;
+        const contactContentBottom = contactGrid.getBoundingClientRect().bottom + window.scrollY;
+        const contactTailLimit = Math.max(0, Math.min(scrollMax, contactContentBottom + 24 - window.innerHeight));
+        const isPastContactStart = window.scrollY >= contactTop - window.innerHeight * 0.42;
+        const isInFinalViewport = scrollMax - window.scrollY < window.innerHeight * 1.15;
+
+        if (isPastContactStart && isInFinalViewport && window.scrollY > contactTailLimit) {
+          window.scrollTo(0, contactTailLimit);
+        }
+      });
+    };
+
+    window.addEventListener("scroll", clampContactTail, { passive: true });
+    window.addEventListener("resize", clampContactTail);
+    clampContactTail();
+
+    return () => {
+      if (clampFrame) {
+        window.cancelAnimationFrame(clampFrame);
+      }
+      window.removeEventListener("scroll", clampContactTail);
+      window.removeEventListener("resize", clampContactTail);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setNavSolid(window.scrollY > 80);
     };
 
     handleScroll();
@@ -295,7 +344,10 @@ export default function AboutUsPage() {
   }
 
   return (
-    <div className="premium-landing bg-[#050505] text-white">
+    <div className="premium-landing relative isolate bg-[#050505] text-white">
+      <AboutScrollVideo clips={ABOUT_CLIPS} scrubVideo={ABOUT_SCRUB_VIDEO} />
+      <div className="premium-top-blur" aria-hidden="true" />
+
       <nav className={`premium-nav ${navSolid ? "premium-nav-solid" : ""}`} id="navbar">
         <div className="premium-fluid-shell flex items-center justify-between">
           <button type="button" className="flex items-center gap-3 text-left" onClick={() => scrollToId("hero")}>
@@ -338,32 +390,14 @@ export default function AboutUsPage() {
         </div>
       </nav>
 
-      <section id="hero" className="relative flex min-h-screen items-center overflow-hidden pt-16">
+      <ScrollScene variant="heroOut" id="hero" data-video-clip="0" className="relative flex min-h-screen items-center overflow-hidden pt-16">
         <div id="overview" className="pointer-events-none absolute -top-16" />
-        <div className="premium-animated-grid absolute inset-0" />
-
-        <div className="pointer-events-none absolute right-12 top-16 hidden lg:block">
-          <div className="relative h-40 w-40 rounded-full border border-[#00a3ff4d]">
-            <div className="absolute inset-4 rounded-full border border-[#00a3ff33]" />
-            <div className="absolute inset-8 rounded-full border border-[#00a3ff1a]" />
-            <div className="premium-radar-sweep absolute inset-0 rounded-full border-t-2 border-[#00a3ff] [clip-path:polygon(50%_50%,100%_0,100%_100%)]" />
-          </div>
-        </div>
-
-        <div ref={plane1Ref} className="premium-parallax-plane left-[12%] top-[22%] text-5xl">
-          <Plane />
-        </div>
-        <div ref={plane2Ref} className="premium-parallax-plane left-[68%] top-[38%] text-4xl">
-          <Plane />
-        </div>
-        <div ref={plane3Ref} className="premium-parallax-plane left-[25%] top-[58%] text-[42px]">
-          <Plane />
-        </div>
+        <div className="premium-animated-grid pointer-events-none absolute inset-0 opacity-40" />
 
         <div className="premium-fluid-shell relative z-10 text-left">
           <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-5 py-1 text-xs tracking-[3px]">
             <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#00a3ff]" />
-            LIVE • SOEDIRMAN CONTROL CENTER
+            LIVE / SOEDIRMAN CONTROL CENTER
           </div>
 
           <h1 className="mb-8 max-w-[1500px] text-[64px] font-semibold leading-[0.92] tracking-[-0.05em] md:text-[92px] 2xl:text-[112px]">
@@ -390,9 +424,9 @@ export default function AboutUsPage() {
             </button>
           </div>
         </div>
-      </section>
+      </ScrollScene>
 
-      <section id="about" className="premium-fluid-shell border-t border-white/10 py-24">
+      <ScrollScene variant="left" id="about" data-video-clip="1" className="premium-fluid-shell border-t border-white/10 py-24">
         <div className="premium-about-grid grid items-center gap-16">
           <div className="premium-reveal">
             <div className="mb-4 text-xs tracking-[4px] text-[#0066ff]">OUR STORY</div>
@@ -468,9 +502,9 @@ export default function AboutUsPage() {
             </div>
           </div>
         </div>
-      </section>
+      </ScrollScene>
 
-      <section id="capabilities" className="border-y border-white/10 bg-black py-20">
+      <ScrollScene variant="depth" id="capabilities" data-video-clip="2" className="border-y border-white/10 bg-black/35 py-20">
         <div className="premium-fluid-shell">
           <div className="premium-reveal mb-16">
             <div className="text-xs tracking-[4px] text-[#0066ff]">WHAT WE DELIVER</div>
@@ -492,9 +526,9 @@ export default function AboutUsPage() {
             })}
           </div>
         </div>
-      </section>
+      </ScrollScene>
 
-      <section id="operations" className="premium-fluid-shell py-24">
+      <ScrollScene variant="right" id="operations" data-video-clip="3" className="premium-fluid-shell py-24">
         <div className="premium-reveal mb-12">
           <div className="text-xs tracking-[4px] text-[#0066ff]">THE RHYTHM OF CARGO</div>
           <h3 className="mt-3 text-6xl font-semibold tracking-tight">Operations that never sleep.</h3>
@@ -510,9 +544,9 @@ export default function AboutUsPage() {
             </div>
           ))}
         </div>
-      </section>
+      </ScrollScene>
 
-      <section id="metrics" className="border-y border-white/10 bg-black py-20">
+      <ScrollScene variant="depth" id="metrics" data-video-clip="2" className="border-y border-white/10 bg-black/35 py-20">
         <div className="premium-reveal premium-fluid-shell">
           <div className="text-xs tracking-[4px] text-[#0066ff]">PROVEN AT SCALE</div>
           <h3 className="mt-4 text-6xl font-semibold tracking-tight">Numbers that matter.</h3>
@@ -536,9 +570,9 @@ export default function AboutUsPage() {
             <div className="mt-2 text-sm text-white/60">Platform uptime</div>
           </div>
         </div>
-      </section>
+      </ScrollScene>
 
-      <section id="contact" className="premium-fluid-shell py-24">
+      <ScrollScene revealOnce variant="left" id="contact" data-video-clip="3" className="premium-fluid-shell pt-24 pb-8">
         <div className="premium-contact-grid grid gap-16">
           <div className="premium-reveal">
             <div className="text-xs tracking-[4px] text-[#0066ff]">GET IN TOUCH</div>
@@ -574,8 +608,8 @@ export default function AboutUsPage() {
             </div>
           </div>
 
-          <div className="premium-glass premium-reveal rounded-3xl border border-white/10 p-9">
-            <form className="space-y-6" onSubmit={handleContactSubmit}>
+          <div className="premium-glass premium-contact-form-card rounded-3xl border border-white/10 p-9">
+            <form className="space-y-5" onSubmit={handleContactSubmit}>
               <div>
                 <label className="text-xs tracking-widest text-white/60">YOUR NAME</label>
                 <input
@@ -597,7 +631,7 @@ export default function AboutUsPage() {
               <div>
                 <label className="text-xs tracking-widest text-white/60">MESSAGE</label>
                 <textarea
-                  rows={5}
+                  rows={4}
                   className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
                   value={contactState.message}
                   onChange={(event) => setContactState((current) => ({ ...current, message: event.target.value }))}
@@ -613,7 +647,7 @@ export default function AboutUsPage() {
             </form>
           </div>
         </div>
-      </section>
+      </ScrollScene>
 
       {modalOpen ? (
         <div
@@ -690,17 +724,52 @@ export default function AboutUsPage() {
       ) : null}
 
       <style jsx global>{`
+        html.premium-scrollbar-hidden {
+          position: relative;
+        }
+
         html.premium-scrollbar-hidden,
         body.premium-scrollbar-hidden {
           -ms-overflow-style: none;
           scrollbar-width: none;
+          scrollbar-gutter: auto;
+          background: #050505 !important;
         }
 
         html.premium-scrollbar-hidden::-webkit-scrollbar,
-        body.premium-scrollbar-hidden::-webkit-scrollbar {
-          width: 0;
-          height: 0;
-          display: none;
+        body.premium-scrollbar-hidden::-webkit-scrollbar,
+        html.premium-scrollbar-hidden *::-webkit-scrollbar,
+        body.premium-scrollbar-hidden *::-webkit-scrollbar {
+          width: 0 !important;
+          height: 0 !important;
+          display: none !important;
+          background: transparent !important;
+        }
+
+        html.premium-scrollbar-hidden *,
+        body.premium-scrollbar-hidden * {
+          scrollbar-width: none;
+        }
+
+        body.premium-scrollbar-hidden::before {
+          opacity: 0;
+        }
+
+        .premium-landing .premium-fluid-shell {
+          width: min(100% - clamp(4rem, 8vw, 9rem), 1840px);
+          margin-inline: auto;
+        }
+
+        @media (min-width: 1920px) {
+          .premium-landing .premium-fluid-shell {
+            width: min(100% - 8rem, 2040px);
+          }
+        }
+
+        @media (max-width: 640px) {
+          .premium-landing .premium-fluid-shell {
+            width: min(100% - 1.75rem, 100%);
+          }
         }
       `}</style>
 
@@ -710,6 +779,35 @@ export default function AboutUsPage() {
           max-width: 100%;
           overflow-x: hidden;
           font-family: var(--font-body), "Inter", system-ui, sans-serif;
+        }
+
+        .premium-landing::before {
+          content: "";
+          position: fixed;
+          inset: 0 0 auto;
+          z-index: 55;
+          height: clamp(7.5rem, 13vh, 10.75rem);
+          pointer-events: none;
+          background:
+            linear-gradient(180deg, rgba(3, 5, 8, 0.96) 0%, rgba(3, 5, 8, 0.84) 50%, rgba(3, 5, 8, 0) 100%),
+            linear-gradient(90deg, rgba(0, 102, 255, 0.12), rgba(0, 0, 0, 0) 42%);
+          backdrop-filter: blur(22px) saturate(130%);
+          -webkit-backdrop-filter: blur(22px) saturate(130%);
+          mask-image: linear-gradient(180deg, #000 0%, #000 68%, transparent 100%);
+        }
+
+        .premium-top-blur {
+          position: fixed;
+          inset: 0 0 auto;
+          z-index: 56;
+          height: clamp(6.5rem, 11vh, 9rem);
+          pointer-events: none;
+          background:
+            linear-gradient(180deg, rgba(2, 4, 7, 0.82) 0%, rgba(2, 4, 7, 0.54) 58%, rgba(2, 4, 7, 0) 100%),
+            rgba(2, 4, 7, 0.28);
+          backdrop-filter: blur(18px) saturate(135%);
+          -webkit-backdrop-filter: blur(18px) saturate(135%);
+          mask-image: linear-gradient(180deg, #000 0%, #000 72%, transparent 100%);
         }
 
         .premium-landing *,
@@ -724,6 +822,17 @@ export default function AboutUsPage() {
           overflow-wrap: anywhere;
         }
 
+        .premium-landing > section {
+          position: relative;
+          z-index: 1;
+          scroll-margin-top: 6.5rem;
+        }
+
+        .premium-landing > nav {
+          position: fixed;
+          z-index: 60;
+        }
+
         .premium-landing h1,
         .premium-landing h2,
         .premium-landing h3,
@@ -736,7 +845,7 @@ export default function AboutUsPage() {
         }
 
         .premium-fluid-shell {
-          width: min(100% - clamp(2rem, 6vw, 8rem), 1840px);
+          width: min(100% - clamp(4rem, 8vw, 9rem), 1840px);
           margin-inline: auto;
         }
 
@@ -745,7 +854,21 @@ export default function AboutUsPage() {
         }
 
         .premium-contact-grid {
+          width: 100%;
           grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+          align-items: start;
+        }
+
+        :global(#contact) {
+          display: flex;
+          align-items: flex-start;
+          scroll-margin-top: 5.75rem;
+        }
+
+        .premium-contact-form-card {
+          align-self: start;
+          position: relative;
+          z-index: 2;
         }
 
         .premium-auto-grid {
@@ -761,18 +884,22 @@ export default function AboutUsPage() {
           inset: 0 0 auto 0;
           z-index: 50;
           padding: 1.25rem 0;
-          background: transparent;
+          background: linear-gradient(180deg, rgba(3, 5, 8, 0.72), rgba(3, 5, 8, 0.34));
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          backdrop-filter: blur(18px) saturate(132%);
+          -webkit-backdrop-filter: blur(18px) saturate(132%);
           transition: all 0.25s ease;
         }
 
         .premium-nav-solid {
-          background: rgba(5, 5, 5, 0.95);
+          background: rgba(5, 5, 5, 0.9);
           box-shadow: 0 18px 30px rgba(0, 0, 0, 0.24);
         }
 
         .premium-glass {
-          background: rgba(10, 10, 12, 0.88);
-          backdrop-filter: blur(24px);
+          background: rgba(8, 9, 12, 0.72);
+          backdrop-filter: blur(26px) saturate(140%);
+          -webkit-backdrop-filter: blur(26px) saturate(140%);
           border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
@@ -854,7 +981,7 @@ export default function AboutUsPage() {
 
         @media (min-width: 1920px) {
           .premium-fluid-shell {
-            width: min(100% - 7rem, 2040px);
+            width: min(100% - 8rem, 2040px);
           }
 
           .premium-about-grid,
@@ -872,7 +999,13 @@ export default function AboutUsPage() {
 
         @media (max-width: 640px) {
           .premium-fluid-shell {
-            width: min(100% - 1.5rem, 100%);
+            width: min(100% - 1.75rem, 100%);
+          }
+
+          #hero {
+            min-height: 100svh;
+            padding-top: 5.75rem;
+            padding-bottom: 2rem;
           }
 
           .premium-nav {
@@ -880,8 +1013,14 @@ export default function AboutUsPage() {
           }
 
           .premium-landing h1 {
-            font-size: 3.5rem;
-            line-height: 0.92;
+            font-size: 3rem;
+            line-height: 0.96;
+          }
+
+          #hero p {
+            margin-bottom: 2rem;
+            font-size: 1.125rem;
+            line-height: 1.42;
           }
 
           .premium-landing h2,
@@ -901,6 +1040,13 @@ export default function AboutUsPage() {
 
           .premium-magnetic-btn {
             padding-inline: 2rem;
+          }
+
+          #hero .premium-magnetic-btn,
+          #hero .premium-magnetic-btn + button {
+            height: 3.5rem;
+            border-radius: 1.25rem;
+            font-size: 0.95rem;
           }
         }
 

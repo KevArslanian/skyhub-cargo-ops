@@ -30,6 +30,12 @@ function run(args, env = process.env) {
   });
 }
 
+try {
+  await run(["compact:auto"]);
+} catch {
+  console.log("[compact] skipped (non-blocking).");
+}
+
 if (process.env.VERCEL === "1" && process.env.DATABASE_URL_UNPOOLED) {
   console.log("Running production database migrations before Vercel build.");
   await run(["db:migrate:unpooled"]);
