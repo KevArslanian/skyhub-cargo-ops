@@ -24,6 +24,7 @@ import {
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import {
   CARGO_MODE_OPTIONS,
+  GOODS_STATUS_OPTIONS,
   SERVICE_TYPE_OPTIONS,
   STATION_OPTIONS,
   VEHICLE_STATUS_OPTIONS,
@@ -125,6 +126,8 @@ type LedgerPayload = {
   customerAccounts: { id: string; name: string; code: string }[];
 };
 
+const TRANSACTION_STATUS_FORM_OPTIONS = ["Belum Lunas", "Menunggu Verifikasi", "Lunas", "Tidak Ditagih", "Pending"] as const;
+
 function formatDateInput(value?: string | null) {
   return value ? value.slice(0, 10) : new Date().toISOString().slice(0, 10);
 }
@@ -144,6 +147,8 @@ function createDrawerDraft(shipment: ShipmentRow | null) {
     weightKg: shipment?.weightKg ?? 1,
     serviceType: shipment?.serviceType ?? "Biasa",
     shippingRate: shipment?.shippingRate ?? 0,
+    goodsStatus: shipment?.goodsStatus ?? "Diproses",
+    transactionStatus: shipment?.transactionStatus ?? "Belum Lunas",
     vehicleName: shipment?.vehicleName ?? "",
     vehicleType: shipment?.vehicleType ?? "Pesawat",
     vehicleCode: shipment?.vehicleCode ?? "",
@@ -1319,13 +1324,35 @@ export default function ShipmentLedgerPage() {
                         </div>
                         <div>
                           <label className="label">Status Barang</label>
-                          <input className="input-field input-readonly" value={selectedShipment.goodsStatus} readOnly />
-                          <p className="form-help">Otomatis dari status workflow shipment.</p>
+                          <select
+                            className="select-field"
+                            value={drawerDraft.goodsStatus}
+                            onChange={(event) =>
+                              setDrawerDraft((current) => ({ ...current, goodsStatus: event.target.value }))
+                            }
+                          >
+                            {GOODS_STATUS_OPTIONS.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="label">Status Transaksi</label>
-                          <input className="input-field input-readonly" value={selectedShipment.transactionStatus} readOnly />
-                          <p className="form-help">Otomatis dari tarif dan bukti pembayaran terverifikasi admin.</p>
+                          <select
+                            className="select-field"
+                            value={drawerDraft.transactionStatus}
+                            onChange={(event) =>
+                              setDrawerDraft((current) => ({ ...current, transactionStatus: event.target.value }))
+                            }
+                          >
+                            {TRANSACTION_STATUS_FORM_OPTIONS.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="label">Flight</label>

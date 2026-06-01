@@ -3,8 +3,10 @@ import {
   AIRCRAFT_TYPE_OPTIONS,
   AWB_REGEX,
   CARGO_MODE_OPTIONS,
+  GOODS_STATUS_OPTIONS,
   SERVICE_TYPE_OPTIONS,
   STATION_OPTIONS,
+  TRANSACTION_STATUS_OPTIONS,
   VEHICLE_STATUS_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
 } from "./constants";
@@ -14,6 +16,11 @@ export const shipmentStatusSchema = z.enum(["received", "sortation", "loaded_to_
 export const flightStatusSchema = z.enum(["on_time", "delayed", "departed"]);
 export const shipmentDocStatusSchema = z.enum(["Complete", "Partial", "Review"]);
 export const shipmentReadinessSchema = z.enum(["Ready", "Pending"]);
+export const shipmentGoodsStatusSchema = z.enum(GOODS_STATUS_OPTIONS);
+export const shipmentTransactionStatusSchema = z.preprocess(
+  (value) => (typeof value === "string" ? value.trim().replaceAll(" ", "_") : value),
+  z.enum(TRANSACTION_STATUS_OPTIONS),
+);
 
 const optionalAwbSchema = z
   .string()
@@ -127,6 +134,8 @@ export const shipmentUpdateSchema = z.object({
   weightKg: z.coerce.number().positive().optional(),
   serviceType: z.enum(SERVICE_TYPE_OPTIONS).optional(),
   shippingRate: z.coerce.number().int().min(0).optional(),
+  goodsStatus: shipmentGoodsStatusSchema.optional(),
+  transactionStatus: shipmentTransactionStatusSchema.optional(),
   vehicleName: z.string().trim().min(2).optional(),
   vehicleType: z.enum(VEHICLE_TYPE_OPTIONS).optional(),
   vehicleCode: z.string().trim().min(2).optional(),

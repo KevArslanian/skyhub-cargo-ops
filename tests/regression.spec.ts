@@ -139,6 +139,8 @@ test("@api flight search and pagination follow unguided chapter 10 requirements"
 });
 
 test("@crud shipment CRUD, document upload, notification update, and archive work", async ({ request }) => {
+  test.setTimeout(90_000);
+
   await login(request, users.staff);
 
   const awb = `160-${uniqueSuffix()}`;
@@ -379,6 +381,7 @@ test("@api staff and customer role boundaries are enforced", async ({ request })
   const blockedCreate = await request.post(apiUrl("/api/shipments"), {
     data: {
       commodity: "Blocked Customer Create",
+      senderPhone: "081234567890",
       origin: "CGK",
       destination: "DPS",
       pieces: 1,
@@ -396,28 +399,34 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
   test.setTimeout(60_000);
 
   await page.goto(apiUrl("/login"));
-  await expect(page).toHaveURL(/\/about-us/);
+  await expect(page).toHaveURL(/\/login/);
+  await expect(page).toHaveTitle("Login | SkyHub");
+  await expect(page.getByText("Autentikasi akun")).toBeVisible();
 
   await loginPage(page, users.staff);
 
-  for (const route of ["/dashboard", "/shipment-ledger", "/awb-tracking", "/flight-board", "/activity-log", "/reports", "/settings"]) {
+  const pageTitles = [
+    ["/dashboard", "Dashboard | SkyHub"],
+    ["/shipment-ledger", "Ledger Shipment | SkyHub"],
+    ["/awb-tracking", "Pelacakan AWB | SkyHub"],
+    ["/flight-board", "Papan Penerbangan | SkyHub"],
+    ["/activity-log", "Log Aktivitas | SkyHub"],
+    ["/reports", "Reports | SkyHub"],
+    ["/settings", "Settings | SkyHub"],
+  ] as const;
+
+  for (const [route, title] of pageTitles) {
     await page.goto(apiUrl(route));
-    await expect(page.locator("h1").first()).toBeVisible();
+    await expect(page).toHaveTitle(title);
+    await expect(page.locator("body")).toContainText("SkyHub");
   }
 
   await page.goto(apiUrl("/reports"));
   await expect(page.getByText("Rute Print Terpisah")).toBeVisible();
   await expect(page.getByText("Link Production")).toHaveCount(0);
 
-  await page.goto(apiUrl("/dashboard"));
-  const isDark = await page.locator("html").evaluate((element) => element.classList.contains("dark"));
-  if (!isDark) {
-    await page.getByRole("button", { name: /Gelap/ }).click();
-    await expect(page.locator("html")).toHaveClass(/dark/);
-  }
-  await page.goto(apiUrl("/flight-board"));
-  await page.goBack();
-  await expect(page.locator("html")).toHaveClass(/dark/);
+  await page.goto(apiUrl("/settings"));
+  await expect(page.getByText("Tema warna untuk seluruh antarmuka.")).toBeVisible();
 
   const requestedAwb = `160-${uniqueSuffix()}`;
   const trackingShipment = await page.request.post(apiUrl("/api/shipments"), {

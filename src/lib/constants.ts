@@ -39,7 +39,7 @@ export const GOODS_STATUS_OPTIONS = [
   "Pending",
   "Selesai",
 ] as const;
-export const TRANSACTION_STATUS_OPTIONS = ["Belum_Lunas", "Menunggu_Verifikasi", "Lunas", "Tidak_Ditagih"] as const;
+export const TRANSACTION_STATUS_OPTIONS = ["Belum_Lunas", "Menunggu_Verifikasi", "Lunas", "Tidak_Ditagih", "Pending"] as const;
 
 export const SHIPMENT_TRANSACTION_STATUS_LABELS: Record<ShipmentTransactionStatus, string> = {
   Belum_Lunas: "Belum Lunas",

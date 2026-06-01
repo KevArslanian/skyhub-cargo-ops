@@ -149,10 +149,12 @@ function deriveShipmentGuardFields(input: {
   status: ShipmentStatus;
   shippingRate: number;
   documents: { deletedAt: Date | null; paymentProof?: boolean | null; paymentVerifiedAt?: Date | null }[];
+  goodsStatus?: string;
+  transactionStatus?: ShipmentTransactionStatus;
 }) {
-  const transactionStatus = deriveShipmentTransactionStatus(input);
+  const transactionStatus = input.transactionStatus ?? deriveShipmentTransactionStatus(input);
   const docStatus = deriveShipmentDocStatus(input.documents);
-  const goodsStatus = deriveShipmentGoodsStatus(input.status);
+  const goodsStatus = input.goodsStatus ?? deriveShipmentGoodsStatus(input.status);
   const readiness = deriveShipmentReadiness({
     status: input.status,
     docStatus,
@@ -184,10 +186,14 @@ function serializeShipment(shipment: ShipmentRecord, user: AccessUser) {
     shippingRate: shipment.shippingRate,
     documents: shipment.documents,
   });
+  const docStatus = shipment.docStatus ?? guardFields.docStatus;
+  const transactionStatus = shipment.transactionStatus ?? guardFields.transactionStatus;
+  const readiness = shipment.readiness ?? guardFields.readiness;
+  const goodsStatus = shipment.goodsStatus || guardFields.goodsStatus;
   const needsReview =
     shipment.status === ShipmentStatus.hold ||
-    guardFields.docStatus !== ShipmentDocStatus.Complete ||
-    guardFields.readiness !== ShipmentReadiness.Ready;
+    docStatus !== ShipmentDocStatus.Complete ||
+    readiness !== ShipmentReadiness.Ready;
 
   return {
     id: shipment.id,
@@ -209,10 +215,10 @@ function serializeShipment(shipment: ShipmentRecord, user: AccessUser) {
     vehicleCode: shipment.vehicleCode,
     vehicleCapacityKg: shipment.vehicleCapacityKg,
     vehicleStatus: shipment.vehicleStatus,
-    goodsStatus: guardFields.goodsStatus,
-    transactionStatus: SHIPMENT_TRANSACTION_STATUS_LABELS[guardFields.transactionStatus],
-    docStatus: SHIPMENT_DOC_STATUS_LABELS[guardFields.docStatus],
-    readiness: SHIPMENT_READINESS_LABELS[guardFields.readiness],
+    goodsStatus,
+    transactionStatus: SHIPMENT_TRANSACTION_STATUS_LABELS[transactionStatus],
+    docStatus: SHIPMENT_DOC_STATUS_LABELS[docStatus],
+    readiness: SHIPMENT_READINESS_LABELS[readiness],
     shipper: shipment.shipper,
     consignee: shipment.consignee,
     forwarder: shipment.forwarder,
@@ -1885,6 +1891,8 @@ export async function updateShipment(
     weightKg?: number;
     serviceType?: string;
     shippingRate?: number;
+    goodsStatus?: string;
+    transactionStatus?: ShipmentTransactionStatus;
     vehicleName?: string;
     vehicleType?: string;
     vehicleCode?: string;
@@ -1919,6 +1927,8 @@ export async function updateShipment(
     status: nextStatus,
     shippingRate: nextShippingRate,
     documents: current.documents,
+    goodsStatus: input.goodsStatus,
+    transactionStatus: input.transactionStatus,
   });
   const nextFlightId = input.flightId !== undefined ? flight?.id ?? null : current.flightId;
   const nextCustomerAccountId =
