@@ -44,4 +44,10 @@ function run(args) {
 }
 
 await run(["prisma:sync-schema"]);
-await run(["exec", "prisma", "migrate", "deploy"]);
+try {
+  await run(["exec", "prisma", "migrate", "deploy"]);
+} catch (error) {
+  console.log("[migrate] migrate deploy failed; falling back to prisma db push for an existing production database.");
+  console.log(`[migrate] ${error instanceof Error ? error.message : String(error)}`);
+  await run(["exec", "prisma", "db", "push", "--skip-generate"]);
+}
