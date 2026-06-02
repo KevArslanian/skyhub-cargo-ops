@@ -83,7 +83,7 @@ export function OpsDrawer({ open, title, eyebrow, description, children, footer,
             </h2>
             {description ? <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{description}</p> : null}
           </div>
-          <button type="button" className="topbar-button" onClick={onClose} aria-label="Tutup panel">
+          <button type="button" className="topbar-button" onClick={onClose} aria-label="Tutup jendela">
             <X size={16} />
           </button>
         </div>

@@ -503,6 +503,12 @@ export default function FlightBoardPage() {
     [data?.flights, replaceFlightBoardUrl],
   );
 
+  const closeSelectedFlight = useCallback(() => {
+    setSelectedFlightId(null);
+    setEditDraft(createFlightDraft(null));
+    replaceFlightBoardUrl({ id: null });
+  }, [replaceFlightBoardUrl]);
+
   const handleDateChange = useCallback(
     (nextDate: string) => {
       setDate(nextDate);
@@ -910,12 +916,9 @@ export default function FlightBoardPage() {
         )}
       </div>
 
-      <div className={cn("flightboard-main flightboard-editor-layout", selectedFlight ? "flightboard-editor-layout-active" : null)}>
+      <div className="flightboard-main flightboard-editor-layout">
         <OpsPanel
-          className={cn(
-            "page-pane flightboard-pane flightboard-manifest-panel flight-manifest-panel-space",
-            selectedFlight ? "flightboard-editor-list-pane" : null,
-          )}
+          className="page-pane flightboard-pane flightboard-manifest-panel flight-manifest-panel-space"
         >
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[color:var(--border-soft)] p-5">
             <SectionHeader title="Manifest Penerbangan" subtitle="Daftar penerbangan yang sudah difilter dan siap dipilih untuk detail lebih lanjut." />
@@ -1017,7 +1020,14 @@ export default function FlightBoardPage() {
         </OpsPanel>
 
         {selectedFlight ? (
-          <OpsPanel className="page-pane flightboard-pane flightboard-editor-detail-pane p-5">
+          <OpsDrawer
+            open={Boolean(selectedFlight)}
+            eyebrow="Penerbangan Terpilih"
+            title={`Detail ${selectedFlight.flightNumber}`}
+            description="Ringkasan jadwal, gate, status, dan pengiriman terkait ditampilkan sebagai jendela kerja agar manifest tetap lapang."
+            onClose={closeSelectedFlight}
+            className="flightboard-detail-modal"
+          >
             <div className="flightboard-editor-detail-scroll space-y-5">
               <div className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -1037,17 +1047,6 @@ export default function FlightBoardPage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <StatusBadge value={selectedFlight.status} label={selectedFlight.statusLabel} className="shrink-0" />
-                    <button
-                      type="button"
-                      className="topbar-button flightboard-detail-close"
-                      onClick={() => {
-                        setSelectedFlightId(null);
-                        setEditDraft(createFlightDraft(null));
-                      }}
-                      aria-label="Tutup detail penerbangan"
-                    >
-                      <X size={16} />
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1119,7 +1118,7 @@ export default function FlightBoardPage() {
                 </div>
               ) : null}
             </div>
-          </OpsPanel>
+          </OpsDrawer>
         ) : null}
       </div>
 
@@ -1127,7 +1126,7 @@ export default function FlightBoardPage() {
         open={createOpen}
         eyebrow="Buat Penerbangan"
         title="Tambah penerbangan baru"
-        description="Jadwal, pesawat, gate, batas terima kargo, dan estimasi tiba disusun sebagai panel kerja kanan agar konteks papan penerbangan tetap terlihat."
+        description="Jadwal, pesawat, gate, batas terima kargo, dan estimasi tiba disusun dalam jendela kerja agar manifest tetap lapang."
         onClose={() => setCreateOpen(false)}
       >
             <form className="space-y-5" onSubmit={handleCreateFlight}>
@@ -1270,7 +1269,7 @@ export default function FlightBoardPage() {
         open={editOpen && Boolean(selectedFlight)}
         eyebrow="Ubah Penerbangan"
         title={selectedFlight ? `Perbarui ${selectedFlight.flightNumber}` : "Ubah Penerbangan"}
-        description="Ubah penerbangan dalam panel supaya manifest dan detail aktif tidak hilang dari alur kerja."
+        description="Ubah penerbangan dalam jendela kerja supaya manifest dan detail aktif tidak hilang dari alur kerja."
         onClose={() => setEditOpen(false)}
       >
             {selectedFlight ? (

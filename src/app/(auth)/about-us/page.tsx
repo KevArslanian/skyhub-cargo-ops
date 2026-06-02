@@ -409,7 +409,7 @@ export default function AboutUsPage() {
           <div className="flex flex-col gap-4 sm:flex-row">
             <button
               type="button"
-              onClick={() => setModalOpen(true)}
+              onClick={() => router.push("/login")}
               className="premium-magnetic-btn group flex h-16 items-center justify-center gap-3 rounded-3xl bg-white px-14 text-lg font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white"
             >
               MASUK

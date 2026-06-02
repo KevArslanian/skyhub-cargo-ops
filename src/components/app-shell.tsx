@@ -111,6 +111,32 @@ function applyAccentColor(value?: string | null) {
   document.documentElement.style.setProperty("--brand-primary-soft", color[3]);
 }
 
+function playCriticalTone() {
+  if (typeof window === "undefined") return;
+
+  const AudioContextCtor =
+    window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextCtor) return;
+
+  const context = new AudioContextCtor();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const now = context.currentTime;
+
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(740, now);
+  oscillator.frequency.exponentialRampToValueAtTime(980, now + 0.16);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.16, now + 0.025);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26);
+
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(now);
+  oscillator.stop(now + 0.28);
+  window.setTimeout(() => void context.close(), 360);
+}
+
 export function AppShell({ user, settings, notifications, children }: ShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -223,12 +249,15 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
       setNotificationItems((items) => [previewItem, ...items].slice(0, 10));
       setNotificationOpen(true);
+      if (shellSettings.soundAlert) {
+        playCriticalTone();
+      }
     }
 
     window.addEventListener("skyhub:notification-preview", handleNotificationPreview as EventListener);
     return () =>
       window.removeEventListener("skyhub:notification-preview", handleNotificationPreview as EventListener);
-  }, []);
+  }, [shellSettings.soundAlert]);
 
   useEffect(() => {
     setNotificationItems(notifications);

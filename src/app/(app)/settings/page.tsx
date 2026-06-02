@@ -140,6 +140,32 @@ function getInitials(name: string) {
     .join("");
 }
 
+function playCriticalTone() {
+  if (typeof window === "undefined") return;
+
+  const AudioContextCtor =
+    window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextCtor) return;
+
+  const context = new AudioContextCtor();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const now = context.currentTime;
+
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(740, now);
+  oscillator.frequency.exponentialRampToValueAtTime(980, now + 0.16);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.16, now + 0.025);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26);
+
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(now);
+  oscillator.stop(now + 0.28);
+  window.setTimeout(() => void context.close(), 360);
+}
+
 async function readApiError(response: Response, fallback: string) {
   const payload = (await response.json().catch(() => null)) as { error?: string } | null;
   return payload?.error || fallback;
@@ -281,28 +307,14 @@ function WorkspaceSettingsPanel({
 
         <div className="space-y-2 rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4 lg:col-span-2">
           <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">Pemberitahuan Operasional</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-          <SidebarToggle
-            label="Batas terima penerbangan"
-            checked={draft.cutoffAlert}
-            onChange={(value) => onPatch({ cutoffAlert: value })}
-          />
-          <SidebarToggle
-            label="Masalah kargo"
-            checked={draft.exceptionAlert}
-            onChange={(value) => onPatch({ exceptionAlert: value })}
-          />
           <SidebarToggle
             label="Nada kritis"
             checked={draft.soundAlert}
             onChange={(value) => onPatch({ soundAlert: value })}
           />
-          <SidebarToggle
-            label="Ringkasan shift"
-            checked={draft.emailDigest}
-            onChange={(value) => onPatch({ emailDigest: value })}
-          />
-          </div>
+          <p className="mt-2 text-xs leading-5 text-[color:var(--muted-fg)]">
+            Saat aktif, sistem memutar nada singkat ketika preview pemberitahuan kritis muncul.
+          </p>
         </div>
 
         <button
@@ -509,6 +521,9 @@ export default function SettingsPage() {
   function applyDraftPatch(patch: Partial<SettingsDraft>) {
     setDraft((current) => ({ ...current, ...patch }));
     emitSettingsPreview(patch);
+    if (patch.soundAlert) {
+      playCriticalTone();
+    }
   }
 
   async function saveSettings() {
