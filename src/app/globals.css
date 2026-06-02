@@ -281,7 +281,7 @@ textarea {
 
 .dropdown-panel {
   position: absolute;
-  overflow: hidden;
+  overflow: visible;
   border-radius: var(--card-radius);
   border: 1px solid var(--border-soft);
   background: var(--panel-bg);
@@ -621,7 +621,7 @@ textarea {
 .shell-search-preview-item strong,
 .shell-search-preview-item small {
   display: block;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -695,7 +695,7 @@ textarea {
   min-width: 0;
   flex: 1 1 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .shell-inline-filters {
@@ -1308,7 +1308,7 @@ textarea {
 .ledger-stat-gradient-card {
   position: relative;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   color: white;
 }
 
@@ -1651,7 +1651,7 @@ textarea {
   display: block;
   min-width: 0;
   margin-top: 6px;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
   color: var(--text-strong);
   font-family: var(--font-heading);
@@ -1664,7 +1664,7 @@ textarea {
   display: block;
   min-width: 0;
   margin-top: 4px;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
   color: var(--muted-fg);
   font-size: 0.75rem;
@@ -1762,7 +1762,7 @@ textarea {
   max-height: min(820px, calc(100svh - clamp(24px, 4vw, 64px)));
   min-width: 0;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--border-soft);
   border-radius: 30px;
   background: var(--panel-bg);
@@ -1809,7 +1809,7 @@ textarea {
 
 body.drawer-open,
 body.confirm-open {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .compact-table .data-table tbody td {
@@ -1819,7 +1819,7 @@ body.confirm-open {
 
 .ops-skeleton {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   background:
     linear-gradient(
       90deg,
@@ -1953,7 +1953,7 @@ body.confirm-open {
   position: relative;
   border-bottom: 1px solid var(--border-soft);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.98));
-  overflow: hidden;
+  overflow: visible;
 }
 
 .login-rail-inner {
@@ -1965,7 +1965,7 @@ body.confirm-open {
 
 .login-hero {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .login-hero-scroll {
@@ -2072,6 +2072,7 @@ input[type="checkbox"] {
   align-items: stretch;
   gap: 18px;
   min-width: 0;
+  
 }
 
 .dashboard-analytics-row,
@@ -2085,11 +2086,13 @@ input[type="checkbox"] {
   }
 
   .dashboard-analytics-row {
-    height: 176px;
+    min-height: 176px;
+
   }
 
   .dashboard-manifest-action-row {
-    height: 326px;
+    min-height: 326px;
+
   }
 }
 
@@ -2218,7 +2221,7 @@ input[type="checkbox"] {
 .dashboard-panel {
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .flightboard-manifest-panel {
@@ -2339,7 +2342,7 @@ input[type="checkbox"] {
 }
 
 .awb-tracking-panel {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .awb-tracking-results {
@@ -2592,7 +2595,7 @@ input[type="checkbox"] {
 .auth-atmosphere {
   position: relative;
   min-height: 100vh;
-  overflow: hidden;
+  overflow: visible;
   background:
     radial-gradient(circle at 14% 14%, rgba(255, 255, 255, 0.92), transparent 22%),
     radial-gradient(circle at 88% 12%, rgba(255, 241, 219, 0.9), transparent 24%),
@@ -2673,7 +2676,7 @@ input[type="checkbox"] {
 
 .auth-editorial-frame {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid rgba(255, 255, 255, 0.62);
   border-radius: 40px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.26));
@@ -2699,7 +2702,7 @@ input[type="checkbox"] {
 
 .auth-stage-panel {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 34px;
   border: 1px solid rgba(210, 190, 165, 0.72);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(244, 238, 230, 0.56));
@@ -2797,7 +2800,7 @@ input[type="checkbox"] {
 
 .auth-scene-thumb {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 18px;
   border: 1px solid rgba(215, 201, 182, 0.86);
   aspect-ratio: 16 / 10;
@@ -2814,7 +2817,7 @@ input[type="checkbox"] {
 
 .auth-capability-card {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .auth-capability-card::before {
@@ -2831,7 +2834,7 @@ input[type="checkbox"] {
 
 .auth-form-rail {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 34px;
   border: 1px solid rgba(216, 202, 183, 0.92);
   background: linear-gradient(180deg, rgba(253, 251, 247, 0.98), rgba(248, 241, 231, 0.98));
@@ -2863,7 +2866,7 @@ input[type="checkbox"] {
 
 .auth-stage-note {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .auth-stage-note::before {
@@ -2924,13 +2927,13 @@ input[type="checkbox"] {
 }
 
 .about-snap-card {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .about-card-media {
   position: relative;
   aspect-ratio: 16 / 8.8;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 22px;
   border: 1px solid rgba(216, 202, 183, 0.86);
   background: var(--auth-navy);
@@ -3034,7 +3037,7 @@ input[type="checkbox"] {
   }
 
   .alerts-panel {
-    overflow: hidden;
+    overflow: visible;
     padding: 14px !important;
   }
 
@@ -3224,7 +3227,7 @@ input[type="checkbox"] {
     display: grid;
     grid-template-columns: 400px minmax(0, 1fr);
     height: 100vh;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .login-rail {
@@ -3520,7 +3523,7 @@ input[type="checkbox"] {
 .dashboard-flow-focus span,
 .dashboard-flow-focus small {
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
   color: var(--muted-fg);
   text-overflow: ellipsis;
 }
@@ -3577,7 +3580,7 @@ input[type="checkbox"] {
 }
 
 .dashboard-flow-lane-header span {
-  overflow: hidden;
+  overflow: visible;
   color: var(--text-strong);
   font-size: 0.78rem;
   font-weight: 850;
@@ -3596,7 +3599,7 @@ input[type="checkbox"] {
   display: flex;
   height: 0.55rem;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 999px;
   background: var(--panel-strong);
 }
@@ -3627,7 +3630,7 @@ input[type="checkbox"] {
 }
 
 .dashboard-flow-lane p {
-  overflow: hidden;
+  overflow: visible;
   color: var(--muted-fg);
   font-size: 0.7rem;
   font-weight: 700;
@@ -3701,7 +3704,7 @@ input[type="checkbox"] {
 .dashboard-summary-step-copy span {
   display: block;
   margin-top: 0.2rem;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted-fg);
@@ -3726,7 +3729,7 @@ input[type="checkbox"] {
 }
 
 .dashboard-cutoff-panel {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .dashboard-cutoff-header {
@@ -3768,7 +3771,7 @@ input[type="checkbox"] {
 }
 
 .dashboard-cutoff-meta span {
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3776,7 +3779,7 @@ input[type="checkbox"] {
 .dashboard-cutoff-warning {
   width: fit-content;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
   white-space: nowrap;
   border: 1px solid var(--tone-warning-border);
@@ -3820,7 +3823,7 @@ input[type="checkbox"] {
 
 .dashboard-alert-detail {
   display: -webkit-box;
-  overflow: hidden;
+  overflow: visible;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }

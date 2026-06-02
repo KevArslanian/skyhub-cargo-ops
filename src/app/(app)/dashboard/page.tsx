@@ -524,7 +524,7 @@ export default function DashboardPage() {
       {/* ── ROW 1: Analitik + Cutoff ── */}
       <div className="dashboard-adaptive-row dashboard-analytics-row">
         {/* Analitik Operasional */}
-        <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-5 min-w-0 overflow-visible">
+        <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-5 min-w-0 overflow-hidden">
           <div className="mb-[10px] flex items-center gap-2">
             <TrendingUp size={16} className="text-[color:var(--brand-primary)]" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Analitik Operasional</p>
@@ -533,7 +533,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Batas terima penerbangan */}
-        <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-5 min-w-0 overflow-visible">
+        <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-5 min-w-0 overflow-hidden">
           <div className="mb-[10px] flex items-center gap-2">
             <TowerControl size={14} className="text-[color:var(--brand-primary)] shrink-0" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Batas Terima Penerbangan</p>
@@ -566,7 +566,7 @@ export default function DashboardPage() {
       {/* ── ROW 2: Manifest Prioritas + Pusat Tindakan ── */}
       <div className="dashboard-adaptive-row dashboard-manifest-action-row">
         {/* Manifest Prioritas */}
-        <OpsPanel className="flex h-full flex-col rounded-[18px] p-5 min-w-0 overflow-visible">
+        <OpsPanel className="flex h-full flex-col rounded-[18px] p-5 min-w-0 overflow-hidden">
           <div className="flex h-[54px] shrink-0 items-start justify-between gap-3 border-b border-[color:var(--border-soft)]">
             <div className="min-w-0">
               <h2 className="truncate font-[family:var(--font-heading)] text-[18px] font-extrabold leading-6 tracking-[-0.03em] text-[color:var(--text-strong)]">Manifest Prioritas</h2>
@@ -633,7 +633,7 @@ export default function DashboardPage() {
         </OpsPanel>
 
         {/* Pusat Tindakan */}
-        <OpsPanel className="flex h-full w-full min-w-0 flex-col overflow-visible rounded-[18px] p-5">
+        <OpsPanel className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-[18px] p-5">
           <div className="flex h-[54px] shrink-0 items-start justify-between gap-3 border-b border-[color:var(--border-soft)] min-w-0">
             <div className="min-w-0">
               <h2 className="truncate font-[family:var(--font-heading)] text-[18px] font-extrabold leading-6 tracking-[-0.03em] text-[color:var(--text-strong)]">Pusat Tindakan</h2>

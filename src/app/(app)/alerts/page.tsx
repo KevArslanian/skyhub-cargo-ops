@@ -412,7 +412,6 @@ export default function AlertsPage() {
     [loadAlerts],
   );
 
-  const conditionChecks = data?.conditionChecks ?? [];
   const selectedAlertManualResolve = selectedAlert?.kind === "reported-awb-issue";
   const initialLoading = loadingAlerts && !data;
 
@@ -439,30 +438,6 @@ export default function AlertsPage() {
           </div>
         ) : null}
       </div>
-
-      <OpsPanel className="p-5">
-        <SectionHeader title="Kondisi Operasional" subtitle="Ringkasan kondisi yang perlu dipantau sebelum membuka detail peringatan." />
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {initialLoading ? (
-            <div className="grid gap-3 sm:col-span-2 xl:col-span-4" aria-label="Memuat kondisi operasional">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <SkeletonBlock key={index} className="h-12 w-full rounded-[18px]" />
-              ))}
-            </div>
-          ) : (
-            conditionChecks.map((item) => (
-              <div key={item.id} className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="min-w-0 truncate text-sm font-bold text-[color:var(--text-strong)]">{item.label}</p>
-                  <StatusBadge value={item.status === "action" ? "warning" : "success"} label={item.statusLabel} />
-                </div>
-                <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-[color:var(--text-strong)]">{item.count}</p>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-[color:var(--muted-fg)]">{item.detail}</p>
-              </div>
-            ))
-          )}
-        </div>
-      </OpsPanel>
 
       <div className="alerts-content-grid grid gap-4">
         <OpsPanel className="page-pane alerts-panel p-5">
