@@ -147,6 +147,7 @@ html {
   height: 100%;
   max-width: 100%;
   overflow-x: hidden;
+  overscroll-behavior-y: contain;
   scroll-behavior: smooth;
 }
 
@@ -544,6 +545,28 @@ textarea {
 @media (any-hover: none) and (any-pointer: coarse) {
   .mobile-hamburger-trigger {
     display: inline-flex;
+  }
+}
+
+/* === Mobile-first layout rapi improvements (no unwanted scroll, no cutoff, safe areas) === */
+.shell-content {
+  min-height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom, 12px);
+}
+
+@media (max-width: 640px) {
+  .shell-content {
+    padding-bottom: env(safe-area-inset-bottom, 24px);
+  }
+
+  .shell-topbar-toolbar {
+    padding-bottom: 4px;
+  }
+
+  /* Data tables on mobile: better containment */
+  .ledger-manifest-table-wrap,
+  table {
+    font-size: 0.875rem;
   }
 }
 
@@ -1115,9 +1138,22 @@ textarea {
 .ledger-manifest-table-wrap {
   min-width: 0;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--border-soft);
   border-radius: 18px;
   background: var(--panel-bg);
+  /* Mobile rapi: subtle scroll hint without forcing body scroll */
+  scrollbar-width: thin;
+}
+
+.ledger-manifest-table-wrap::-webkit-scrollbar {
+  height: 6px;
+}
+
+.ledger-manifest-table-wrap::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
 }
 
 .ledger-manifest-table {
@@ -1455,6 +1491,7 @@ textarea {
   background: var(--panel-bg);
   box-shadow: -28px 0 80px rgba(11, 30, 52, 0.22);
   outline: none;
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 .ops-drawer-header {

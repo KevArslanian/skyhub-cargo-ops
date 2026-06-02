@@ -14,16 +14,15 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  MoonStar,
   PackageSearch,
   PlaneTakeoff,
   Radar,
   Search,
   Settings2,
-  SunMedium,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { getNavigationForRole } from "@/lib/access";
+import { t, getLocale } from "@/lib/i18n";
 import { APP_NAME, APP_SUBTITLE, ROLE_LABELS } from "@/lib/constants";
 import { cn, formatRelativeShort } from "@/lib/format";
 import { BrandMark } from "./brand-mark";
@@ -47,8 +46,7 @@ type ShellProps = {
     refreshIntervalSeconds: number;
     cutoffAlert: boolean;
     exceptionAlert: boolean;
-    soundAlert: boolean;
-    emailDigest: boolean;
+
   };
   notifications: {
     id: string;
@@ -88,9 +86,10 @@ const navGroupIconMap = {
 export function AppShell({ user, settings, notifications, children }: ShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { resolvedTheme, setTheme } = useTheme();
+
   const navigation = getNavigationForRole(user.role);
   const [search, setSearch] = useState("");
+  const { resolvedTheme, setTheme } = useTheme();
   const [shellSettings, setShellSettings] = useState(settings);
   const [collapsed, setCollapsed] = useState(settings.sidebarCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -101,7 +100,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const [searchResults, setSearchResults] = useState<ShellSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const themePreference = shellSettings.theme === "dark" ? "dark" : "light";
-  const activeTheme = mounted ? (resolvedTheme === "dark" ? "dark" : "light") : themePreference;
   const sidebarWidth = collapsed ? "88px" : "min(284px, 24vw)";
   const shellStyle = {
     "--sidebar-width": sidebarWidth,
@@ -138,16 +136,18 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
     const storedTheme = window.localStorage.getItem("theme");
     const storedPreference = storedTheme === "dark" || storedTheme === "light" ? storedTheme : null;
-    const nextPreference = storedPreference ?? themePreference;
 
     if (storedPreference && storedPreference !== themePreference) {
       setShellSettings((current) => ({ ...current, theme: storedPreference }));
     }
 
-    if (resolvedTheme !== nextPreference) {
-      setTheme(nextPreference);
+    // Sync theme from user settings (controlled exclusively from /settings page)
+    if (storedPreference) {
+      setTheme(storedPreference);
+    } else if (themePreference) {
+      setTheme(themePreference);
     }
-  }, [mounted, resolvedTheme, setTheme, themePreference]);
+  }, [mounted, setTheme, themePreference]);
 
   useEffect(() => {
     setCollapsed(shellSettings.sidebarCollapsed);
@@ -380,17 +380,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
     router.refresh();
   }
 
-  async function handleThemeToggle() {
-    const nextTheme = activeTheme === "dark" ? "light" : "dark";
-    setShellSettings((current) => ({ ...current, theme: nextTheme }));
-    window.localStorage.setItem("theme", nextTheme);
-    setTheme(nextTheme);
-    const persisted = await persistSettings({ theme: nextTheme });
-    if (persisted) {
-      setShellSettings((current) => ({ ...current, ...persisted }));
-    }
-  }
-
   const searchPlaceholder = useMemo(() => {
     if (pathname === "/dashboard") return "Cari dashboard";
     if (pathname === "/shipment-ledger") return "Cari shipment";
@@ -424,8 +413,8 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
         <aside
           className={cn(
-            "fixed inset-y-0 left-0 z-50 flex overflow-hidden border-r border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/98 backdrop-blur transition-all duration-200",
-            "w-[var(--sidebar-width)] max-w-[calc(100vw-1rem)]",
+            "fixed inset-y-0 left-0 z-50 flex overflow-hidden border-r border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/98 backdrop-blur transition-all duration-200 overscroll-behavior-contain",
+            "w-[var(--sidebar-width)] max-w-[calc(100vw-1rem)] pt-[env(safe-area-inset-top,0)]",
             mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           )}
         >
@@ -628,15 +617,20 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
           </div>
         </aside>
 
-        <div className="shell-content flex min-h-0 min-w-0 w-full flex-col transition-all duration-200 lg:ml-[var(--sidebar-width)]">
+        <div className="shell-content flex min-h-0 min-w-0 w-full flex-col overflow-x-hidden transition-all duration-200 lg:ml-[var(--sidebar-width)]">
           <header className="shell-topbar sticky top-0 z-30 min-w-0 shrink-0 px-3 py-3 sm:px-4 sm:py-4 lg:px-8 lg:py-5">
             <div className="ops-panel shell-topbar-toolbar flex min-w-0 flex-wrap items-center px-4 py-4 lg:px-5">
-              <button type="button" className="topbar-button mobile-hamburger-trigger shrink-0" onClick={() => setMobileOpen(true)}>
+              <button
+                type="button"
+                className="topbar-button mobile-hamburger-trigger shrink-0 touch-manipulation"
+                onClick={() => setMobileOpen(true)}
+                aria-label="Buka menu navigasi"
+              >
                 <Menu size={18} />
               </button>
 
               <div className="min-w-0 flex-[1_1_140px] sm:flex-[0_1_auto]">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Ruang Kontrol</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">{t('shell.controlRoom', 'Ruang Kontrol')}</p>
                 <p className="mt-1 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
                   {topbarLabel}
                 </p>
@@ -694,19 +688,15 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               ) : null}
 
               <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
-                <button type="button" className="topbar-button" onClick={handleThemeToggle}>
-                  {activeTheme === "dark" ? <SunMedium size={18} /> : <MoonStar size={18} />}
-                  <span className="hidden sm:inline">{activeTheme === "dark" ? "Terang" : "Gelap"}</span>
-                </button>
-
                 <div className="relative">
                   <button
                     type="button"
-                    className="topbar-button relative shrink-0 overflow-visible pr-5 sm:pr-8"
+                    className="topbar-button relative shrink-0 overflow-visible pr-5 sm:pr-8 touch-manipulation"
                     onClick={() => setNotificationOpen((value) => !value)}
+                    aria-label="Buka notifikasi"
                   >
                     <Bell size={18} />
-                    <span className="hidden sm:inline">Notifikasi</span>
+                    <span className="hidden sm:inline">{t('shell.notifications', 'Notifikasi')}</span>
                     {unreadCount > 0 ? (
                       <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[color:var(--panel-bg)] bg-[color:var(--brand-primary)] px-1 text-[10px] font-bold leading-none text-white shadow-[0_6px_16px_rgba(0,61,155,0.24)]">
                         {unreadCount}

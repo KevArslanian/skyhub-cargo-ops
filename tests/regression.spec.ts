@@ -309,8 +309,7 @@ test("@crud settings update and restore works", async ({ request }) => {
         refreshIntervalSeconds: 15,
         cutoffAlert: true,
         exceptionAlert: true,
-        soundAlert: false,
-        emailDigest: false,
+
       },
     });
     expect(update.status()).toBe(200);

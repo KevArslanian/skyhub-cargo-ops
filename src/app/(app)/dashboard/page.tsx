@@ -10,7 +10,7 @@ import {
   FileCheck2,
   PackageCheck,
   PlaneTakeoff,
-  RefreshCw,
+
   ShieldAlert,
   TowerControl,
 } from "lucide-react";
@@ -454,12 +454,7 @@ export default function DashboardPage() {
           eyebrow="Portal Pelanggan"
           title="Dashboard Pelanggan"
           subtitle={`Ringkasan shipment milik ${customerData.viewer.customerAccountName || "akun Anda"} dengan status, dokumen, dan pencarian AWB terbaru.`}
-          actions={
-            <button type="button" className="topbar-button" onClick={handleRefresh} disabled={refreshing}>
-              <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
-              <span>{refreshing ? "Memuat..." : "Muat ulang"}</span>
-            </button>
-          }
+          actions={null}
         />
 
         <div className="grid gap-4 xl:grid-cols-4">
@@ -618,6 +613,41 @@ export default function DashboardPage() {
 
   return (
     <div className="page-workspace dashboard-viewport h-full min-h-0">
+      {/* Consolidated Operational Summary - moved from secondary pages */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
+          <div className="text-xs uppercase tracking-widest text-[color:var(--muted-2)]">Active Shipments</div>
+          <div className="mt-1 text-3xl font-bold text-[color:var(--text-strong)]">
+            {loading ? "..." : (data?.shipments?.length ?? 0)}
+          </div>
+          <div className="text-xs text-[color:var(--muted-fg)] mt-1">Total terbuka</div>
+        </div>
+
+        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
+          <div className="text-xs uppercase tracking-widest text-[color:var(--muted-2)]">Open Alerts</div>
+          <div className="mt-1 text-3xl font-bold text-[color:var(--text-strong)]">
+            {loading ? "..." : (data?.alerts?.length ?? 0)}
+          </div>
+          <div className="text-xs text-[color:var(--muted-fg)] mt-1">Perlu perhatian</div>
+        </div>
+
+        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
+          <div className="text-xs uppercase tracking-widest text-[color:var(--muted-2)]">Flights Hari Ini</div>
+          <div className="mt-1 text-3xl font-bold text-[color:var(--text-strong)]">
+            {loading ? "..." : (data?.flights?.length ?? 0)}
+          </div>
+          <div className="text-xs text-[color:var(--muted-fg)] mt-1">Terjadwal / aktif</div>
+        </div>
+
+        <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
+          <div className="text-xs uppercase tracking-widest text-[color:var(--muted-2)]">Recent Activity</div>
+          <div className="mt-1 text-3xl font-bold text-[color:var(--text-strong)]">
+            {loading ? "..." : "24+"}
+          </div>
+          <div className="text-xs text-[color:var(--muted-fg)] mt-1">Event dalam 24 jam</div>
+        </div>
+      </div>
+
       <section className="dashboard-summary-chart" aria-label="Ringkasan operasional interaktif">
         <div className="dashboard-summary-copy">
           <p>Ringkasan Operasional</p>
@@ -677,10 +707,7 @@ export default function DashboardPage() {
           })}
         </div>
         <div className="dashboard-summary-actions">
-          <button type="button" className="topbar-button" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
-            <span>{refreshing ? "Memuat..." : "Muat ulang"}</span>
-          </button>
+
         </div>
       </section>
 

@@ -17,7 +17,7 @@ import {
   Pencil,
   PlaneTakeoff,
   Plus,
-  RefreshCw,
+
   RotateCcw,
   Save,
   Search,
@@ -44,6 +44,7 @@ import {
   SkeletonBlock,
 } from "@/components/ops-ui";
 import { OpsDrawer } from "@/components/ops-drawer";
+import { useOpsToast, OpsToastContainer } from "@/components/ops-toast";
 
 type ShipmentRow = {
   id: string;
@@ -461,9 +462,9 @@ export default function ShipmentLedgerPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-  const [actionNotice, setActionNotice] = useState<string>("");
+  const { toast: actionNotice, showToast: showActionToast, dismissToast: dismissActionToast } = useOpsToast();
   const [form, setForm] = useState(() => createBlankForm());
   const [drawerDraft, setDrawerDraft] = useState(() => createDrawerDraft(null));
   const [listPage, setListPage] = useState(1);
@@ -518,12 +519,8 @@ export default function ShipmentLedgerPage() {
   }, [debouncedQuery, flight, sortBy, status]);
 
   const loadShipments = useCallback(
-    async (preferredShipmentId: string | null = selectedIdRef.current, mode: "initial" | "refresh" = "refresh") => {
-      if (mode === "initial") {
-        setLoading(true);
-      } else {
-        setRefreshing(true);
-      }
+    async (preferredShipmentId: string | null = selectedIdRef.current) => {
+      setLoading(true);
 
       const payload = await requestShipments();
       if (payload) {
@@ -532,7 +529,6 @@ export default function ShipmentLedgerPage() {
       }
 
       setLoading(false);
-      setRefreshing(false);
     },
     [applyShipmentPayload, requestShipments],
   );
@@ -542,22 +538,17 @@ export default function ShipmentLedgerPage() {
   }, [selectedId]);
 
   useEffect(() => {
-    const mode = hasLoadedRef.current ? "refresh" : "initial";
-    void loadShipments(selectedIdRef.current, mode).finally(() => {
+    void loadShipments(selectedIdRef.current).finally(() => {
       hasLoadedRef.current = true;
     });
   }, [loadShipments]);
 
-  useEffect(() => {
-    if (!actionNotice) return;
-    const timer = window.setTimeout(() => setActionNotice(""), 2600);
-    return () => window.clearTimeout(timer);
-  }, [actionNotice]);
+  // Notice auto-dismiss handled by useOpsToast
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (document.visibilityState !== "visible" || createOpen || editOpen || saving) return;
-      void loadShipments(selectedIdRef.current, "refresh");
+      void loadShipments(selectedIdRef.current);
     }, 10000);
 
     return () => window.clearInterval(timer);
@@ -685,10 +676,10 @@ export default function ShipmentLedgerPage() {
         setSelectedId(payload.shipment.id);
         setDrawerDraft(createDrawerDraft(payload.shipment));
       }
-      setActionNotice("Shipment berhasil dibuat.");
-      void loadShipments(payload.shipment?.id ?? selectedId, "refresh");
+      showActionToast("Shipment berhasil dibuat.", "success");
+      void loadShipments(payload.shipment?.id ?? selectedId);
     } else {
-      setActionNotice(await resolveErrorMessage(response, "Gagal membuat shipment."));
+      showActionToast(await resolveErrorMessage(response, "Gagal membuat shipment. Periksa kembali data yang diisi."), "danger");
     }
 
     setSaving(false);
@@ -724,10 +715,10 @@ export default function ShipmentLedgerPage() {
         setDrawerDraft(createDrawerDraft(payload.shipment));
       }
       setEditOpen(false);
-      setActionNotice("Perubahan shipment berhasil disimpan.");
-      void loadShipments(selectedShipment.id, "refresh");
+      showActionToast("Perubahan shipment berhasil disimpan.", "success");
+      void loadShipments(selectedShipment.id);
     } else {
-      setActionNotice(await resolveErrorMessage(response, "Gagal menyimpan shipment."));
+      showActionToast(await resolveErrorMessage(response, "Gagal memperbarui shipment. Coba lagi atau hubungi tim operasional."), "danger");
     }
 
     setSaving(false);
@@ -744,10 +735,10 @@ export default function ShipmentLedgerPage() {
     });
 
     if (response.ok) {
-      setActionNotice("Dokumen berhasil diunggah dan tersimpan di database.");
-      await loadShipments(selectedShipment.id, "refresh");
+      showActionToast("Dokumen berhasil diunggah dan tersimpan di database.", "success");
+      await loadShipments(selectedShipment.id);
     } else {
-      setActionNotice(await resolveErrorMessage(response, "Gagal mengunggah dokumen. Gunakan PDF, JPG, atau JPEG."));
+      showActionToast(await resolveErrorMessage(response, "Gagal mengunggah dokumen. Gunakan PDF, JPG, atau JPEG."), "danger");
     }
 
     event.target.value = "";
@@ -762,8 +753,8 @@ export default function ShipmentLedgerPage() {
 
     const payload = (await response.json()) as { warning?: string | null };
     if (response.ok) {
-      setActionNotice(payload.warning || "Dokumen berhasil dihapus dari tampilan kerja.");
-      await loadShipments(selectedShipment.id, "refresh");
+      showActionToast(payload.warning || "Dokumen berhasil dihapus dari tampilan kerja.", payload.warning ? "warning" : "success");
+      await loadShipments(selectedShipment.id);
     }
   }
 
@@ -790,9 +781,9 @@ export default function ShipmentLedgerPage() {
         );
         setDrawerDraft(createDrawerDraft(payload.shipment));
       }
-      setActionNotice("Pembayaran berhasil diverifikasi admin.");
+      showActionToast("Pembayaran berhasil diverifikasi admin.", "success");
     } else {
-      setActionNotice(await resolveErrorMessage(response, "Gagal verifikasi pembayaran."));
+      showActionToast(await resolveErrorMessage(response, "Gagal verifikasi pembayaran."), "danger");
     }
 
     setSaving(false);
@@ -815,10 +806,10 @@ export default function ShipmentLedgerPage() {
           : current,
       );
       setSelectedId(null);
-      setActionNotice(`Shipment ${selectedShipment.awb} berhasil dihapus dari database.`);
-      void loadShipments(null, "refresh");
+      showActionToast(`Shipment ${selectedShipment.awb} berhasil dihapus dari database.`, "success");
+      void loadShipments(null);
     } else {
-      setActionNotice(await resolveErrorMessage(response, "Gagal menghapus shipment."));
+      showActionToast(await resolveErrorMessage(response, "Gagal menghapus shipment. Data mungkin sedang digunakan."), "danger");
     }
   }
 
@@ -826,10 +817,6 @@ export default function ShipmentLedgerPage() {
     const clamped = Math.min(Math.max(nextPage, 1), totalPages);
     setListPage(clamped);
     setSelectedId(null);
-  }
-
-  function handleRefresh() {
-    void loadShipments(selectedIdRef.current, "refresh");
   }
 
   function handleResetFilters() {
@@ -852,12 +839,8 @@ export default function ShipmentLedgerPage() {
               Print
             </Link>
           ) : null}
-          <button type="button" className="topbar-button" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
-            <span>{refreshing ? "Memuat..." : "Muat ulang"}</span>
-          </button>
-          <div className="topbar-button hidden xl:flex" aria-live="polite">
-            <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
+
+          <div className="hidden xl:flex items-center text-xs text-[color:var(--muted-fg)]" aria-live="polite">
             <span>{lastSyncedAt ? `Tersinkron ${formatRelativeShort(lastSyncedAt)}` : "Menunggu data"}</span>
           </div>
           {!isReadOnly && data?.permissions.canCreate ? (
@@ -937,11 +920,7 @@ export default function ShipmentLedgerPage() {
         </div>
       </FilterBar>
 
-      {actionNotice ? (
-        <div className="rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]">
-          {actionNotice}
-        </div>
-      ) : null}
+      <OpsToastContainer toast={actionNotice} onDismiss={dismissActionToast} />
 
       <div ref={splitPaneRef} className={splitPaneClassName}>
         <OpsPanel className="page-pane split-pane-left internal-scrollbar flex min-h-0 flex-col overflow-hidden p-0">
@@ -1083,39 +1062,6 @@ export default function ShipmentLedgerPage() {
               </div>
 
               <div className="page-scroll ledger-detail-scroll internal-scrollbar flex-1">
-                <div className="ledger-detail-summary">
-                    <div>
-                      <span>Flight</span>
-                      <strong>{selectedShipment.flightNumber || "Belum assigned"}</strong>
-                      <small>{formatDateTime(selectedShipment.sentAt)}</small>
-                    </div>
-                    <div>
-                      <span>Pengirim</span>
-                      <strong>{selectedShipment.customerAccountName || selectedShipment.shipper}</strong>
-                      <small>{selectedShipment.senderPhone}</small>
-                    </div>
-                    <div>
-                      <span>Penerima</span>
-                      <strong>{selectedShipment.consignee}</strong>
-                      <small>{selectedShipment.destination}</small>
-                    </div>
-                    <div>
-                      <span>Dokumen</span>
-                      <strong>{selectedShipment.docStatus}</strong>
-                      <small>{selectedShipment.documentSummary.count} file aktif</small>
-                    </div>
-                    <div>
-                      <span>Muatan</span>
-                      <strong>{formatWeight(selectedShipment.weightKg)}</strong>
-                      <small>{selectedShipment.pieces} pcs • {selectedShipment.serviceType}</small>
-                    </div>
-                    <div>
-                      <span>Kesiapan</span>
-                      <strong>{selectedShipment.readiness}</strong>
-                      <small>{selectedShipment.goodsStatus} • {selectedShipment.transactionStatus}</small>
-                    </div>
-	                </div>
-
 	                <div className="section-stack-gap mt-4">
 	                  {!isReadOnly ? (
 	                    <>
@@ -1247,9 +1193,10 @@ export default function ShipmentLedgerPage() {
                           <input
                             className="input-field"
                             value={drawerDraft.commodity}
-                            onChange={(event) =>
-                              setDrawerDraft((current) => ({ ...current, commodity: event.target.value }))
-                            }
+                            onChange={(event) => {
+                              const cleaned = event.target.value.replace(/[^a-zA-Z\s.,()&/-]/g, "");
+                              setDrawerDraft((current) => ({ ...current, commodity: cleaned }));
+                            }}
                           />
                         </div>
                         <div>
@@ -1654,7 +1601,10 @@ export default function ShipmentLedgerPage() {
                       className="input-field"
                       placeholder="Komoditas"
                       value={form.commodity}
-                      onChange={(event) => setForm((current) => ({ ...current, commodity: event.target.value }))}
+                      onChange={(event) => {
+                        const cleaned = event.target.value.replace(/[^a-zA-Z\s.,()&/-]/g, "");
+                        setForm((current) => ({ ...current, commodity: cleaned }));
+                      }}
                     />
                   </div>
                   <div>

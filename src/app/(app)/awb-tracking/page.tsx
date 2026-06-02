@@ -19,9 +19,10 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { AWB_REGEX } from "@/lib/constants";
+import { t } from "@/lib/i18n";
 import { formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
-import { DataCard, EmptyState, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
+import { EmptyState, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
 
 type TrackingLog = {
   id: string;
@@ -76,6 +77,7 @@ export default function AwbTrackingPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [shipment, setShipment] = useState<ShipmentPayload>(null);
   const [notFound, setNotFound] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
@@ -115,12 +117,27 @@ export default function AwbTrackingPage() {
       }
 
       setLoading(true);
-      const response = await fetch(`/api/shipments?awb=${encodeURIComponent(awbFromQuery)}`, { cache: "no-store" });
-      const payload = (await response.json()) as { shipment: ShipmentPayload };
-      setShipment(payload.shipment);
-      setNotFound(!payload.shipment);
-      setLoading(false);
-      fetchRecentSearches();
+      setError("");
+      setNotFound(false);
+
+      try {
+        const response = await fetch(`/api/shipments?awb=${encodeURIComponent(awbFromQuery)}`, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Gagal mengambil data");
+        }
+        const payload = (await response.json()) as { shipment: ShipmentPayload };
+        setShipment(payload.shipment);
+        setNotFound(!payload.shipment);
+        if (payload.shipment) {
+          setLastUpdated(new Date());
+        }
+      } catch {
+        setError(t('awb.fetchFailed'));
+        setNotFound(true);
+      } finally {
+        setLoading(false);
+        fetchRecentSearches();
+      }
 
       if (shouldScrollToResultRef.current) {
         shouldScrollToResultRef.current = false;
@@ -143,8 +160,14 @@ export default function AwbTrackingPage() {
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!AWB_REGEX.test(awb.trim())) {
-      setError("Format AWB harus XXX-XXXXXXXX.");
+
+    const trimmed = awb.trim();
+    if (!trimmed) {
+      setError("Masukkan nomor AWB yang ingin dilacak.");
+      return;
+    }
+    if (!AWB_REGEX.test(trimmed)) {
+      setError(t('awb.invalid'));
       return;
     }
 
@@ -213,7 +236,12 @@ export default function AwbTrackingPage() {
                       placeholder="160-12345678"
                     />
                   </div>
-                  {error ? <p className="mt-2 text-sm text-[color:var(--tone-warning)]">{error}</p> : null}
+                  {error ? (
+                    <div className="mt-2 flex items-start gap-2 rounded-xl border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-3 py-2 text-sm text-[color:var(--tone-warning)]">
+                      <TriangleAlert size={16} className="mt-0.5 shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  ) : null}
                 </div>
                 <button type="submit" className="btn btn-primary h-[56px] self-end px-6">
                   {loading ? <LoaderCircle size={17} className="animate-spin" /> : <Radar size={16} />}
@@ -267,8 +295,8 @@ export default function AwbTrackingPage() {
             {!loading && notFound ? (
               <EmptyState
                 icon={TriangleAlert}
-                title="AWB belum ditemukan"
-                copy="Periksa format AWB lalu coba kembali."
+                title="AWB tidak ditemukan"
+                copy="Pastikan nomor AWB yang Anda masukkan sudah benar dan sudah terdaftar di sistem. Hubungi tim operasional jika Anda yakin AWB tersebut sudah dikirim."
                 className="awb-tracking-empty py-10"
               />
             ) : null}
@@ -276,32 +304,40 @@ export default function AwbTrackingPage() {
             {!loading && shipment ? (
               <div className="space-y-5">
                 <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="label">Hasil Tracking</p>
-                      <h2 className="mt-2 font-mono text-2xl font-black text-[color:var(--brand-primary)]">{shipment.awb}</h2>
-                      <p className="mt-2 text-sm text-[color:var(--muted-fg)]">
-                        {shipment.origin} {" -> "} {shipment.destination}
-                      </p>
+                  <div>
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <p className="label">Hasil Tracking</p>
+                        <h2 className="mt-2 font-mono text-2xl font-black text-[color:var(--brand-primary)]">{shipment.awb}</h2>
+                        <p className="mt-1 text-sm text-[color:var(--muted-fg)]">
+                          {shipment.origin} → {shipment.destination}
+                        </p>
+                      </div>
+                      <StatusBadge value={shipment.status} label={shipment.statusLabel} />
                     </div>
-                    <StatusBadge value={shipment.status} label={shipment.statusLabel} />
+
+                    <div className="mt-3 text-[10px] uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
+                      Data diambil langsung dari database operasional
+                    </div>
                   </div>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <DataCard label="Flight" value={shipment.flightNumber || "-"} icon={PlaneTakeoff} />
-                    <DataCard label="Dokumen" value={shipment.docStatus} icon={FileCheck2} />
-                    <DataCard label="Kargo" value={`${shipment.pieces} pcs`} note={formatWeight(shipment.weightKg)} icon={Package2} />
-                    <DataCard
-                      label="Update"
-                      value={formatRelativeShort(activeLog?.createdAt || shipment.updatedAt)}
-                      note={formatDateTime(activeLog?.createdAt || shipment.updatedAt)}
-                      icon={Clock3}
-                    />
+                  <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-[color:var(--muted-fg)]">
+                    <span><strong className="text-[color:var(--text-strong)]">Flight:</strong> {shipment.flightNumber || "-"}</span>
+                    <span><strong className="text-[color:var(--text-strong)]">Dokumen:</strong> {shipment.docStatus}</span>
+                    <span><strong className="text-[color:var(--text-strong)]">Kargo:</strong> {shipment.pieces} pcs • {formatWeight(shipment.weightKg)}</span>
+                    <span><strong className="text-[color:var(--text-strong)]">Update:</strong> {formatRelativeShort(activeLog?.createdAt || shipment.updatedAt)}</span>
                   </div>
                 </div>
 
                 <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
-                  <p className="label">Timeline Tracking</p>
+                  <div className="flex items-center justify-between">
+                    <p className="label">Timeline Tracking</p>
+                    {lastUpdated && (
+                      <span className="text-[10px] uppercase tracking-[0.14em] text-[color:var(--muted-2)]">
+                        Diperbarui {formatRelativeShort(lastUpdated.toISOString())}
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-4 space-y-3">
                     {shipment.trackingLogs.length ? (
                       shipment.trackingLogs.map((log) => (
@@ -333,7 +369,14 @@ export default function AwbTrackingPage() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm text-[color:var(--muted-fg)]">Belum ada event tracking.</p>
+                      <div className="rounded-2xl border border-dashed border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-6 text-center">
+                        <p className="text-sm text-[color:var(--muted-fg)]">
+                          Belum ada catatan perjalanan untuk AWB ini.
+                        </p>
+                        <p className="mt-1 text-xs text-[color:var(--muted-2)]">
+                          Status akan muncul otomatis setelah barang diproses di gudang.
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>

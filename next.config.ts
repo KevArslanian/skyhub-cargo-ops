@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  turbopack: {
+    // Force Turbopack to use the correct project root to avoid heavy resource usage
+    // caused by stray package.json/pnpm-lock.yaml in home directory
+    root: __dirname,
+  },
 };
 
 export default nextConfig;

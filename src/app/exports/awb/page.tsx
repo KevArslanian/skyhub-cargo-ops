@@ -4,6 +4,7 @@ import { formatDateTime, formatWeight } from "@/lib/format";
 import { AutoPrintReport } from "@/components/auto-print-report";
 import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
 import { PrintCenterLayout } from "@deltaoga/skyhub-print-center/layout";
+import { getUserLanguage } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export default async function AwbPrintPage({
 }) {
   const user = await requireUser();
   const params = await searchParams;
+  const language = getUserLanguage((user as any).settings); // Will use user's language setting
   const printedAt = new Date();
   const awb = params.awb?.trim() || "";
   const shipment = awb ? await getShipmentByAwb(user, awb) : null;

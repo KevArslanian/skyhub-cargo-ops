@@ -526,11 +526,12 @@ async function main() {
             sidebarCollapsed: false,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: true,
-            emailDigest: true,
             autoRefresh: true,
             refreshIntervalSeconds: 10,
             timezone: "Asia/Makassar",
+            defaultLandingPage: "dashboard",
+            filterByOwnStation: true,
+            timeFormat: "24h",
           },
         },
       },
@@ -549,8 +550,7 @@ async function main() {
             sidebarCollapsed: false,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: false,
-            emailDigest: false,
+
             autoRefresh: true,
             refreshIntervalSeconds: 5,
             timezone: "Asia/Makassar",
@@ -572,8 +572,7 @@ async function main() {
             sidebarCollapsed: false,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: false,
-            emailDigest: false,
+
             autoRefresh: true,
             refreshIntervalSeconds: 8,
             timezone: "Asia/Makassar",
@@ -596,8 +595,7 @@ async function main() {
             sidebarCollapsed: false,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: false,
-            emailDigest: false,
+
             autoRefresh: true,
             refreshIntervalSeconds: 15,
             timezone: "Asia/Makassar",
@@ -620,8 +618,7 @@ async function main() {
             sidebarCollapsed: false,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: false,
-            emailDigest: false,
+
             autoRefresh: true,
             refreshIntervalSeconds: 15,
             timezone: "Asia/Makassar",
@@ -644,8 +641,8 @@ async function main() {
             sidebarCollapsed: true,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: false,
-            emailDigest: true,
+
+
             autoRefresh: false,
             refreshIntervalSeconds: 30,
             timezone: "Asia/Makassar",
@@ -667,8 +664,7 @@ async function main() {
             sidebarCollapsed: false,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: false,
-            emailDigest: false,
+
             autoRefresh: true,
             refreshIntervalSeconds: 10,
             timezone: "Asia/Makassar",
@@ -690,8 +686,8 @@ async function main() {
             sidebarCollapsed: false,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: true,
-            emailDigest: false,
+
+
             autoRefresh: true,
             refreshIntervalSeconds: 12,
             timezone: "Asia/Makassar",
@@ -714,8 +710,8 @@ async function main() {
             sidebarCollapsed: false,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: false,
-            emailDigest: true,
+
+
             autoRefresh: true,
             refreshIntervalSeconds: 15,
             timezone: "Asia/Makassar",
@@ -738,8 +734,8 @@ async function main() {
             sidebarCollapsed: true,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: false,
-            emailDigest: true,
+
+
             autoRefresh: true,
             refreshIntervalSeconds: 20,
             timezone: "Asia/Makassar",
@@ -767,8 +763,7 @@ async function main() {
             sidebarCollapsed: false,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: false,
-            emailDigest: false,
+
             autoRefresh: true,
             refreshIntervalSeconds: 10,
             timezone: "Asia/Makassar",
@@ -794,8 +789,7 @@ async function main() {
             sidebarCollapsed: false,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: false,
-            emailDigest: false,
+
             autoRefresh: true,
             refreshIntervalSeconds: 15,
             timezone: "Asia/Makassar",
@@ -821,8 +815,8 @@ async function main() {
             sidebarCollapsed: true,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: false,
-            emailDigest: true,
+
+
             autoRefresh: false,
             refreshIntervalSeconds: 30,
             timezone: "Asia/Makassar",

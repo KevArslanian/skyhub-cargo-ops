@@ -213,6 +213,10 @@ model UserSetting {
   autoRefresh            Boolean  @default(true)
   refreshIntervalSeconds Int      @default(5)
   timezone               String   @default("Asia/Makassar")
+  defaultLandingPage     String   @default("dashboard")
+  filterByOwnStation     Boolean  @default(true)
+  timeFormat             String   @default("24h")
+  language               String   @default("id")
   updatedAt              DateTime @updatedAt
   user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

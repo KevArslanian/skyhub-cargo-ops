@@ -22,7 +22,9 @@ import {
 import { cn } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { DataCard, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
+import { setLocale, t, getLocale, getRecommendedTimezoneForStation } from "@/lib/i18n";
 import { OpsDrawer } from "@/components/ops-drawer";
+import { useOpsToast, OpsToastContainer } from "@/components/ops-toast";
 
 const CAPABILITY_OPTIONS = [
   { value: "shipment:create", label: "Buat shipment", description: "Membuat AWB kargo & manifest baru" },
@@ -65,8 +67,11 @@ type SettingsPayload = {
     refreshIntervalSeconds: number;
     cutoffAlert: boolean;
     exceptionAlert: boolean;
-    soundAlert: boolean;
-    emailDigest: boolean;
+    timezone: string;
+    defaultLandingPage: "dashboard" | "shipment-ledger" | "awb-tracking" | "flight-board";
+    filterByOwnStation: boolean;
+    timeFormat: "24h" | "12h";
+    language: "id" | "en";
   } | null;
   permissions: {
     canManageUsers: boolean;
@@ -107,8 +112,11 @@ type SettingsDraft = {
   refreshIntervalSeconds: number;
   cutoffAlert: boolean;
   exceptionAlert: boolean;
-  soundAlert: boolean;
-  emailDigest: boolean;
+  timezone: string;
+  defaultLandingPage: "dashboard" | "shipment-ledger" | "awb-tracking" | "flight-board";
+  filterByOwnStation: boolean;
+  timeFormat: "24h" | "12h";
+  language: "id" | "en";
 };
 
 const SETTINGS_PAGE_SIZE = 10;
@@ -124,8 +132,11 @@ function toDraft(data: SettingsPayload | null): SettingsDraft {
     refreshIntervalSeconds: data?.settings?.refreshIntervalSeconds ?? 5,
     cutoffAlert: data?.settings?.cutoffAlert ?? true,
     exceptionAlert: data?.settings?.exceptionAlert ?? true,
-    soundAlert: data?.settings?.soundAlert ?? false,
-    emailDigest: data?.settings?.emailDigest ?? false,
+    timezone: data?.settings?.timezone ?? "Asia/Makassar",
+    defaultLandingPage: data?.settings?.defaultLandingPage ?? "dashboard",
+    filterByOwnStation: data?.settings?.filterByOwnStation ?? true,
+    timeFormat: data?.settings?.timeFormat ?? "24h",
+    language: (data?.settings?.language as "id" | "en") ?? "id",
   };
 }
 
@@ -270,7 +281,8 @@ export default function SettingsPage() {
   const [draft, setDraft] = useState<SettingsDraft>(() => toDraft(null));
   const [activeTab, setActiveTab] = useState("Profil");
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [localeVersion, setLocaleVersion] = useState(0); // Force re-render on language change
+  const { toast: notice, showToast, dismissToast } = useOpsToast();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [customerAccountOpen, setCustomerAccountOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({
@@ -311,11 +323,7 @@ export default function SettingsPage() {
     void reloadSettings().catch(() => undefined);
   }, []);
 
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(""), 2600);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
+  // Notice auto-dismiss handled by useOpsToast
 
   const baseDraft = useMemo(() => toDraft(data), [data]);
   const hasDraftChanges = useMemo(
@@ -399,6 +407,18 @@ export default function SettingsPage() {
       note: "Sinkronisasi.",
       tone: "warning" as const,
     },
+    {
+      label: "Zona Waktu",
+      value: draft.timezone,
+      note: "Waktu tampilan.",
+      tone: "info" as const,
+    },
+    {
+      label: "Bahasa",
+      value: draft.language === 'id' ? 'Indonesia' : 'English',
+      note: "Antarmuka & pesan.",
+      tone: "primary" as const,
+    },
   ];
 
   const filteredUsers = useMemo(() => {
@@ -441,6 +461,13 @@ export default function SettingsPage() {
     setUserPage(1);
   }, [userSearch]);
 
+  // React to language change from i18n
+  useEffect(() => {
+    const handler = () => setLocaleVersion(v => v + 1);
+    window.addEventListener('skyhub:locale-changed', handler);
+    return () => window.removeEventListener('skyhub:locale-changed', handler);
+  }, []);
+
   useEffect(() => {
     setAccountPage(1);
   }, [accountSearch]);
@@ -475,7 +502,10 @@ export default function SettingsPage() {
       setData(payload);
       setDraft(toDraft(payload));
       emitSettingsPreview(toDraft(payload));
-      setNotice("Pengaturan berhasil disimpan.");
+      showToast("Pengaturan berhasil disimpan.", "success");
+    } else {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      showToast(payload?.error || "Gagal menyimpan pengaturan.", "danger");
     }
 
     setSaving(false);
@@ -496,7 +526,10 @@ export default function SettingsPage() {
       setData((current) => (current ? { ...current, users: [...current.users, payload.user] } : current));
       setInviteForm({ name: "", email: "", role: "staff", station: "SOQ", customerAccountId: "" });
       setInviteOpen(false);
-      setNotice("Pengguna berhasil dibuat dengan status diundang.");
+      showToast("Pengguna berhasil dibuat dengan status diundang.", "success");
+    } else {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      showToast(payload?.error || "Gagal membuat pengguna.", "danger");
     }
   }
 
@@ -522,7 +555,10 @@ export default function SettingsPage() {
       await reloadSettings();
       setEditingUserId(null);
       setEditingUserDraft(null);
-      setNotice("Pengguna berhasil diperbarui.");
+      showToast("Pengguna berhasil diperbarui.", "success");
+    } else {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      showToast(payload?.error || "Gagal memperbarui pengguna.", "danger");
     }
   }
 
@@ -553,13 +589,13 @@ export default function SettingsPage() {
               }
             : current,
         );
-        setNotice(nextStatus === "active" ? "Akun berhasil diaktifkan." : "Akun berhasil dinonaktifkan.");
+        showToast(nextStatus === "active" ? "Akun berhasil diaktifkan." : "Akun berhasil dinonaktifkan.", "success");
       } else {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        setNotice(payload?.error || "Gagal memperbarui status akun.");
+        showToast(payload?.error || "Gagal memperbarui status akun.", "danger");
       }
     } catch {
-      setNotice("Gagal memperbarui status akun.");
+      showToast("Gagal memperbarui status akun.", "danger");
     } finally {
       setTogglingUserId(null);
     }
@@ -586,7 +622,10 @@ export default function SettingsPage() {
       );
       setAccountForm({ code: "", name: "", contactName: "", contactEmail: "", contactPhone: "" });
       setCustomerAccountOpen(false);
-      setNotice("Akun pelanggan berhasil dibuat.");
+      showToast("Akun pelanggan berhasil dibuat.", "success");
+    } else {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      showToast(payload?.error || "Gagal membuat akun pelanggan.", "danger");
     }
   }
 
@@ -610,7 +649,10 @@ export default function SettingsPage() {
       await reloadSettings();
       setEditingAccountId(null);
       setEditingAccountDraft(null);
-      setNotice("Akun pelanggan berhasil diperbarui.");
+      showToast("Akun pelanggan berhasil diperbarui.", "success");
+    } else {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      showToast(payload?.error || "Gagal memperbarui akun pelanggan.", "danger");
     }
   }
 
@@ -628,11 +670,7 @@ export default function SettingsPage() {
         }
       />
 
-      {notice ? (
-        <div className="rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]">
-          {notice}
-        </div>
-      ) : null}
+      <OpsToastContainer toast={notice} onDismiss={dismissToast} />
 
       {!data ? (
         <div className="grid gap-6 xl:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
@@ -741,7 +779,19 @@ export default function SettingsPage() {
                           <select
                             className="select-field"
                             value={draft.station}
-                            onChange={(event) => setDraft((current) => ({ ...current, station: event.target.value }))}
+                            onChange={(event) => {
+                              const newStation = event.target.value;
+                              setDraft((current) => {
+                                const suggestedTz = getRecommendedTimezoneForStation(newStation);
+                                // Only auto-suggest if user hasn't manually changed timezone yet in this session (simple heuristic)
+                                const shouldSuggest = current.timezone === data?.settings?.timezone || !current.timezone;
+                                return {
+                                  ...current,
+                                  station: newStation,
+                                  ...(shouldSuggest ? { timezone: suggestedTz } : {}),
+                                };
+                              });
+                            }}
                           >
                             {STATION_OPTIONS.map((station) => (
                               <option key={station} value={station}>
@@ -890,6 +940,103 @@ export default function SettingsPage() {
                           <span className="text-sm text-[color:var(--muted-fg)]">detik per refresh</span>
                         </div>
                       </div>
+                    </div>
+                  </OpsPanel>
+
+                  {/* New Regional & Language Settings - following user requirements */}
+                  <OpsPanel className="p-5">
+                    <SectionHeader
+                      title="Bahasa & Regional"
+                      subtitle="Preferensi bahasa dan waktu."
+                    />
+                    <div className="mt-5 space-y-4">
+                      {/* Language */}
+                      <div>
+                        <label className="label">{t('settings.language', 'Bahasa')}</label>
+                        <select
+                          className="input-field mt-2"
+                          value={draft.language ?? 'id'}
+                          onChange={(e) => {
+                            const lang = e.target.value as 'id' | 'en';
+                            applyDraftPatch({ language: lang });
+                            setLocale(lang); // Live switch for demo
+                          }}
+                        >
+                          <option value="id">Bahasa Indonesia</option>
+                          <option value="en">English</option>
+                        </select>
+                        <p className="mt-1 text-xs text-[color:var(--muted-2)]">
+                          Semua teks UI, pesan error, dan halaman cetak akan berubah sesuai pilihan.
+                        </p>
+                      </div>
+
+                      {/* Timezone - Smart */}
+                      <div>
+                        <label className="label">Zona Waktu</label>
+                        <select
+                          className="input-field mt-2"
+                          value={draft.timezone}
+                          onChange={(e) => applyDraftPatch({ timezone: e.target.value })}
+                        >
+                          <option value="Asia/Jakarta">Asia/Jakarta (WIB)</option>
+                          <option value="Asia/Makassar">Asia/Makassar (WITA)</option>
+                          <option value="Asia/Jayapura">Asia/Jayapura (WIT)</option>
+                          <option value="UTC">UTC</option>
+                        </select>
+                        <p className="mt-1 text-xs text-[color:var(--muted-2)]">
+                          Otomatis disarankan sesuai stasiun yang dipilih.
+                        </p>
+                      </div>
+
+                      {/* Time Format */}
+                      <div>
+                        <label className="label">Format Waktu</label>
+                        <div className="mt-2 flex gap-3">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="timeFormat"
+                              value="24h"
+                              checked={draft.timeFormat === '24h'}
+                              onChange={() => applyDraftPatch({ timeFormat: '24h' })}
+                            />
+                            <span>24 Jam</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="timeFormat"
+                              value="12h"
+                              checked={draft.timeFormat === '12h'}
+                              onChange={() => applyDraftPatch({ timeFormat: '12h' })}
+                            />
+                            <span>12 Jam (AM/PM)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Default Landing Page */}
+                      <div>
+                        <label className="label">Halaman Awal Default</label>
+                        <select
+                          className="input-field mt-2"
+                          value={draft.defaultLandingPage}
+                          onChange={(e) => applyDraftPatch({ defaultLandingPage: e.target.value as any })}
+                        >
+                          <option value="dashboard">Dashboard</option>
+                          <option value="shipment-ledger">Shipment Ledger</option>
+                          <option value="awb-tracking">AWB Tracking</option>
+                          <option value="flight-board">Flight Board</option>
+                        </select>
+                      </div>
+
+                      {/* Filter by Own Station */}
+                      <PreferenceToggleCard
+                        title="Tampilkan hanya data stasiun saya secara default"
+                        copy="List shipment, flight, dan alert akan difilter otomatis ke stasiun Anda."
+                        checked={draft.filterByOwnStation}
+                        onChange={(value) => applyDraftPatch({ filterByOwnStation: value })}
+                      />
                     </div>
                   </OpsPanel>
                 </div>

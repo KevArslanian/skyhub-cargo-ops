@@ -12,7 +12,7 @@ import {
   Pencil,
   PlaneTakeoff,
   Plus,
-  RefreshCw,
+
   RotateCcw,
   Save,
   TowerControl,
@@ -34,8 +34,9 @@ import {
   type SupportedAirlineCode,
 } from "@/lib/flight-meta";
 import { StatusBadge } from "@/components/status-badge";
-import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
+import { EmptyState, FilterBar, OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
 import { OpsDrawer } from "@/components/ops-drawer";
+import { useOpsToast, OpsToastContainer } from "@/components/ops-toast";
 
 type FlightBoardPayload = {
   permissions: {
@@ -290,8 +291,7 @@ export default function FlightBoardPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [createForm, setCreateForm] = useState(() => createBlankFlightForm());
   const [editDraft, setEditDraft] = useState(() => createBlankFlightForm());
-  const [notice, setNotice] = useState("");
-  const [noticeTone, setNoticeTone] = useState<"info" | "warning">("info");
+  const { toast: notice, showToast, dismissToast } = useOpsToast();
   const initialDateResolvedRef = useRef(false);
   const latestUrlParamsRef = useRef(searchParams.toString());
 
@@ -427,11 +427,7 @@ export default function FlightBoardPage() {
     setPage(parsePageParam(searchParams.get("page")));
   }, [searchParams]);
 
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(""), 2600);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
+  // Notice auto-dismiss handled by useOpsToast
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -517,15 +513,13 @@ export default function FlightBoardPage() {
     event.preventDefault();
 
     if (!isFlightNumberSuffixValid(createForm.flightNumberSuffix)) {
-      setNoticeTone("warning");
-      setNotice("Nomor flight harus terdiri dari 3-4 digit.");
+      showToast("Nomor flight harus terdiri dari 3-4 digit.", "warning");
       return;
     }
 
     const createBlockingIssue = createScheduleIssues.find((issue) => issue.tone === "error");
     if (createBlockingIssue) {
-      setNoticeTone("warning");
-      setNotice(createBlockingIssue.message);
+      showToast(createBlockingIssue.message, "warning");
       return;
     }
 
@@ -568,8 +562,7 @@ export default function FlightBoardPage() {
         );
         setSelectedFlightId(nextFlight.id);
         setEditDraft(createFlightDraft(nextFlight));
-        setNoticeTone("info");
-        setNotice("Flight berhasil dibuat.");
+        showToast("Flight berhasil dibuat.", "info");
         void loadFlightBoardWithParams({
           date: nextDate,
           query: nextQuery,
@@ -577,8 +570,7 @@ export default function FlightBoardPage() {
         });
       } else {
         const errorMessage = await resolveErrorMessage(response, "Gagal membuat flight.");
-        setNoticeTone("warning");
-        setNotice(errorMessage);
+        showToast(errorMessage, "warning");
       }
     } finally {
       setSaving(false);
@@ -589,15 +581,13 @@ export default function FlightBoardPage() {
     if (!selectedFlight) return;
 
     if (!isFlightNumberSuffixValid(editDraft.flightNumberSuffix)) {
-      setNoticeTone("warning");
-      setNotice("Nomor flight harus terdiri dari 3-4 digit.");
+      showToast("Nomor flight harus terdiri dari 3-4 digit.", "warning");
       return;
     }
 
     const editBlockingIssue = editScheduleIssues.find((issue) => issue.tone === "error");
     if (editBlockingIssue) {
-      setNoticeTone("warning");
-      setNotice(editBlockingIssue.message);
+      showToast(editBlockingIssue.message, "warning");
       return;
     }
 
@@ -636,8 +626,7 @@ export default function FlightBoardPage() {
         setSelectedFlightId(nextFlight.id);
         setEditDraft(createFlightDraft(nextFlight));
         setEditOpen(false);
-        setNoticeTone("info");
-        setNotice("Perubahan flight berhasil disimpan.");
+        showToast("Perubahan flight berhasil disimpan.", "info");
         void loadFlightBoardWithParams({
           date: nextDate,
           query: appliedQuery,
@@ -645,8 +634,7 @@ export default function FlightBoardPage() {
         });
       } else {
         const errorMessage = await resolveErrorMessage(response, "Gagal memperbarui flight.");
-        setNoticeTone("warning");
-        setNotice(errorMessage);
+        showToast(errorMessage, "warning");
       }
     } finally {
       setSaving(false);
@@ -690,13 +678,11 @@ export default function FlightBoardPage() {
       );
       setSelectedFlightId(null);
       setEditDraft(createFlightDraft(null));
-      setNoticeTone("info");
-      setNotice(`Flight ${selectedFlight.flightNumber} berhasil dihapus dari database.`);
+      showToast(`Flight ${selectedFlight.flightNumber} berhasil dihapus dari database.`, "info");
       void loadFlightBoard();
     } else {
       const errorMessage = await resolveErrorMessage(response, "Gagal menghapus flight.");
-      setNoticeTone("warning");
-      setNotice(errorMessage);
+      showToast(errorMessage, "warning");
     }
   }
 
@@ -754,10 +740,7 @@ export default function FlightBoardPage() {
                   Print Flight
                 </Link>
               ) : null}
-              <button type="button" className="topbar-button" onClick={handleRefresh}>
-                <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
-                <span>{refreshing ? "Memuat ulang..." : "Muat ulang"}</span>
-              </button>
+
               <button type="button" className="topbar-button" onClick={handleResetFilters}>
                 <RotateCcw size={16} />
                 <span>Reset</span>
@@ -775,12 +758,6 @@ export default function FlightBoardPage() {
             </>
           }
         />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-3">
-        <StatCard label="Terjadwal" value={data?.summary.onTime ?? 0} note="Belum melewati waktu berangkat." icon={PlaneTakeoff} tone="success" />
-        <StatCard label="Terlambat" value={data?.summary.delayed ?? 0} note="Ditandai butuh penyesuaian jadwal." icon={Clock3} tone="warning" />
-        <StatCard label="Berangkat" value={data?.summary.departed ?? 0} note="Waktu berangkat sudah berjalan." icon={TowerControl} tone="info" />
       </div>
 
       <FilterBar className="flightboard-filter-bar">
@@ -812,17 +789,7 @@ export default function FlightBoardPage() {
         </div>
       </FilterBar>
 
-      {notice ? (
-        <div
-          className={
-            noticeTone === "warning"
-              ? "rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-warning)]"
-              : "rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]"
-          }
-        >
-          {notice}
-        </div>
-      ) : null}
+      <OpsToastContainer toast={notice} onDismiss={dismissToast} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         {highlightedFlights.length ? (

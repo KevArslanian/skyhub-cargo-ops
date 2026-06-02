@@ -297,13 +297,20 @@ export function canManageWorkspaceSettings(user: AccessUser) {
   return hasCapability(user, "settings:workspace");
 }
 
-export function scopeShipmentWhere(user: AccessUser): Prisma.ShipmentWhereInput {
+export function scopeShipmentWhere(user: AccessUser, filterByOwnStation = false): Prisma.ShipmentWhereInput {
   const baseWhere: Prisma.ShipmentWhereInput = { archivedAt: null };
 
   if (user.role === "customer") {
     return {
       ...baseWhere,
       customerAccountId: assertCustomerAccountActive(user),
+    };
+  }
+
+  if (filterByOwnStation && user.station) {
+    return {
+      ...baseWhere,
+      origin: user.station, // or use a more sophisticated station matching if needed
     };
   }
 

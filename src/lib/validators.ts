@@ -78,7 +78,7 @@ export const loginSchema = z.object({
 export const shipmentCreateSchema = z.object({
   awb: optionalAwbSchema,
   sentAt: optionalCargoDateSchema,
-  commodity: z.string().trim().min(2, "Komoditas wajib diisi."),
+  commodity: z.string().trim().min(2, "Komoditas wajib diisi.").regex(/^[a-zA-Z\s.,()&/-]+$/, "Komoditas hanya boleh berisi huruf, spasi, dan tanda baca dasar."),
   cargoMode: z.enum(CARGO_MODE_OPTIONS).optional().default("Udara"),
   senderPhone: z.string().trim().min(6, "No telepon wajib diisi.").optional().default("0800000000"),
   origin: z.enum(STATION_OPTIONS),
@@ -110,7 +110,7 @@ export const shipmentUpdateSchema = z.object({
   sentAt: optionalCargoDateSchema,
   cargoMode: z.enum(CARGO_MODE_OPTIONS).optional(),
   senderPhone: z.string().trim().min(6).optional(),
-  commodity: z.string().trim().min(2).optional(),
+  commodity: z.string().trim().min(2).regex(/^[a-zA-Z\s.,()&/-]+$/, "Komoditas hanya boleh berisi huruf, spasi, dan tanda baca dasar.").optional(),
   origin: z.enum(STATION_OPTIONS).optional(),
   destination: z.enum(STATION_OPTIONS).optional(),
   pieces: z.coerce.number().int().positive().optional(),
@@ -147,8 +147,10 @@ export const settingsUpdateSchema = z.object({
   theme: z.enum(["light", "dark"]).optional(),
   cutoffAlert: z.boolean().optional(),
   exceptionAlert: z.boolean().optional(),
-  soundAlert: z.boolean().optional(),
-  emailDigest: z.boolean().optional(),
+  timezone: z.string().optional(),
+  defaultLandingPage: z.enum(["dashboard", "shipment-ledger", "awb-tracking", "flight-board"]).optional(),
+  filterByOwnStation: z.boolean().optional(),
+  timeFormat: z.enum(["24h", "12h"]).optional(),
 });
 
 export const inviteUserSchema = z.object({

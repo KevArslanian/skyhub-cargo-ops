@@ -588,8 +588,11 @@ export async function getShellData(userId: string) {
       refreshIntervalSeconds: user.settings.refreshIntervalSeconds,
       cutoffAlert: user.settings.cutoffAlert,
       exceptionAlert: user.settings.exceptionAlert,
-      soundAlert: user.settings.soundAlert,
-      emailDigest: user.settings.emailDigest,
+      timezone: user.settings.timezone,
+      defaultLandingPage: user.settings.defaultLandingPage,
+      filterByOwnStation: user.settings.filterByOwnStation,
+      timeFormat: user.settings.timeFormat,
+      language: user.settings.language,
     },
     notifications: notifications.map((notification) => ({
       id: notification.id,
@@ -2220,8 +2223,6 @@ export async function inviteUser(input: {
             sidebarCollapsed: false,
             cutoffAlert: true,
             exceptionAlert: true,
-            soundAlert: false,
-            emailDigest: false,
             autoRefresh: true,
             refreshIntervalSeconds: 5,
           },
@@ -2977,8 +2978,11 @@ export async function getSettingsData(userId: string) {
           refreshIntervalSeconds: user.settings.refreshIntervalSeconds,
           cutoffAlert: user.settings.cutoffAlert,
           exceptionAlert: user.settings.exceptionAlert,
-          soundAlert: user.settings.soundAlert,
-          emailDigest: user.settings.emailDigest,
+          timezone: user.settings.timezone,
+          defaultLandingPage: user.settings.defaultLandingPage,
+          filterByOwnStation: user.settings.filterByOwnStation,
+          timeFormat: user.settings.timeFormat,
+          language: user.settings.language,
         }
       : null,
     permissions: {
@@ -3003,8 +3007,11 @@ export async function updateSettings(
     theme?: "light" | "dark";
     cutoffAlert?: boolean;
     exceptionAlert?: boolean;
-    soundAlert?: boolean;
-    emailDigest?: boolean;
+    timezone?: string;
+    defaultLandingPage?: "dashboard" | "shipment-ledger" | "awb-tracking" | "flight-board";
+    filterByOwnStation?: boolean;
+    timeFormat?: "24h" | "12h";
+    language?: "id" | "en";
   },
 ) {
   await db.$transaction(async (tx) => {
@@ -3027,8 +3034,11 @@ export async function updateSettings(
         refreshIntervalSeconds: input.refreshIntervalSeconds ?? 5,
         cutoffAlert: input.cutoffAlert ?? true,
         exceptionAlert: input.exceptionAlert ?? true,
-        soundAlert: input.soundAlert ?? false,
-        emailDigest: input.emailDigest ?? false,
+        timezone: input.timezone ?? "Asia/Makassar",
+        defaultLandingPage: input.defaultLandingPage ?? "dashboard",
+        filterByOwnStation: input.filterByOwnStation ?? true,
+        timeFormat: input.timeFormat ?? "24h",
+        language: input.language ?? "id",
       },
       update: {
         theme: input.theme,
@@ -3038,8 +3048,11 @@ export async function updateSettings(
         refreshIntervalSeconds: input.refreshIntervalSeconds,
         cutoffAlert: input.cutoffAlert,
         exceptionAlert: input.exceptionAlert,
-        soundAlert: input.soundAlert,
-        emailDigest: input.emailDigest,
+        timezone: input.timezone,
+        defaultLandingPage: input.defaultLandingPage,
+        filterByOwnStation: input.filterByOwnStation,
+        timeFormat: input.timeFormat,
+        language: input.language,
       },
     });
 

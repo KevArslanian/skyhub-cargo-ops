@@ -308,7 +308,16 @@ export async function redirectAuthenticatedUserToDashboard() {
   const user = await getCurrentUser();
 
   if (user) {
-    redirect(user.role === "customer" ? "/awb-tracking" : "/dashboard");
+    const preferred = (user as any).settings?.defaultLandingPage;
+    let target = "/dashboard";
+
+    if (user.role === "customer") {
+      target = "/awb-tracking";
+    } else if (preferred && ['dashboard', 'shipment-ledger', 'awb-tracking', 'flight-board'].includes(preferred)) {
+      target = preferred;
+    }
+
+    redirect(target);
   }
 }
 
