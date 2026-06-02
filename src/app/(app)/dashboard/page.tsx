@@ -143,7 +143,7 @@ const EMPTY_FLIGHTS: InternalDashboardData["flightsSummary"] = [];
 const EMPTY_ALERTS: InternalDashboardData["alerts"] = [];
 
 const DASHBOARD_COMPACT_PAGE_SIZE = 5;
-const DASHBOARD_ALERT_PAGE_SIZE = 4;
+const DASHBOARD_ALERT_PAGE_SIZE = 3;
 
 function getPageWindow<T>(items: T[], page: number, pageSize: number) {
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
@@ -640,7 +640,7 @@ export default function DashboardPage() {
               <p className="mt-0.5 truncate text-[13px] leading-[17px] text-[color:var(--muted-fg)]">{filteredAlerts.length > 0 ? `${alertPage.visibleStart}-${alertPage.visibleEnd} dari ${filteredAlerts.length} peringatan` : "0 peringatan"}</p>
             </div>
           </div>
-          <div className="mt-0 flex h-[196px] shrink-0 flex-col gap-[10px] min-w-0 overflow-visible">
+          <div className="mt-0 flex min-h-0 flex-1 flex-col gap-[10px] min-w-0 overflow-y-auto">
             {filteredAlerts.length ? alertPage.items.map((alert) => (
               <div key={alert.id} className="flex h-[54px] w-full min-w-0 items-center rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/80 px-3 py-[10px] transition-colors hover:bg-[color:var(--panel-muted)]">
                 <div className="flex min-w-0 flex-1 items-center gap-3">

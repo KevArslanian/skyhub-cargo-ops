@@ -7,13 +7,11 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
-  Clock3,
   Hand,
   Search,
   ShieldAlert,
   SlidersHorizontal,
   Timer,
-  UserCheck,
 } from "lucide-react";
 import { EmptyState, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
 import { OpsDrawer } from "@/components/ops-drawer";
@@ -181,8 +179,6 @@ export default function AlertsPage() {
   const [actionNotice, setActionNotice] = useState("");
   const [actionNoticeTone, setActionNoticeTone] = useState<"info" | "warning">("info");
   const [pendingAction, setPendingAction] = useState(false);
-  const [assigneeChoice, setAssigneeChoice] = useState("");
-  const [snoozeChoice, setSnoozeChoice] = useState("60");
 
   useEffect(() => {
     function handleContextSearch(event: Event) {
@@ -360,10 +356,6 @@ export default function AlertsPage() {
     const timer = window.setTimeout(() => setAlertPage(1), 0);
     return () => window.clearTimeout(timer);
   }, [severity, kind, owner, query]);
-
-  useEffect(() => {
-    setAssigneeChoice(selectedAlert?.assignedToId ?? "");
-  }, [selectedAlert?.alertKey, selectedAlert?.assignedToId]);
 
   const openAlertDetail = useCallback((alertId: string) => {
     setSelectedAlertId(alertId);
@@ -638,98 +630,46 @@ export default function AlertsPage() {
                 </div>
               </div>
 
-              <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
-                <p className="label">Tindakan</p>
-                <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">
-                  {selectedAlertManualResolve
-                    ? "Laporan AWB bersifat manual. Setelah penanggung jawab memeriksa buku pengiriman dan menghubungi pihak terkait, tandai peringatan selesai."
-                    : "Peringatan aktif selesai otomatis setelah kondisi di modul sumber sudah beres. Gunakan detail sumber untuk memperbaiki data, lalu muat ulang daftar peringatan."}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {selectedAlert.workflowStatus !== "acknowledged" ? (
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={pendingAction}
-                      onClick={() => void runAction(selectedAlert, "acknowledge")}
-                    >
-                      <Hand size={16} />
-                      Tangani
-                    </button>
-                  ) : null}
-                  {selectedAlertManualResolve ? (
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={pendingAction}
-                      onClick={() => void runAction(selectedAlert, "resolve")}
-                    >
-                      <CheckCircle2 size={16} />
-                      Selesai
-                    </button>
-                  ) : null}
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="label" htmlFor="alert-assignee">Tugaskan ke</label>
-                    <div className="mt-1 flex gap-2">
-                      <select
-                        id="alert-assignee"
-                        className="select-field"
-                        value={assigneeChoice}
-                        onChange={(event) => setAssigneeChoice(event.target.value)}
-                      >
-                        <option value="">Pilih staf</option>
-                        {(data?.assignableUsers ?? []).map((user) => (
-                          <option key={user.id} value={user.id}>
-                            {user.name} • {user.station}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="btn btn-secondary shrink-0"
-                        disabled={pendingAction || !assigneeChoice}
-                        onClick={() => void runAction(selectedAlert, "assign", { assigneeId: assigneeChoice })}
-                      >
-                        <UserCheck size={16} />
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="label" htmlFor="alert-snooze">Tunda</label>
-                    <div className="mt-1 flex gap-2">
-                      <select
-                        id="alert-snooze"
-                        className="select-field"
-                        value={snoozeChoice}
-                        onChange={(event) => setSnoozeChoice(event.target.value)}
-                      >
-                        <option value="30">30 menit</option>
-                        <option value="60">1 jam</option>
-                        <option value="120">2 jam</option>
-                        <option value="240">4 jam</option>
-                      </select>
-                      <button
-                        type="button"
-                        className="btn btn-secondary shrink-0"
-                        disabled={pendingAction}
-                        onClick={() => void runAction(selectedAlert, "snooze", { snoozeMinutes: Number(snoozeChoice) })}
-                      >
-                        <Clock3 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <Link href={selectedAlert.href} className="btn btn-primary w-full justify-center">
                 <ArrowUpRight size={16} />
                 Perbaiki di {selectedAlert.targetModule}
               </Link>
+
+              <div className="flex flex-wrap gap-2">
+                {selectedAlert.workflowStatus !== "acknowledged" ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary flex-1"
+                    disabled={pendingAction}
+                    onClick={() => void runAction(selectedAlert, "acknowledge")}
+                  >
+                    <Hand size={16} />
+                    Tangani
+                  </button>
+                ) : null}
+                {selectedAlertManualResolve ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary flex-1"
+                    disabled={pendingAction}
+                    onClick={() => void runAction(selectedAlert, "resolve")}
+                  >
+                    <CheckCircle2 size={16} />
+                    Tandai Selesai
+                  </button>
+                ) : null}
+              </div>
+
+              <p className="text-xs leading-5 text-[color:var(--muted-2)]">
+                {selectedAlertManualResolve
+                  ? "Laporan AWB manual. Periksa buku pengiriman, lalu tandai selesai."
+                  : "Peringatan selesai otomatis setelah data di modul sumber sudah beres."}
+              </p>
+
             </div>
           ) : (
+
+
             <EmptyState
               icon={ShieldAlert}
               variant="neutral"

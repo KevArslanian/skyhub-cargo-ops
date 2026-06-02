@@ -7,8 +7,6 @@ import {
   Bell,
   BellRing,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   FolderKanban,
   History,
   LayoutDashboard,
@@ -313,26 +311,6 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
     };
   }, [pathname, search, showShellSearch]);
 
-  async function persistSettings(payload: Record<string, unknown>) {
-    const response = await fetch("/api/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) return null;
-
-    const result = (await response.json()) as { settings?: ShellProps["settings"] | null };
-    return result.settings ?? null;
-  }
-
-  async function handleSidebarToggle(nextValue: boolean) {
-    setCollapsed(nextValue);
-    setShellSettings((current) => ({ ...current, sidebarCollapsed: nextValue }));
-    const persisted = await persistSettings({ sidebarCollapsed: nextValue });
-    if (persisted) {
-      setShellSettings((current) => ({ ...current, ...persisted }));
-    }
-  }
 
   function runContextSearch(nextQuery: string, targetPath = pathname) {
     if (!nextQuery.trim()) return;
@@ -485,30 +463,14 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                   <Link href="/dashboard" className="block" onClick={() => setMobileOpen(false)}>
                     <BrandMark iconOnly tileClassName="h-14 w-14 rounded-[20px]" />
                   </Link>
-                  <button
-                    type="button"
-                    className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] lg:inline-flex"
-                    onClick={() => handleSidebarToggle(false)}
-                    aria-label="Perluas sidebar"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
                 </div>
               ) : (
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <Link href="/dashboard" className="block" onClick={() => setMobileOpen(false)}>
                       <BrandMark title={APP_NAME} subtitle={APP_SUBTITLE} />
                     </Link>
                   </div>
-                  <button
-                    type="button"
-                    className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] lg:inline-flex"
-                    onClick={() => handleSidebarToggle(true)}
-                    aria-label="Lipat sidebar"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
                 </div>
               )}
             </div>
