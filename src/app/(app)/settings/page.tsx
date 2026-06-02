@@ -84,7 +84,7 @@ type SettingsPayload = {
     email: string;
     role: "admin" | "staff" | "customer";
     station: string;
-    status: "active" | "invited" | "disabled";
+    status: "active" | "disabled";
     customerAccountId: string | null;
     customerAccountName: string | null;
     capabilities: SettingsCapability[];
@@ -1069,19 +1069,7 @@ export default function SettingsPage() {
                   }
                 />
 
-                <div className="mt-5 grid gap-4 xl:grid-cols-3">
-                  <DataCard label="Total user" value={data.users.length} tone="primary" />
-                  <DataCard
-                    label="User aktif"
-                    value={data.users.filter((user) => user.status === "active").length}
-                    tone="success"
-                  />
-                  <DataCard
-                    label="Perlu follow-up"
-                    value={data.users.filter((user) => user.status !== "active").length}
-                    tone="warning"
-                  />
-                </div>
+
 
                 {inviteOpen ? (
                   <div className="mt-5 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
@@ -1420,7 +1408,6 @@ export default function SettingsPage() {
                           }
                         >
                           <option value="active">Aktif</option>
-                          <option value="invited">Diundang</option>
                           <option value="disabled">Nonaktif</option>
                         </select>
                       </div>
