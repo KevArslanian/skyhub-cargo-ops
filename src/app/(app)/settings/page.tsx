@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2,
   Check,
@@ -8,7 +8,6 @@ import {
   Monitor,
   MoonStar,
   Plus,
-  ShieldCheck,
   SunMedium,
   UserCircle2,
   Users2,
@@ -173,16 +172,10 @@ async function readApiError(response: Response, fallback: string) {
 
 function WorkspaceSettingsPanel({
   draft,
-  hasDraftChanges,
-  saving,
   onPatch,
-  onSave,
 }: {
   draft: SettingsDraft;
-  hasDraftChanges: boolean;
-  saving: boolean;
   onPatch: (patch: Partial<SettingsDraft>) => void;
-  onSave: () => void;
 }) {
   const themeOptions = [
     { value: "light" as const, label: "Terang", icon: SunMedium },
@@ -207,11 +200,7 @@ function WorkspaceSettingsPanel({
             Mode tampilan, susunan data, pemberitahuan operasional, dan ritme kerja.
           </p>
         </div>
-        <StatusBadge
-          value={hasDraftChanges ? "warning" : "success"}
-          label={hasDraftChanges ? "Ada perubahan" : "Sinkron"}
-          className="shrink-0 normal-case tracking-normal"
-        />
+
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -317,15 +306,6 @@ function WorkspaceSettingsPanel({
           </p>
         </div>
 
-        <button
-          type="button"
-          className="btn btn-primary w-full justify-center lg:col-span-2"
-          onClick={onSave}
-          disabled={saving || !hasDraftChanges}
-        >
-          <ShieldCheck size={16} />
-          {saving ? "Menyimpan..." : hasDraftChanges ? "Simpan Pengaturan" : "Tersimpan"}
-        </button>
       </div>
     </div>
   );
@@ -362,6 +342,7 @@ export default function SettingsPage() {
   const [draft, setDraft] = useState<SettingsDraft>(() => toDraft(null));
   const [activeTab, setActiveTab] = useState("Profil");
   const [saving, setSaving] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [notice, setNotice] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [customerAccountOpen, setCustomerAccountOpen] = useState(false);
@@ -409,11 +390,6 @@ export default function SettingsPage() {
     return () => window.clearTimeout(timer);
   }, [notice]);
 
-  const baseDraft = useMemo(() => toDraft(data), [data]);
-  const hasDraftChanges = useMemo(
-    () => JSON.stringify(baseDraft) !== JSON.stringify(draft),
-    [baseDraft, draft],
-  );
   const tabs = useMemo(() => {
     const items = [
       {
@@ -518,38 +494,38 @@ export default function SettingsPage() {
     window.dispatchEvent(new CustomEvent("skyhub:settings-preview", { detail: patch }));
   }
 
-  function applyDraftPatch(patch: Partial<SettingsDraft>) {
-    setDraft((current) => ({ ...current, ...patch }));
-    emitSettingsPreview(patch);
-    if (patch.soundAlert) {
-      playCriticalTone();
-    }
-  }
-
-  async function saveSettings() {
+  const persistDraft = useCallback(async (currentDraft: SettingsDraft) => {
     setSaving(true);
-
     try {
       const response = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draft),
+        body: JSON.stringify(currentDraft),
       });
-
       if (response.ok) {
-        window.localStorage.setItem("skyhub-accent-color", draft.accentColor);
+        window.localStorage.setItem("skyhub-accent-color", currentDraft.accentColor);
         const payload = (await response.json()) as SettingsPayload;
         setData(payload);
         setDraft(toDraft(payload));
         emitSettingsPreview(toDraft(payload));
-        setNotice("Pengaturan berhasil disimpan.");
-      } else {
-        setNotice(await readApiError(response, "Gagal menyimpan pengaturan."));
       }
     } catch {
-      setNotice("Gagal menyimpan pengaturan.");
+      // silent
     } finally {
       setSaving(false);
+    }
+  }, []);
+
+  function applyDraftPatch(patch: Partial<SettingsDraft>) {
+    setDraft((current) => {
+      const next = { ...current, ...patch };
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => void persistDraft(next), 400);
+      return next;
+    });
+    emitSettingsPreview(patch);
+    if (patch.soundAlert) {
+      playCriticalTone();
     }
   }
 
@@ -897,10 +873,7 @@ export default function SettingsPage() {
 
                 <WorkspaceSettingsPanel
                   draft={draft}
-                  hasDraftChanges={hasDraftChanges}
-                  saving={saving}
                   onPatch={applyDraftPatch}
-                  onSave={saveSettings}
                 />
               </>
             ) : null}
