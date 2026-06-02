@@ -16,6 +16,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { EmptyState, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
+import { OpsDrawer } from "@/components/ops-drawer";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDateTime } from "@/lib/format";
 
@@ -175,6 +176,7 @@ export default function AlertsPage() {
   const [kind, setKind] = useState("all");
   const [owner, setOwner] = useState("all");
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [alertPage, setAlertPage] = useState(1);
   const [actionNotice, setActionNotice] = useState("");
   const [actionNoticeTone, setActionNoticeTone] = useState<"info" | "warning">("info");
@@ -342,6 +344,7 @@ export default function AlertsPage() {
     const timer = window.setTimeout(() => {
       if (!filteredAlerts.length) {
         setSelectedAlertId(null);
+        setDetailOpen(false);
         return;
       }
 
@@ -361,6 +364,11 @@ export default function AlertsPage() {
   useEffect(() => {
     setAssigneeChoice(selectedAlert?.assignedToId ?? "");
   }, [selectedAlert?.alertKey, selectedAlert?.assignedToId]);
+
+  const openAlertDetail = useCallback((alertId: string) => {
+    setSelectedAlertId(alertId);
+    setDetailOpen(true);
+  }, []);
 
   const runAction = useCallback(
     async (alert: AlertRow, action: AlertAction, extra?: { assigneeId?: string; snoozeMinutes?: number }) => {
@@ -433,44 +441,32 @@ export default function AlertsPage() {
       </div>
 
       <OpsPanel className="p-5">
-        <SectionHeader title="Eskalasi" />
-        <div className="mt-5 table-shell">
+        <SectionHeader title="Kondisi Operasional" subtitle="Ringkasan kondisi yang perlu dipantau sebelum membuka detail peringatan." />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {initialLoading ? (
-            <div className="grid gap-3 p-4" aria-label="Memuat aturan eskalasi">
+            <div className="grid gap-3 sm:col-span-2 xl:col-span-4" aria-label="Memuat kondisi operasional">
               {Array.from({ length: 4 }).map((_, index) => (
                 <SkeletonBlock key={index} className="h-12 w-full rounded-[18px]" />
               ))}
             </div>
           ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Aturan</th>
-                  <th>Status</th>
-                  <th>Jumlah</th>
-                  <th>Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {conditionChecks.map((item) => (
-                  <tr key={item.id}>
-                    <td className="font-semibold text-[color:var(--text-strong)]">{item.label}</td>
-                    <td>
-                      <StatusBadge value={item.status === "action" ? "warning" : "success"} label={item.statusLabel} />
-                    </td>
-                    <td>{item.count}</td>
-                    <td className="text-sm text-[color:var(--muted-fg)]">{item.mechanism}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            conditionChecks.map((item) => (
+              <div key={item.id} className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="min-w-0 truncate text-sm font-bold text-[color:var(--text-strong)]">{item.label}</p>
+                  <StatusBadge value={item.status === "action" ? "warning" : "success"} label={item.statusLabel} />
+                </div>
+                <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-[color:var(--text-strong)]">{item.count}</p>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-[color:var(--muted-fg)]">{item.detail}</p>
+              </div>
+            ))
           )}
         </div>
       </OpsPanel>
 
-      <div className="alerts-content-grid grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
+      <div className="alerts-content-grid grid gap-4">
         <OpsPanel className="page-pane alerts-panel p-5">
-          <SectionHeader title="Daftar Peringatan" subtitle="Klik baris untuk detail dan aksi." />
+          <SectionHeader title="Daftar Peringatan" subtitle="Gunakan tombol Detail untuk membuka tindakan di jendela kerja." />
           <div className="page-scroll internal-scrollbar alerts-table-scroll mt-5 table-shell">
             {initialLoading ? (
               <div className="grid gap-3 p-4" aria-label="Memuat daftar peringatan">
@@ -498,7 +494,7 @@ export default function AlertsPage() {
                       <tr
                         key={alert.id}
                         className={selected ? "flight-manifest-row-active cursor-pointer" : "cursor-pointer"}
-                        onClick={() => setSelectedAlertId(alert.id)}
+                        onClick={() => openAlertDetail(alert.id)}
                       >
                         <td>
                           <StatusBadge value={alert.tone} label={severityLabels[alert.severity]} />
@@ -526,14 +522,18 @@ export default function AlertsPage() {
                           </p>
                         </td>
                         <td className="text-right">
-                          <Link
-                            href={alert.href}
-                            className="topbar-button"
-                            onClick={(event) => event.stopPropagation()}
-                            aria-label={`Buka data ${alert.entityLabel}`}
+                          <button
+                            type="button"
+                            className="btn btn-secondary h-9 min-h-9 px-3 text-xs"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openAlertDetail(alert.id);
+                            }}
+                            aria-label={`Buka detail ${alert.entityLabel}`}
                           >
                             <ArrowUpRight size={15} />
-                          </Link>
+                            Detail
+                          </button>
                         </td>
                       </tr>
                     );
@@ -573,8 +573,14 @@ export default function AlertsPage() {
           </div>
         </OpsPanel>
 
-        <OpsPanel className="page-pane alerts-panel p-5">
-          <SectionHeader title="Detail Peringatan" subtitle={selectedAlert ? selectedAlert.entityLabel : "Pilih peringatan"} />
+        <OpsDrawer
+          open={detailOpen && Boolean(selectedAlert)}
+          eyebrow="Detail Peringatan"
+          title={selectedAlert ? selectedAlert.entityLabel : "Pilih Peringatan"}
+          description="Tindakan, penugasan, penundaan, dan tautan perbaikan dikumpulkan di sini agar daftar utama tetap lapang."
+          onClose={() => setDetailOpen(false)}
+          className="alerts-detail-modal"
+        >
           {initialLoading ? (
             <div className="mt-5 grid gap-4" aria-label="Memuat detail peringatan">
               <SkeletonBlock className="h-8 w-48 rounded-[16px]" />
@@ -757,7 +763,7 @@ export default function AlertsPage() {
               className="m-0"
             />
           )}
-        </OpsPanel>
+        </OpsDrawer>
       </div>
     </div>
   );

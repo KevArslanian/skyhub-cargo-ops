@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowUpRight,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -952,12 +953,13 @@ export default function FlightBoardPage() {
                   <th>Berangkat ({OPS_TIME_ZONE_LABEL})</th>
                   <th>Status</th>
                   <th>Pengiriman</th>
+                  <th className="text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {initialLoadPending ? (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <EmptyState icon={PlaneTakeoff} title="Memuat manifest penerbangan" copy="Data penerbangan sedang disiapkan dari basis data." className="m-4" />
                     </td>
                   </tr>
@@ -984,11 +986,24 @@ export default function FlightBoardPage() {
                       <td>{formatDateTime(flight.departureTime)}</td>
                       <td><StatusBadge value={flight.status} label={flight.statusLabel} /></td>
                       <td>{flight.shipments.length}</td>
+                      <td className="text-right">
+                        <button
+                          type="button"
+                          className="btn btn-secondary h-9 min-h-9 px-3 text-xs"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleSelectFlight(flight.id);
+                          }}
+                        >
+                          <ArrowUpRight size={14} />
+                          Detail
+                        </button>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <EmptyState icon={PlaneTakeoff} title="Tidak ada data manifest" copy="Belum ada penerbangan yang sesuai dengan tanggal dan filter yang dipilih." className="m-4" />
                     </td>
                   </tr>

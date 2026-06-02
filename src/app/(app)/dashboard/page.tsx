@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ArrowUpRight,
   BellRing,
   Boxes,
   ChevronLeft,
@@ -513,8 +514,8 @@ export default function DashboardPage() {
      INTERNAL DASHBOARD, REDESIGNED SINGLE-VIEWPORT
      ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="dashboard-fixed-viewport flex h-auto flex-col gap-[14px] overflow-x-hidden">
-      <div className="dashboard-summary-strip grid min-w-0 gap-2">
+    <div className="dashboard-fixed-viewport flex h-auto flex-col gap-[18px] overflow-x-hidden">
+      <div className="dashboard-summary-strip grid min-w-0 gap-3">
         {moduleSummaryCards.map((card) => (
           <DashboardSummaryCard key={`${card.href}-${card.label}`} {...card} />
         ))}
@@ -523,7 +524,7 @@ export default function DashboardPage() {
       {/* ── ROW 1: Analitik + Cutoff ── */}
       <div className="dashboard-adaptive-row dashboard-analytics-row">
         {/* Analitik Operasional */}
-        <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-4 min-w-0 overflow-visible">
+        <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-5 min-w-0 overflow-visible">
           <div className="mb-[10px] flex items-center gap-2">
             <TrendingUp size={16} className="text-[color:var(--brand-primary)]" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Analitik Operasional</p>
@@ -532,7 +533,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Batas terima penerbangan */}
-        <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-4 min-w-0 overflow-visible">
+        <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-5 min-w-0 overflow-visible">
           <div className="mb-[10px] flex items-center gap-2">
             <TowerControl size={14} className="text-[color:var(--brand-primary)] shrink-0" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Batas Terima Penerbangan</p>
@@ -565,8 +566,8 @@ export default function DashboardPage() {
       {/* ── ROW 2: Manifest Prioritas + Pusat Tindakan ── */}
       <div className="dashboard-adaptive-row dashboard-manifest-action-row">
         {/* Manifest Prioritas */}
-        <OpsPanel className="flex h-full flex-col rounded-[18px] p-4 min-w-0 overflow-visible">
-          <div className="flex h-[48px] shrink-0 items-start justify-between gap-3 border-b border-[color:var(--border-soft)]">
+        <OpsPanel className="flex h-full flex-col rounded-[18px] p-5 min-w-0 overflow-visible">
+          <div className="flex h-[54px] shrink-0 items-start justify-between gap-3 border-b border-[color:var(--border-soft)]">
             <div className="min-w-0">
               <h2 className="truncate font-[family:var(--font-heading)] text-[18px] font-extrabold leading-6 tracking-[-0.03em] text-[color:var(--text-strong)]">Manifest Prioritas</h2>
               <p className="mt-0.5 truncate text-[13px] leading-[18px] text-[color:var(--muted-fg)]">{filteredShipments.length} manifest aktif hari ini</p>
@@ -575,8 +576,8 @@ export default function DashboardPage() {
 
           {!loading && filteredShipments.length > 0 ? (
             <>
-              <div className="grid h-[176px] shrink-0 grid-rows-[32px_repeat(4,34px)] min-w-0">
-                <div className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)_76px_86px_38px] items-center gap-3 border-b border-[color:var(--border-soft)] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
+              <div className="grid h-[196px] shrink-0 grid-rows-[36px_repeat(4,40px)] min-w-0">
+                <div className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)_76px_86px_92px] items-center gap-3 border-b border-[color:var(--border-soft)] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
                   <span>AWB</span>
                   <span>Komoditas</span>
                   <span className="hidden sm:block">Rute</span>
@@ -595,13 +596,16 @@ export default function DashboardPage() {
                     <Link
                       key={shipment.id}
                       href={`/shipment-ledger?id=${shipment.id}`}
-                      className="grid h-[34px] min-w-0 grid-cols-[112px_minmax(0,1fr)_76px_86px_38px] items-center gap-3 border-b border-[color:var(--border-soft)] px-3 transition-colors last:border-b-0 hover:bg-[color:var(--panel-muted)]/70"
+                      className="grid h-[40px] min-w-0 grid-cols-[112px_minmax(0,1fr)_76px_86px_92px] items-center gap-3 border-b border-[color:var(--border-soft)] px-3 transition-colors last:border-b-0 hover:bg-[color:var(--panel-muted)]/70"
                     >
                       <span className="truncate font-mono text-xs font-semibold text-[color:var(--brand-primary)]">{shipment.awb}</span>
                       <span className="min-w-0 flex-1 truncate text-xs font-medium text-[color:var(--text-strong)]">{shipment.commodity}</span>
                       <span className="hidden truncate text-[11px] text-[color:var(--muted-fg)] sm:inline">{shipment.origin} → {shipment.destination}</span>
                       <MicroBadge value={shipment.status} label={shipment.statusLabel} />
-                      <span className="shrink-0 text-right text-[11px] font-semibold text-[color:var(--brand-primary)]">Buka</span>
+                      <span className="inline-flex h-8 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] px-3 text-[11px] font-bold text-[color:var(--brand-primary)]">
+                        <ArrowUpRight size={13} />
+                        Detail
+                      </span>
                     </Link>
                   ))}
               </div>
@@ -629,25 +633,31 @@ export default function DashboardPage() {
         </OpsPanel>
 
         {/* Pusat Tindakan */}
-        <OpsPanel className="flex h-full flex-col rounded-[18px] p-4 min-w-0 w-full overflow-visible">
-          <div className="flex h-[44px] shrink-0 items-start justify-between gap-3 border-b border-[color:var(--border-soft)] min-w-0">
+        <OpsPanel className="flex h-full w-full min-w-0 flex-col overflow-visible rounded-[18px] p-5">
+          <div className="flex h-[54px] shrink-0 items-start justify-between gap-3 border-b border-[color:var(--border-soft)] min-w-0">
             <div className="min-w-0">
               <h2 className="truncate font-[family:var(--font-heading)] text-[18px] font-extrabold leading-6 tracking-[-0.03em] text-[color:var(--text-strong)]">Pusat Tindakan</h2>
               <p className="mt-0.5 truncate text-[13px] leading-[17px] text-[color:var(--muted-fg)]">{filteredAlerts.length > 0 ? `${alertPage.visibleStart}-${alertPage.visibleEnd} dari ${filteredAlerts.length} peringatan` : "0 peringatan"}</p>
             </div>
           </div>
-          <div className="mt-0 flex h-[180px] shrink-0 flex-col gap-[8px] min-w-0 overflow-visible">
+          <div className="mt-0 flex h-[196px] shrink-0 flex-col gap-[10px] min-w-0 overflow-visible">
             {filteredAlerts.length ? alertPage.items.map((alert) => (
-              <div key={alert.id} className="flex h-[48px] w-full min-w-0 items-center rounded-[12px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/80 px-3 py-[10px] transition-colors hover:bg-[color:var(--panel-muted)]">
+              <div key={alert.id} className="flex h-[54px] w-full min-w-0 items-center rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/80 px-3 py-[10px] transition-colors hover:bg-[color:var(--panel-muted)]">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: DONUT_ROSE }} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[12px] font-bold leading-[14px] text-[color:var(--text-strong)] break-words">{alert.title}</p>
                     <p className="mt-0.5 line-clamp-1 text-[11px] leading-[14px] text-[color:var(--muted-fg)] break-words">{alert.detail}</p>
                   </div>
-                  <Link href={`/awb-tracking?awb=${alert.awb}`} className="max-w-[96px] shrink-0 break-words text-right text-[11px] font-bold leading-[14px] text-[color:var(--brand-primary)] hover:underline" title={`Buka AWB ${alert.awb}`}>
-                    Buka AWB {alert.awb}
-                  </Link>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Link href="/alerts" className="inline-flex h-8 items-center gap-1 rounded-full border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] px-3 text-[11px] font-bold text-[color:var(--brand-primary)] transition-colors hover:bg-[color:var(--brand-primary)] hover:text-white">
+                      <BellRing size={13} />
+                      Tangani
+                    </Link>
+                    <Link href={`/awb-tracking?awb=${alert.awb}`} className="inline-flex h-8 items-center gap-1 rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-3 text-[11px] font-bold text-[color:var(--text-strong)] transition-colors hover:border-[color:var(--brand-primary)] hover:text-[color:var(--brand-primary)]" title={`Buka AWB ${alert.awb}`}>
+                      AWB
+                    </Link>
+                  </div>
                 </div>
               </div>
             )) : (

@@ -1803,6 +1803,10 @@ textarea {
   width: min(860px, calc(100vw - clamp(24px, 4vw, 64px)));
 }
 
+.alerts-detail-modal {
+  width: min(900px, calc(100vw - clamp(24px, 4vw, 64px)));
+}
+
 body.drawer-open,
 body.confirm-open {
   overflow: hidden;
@@ -2055,7 +2059,7 @@ input[type="checkbox"] {
 }
 
 .dashboard-summary-strip {
-  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .dashboard-summary-card {
@@ -2066,7 +2070,7 @@ input[type="checkbox"] {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
-  gap: 14px;
+  gap: 18px;
   min-width: 0;
 }
 
@@ -2077,21 +2081,21 @@ input[type="checkbox"] {
 
 @media (min-width: 1500px) {
   .dashboard-adaptive-row {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 340px);
+    grid-template-columns: minmax(0, 1fr) minmax(390px, 430px);
   }
 
   .dashboard-analytics-row {
-    height: 164px;
+    height: 176px;
   }
 
   .dashboard-manifest-action-row {
-    height: 286px;
+    height: 326px;
   }
 }
 
 @media (max-width: 1180px) {
   .dashboard-summary-strip {
-    grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   }
 }
 
@@ -3046,7 +3050,7 @@ input[type="checkbox"] {
   .alerts-table-scroll,
   .alerts-detail-scroll {
     flex: 1 1 auto;
-    min-height: clamp(420px, 48vh, 620px);
+    min-height: clamp(420px, 52vh, 660px);
     margin-top: 12px !important;
     overflow-x: auto;
     overflow-y: visible;
@@ -3438,7 +3442,8 @@ input[type="checkbox"] {
   }
 
   .ops-drawer-panel,
-  .flightboard-detail-modal {
+  .flightboard-detail-modal,
+  .alerts-detail-modal {
     width: calc(100vw - 20px);
     max-width: calc(100vw - 20px);
     max-height: calc(100svh - 20px);
