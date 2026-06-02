@@ -433,7 +433,9 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
           className={cn(
             "fixed inset-y-0 left-0 z-50 flex overflow-hidden border-r border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/98 backdrop-blur transition-all duration-200",
             "w-[var(--sidebar-width)] max-w-[calc(100vw-1rem)]",
-            mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+            mobileOpen
+              ? "visible translate-x-0"
+              : "invisible -translate-x-full pointer-events-none lg:visible lg:translate-x-0 lg:pointer-events-auto",
           )}
         >
           <div className="flex min-h-0 w-full flex-col">
