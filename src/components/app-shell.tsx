@@ -83,6 +83,16 @@ const navGroupIconMap = {
   sistem: Settings2,
 } as const;
 
+const ROUTE_LABELS: Array<[string, string]> = [
+  ["/reports", "Laporan"],
+  ["/query", "Pemeriksaan Data"],
+  ["/seed", "Utilitas Seed"],
+  ["/exports/shipments", "Cetak Buku Pengiriman"],
+  ["/exports/flights", "Cetak Manifest Penerbangan"],
+  ["/exports/activity-log", "Cetak Catatan Aktivitas"],
+  ["/exports/awb", "Cetak AWB"],
+];
+
 const ACCENT_COLORS = {
   blue: ["#003d9b", "#0052cc", "#0059cf", "rgba(0, 61, 155, 0.09)"],
   teal: ["#0d766e", "#0d9488", "#14b8a6", "rgba(13, 148, 136, 0.12)"],
@@ -138,7 +148,8 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const visibleNotifications = notificationItems.slice(0, 10);
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
   const showShellSearch = false;
-  const topbarLabel = activeNav.label;
+  const routeLabel = ROUTE_LABELS.find(([route]) => pathname === route || pathname.startsWith(`${route}/`))?.[1];
+  const topbarLabel = routeLabel ?? activeNav.label;
   const displayedNavigationItems = navigation.items.filter((item) => item.href !== "/settings");
   const displayedNavigationGroups = navigation.groups
     .map((group) => ({ ...group, items: group.items.filter((item) => item.href !== "/settings") }))
