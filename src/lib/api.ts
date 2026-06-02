@@ -14,6 +14,11 @@ const UNIQUE_CONSTRAINT_MESSAGES: Record<string, string> = {
 };
 
 const PRISMA_ERROR_MESSAGES: Record<string, { status: number; code: string; message: string }> = {
+  P1001: {
+    status: 503,
+    code: "DATABASE_UNAVAILABLE",
+    message: "Koneksi basis data belum tersedia. Coba beberapa saat lagi.",
+  },
   P2000: {
     status: 400,
     code: "VALUE_TOO_LONG",
