@@ -1,5 +1,5 @@
 import { OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
-import { requireInternalUser } from "@/lib/access";
+import { requireRole } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { getQueryDiagnostics } from "@/lib/query-diagnostics";
 
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function QueryPage() {
   const user = await requireUser();
-  requireInternalUser(user, user.role === "customer" ? "/awb-tracking" : "/dashboard");
+  requireRole(user, ["admin"], "/dashboard");
 
   const diagnostics = await getQueryDiagnostics();
 

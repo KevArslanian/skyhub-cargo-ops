@@ -603,6 +603,13 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
     await expect(page.locator("body")).toContainText("SkyHub");
   }
 
+  for (const route of ["/query", "/seed"]) {
+    await page.goto(apiUrl(route), { waitUntil: "domcontentloaded" }).catch((error: Error) => {
+      if (!error.message.includes("ERR_ABORTED")) throw error;
+    });
+    await expect(page, `${route} harus dibatasi untuk admin`).toHaveURL(/\/dashboard/);
+  }
+
   await page.goto(apiUrl("/alerts"));
   await expect(page.getByText("Peringatan aktif selesai otomatis")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("Perbaiki di").first()).toBeVisible();

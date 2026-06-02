@@ -28,7 +28,7 @@ const CAPABILITY_OPTIONS = [
   { value: "shipment:create", label: "Buat pengiriman", description: "Membuat AWB kargo dan manifest baru" },
   { value: "shipment:update", label: "Ubah pengiriman", description: "Mengubah detail berat, koli, dan status kargo" },
   { value: "shipment:delete", label: "Hapus pengiriman", description: "Menghapus entri kargo dari buku pengiriman" },
-  { value: "shipment:document", label: "Dokumen pengiriman", description: "Mengunggah dan memvalidasi file dokumen manifest" },
+  { value: "shipment:document", label: "Dokumen pengiriman", description: "Mengunggah dan memvalidasi berkas dokumen manifest" },
   { value: "flight:manage", label: "Kelola penerbangan", description: "Membuat, mengubah, dan menjadwalkan penerbangan baru" },
   { value: "payment:verify", label: "Verifikasi bayar", description: "Menyetujui verifikasi pembayaran AWB" },
   { value: "reports:export", label: "Cetak laporan", description: "Mencetak data operasional ke PDF atau penampil peramban" },

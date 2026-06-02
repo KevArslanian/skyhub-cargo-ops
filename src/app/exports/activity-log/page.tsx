@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { canExportReports, requireInternalUser } from "@/lib/access";
 import { redirect } from "next/navigation";
 import { listActivityLogs } from "@/lib/data";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, normalizeOperationalCopy } from "@/lib/format";
 import { AutoPrintReport } from "@/components/auto-print-report";
 import { PrintCenterLayout } from "@/components/print-center-layout";
 import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
@@ -84,7 +84,7 @@ export default async function ActivityLogPrintPage({
                   <td className="font-semibold text-slate-800">{log.userName}</td>
                   <td className="font-semibold text-slate-900">{log.action}</td>
                   <td className="font-mono text-xs text-[#1d4ed8]">{log.targetLabel}</td>
-                  <td>{log.description}</td>
+                  <td>{normalizeOperationalCopy(log.description)}</td>
                   <td>
                     <span className={`print-badge print-badge-${getLogTone(log.level)}`}>{log.level}</span>
                   </td>

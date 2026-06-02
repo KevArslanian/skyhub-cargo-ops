@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Filter, History, Search } from "lucide-react";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, normalizeOperationalCopy } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState, OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
 
@@ -172,7 +172,7 @@ export default function ActivityLogPage() {
                     <td>{log.userName}</td>
                     <td className="font-semibold text-[color:var(--text-strong)]">{log.action}</td>
                     <td className="font-mono text-sm text-[color:var(--brand-primary)]">{log.targetLabel}</td>
-                    <td className="max-w-[460px] text-sm leading-6">{log.description}</td>
+                    <td className="max-w-[460px] text-sm leading-6">{normalizeOperationalCopy(log.description)}</td>
                     <td>
                       <StatusBadge value={log.level} label={log.level} />
                     </td>

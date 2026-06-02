@@ -105,11 +105,11 @@ export async function GET(_request: Request, context: RouteContext) {
       }
     }
 
-    return NextResponse.json({ error: "File tidak ditemukan." }, { status: 404 });
+    return NextResponse.json({ error: "Berkas tidak ditemukan." }, { status: 404 });
   } catch (error) {
     const nextError = error as NodeJS.ErrnoException;
     if (nextError.code === "ENOENT") {
-      return NextResponse.json({ error: "File tidak ditemukan." }, { status: 404 });
+      return NextResponse.json({ error: "Berkas tidak ditemukan." }, { status: 404 });
     }
 
     return routeErrorResponse(error, "Gagal memuat dokumen.");

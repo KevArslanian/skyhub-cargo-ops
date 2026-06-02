@@ -10,6 +10,36 @@ function respondWithError(status: number, code: LoginErrorCode, error: string) {
   return NextResponse.json<LoginResponse>({ error, code }, { status });
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientDatabaseError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientInitializationError ||
+    (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P1001" || error.code === "P2028"))
+  );
+}
+
+async function retryTransientDatabase<T>(operation: () => Promise<T>) {
+  const delays = [450, 900, 1400];
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientDatabaseError(error) || attempt === delays.length) {
+        throw error;
+      }
+      await wait(delays[attempt]);
+    }
+  }
+
+  throw lastError;
+}
+
 export async function POST(request: Request) {
   try {
     const json = await request.json();
@@ -23,16 +53,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const user = await db.user.findUnique({
-      where: { email: parsed.data.email },
-      include: {
-        customerAccount: {
-          select: {
-            status: true,
+    const user = await retryTransientDatabase(() =>
+      db.user.findUnique({
+        where: { email: parsed.data.email },
+        include: {
+          customerAccount: {
+            select: {
+              status: true,
+            },
           },
         },
-      },
-    });
+      }),
+    );
 
     if (!user || !compareSync(parsed.data.password, user.passwordHash)) {
       return respondWithError(401, LOGIN_ERROR_CODES.INVALID_CREDENTIALS, "Surel atau kata sandi tidak cocok.");
@@ -48,16 +80,20 @@ export async function POST(request: Request) {
 
     await createSession(user.id, user.role, parsed.data.remember);
 
-    await db.activityLog.create({
-      data: {
-        userId: user.id,
-        action: "Login",
-        targetType: "session",
-        targetLabel: "Konsol Operasional",
-        description: `${user.name} berhasil login ke sistem.`,
-        level: "success",
-      },
-    });
+    try {
+      await db.activityLog.create({
+        data: {
+          userId: user.id,
+          action: "Login",
+          targetType: "session",
+          targetLabel: "Konsol Operasional",
+          description: `${user.name} berhasil login ke sistem.`,
+          level: "success",
+        },
+      });
+    } catch (error) {
+      console.error("[login-activity-log]", error);
+    }
 
     return NextResponse.json<LoginResponse>({ success: true });
   } catch (error) {

@@ -55,3 +55,10 @@ export function formatNumber(value: number) {
 export function formatWeight(value: number) {
   return `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(value)} kg`;
 }
+
+export function normalizeOperationalCopy(value: string) {
+  return value
+    .replace(/\bfile\b/gi, "berkas")
+    .replace(/\bcleanup\b/gi, "pembersihan")
+    .replace(/\bblob\b/gi, "penyimpanan");
+}

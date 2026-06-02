@@ -2627,7 +2627,7 @@ export async function deleteShipmentDocument(input: {
         targetType: "document",
         targetId: document.id,
         targetLabel: document.fileName,
-        description: `Dokumen ${document.fileName} disembunyikan dari pengiriman ${document.shipment.awb} dan menunggu pembersihan file.`,
+        description: `Dokumen ${document.fileName} disembunyikan dari pengiriman ${document.shipment.awb} dan menunggu pembersihan berkas.`,
         level: "info",
       },
     });
@@ -2648,7 +2648,7 @@ export async function deleteShipmentDocument(input: {
       },
     });
   } catch (error) {
-    warning = "Dokumen berhasil disembunyikan, tetapi pembersihan file gagal. Tim internal perlu menindaklanjuti penyimpanan.";
+    warning = "Dokumen berhasil disembunyikan, tetapi pembersihan berkas gagal. Tim internal perlu menindaklanjuti penyimpanan.";
 
     await db.$transaction(async (tx) => {
       await tx.shipmentDocument.update({
