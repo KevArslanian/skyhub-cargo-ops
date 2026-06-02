@@ -618,7 +618,7 @@ export default function DashboardPage() {
         <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
           <div className="text-xs uppercase tracking-widest text-[color:var(--muted-2)]">Active Shipments</div>
           <div className="mt-1 text-3xl font-bold text-[color:var(--text-strong)]">
-            {loading ? "..." : (data?.shipments?.length ?? 0)}
+            {loading ? "..." : (data?.variant === "customer" ? (data.shipments?.length ?? 0) : (data?.shipmentsToday?.length ?? 0))}
           </div>
           <div className="text-xs text-[color:var(--muted-fg)] mt-1">Total terbuka</div>
         </div>
@@ -626,7 +626,7 @@ export default function DashboardPage() {
         <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
           <div className="text-xs uppercase tracking-widest text-[color:var(--muted-2)]">Open Alerts</div>
           <div className="mt-1 text-3xl font-bold text-[color:var(--text-strong)]">
-            {loading ? "..." : (data?.alerts?.length ?? 0)}
+            {loading ? "..." : (data?.variant === "internal" ? (data.alerts?.length ?? 0) : (data?.actionItems?.length ?? 0))}
           </div>
           <div className="text-xs text-[color:var(--muted-fg)] mt-1">Perlu perhatian</div>
         </div>
@@ -634,7 +634,7 @@ export default function DashboardPage() {
         <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
           <div className="text-xs uppercase tracking-widest text-[color:var(--muted-2)]">Flights Hari Ini</div>
           <div className="mt-1 text-3xl font-bold text-[color:var(--text-strong)]">
-            {loading ? "..." : (data?.flights?.length ?? 0)}
+            {loading ? "..." : (data?.variant === "internal" ? (data.flightsSummary?.length ?? 0) : 0)}
           </div>
           <div className="text-xs text-[color:var(--muted-fg)] mt-1">Terjadwal / aktif</div>
         </div>
