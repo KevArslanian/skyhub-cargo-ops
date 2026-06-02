@@ -15,9 +15,9 @@ const reportRoutes = [
     icon: FileText,
   },
   {
-    title: "Manifest Penerbangan",
+    title: "Management Pesawat",
     href: "/exports/flights",
-    description: "Cetak jadwal penerbangan, batas terima kargo, gate, status, dan jumlah pengiriman per penerbangan.",
+    description: "Cetak jadwal, assignment pesawat, registrasi, gate, status, dan jumlah pengiriman per penerbangan.",
     icon: PlaneTakeoff,
   },
   {
@@ -69,7 +69,7 @@ export default async function ReportsPage() {
         <DataCard
           label="Keluaran"
           value="3 Dokumen + AWB"
-          note="Pengiriman, penerbangan, dan log langsung dibuka ke penampil cetak. AWB dicetak setelah nomor resi ditemukan."
+          note="Pengiriman, management pesawat, dan log langsung dibuka ke penampil cetak. AWB dicetak setelah nomor resi ditemukan."
           icon={Activity}
           tone="success"
         />

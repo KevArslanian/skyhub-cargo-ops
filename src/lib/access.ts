@@ -26,6 +26,7 @@ export type NavigationItem = {
     | "/alerts"
     | "/flight-board"
     | "/activity-log"
+    | "/complaints"
     | "/settings";
   label: string;
   hint: string;
@@ -75,6 +76,7 @@ export const INTERNAL_ONLY_ROUTE_PREFIXES = [
   "/flight-board",
   "/alerts",
   "/activity-log",
+  "/complaints",
   "/exports/shipments",
   "/exports/activity-log",
   "/exports/flights",
@@ -87,6 +89,7 @@ export const PROTECTED_ROUTE_PREFIXES = [
   "/flight-board",
   "/alerts",
   "/activity-log",
+  "/complaints",
   "/settings",
   "/exports",
 ] as const;
@@ -94,8 +97,8 @@ export const PROTECTED_ROUTE_PREFIXES = [
 export const NAVIGATION_ITEMS: NavigationItem[] = [
   {
     href: "/dashboard",
-    label: "Dasbor",
-    hint: "Ringkasan operasional",
+    label: "Pusat Kendali",
+    hint: "Ringkasan utama operasional hari ini",
     groupId: "operasional",
     groupLabel: "Operasional",
     roles: ["admin", "staff"],
@@ -118,8 +121,8 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   },
   {
     href: "/flight-board",
-    label: "Papan Penerbangan",
-    hint: "Batas terima dan manifest penerbangan",
+    label: "Management Pesawat",
+    hint: "Jadwal, kapasitas, dan assignment pesawat",
     groupId: "pemantauan",
     groupLabel: "Pemantauan",
     roles: ["admin", "staff"],
@@ -136,6 +139,14 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     href: "/activity-log",
     label: "Catatan Aktivitas",
     hint: "Jejak audit operasional",
+    groupId: "pemantauan",
+    groupLabel: "Pemantauan",
+    roles: ["admin", "staff"],
+  },
+  {
+    href: "/complaints",
+    label: "Kotak Keluhan",
+    hint: "Laporan publik dari halaman About Us",
     groupId: "pemantauan",
     groupLabel: "Pemantauan",
     roles: ["admin", "staff"],
@@ -265,8 +276,9 @@ export function canManageUsers(user: AccessUser) {
   return hasCapability(user, "users:manage");
 }
 
-export function canManageCustomerAccounts(user: AccessUser) {
-  return hasCapability(user, "customer_accounts:manage");
+export function canManageCustomerAccounts(user?: AccessUser) {
+  void user;
+  return false;
 }
 
 export function canManageShipments(user: AccessUser) {

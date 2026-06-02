@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -13,15 +12,15 @@ import {
   MapPinned,
   Package2,
   PlaneTakeoff,
-  Printer,
   Radar,
   Search,
   TriangleAlert,
 } from "lucide-react";
 import { AWB_REGEX } from "@/lib/constants";
-import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
+import { formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { DataCard, EmptyState, OpsPanel, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
+import { AlertDialog } from "@/components/alert-dialog";
 
 type TrackingLog = {
   id: string;
@@ -73,11 +72,10 @@ export default function AwbTrackingPage() {
   const resultsRef = useRef<HTMLDivElement | null>(null);
   const shouldScrollToResultRef = useRef(Boolean(awbFromQuery));
   const [awb, setAwb] = useState(awbFromQuery);
-  const [error, setError] = useState("");
+  const [alertDialog, setAlertDialog] = useState<{ open: boolean; title: string; description?: string; tone: "error" | "success" | "info" | "warning" }>({ open: false, title: "", tone: "error" });
   const [loading, setLoading] = useState(false);
   const [reportingIssue, setReportingIssue] = useState(false);
-  const [actionMessage, setActionMessage] = useState("");
-  const [actionMessageTone, setActionMessageTone] = useState<"info" | "warning">("info");
+  
   const [shipment, setShipment] = useState<ShipmentPayload>(null);
   const [notFound, setNotFound] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
@@ -98,11 +96,7 @@ export default function AwbTrackingPage() {
     fetchRecentSearches();
   }, [fetchRecentSearches]);
 
-  useEffect(() => {
-    if (!actionMessage) return;
-    const timer = window.setTimeout(() => setActionMessage(""), 2200);
-    return () => window.clearTimeout(timer);
-  }, [actionMessage]);
+
 
   useEffect(() => {
     setRecentPage(1);
@@ -124,11 +118,11 @@ export default function AwbTrackingPage() {
         if (!response.ok) {
           setShipment(null);
           setNotFound(false);
-          setError(payload?.error || "Pelacakan AWB belum bisa dimuat.");
+          setAlertDialog({ open: true, title: "Gagal Memuat", description: payload?.error || "Pelacakan AWB belum bisa dimuat.", tone: "error" });
           return;
         }
 
-        setError("");
+        // error cleared
         setShipment(payload?.shipment ?? null);
         setNotFound(!payload?.shipment);
         fetchRecentSearches();
@@ -158,11 +152,11 @@ export default function AwbTrackingPage() {
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!AWB_REGEX.test(awb.trim())) {
-      setError("Format AWB harus XXX-XXXXXXXX.");
+      setAlertDialog({ open: true, title: "Format Salah", description: "Format AWB harus XXX-XXXXXXXX.", tone: "warning" });
       return;
     }
 
-    setError("");
+    // error cleared
     shouldScrollToResultRef.current = true;
     const nextPath = `/awb-tracking?awb=${encodeURIComponent(awb.trim())}`;
     if (nextPath === `/awb-tracking?awb=${encodeURIComponent(awbFromQuery)}`) {
@@ -187,7 +181,10 @@ export default function AwbTrackingPage() {
   }
 
   async function handleReportIssue() {
-    if (!awbFromQuery) return;
+    if (!awbFromQuery || !AWB_REGEX.test(awbFromQuery.trim())) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Format AWB tidak valid untuk melaporkan masalah.", tone: "warning" });
+      return;
+    }
 
     setReportingIssue(true);
     try {
@@ -199,15 +196,12 @@ export default function AwbTrackingPage() {
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
 
       if (response.ok) {
-        setActionMessageTone("info");
-        setActionMessage("Masalah AWB sudah masuk Pusat Peringatan untuk ditindaklanjuti.");
+        setAlertDialog({ open: true, title: "Berhasil", description: "Masalah AWB sudah masuk Pusat Peringatan untuk ditindaklanjuti.", tone: "success" });
       } else {
-        setActionMessageTone("warning");
-        setActionMessage(payload?.error || "Gagal mencatat masalah AWB.");
+        setAlertDialog({ open: true, title: "Gagal", description: payload?.error || "Gagal mencatat masalah AWB.", tone: "error" });
       }
     } catch {
-      setActionMessageTone("warning");
-      setActionMessage("Koneksi terputus saat mencatat masalah AWB.");
+      setAlertDialog({ open: true, title: "Koneksi Terputus", description: "Koneksi terputus saat mencatat masalah AWB.", tone: "warning" });
     } finally {
       setReportingIssue(false);
     }
@@ -223,48 +217,34 @@ export default function AwbTrackingPage() {
                 title="Input Pelacakan"
                 subtitle="Masukkan nomor AWB untuk membuka status, ringkasan kiriman, dan linimasa event."
               />
-              <form onSubmit={handleSubmit} className="mt-5 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-                <div>
-                  <label className="label">Nomor AWB</label>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
-                    <input
-                      id="awb-tracking-input"
-                      value={awb}
-                      onChange={(event) => setAwb(event.target.value)}
-                      className="input-field input-field-leading h-[56px] text-lg font-semibold tracking-[0.03em]"
-                      placeholder="Contoh: 123-45678901"
-                      aria-describedby="awb-helper-text"
-                    />
+              <form onSubmit={handleSubmit} className="mt-5">
+                <label className="label">Nomor AWB</label>
+                <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_190px] lg:items-start">
+                  <div className="min-w-0">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
+                      <input
+                        id="awb-tracking-input"
+                        value={awb}
+                        onChange={(event) => setAwb(event.target.value)}
+                        className="input-field input-field-leading h-[56px] text-lg font-semibold tracking-[0.03em]"
+                        placeholder="Contoh: 123-45678901"
+                        aria-describedby="awb-helper-text"
+                      />
+                    </div>
+                    <p id="awb-helper-text" className="mt-2 text-xs text-[color:var(--muted-fg)]">
+                      Format: 3 digit - 8 digit (contoh: 123-45678901)
+                    </p>
+                    <AlertDialog open={alertDialog.open} title={alertDialog.title} description={alertDialog.description} tone={alertDialog.tone} onOk={() => setAlertDialog((c) => ({ ...c, open: false }))} />
                   </div>
-                  <p id="awb-helper-text" className="mt-2 text-xs text-[color:var(--muted-fg)]">
-                    Format: 3 digit - 8 digit (contoh: 123-45678901)
-                  </p>
-                  {error ? <p className="mt-2 text-sm text-[color:var(--tone-warning)]">{error}</p> : null}
+                  <button type="submit" className="btn btn-primary h-[56px] w-full justify-center px-6 lg:mt-0">
+                    {loading ? <LoaderCircle size={17} className="animate-spin" /> : <Radar size={16} />}
+                    Lacak
+                  </button>
                 </div>
-                <button type="submit" className="btn btn-primary h-[56px] self-end px-6">
-                  {loading ? <LoaderCircle size={17} className="animate-spin" /> : <Radar size={16} />}
-                  Lacak
-                </button>
               </form>
 
               <div className="mt-4 flex flex-wrap gap-3">
-                {shipment ? (
-                  <Link
-                    href={`/exports/awb?awb=${encodeURIComponent(shipment.awb)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-secondary"
-                  >
-                    <Printer size={16} />
-                    Cetak
-                  </Link>
-                ) : (
-                  <button type="button" className="btn btn-secondary" disabled title="Cetak tersedia setelah hasil pelacakan muncul">
-                    <Printer size={16} />
-                    Cetak
-                  </button>
-                )}
                 <button
                   type="button"
                   className="btn btn-warning"
@@ -277,18 +257,7 @@ export default function AwbTrackingPage() {
                 </button>
               </div>
 
-              {actionMessage ? (
-                <div
-                  className={cn(
-                    "mt-4 rounded-[18px] border px-4 py-3 text-sm font-medium",
-                    actionMessageTone === "warning"
-                      ? "border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]"
-                      : "border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] text-[color:var(--tone-info)]",
-                  )}
-                >
-                  {actionMessage}
-                </div>
-              ) : null}
+
             </div>
 
             <div ref={resultsRef} className="awb-tracking-results scroll-mt-24 p-6">

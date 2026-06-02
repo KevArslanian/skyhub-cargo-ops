@@ -9,6 +9,7 @@ import {
   ChevronDown,
   FolderKanban,
   History,
+  MessageSquare,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -72,6 +73,7 @@ const navIconMap = {
   "/alerts": BellRing,
   "/flight-board": PlaneTakeoff,
   "/activity-log": History,
+  "/complaints": MessageSquare,
   "/settings": Settings2,
 } as const;
 
@@ -86,7 +88,7 @@ const ROUTE_LABELS: Array<[string, string]> = [
   ["/query", "Pemeriksaan Data"],
   ["/seed", "Utilitas Seed"],
   ["/exports/shipments", "Cetak Buku Pengiriman"],
-  ["/exports/flights", "Cetak Manifest Penerbangan"],
+  ["/exports/flights", "Cetak Management Pesawat"],
   ["/exports/activity-log", "Cetak Catatan Aktivitas"],
   ["/exports/awb", "Cetak AWB"],
 ];
@@ -354,7 +356,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       return;
     }
 
-    if (pathname === "/alerts" || pathname === "/activity-log" || pathname === "/dashboard" || pathname === "/settings") {
+    if (pathname === "/alerts" || pathname === "/activity-log" || pathname === "/complaints" || pathname === "/dashboard" || pathname === "/settings") {
       return;
     }
 
@@ -418,8 +420,9 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const searchPlaceholder = useMemo(() => {
     if (pathname === "/dashboard") return "Cari dasbor";
     if (pathname === "/shipment-ledger") return "Cari pengiriman";
-    if (pathname === "/flight-board") return "Cari penerbangan";
+    if (pathname === "/flight-board") return "Cari pesawat atau penerbangan";
     if (pathname === "/alerts") return "Cari peringatan";
+    if (pathname === "/complaints") return "Cari keluhan";
     if (pathname === "/activity-log") return "Cari catatan";
     if (pathname === "/settings") return "Cari pengaturan";
     return "Cari";
@@ -576,7 +579,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-[color:var(--text-strong)]">{user.name}</p>
-                        <p className="truncate text-xs text-[color:var(--muted-fg)]">{ROLE_LABELS[user.role]} | {user.customerAccountName || user.station}</p>
+                        <p className="truncate text-xs text-[color:var(--muted-fg)]">{ROLE_LABELS[user.role]} | {user.station}</p>
                       </div>
                     </div>
                     {canOpenSettings ? (

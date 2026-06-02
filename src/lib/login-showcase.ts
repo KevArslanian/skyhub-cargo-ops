@@ -110,9 +110,9 @@ export const LOGIN_SHOWCASE_SCENES: LoginShowcaseScene[] = [
     id: "suite",
     label: "Adegan 02",
     eyebrow: "Akses Berbasis Peran",
-    title: "Satu portal untuk tim internal dan visibilitas pelanggan.",
+    title: "Satu pintu untuk tim internal dan visibilitas resi pelanggan.",
     description:
-      "Adegan kedua menegaskan bahwa SkyHub melayani dua ritme kerja: pusat kendali internal yang padat, dan portal pelanggan yang lebih ringkas. Keduanya dibedakan melalui akses, bukan dengan memecah brand.",
+      "Adegan kedua menegaskan bahwa SkyHub melayani dua ritme kerja: pusat kendali internal yang padat, dan cek resi pelanggan yang lebih ringkas. Keduanya dibedakan melalui akses, bukan dengan memecah brand.",
     imageSrc: "/auth/login-scene-suite.svg",
     imageAlt: "Refined split-lounge scene blending executive operations mood and partner access atmosphere.",
     sceneTag: "Brand sama, cakupan terpisah",
@@ -120,7 +120,7 @@ export const LOGIN_SHOWCASE_SCENES: LoginShowcaseScene[] = [
     footerRight: "Cakupan dibedakan oleh logika peran, bukan visual yang terpecah",
     filmNote: "Komposisi split memberi sinyal bahwa satu sistem melayani workflow berbeda tanpa kehilangan disiplin visual.",
     facts: [
-      { label: "Persona", value: "Administrator, staf, pelanggan" },
+      { label: "Persona", value: "Administrator, staf, pelanggan cek resi" },
       { label: "Nada navigasi", value: "Terstruktur, manual, tidak gimmick" },
       { label: "Isyarat layout", value: "Adegan terbagi dan panel autentikasi tetap" },
     ],

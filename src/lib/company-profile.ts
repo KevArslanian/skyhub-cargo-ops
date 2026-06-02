@@ -76,7 +76,7 @@ export const COMPANY_HERO_COPY =
   "SkyHub menyatukan pelacakan AWB, papan manifest, pengelolaan pengiriman, audit, peringatan, dan preferensi staf operasional dalam satu sistem operasional yang formal, tenang, dan siap dipakai sepanjang hari.";
 
 export const COMPANY_ABOUT_COPY =
-  "Dirancang untuk staf operasional, admin, dan portal pelanggan, SkyHub menjaga hierarki data tetap tegas: status lebih cepat terbaca, masalah lebih cepat terlihat, dan aksi kerja tetap dekat ke konteks pengiriman.";
+  "Dirancang untuk staf operasional, admin, dan pelanggan yang hanya perlu cek resi, SkyHub menjaga hierarki data tetap tegas: status lebih cepat terbaca, masalah lebih cepat terlihat, dan aksi kerja tetap dekat ke konteks pengiriman.";
 
 export const COMPANY_HERO_PILLS = [
   "Sistem operasi kargo internal",
@@ -98,7 +98,7 @@ export const COMPANY_HERO_METRICS: CompanyFactItem[] = [
   },
   {
     label: "Akses",
-    value: "Staf operasional, admin, dan portal pelanggan",
+    value: "Staf operasional, admin, dan cek resi publik",
   },
 ];
 
@@ -109,7 +109,7 @@ export const COMPANY_FACTS: CompanyFactItem[] = [
   },
   {
     label: "Platform",
-    value: "Pusat kendali internal dengan portal akun pelanggan",
+    value: "Pusat kendali internal dengan akses cek resi publik",
   },
   {
     label: "Cakupan layanan",
@@ -226,7 +226,7 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
     stageNote: "Kartu aktif mendorong visual hero agar identitas perusahaan, cakupan layanan, dan posisi produk terasa hidup sejak layar pertama.",
     sceneFacts: [
       { label: "Status operasional", value: "Normal dan aktif sepanjang shift" },
-      { label: "Cakupan layanan", value: "Pengiriman, penerbangan, audit, portal pelanggan" },
+      { label: "Cakupan layanan", value: "Pengiriman, penerbangan, audit, dan cek resi publik" },
       { label: "Nada visual", value: "Biru-putih, editorial, enterprise" },
     ],
     chips: ["Ruang kerja operasional", "Sistem biru berbasis brand", "Layout enterprise membulat"],
@@ -307,15 +307,15 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
     label: "Akses & Lingkungan",
     title: "Sistem menangani beberapa tipe pengguna dan perilaku ruang kerja yang berbeda.",
     description:
-      "Operator internal membutuhkan pusat kendali yang padat. Portal pelanggan membutuhkan status yang lebih ringkas. Keduanya tetap memakai identitas visual yang sama, namun konteksnya dibedakan oleh akses berbasis peran.",
+      "Operator internal membutuhkan pusat kendali yang padat. Pelanggan membutuhkan akses cek resi yang lebih ringkas. Keduanya tetap memakai identitas visual yang sama, namun konteksnya dibedakan oleh akses berbasis peran.",
     artworkSrc: "/auth/about-stage-atlas.svg",
     artworkAlt: "Adegan lingkungan akses dengan lapisan ruang dan zona kontrol berbasis peran.",
     stageEyebrow: "Lingkungan Akses",
     stageLabel: "Identitas bersama dengan ruang kerja sadar peran",
-    stageNote: "Kartu ini menegaskan bahwa pemisahan portal internal dan portal pelanggan dilakukan lewat akses, bukan lewat brand yang tercerai-berai.",
+    stageNote: "Kartu ini menegaskan bahwa pemisahan workspace internal dan cek resi publik dilakukan lewat akses, bukan lewat brand yang tercerai-berai.",
     sceneFacts: [
       { label: "Pengguna internal", value: "Staf operasional dan admin" },
-      { label: "Portal pelanggan", value: "Status pengiriman dan dokumen ringkas berbasis akun" },
+      { label: "Akses publik", value: "Status pengiriman dan dokumen ringkas berbasis nomor resi" },
       { label: "Perilaku", value: "Menu samping, bar atas, penyegaran, preferensi bersifat personal" },
     ],
     highlights: [
@@ -326,8 +326,8 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
       },
       {
         icon: BriefcaseBusiness,
-        title: "Portal pelanggan",
-        description: "Akun pelanggan melihat status pengiriman, linimasa, dan ringkasan dokumen secara terbatas.",
+        title: "Cek resi publik",
+        description: "Pelanggan melihat status pengiriman, linimasa, dan ringkasan dokumen langsung dari nomor resi.",
       },
       {
         icon: LockKeyhole,

@@ -52,6 +52,12 @@ const optionalCargoDateSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal kirim harus format YYYY-MM-DD.")
   .optional();
 
+const optionalDateRangeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal filter harus format YYYY-MM-DD.")
+  .optional();
+
 function validateFlightDateOrder<T extends { cargoCutoffTime?: string; departureTime?: string; arrivalTime?: string }>(
   value: T,
   context: z.RefinementCtx,
@@ -173,7 +179,7 @@ export const settingsUpdateSchema = z.object({
 export const inviteUserSchema = z.object({
   name: z.string().trim().min(2),
   email: z.email(),
-  role: z.enum(["admin", "staff", "customer"]),
+  role: z.enum(["admin", "staff"]),
   station: z.enum(STATION_OPTIONS),
   customerAccountId: z.string().trim().optional().nullable(),
 });
@@ -181,7 +187,7 @@ export const inviteUserSchema = z.object({
 export const userRoleUpdateSchema = z.object({
   name: z.string().trim().min(2).optional(),
   email: z.email().optional(),
-  role: z.enum(["admin", "staff", "customer"]).optional(),
+  role: z.enum(["admin", "staff"]).optional(),
   status: z.enum(["active", "invited", "disabled"]).optional(),
   station: z.enum(STATION_OPTIONS).optional(),
   customerAccountId: z.string().trim().optional().nullable(),
@@ -277,6 +283,16 @@ export const shipmentListQuerySchema = z.object({
     .transform((value) => (value === "ALL" ? "all" : value))
     .optional(),
   sortBy: z.enum(["updated", "received", "priority"]).optional(),
+  dateFrom: optionalDateRangeSchema,
+  dateTo: optionalDateRangeSchema,
+}).superRefine((value, context) => {
+  if (value.dateFrom && value.dateTo && value.dateTo < value.dateFrom) {
+    context.addIssue({
+      code: "custom",
+      path: ["dateTo"],
+      message: "Tanggal akhir tidak boleh lebih awal dari tanggal awal.",
+    });
+  }
 });
 
 export const flightListQuerySchema = z.object({
@@ -287,9 +303,22 @@ export const flightListQuerySchema = z.object({
     .trim()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  dateFrom: optionalDateRangeSchema,
+  dateTo: optionalDateRangeSchema,
   shift: z.enum(["all", "pagi", "siang", "malam"]).optional(),
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(50).optional(),
+}).superRefine((value, context) => {
+  const start = value.dateFrom ?? value.date;
+  const end = value.dateTo ?? value.dateFrom ?? value.date;
+
+  if (start && end && end < start) {
+    context.addIssue({
+      code: "custom",
+      path: ["dateTo"],
+      message: "Tanggal akhir tidak boleh lebih awal dari tanggal awal.",
+    });
+  }
 });
 
 export const alertActionSchema = z
@@ -309,3 +338,35 @@ export const alertActionSchema = z
       });
     }
   });
+
+export const complaintTopicSchema = z.enum(["shipment", "flight", "document", "service", "other"]);
+export const complaintStatusSchema = z.enum(["new", "in_review", "resolved", "closed"]);
+
+export const publicComplaintCreateSchema = z.object({
+  name: z.string().trim().min(2, "Nama wajib diisi.").max(120, "Nama terlalu panjang."),
+  contact: z
+    .string()
+    .trim()
+    .min(5, "Kontak wajib diisi.")
+    .max(120, "Kontak terlalu panjang.")
+    .refine((value) => {
+      const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+      const phoneValid = PHONE_REGEX.test(value.replace(/\s+/g, ""));
+      return emailValid || phoneValid;
+    }, "Gunakan email valid atau nomor Indonesia."),
+  topic: complaintTopicSchema,
+  referenceNo: z.string().trim().max(40, "Nomor referensi terlalu panjang.").optional().default(""),
+  message: z.string().trim().min(12, "Ceritakan keluhan minimal 12 karakter.").max(2000, "Keluhan terlalu panjang."),
+});
+
+export const complaintListQuerySchema = z.object({
+  query: z.string().trim().max(120).optional(),
+  status: z.union([complaintStatusSchema, z.literal("all")]).optional().default("all"),
+  topic: z.union([complaintTopicSchema, z.literal("all")]).optional().default("all"),
+});
+
+export const complaintStatusUpdateSchema = z.object({
+  status: complaintStatusSchema,
+  resolutionNote: z.string().trim().max(500, "Catatan penyelesaian maksimal 500 karakter.").optional().nullable(),
+});
+

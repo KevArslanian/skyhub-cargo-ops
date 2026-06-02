@@ -19,7 +19,7 @@ function getShipmentTone(status: string): PrintChipTone {
 export default async function ShipmentsPrintPage({
   searchParams,
 }: {
-  searchParams: Promise<{ query?: string; status?: string; flight?: string; sortBy?: string }>;
+  searchParams: Promise<{ query?: string; status?: string; flight?: string; sortBy?: string; dateFrom?: string; dateTo?: string }>;
 }) {
   const user = await requireUser();
   requireInternalUser(user);
@@ -33,6 +33,8 @@ export default async function ShipmentsPrintPage({
     params.status ? `Status: ${params.status}` : null,
     params.flight ? `Penerbangan: ${params.flight}` : null,
     params.sortBy ? `Urut: ${params.sortBy}` : null,
+    params.dateFrom ? `Tanggal awal: ${params.dateFrom}` : null,
+    params.dateTo ? `Tanggal akhir: ${params.dateTo}` : null,
   ]
     .filter(Boolean)
     .join(" | ");
@@ -68,7 +70,7 @@ export default async function ShipmentsPrintPage({
         <table className="print-table min-w-[1180px]">
           <thead>
             <tr>
-              {["AWB", "Tanggal", "Barang", "Pengirim", "Rute", "Jenis", "Tarif", "Kendaraan", "Status"].map((header) => (
+              {["AWB", "Tanggal", "Barang", "Pengirim", "Penerima", "Rute", "Penerbangan", "Berat", "Tarif", "Akun", "Kendaraan", "Dokumen", "Kesiapan", "Status", "Update"].map((header) => (
                 <th key={header}>{header}</th>
               ))}
             </tr>
@@ -85,18 +87,24 @@ export default async function ShipmentsPrintPage({
                     <br />
                     <span className="text-xs text-slate-500">{shipment.senderPhone}</span>
                   </td>
+                  <td>{shipment.consignee}</td>
                   <td className="whitespace-nowrap">{shipment.origin}{" -> "}{shipment.destination}</td>
-                  <td className="whitespace-nowrap">{shipment.cargoMode} / {shipment.serviceType}</td>
+                  <td className="whitespace-nowrap">{shipment.flightNumber || "-"}</td>
+                  <td className="whitespace-nowrap">{shipment.weightKg.toLocaleString("id-ID")} kg / {shipment.pieces} koli</td>
                   <td className="whitespace-nowrap">Rp {shipment.shippingRate.toLocaleString("id-ID")}</td>
+                  <td>{shipment.customerAccountName || "-"}</td>
                   <td className="whitespace-nowrap">{shipment.vehicleCode || shipment.vehicleType}</td>
+                  <td>{shipment.documentSummary.docStatus}</td>
+                  <td>{shipment.readiness}</td>
                   <td>
                     <span className={`print-badge print-badge-${getShipmentTone(shipment.status)}`}>{shipment.statusLabel}</span>
                   </td>
+                  <td className="whitespace-nowrap">{formatDateTime(shipment.updatedAt)}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-500">
+                <td colSpan={15} className="px-4 py-8 text-center text-sm text-slate-500">
                   Tidak ada data pengiriman untuk filter ini.
                 </td>
               </tr>

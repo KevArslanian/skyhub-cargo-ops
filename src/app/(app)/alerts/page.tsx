@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { EmptyState, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
 import { OpsDrawer } from "@/components/ops-drawer";
+import { AlertDialog } from "@/components/alert-dialog";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDateTime } from "@/lib/format";
 
@@ -168,7 +169,7 @@ const responseDeadlineTextClass: Record<"danger" | "warning" | "success", string
 export default function AlertsPage() {
   const [data, setData] = useState<AlertCenterPayload | null>(null);
   const [loadingAlerts, setLoadingAlerts] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  // loadError moved to alertDialog
   const [query, setQuery] = useState("");
   const [severity, setSeverity] = useState("all");
   const [kind, setKind] = useState("all");
@@ -176,8 +177,7 @@ export default function AlertsPage() {
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [alertPage, setAlertPage] = useState(1);
-  const [actionNotice, setActionNotice] = useState("");
-  const [actionNoticeTone, setActionNoticeTone] = useState<"info" | "warning">("info");
+  const [alertDialog, setAlertDialog] = useState<{ open: boolean; title: string; description?: string; tone: "error" | "success" | "info" | "warning" }>({ open: false, title: "", tone: "error" });
   const [pendingAction, setPendingAction] = useState(false);
 
   useEffect(() => {
@@ -194,18 +194,18 @@ export default function AlertsPage() {
 
   const loadAlerts = useCallback(async () => {
     setLoadingAlerts(true);
-    setLoadError("");
+    // loadError cleared
     try {
       const response = await fetch("/api/alerts", { cache: "no-store" });
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        setLoadError(payload.error || "Gagal memuat peringatan operasional.");
+        setAlertDialog({ open: true, title: "Gagal Memuat", description: payload.error || "Gagal memuat peringatan operasional.", tone: "error" });
         return;
       }
       const payload = (await response.json()) as AlertCenterPayload;
       setData(payload);
     } catch {
-      setLoadError("Koneksi terputus saat memuat peringatan operasional.");
+      setAlertDialog({ open: true, title: "Koneksi Terputus", description: "Koneksi terputus saat memuat peringatan operasional.", tone: "warning" });
     } finally {
       setLoadingAlerts(false);
     }
@@ -219,11 +219,7 @@ export default function AlertsPage() {
     return () => window.clearTimeout(timer);
   }, [loadAlerts]);
 
-  useEffect(() => {
-    if (!actionNotice) return;
-    const timer = window.setTimeout(() => setActionNotice(""), 2800);
-    return () => window.clearTimeout(timer);
-  }, [actionNotice]);
+
 
   const kindOptions = useMemo(() => {
     return Array.from(new Set((data?.alerts ?? []).map((alert) => alert.kind))).sort();
@@ -379,8 +375,7 @@ export default function AlertsPage() {
 
         if (!response.ok) {
           const payload = (await response.json().catch(() => ({}))) as { error?: string };
-          setActionNoticeTone("warning");
-          setActionNotice(payload.error || "Gagal memperbarui status peringatan.");
+          setAlertDialog({ open: true, title: "Peringatan", description: payload.error || "Gagal memperbarui status peringatan.", tone: "warning" });
           return;
         }
 
@@ -391,12 +386,10 @@ export default function AlertsPage() {
           resolve: `Peringatan ${alert.entityLabel} ditandai selesai.`,
           reopen: `Peringatan ${alert.entityLabel} dibuka kembali.`,
         };
-        setActionNoticeTone("info");
-        setActionNotice(messages[action]);
+        setAlertDialog({ open: true, title: "Berhasil", description: messages[action], tone: "success" });
         await loadAlerts();
       } catch {
-        setActionNoticeTone("warning");
-        setActionNotice("Koneksi terputus saat memperbarui status peringatan.");
+        setAlertDialog({ open: true, title: "Peringatan", description: "Koneksi terputus saat memperbarui status peringatan.", tone: "warning" });
       } finally {
         setPendingAction(false);
       }
@@ -413,23 +406,7 @@ export default function AlertsPage() {
 
       {filterControls}
 
-      <div role="status" aria-live="polite">
-        {loadError ? (
-          <div className="rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-warning)]">
-            {loadError}
-          </div>
-        ) : actionNotice ? (
-          <div
-            className={
-              actionNoticeTone === "warning"
-                ? "rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-warning)]"
-                : "rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]"
-            }
-          >
-            {actionNotice}
-          </div>
-        ) : null}
-      </div>
+
 
       <div className="alerts-content-grid grid gap-4">
         <OpsPanel className="page-pane alerts-panel p-5">
@@ -680,6 +657,13 @@ export default function AlertsPage() {
           )}
         </OpsDrawer>
       </div>
+      <AlertDialog
+        open={alertDialog.open}
+        title={alertDialog.title}
+        description={alertDialog.description}
+        tone={alertDialog.tone}
+        onOk={() => setAlertDialog((current) => ({ ...current, open: false }))}
+      />
     </div>
   );
 }

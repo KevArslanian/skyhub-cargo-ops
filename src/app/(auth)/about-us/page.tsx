@@ -7,11 +7,17 @@ import {
   ArrowRight,
   Building2,
   Clock3,
+  FileCheck2,
+  LoaderCircle,
   Mail,
   MapPin,
+  Package2,
   Phone,
   Plane,
+  PlaneTakeoff,
+  Radar,
   Satellite,
+  Search,
   Shield,
   X,
 } from "lucide-react";
@@ -29,7 +35,8 @@ import {
   COMPANY_SUPPORT_TIMELINE,
   COMPANY_SWIPE_CARDS,
 } from "@/lib/company-profile";
-import { APP_CANONICAL_URL, APP_NAME } from "@/lib/constants";
+import { APP_NAME, AWB_REGEX } from "@/lib/constants";
+import { cn, formatDateTime, formatWeight } from "@/lib/format";
 import { AboutScrollVideo, type AboutClip } from "@/components/about-scroll-video";
 import { ScrollScene } from "@/components/about-scroll-scene";
 
@@ -48,11 +55,50 @@ type LandingMetricsResponse = {
   generatedAt: string;
 };
 
+type ComplaintFormState = {
+  name: string;
+  contact: string;
+  topic: "shipment" | "flight" | "document" | "service" | "other";
+  referenceNo: string;
+  message: string;
+};
+
+type ComplaintFormErrors = Partial<Record<keyof ComplaintFormState, string>>;
+
+type PublicTrackingLog = {
+  id: string;
+  label: string;
+  status: string;
+  message: string;
+  location: string;
+  actorName: string | null;
+  createdAt: string;
+};
+
+type PublicTrackingShipment = {
+  id: string;
+  awb: string;
+  commodity: string;
+  origin: string;
+  destination: string;
+  status: string;
+  statusLabel: string;
+  shipper: string;
+  consignee: string;
+  pieces: number;
+  weightKg: number;
+  readiness: string;
+  flightNumber: string | null;
+  docStatus: string;
+  updatedAt: string;
+  trackingLogs: PublicTrackingLog[];
+} | null;
+
 const capabilityCard = COMPANY_SWIPE_CARDS.find((card) => card.id === "fokus");
 const CAPABILITIES = capabilityCard?.highlights?.slice(0, 3) ?? [
   {
     icon: Satellite,
-    title: "Papan Penerbangan Langsung",
+    title: "Management Pesawat Langsung",
     description: "Status penerbangan, batas terima kargo, dan penugasan terlihat dari sumber data operasional yang sama.",
   },
   {
@@ -94,8 +140,6 @@ const officeContact = getContact("Kantor");
 const addressContact = getContact("Alamat");
 const phoneContact = getContact("Telepon");
 const opsEmailContact = getContact("Surel operasional");
-const infoEmailContact = getContact("Surel umum");
-const supportEmailContact = getContact("Surel dukungan");
 const hoursContact = getContact("Jam operasional");
 const supportPathContact = getContact("Jalur dukungan");
 
@@ -109,8 +153,13 @@ export default function AboutUsPage() {
   const [password, setPassword] = useState("operator123");
   const [submitting, setSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<{ code?: LoginErrorCode; message: string } | null>(null);
-  const [contactState, setContactState] = useState({ name: "", email: "", message: "" });
-  const [contactNotice, setContactNotice] = useState("");
+  const [complaintState, setComplaintState] = useState<ComplaintFormState>({ name: "", contact: "", topic: "shipment", referenceNo: "", message: "" });
+  const [complaintErrors, setComplaintErrors] = useState<ComplaintFormErrors>({});
+  const [complaintNotice, setComplaintNotice] = useState<{ tone: "info" | "success" | "error"; message: string } | null>(null);
+  const [trackingAwb, setTrackingAwb] = useState("");
+  const [trackingLoading, setTrackingLoading] = useState(false);
+  const [trackingResult, setTrackingResult] = useState<PublicTrackingShipment>(null);
+  const [trackingError, setTrackingError] = useState<string | null>(null);
   const [counter, setCounter] = useState<CounterState>({
     shipments: 0,
     flights: 0,
@@ -176,7 +225,7 @@ export default function AboutUsPage() {
       clampFrame = window.requestAnimationFrame(() => {
         clampFrame = 0;
 
-        const contact = document.getElementById("contact");
+        const contact = document.getElementById("complaints");
         const contactGrid = document.querySelector<HTMLElement>(".premium-contact-grid");
         if (!contact || !contactGrid) {
           return;
@@ -274,10 +323,10 @@ export default function AboutUsPage() {
   }, [startCounterAnimation]);
 
   useEffect(() => {
-    if (!contactNotice) return undefined;
-    const timer = window.setTimeout(() => setContactNotice(""), 3000);
+    if (!complaintNotice) return undefined;
+    const timer = window.setTimeout(() => setComplaintNotice(null), 3000);
     return () => window.clearTimeout(timer);
-  }, [contactNotice]);
+  }, [complaintNotice]);
 
   function scrollToId(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -326,21 +375,135 @@ export default function AboutUsPage() {
     }
   }
 
-  function handleContactSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function isValidContactInput(value: string) {
+    const normalized = value.trim();
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+    const phoneValid = /^(\+62|62|0)8[1-9][0-9]{6,11}$/.test(normalized.replace(/\s+/g, ""));
+    return emailValid || phoneValid;
+  }
+
+  function validateComplaintForm(value: ComplaintFormState) {
+    const errors: ComplaintFormErrors = {};
+
+    if (!value.name.trim()) {
+      errors.name = "Nama wajib diisi.";
+    }
+
+    if (!value.contact.trim()) {
+      errors.contact = "Isi email atau nomor telepon.";
+    } else if (!isValidContactInput(value.contact)) {
+      errors.contact = "Gunakan email valid atau nomor Indonesia, contoh 08123456789.";
+    }
+
+    if (!value.message.trim()) {
+      errors.message = "Uraian keluhan wajib diisi.";
+    } else if (value.message.trim().length < 12) {
+      errors.message = "Uraian keluhan minimal 12 karakter.";
+    }
+
+    return errors;
+  }
+
+  function updateComplaintField<K extends keyof ComplaintFormState>(field: K, nextValue: ComplaintFormState[K]) {
+    setComplaintState((current) => ({ ...current, [field]: nextValue }));
+    setComplaintErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const nextErrors = { ...current };
+      delete nextErrors[field];
+      return nextErrors;
+    });
+  }
+
+  async function handleComplaintSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!contactState.name.trim() || !contactState.email.trim() || !contactState.message.trim()) {
-      setContactNotice("Lengkapi nama, surel, dan pesan terlebih dahulu.");
+    const errors = validateComplaintForm(complaintState);
+    if (Object.keys(errors).length > 0) {
+      setComplaintErrors(errors);
+      setComplaintNotice({
+        tone: "error",
+        message: "Periksa kembali field yang ditandai merah.",
+      });
       return;
     }
 
-    const subject = encodeURIComponent(`SkyHub Inquiry - ${contactState.name}`);
-    const body = encodeURIComponent(
-      `Nama: ${contactState.name}\nSurel: ${contactState.email}\n\nPesan:\n${contactState.message}`,
-    );
+    setComplaintErrors({});
+    setComplaintNotice({ tone: "info", message: "Mengirim keluhan ke tim operasional..." });
 
-    window.location.href = `mailto:${opsEmailContact?.value ?? "ops@skyhub.co"}?subject=${subject}&body=${body}`;
-    setContactNotice("Membuka aplikasi surel...");
+    try {
+      const response = await fetch("/api/public/complaints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(complaintState),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        complaint?: { ticketCode: string };
+        error?: string;
+      } | null;
+
+      if (!response.ok) {
+        setComplaintNotice({
+          tone: "error",
+          message: payload?.error || "Keluhan belum bisa dikirim. Coba lagi sebentar lagi.",
+        });
+        return;
+      }
+
+      const ticketCode = payload?.complaint?.ticketCode;
+      setComplaintState({ name: "", contact: "", topic: "shipment", referenceNo: "", message: "" });
+      setComplaintNotice({
+        tone: "success",
+        message: ticketCode
+          ? `Keluhan diterima dengan nomor tiket ${ticketCode}. Tim operasional akan meninjaunya di Kotak Keluhan.`
+          : "Keluhan diterima. Tim operasional akan meninjaunya di Kotak Keluhan.",
+      });
+    } catch {
+      setComplaintNotice({
+        tone: "error",
+        message: "Koneksi terputus saat mengirim keluhan.",
+      });
+    }
+  }
+
+  async function handleTrackingSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const normalizedAwb = trackingAwb.trim();
+    if (!AWB_REGEX.test(normalizedAwb)) {
+      setTrackingResult(null);
+      setTrackingError("Format resi harus XXX-XXXXXXXX.");
+      return;
+    }
+
+    setTrackingLoading(true);
+    setTrackingError(null);
+
+    try {
+      const response = await fetch(`/api/public/awb?awb=${encodeURIComponent(normalizedAwb)}`, { cache: "no-store" });
+      const payload = (await response.json().catch(() => null)) as { shipment?: PublicTrackingShipment; error?: string } | null;
+
+      if (!response.ok) {
+        setTrackingResult(null);
+        setTrackingError(payload?.error || "Pelacakan resi belum bisa dimuat.");
+        return;
+      }
+
+      if (!payload?.shipment) {
+        setTrackingResult(null);
+        setTrackingError("Resi belum ditemukan. Periksa nomor AWB lalu coba lagi.");
+        return;
+      }
+
+      setTrackingResult(payload.shipment);
+    } catch {
+      setTrackingResult(null);
+      setTrackingError("Koneksi terputus saat memuat pelacakan resi.");
+    } finally {
+      setTrackingLoading(false);
+    }
   }
 
   return (
@@ -370,6 +533,9 @@ export default function AboutUsPage() {
             <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("overview")}>
               Ringkasan
             </button>
+            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("tracking")}>
+              Cek Resi
+            </button>
             <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("about")}>
               Tentang Kami
             </button>
@@ -383,8 +549,8 @@ export default function AboutUsPage() {
             <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("operations")}>
               Operasi
             </button>
-            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("contact")}>
-              Kontak
+            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("complaints")}>
+              Keluhan
             </button>
           </div>
         </div>
@@ -422,6 +588,136 @@ export default function AboutUsPage() {
             >
               Jelajahi Platform
             </button>
+          </div>
+        </div>
+      </ScrollScene>
+
+      <ScrollScene variant="left" id="tracking" data-video-clip="1" className="premium-fluid-shell border-t border-white/10 py-24">
+        <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+          <div className="premium-glass premium-reveal rounded-[32px] border border-white/10 p-8 sm:p-10">
+            <div className="premium-kicker text-xs tracking-[4px]">CEK RESI LANGSUNG</div>
+            <h2 className="mt-4 text-5xl font-semibold tracking-tight sm:text-6xl">
+              Pelanggan cukup datang, staff input shipment, resi langsung bisa dicek.
+            </h2>
+            <p className="mt-5 max-w-3xl text-lg text-white/68">
+              Setelah shipment dibuat, resi langsung dicetak untuk pelanggan. Di halaman awal ini pelanggan tinggal masukkan AWB untuk memantau status terbaru tanpa login.
+            </p>
+
+            <form onSubmit={handleTrackingSubmit} className="mt-8 space-y-4">
+              <label className="text-xs font-semibold tracking-[0.26em] text-white/58">NOMOR RESI / AWB</label>
+              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_190px] md:items-start">
+                <div className="min-w-0">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-white/42" />
+                    <input
+                      type="text"
+                      value={trackingAwb}
+                      onChange={(event) => setTrackingAwb(event.target.value)}
+                      placeholder="Contoh: 123-45678901"
+                      className="h-[62px] w-full rounded-[24px] border border-white/14 bg-white/[0.05] pl-14 pr-5 text-lg font-semibold text-white outline-none transition focus:border-[#0f7bff] focus:bg-white/[0.07]"
+                    />
+                  </div>
+                  <p className="mt-3 text-sm text-white/48">Format resi: 3 digit - 8 digit. Contoh: 123-45678901.</p>
+                  {trackingError ? <p className="mt-2 text-sm text-[#ff7b7d]">{trackingError}</p> : null}
+                </div>
+                <button
+                  type="submit"
+                  className="flex h-[62px] w-full items-center justify-center gap-3 rounded-[24px] bg-[#0f7bff] px-6 text-lg font-semibold text-white transition hover:bg-[#2c92ff] disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={trackingLoading}
+                >
+                  {trackingLoading ? <LoaderCircle size={18} className="animate-spin" /> : <Radar size={18} />}
+                  Cek Resi
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div className="premium-glass premium-reveal rounded-[32px] border border-white/10 p-8 sm:p-10">
+            {trackingResult ? (
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold tracking-[0.24em] text-white/48">STATUS RESI</p>
+                    <h3 className="mt-3 font-mono text-3xl font-semibold tracking-[-0.03em] text-white">{trackingResult.awb}</h3>
+                    <p className="mt-2 text-sm text-white/55">
+                      {trackingResult.origin} {" -> "} {trackingResult.destination}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-[#0f7bff55] bg-[#0f7bff1f] px-4 py-2 text-sm font-semibold text-[#9fd1ff]">
+                    {trackingResult.statusLabel}
+                  </span>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+                    <div className="flex items-center gap-3 text-[#9fd1ff]">
+                      <Package2 size={18} />
+                      <p className="text-xs font-semibold tracking-[0.18em] text-white/48">KARGO</p>
+                    </div>
+                    <p className="mt-3 text-lg font-semibold text-white">{trackingResult.commodity}</p>
+                    <p className="mt-1 text-sm text-white/55">{formatWeight(trackingResult.weightKg)} • {trackingResult.pieces} koli</p>
+                  </div>
+                  <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+                    <div className="flex items-center gap-3 text-[#9fd1ff]">
+                      <PlaneTakeoff size={18} />
+                      <p className="text-xs font-semibold tracking-[0.18em] text-white/48">PENERBANGAN</p>
+                    </div>
+                    <p className="mt-3 text-lg font-semibold text-white">{trackingResult.flightNumber || "Belum ditugaskan"}</p>
+                    <p className="mt-1 text-sm text-white/55">Update {formatDateTime(trackingResult.updatedAt)}</p>
+                  </div>
+                  <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+                    <div className="flex items-center gap-3 text-[#9fd1ff]">
+                      <FileCheck2 size={18} />
+                      <p className="text-xs font-semibold tracking-[0.18em] text-white/48">DOKUMEN</p>
+                    </div>
+                    <p className="mt-3 text-lg font-semibold text-white">{trackingResult.docStatus}</p>
+                    <p className="mt-1 text-sm text-white/55">Kesiapan {trackingResult.readiness}</p>
+                  </div>
+                  <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+                    <div className="flex items-center gap-3 text-[#9fd1ff]">
+                      <Plane size={18} />
+                      <p className="text-xs font-semibold tracking-[0.18em] text-white/48">PENGIRIMAN</p>
+                    </div>
+                    <p className="mt-3 text-lg font-semibold text-white">{trackingResult.shipper}</p>
+                    <p className="mt-1 text-sm text-white/55">Penerima: {trackingResult.consignee}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold tracking-[0.24em] text-white/48">LINIMASA TERBARU</p>
+                  <div className="mt-4 space-y-3">
+                    {trackingResult.trackingLogs.length ? (
+                      trackingResult.trackingLogs.slice(-3).reverse().map((log) => (
+                        <div key={log.id} className="rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-white">{log.label}</p>
+                              <p className="mt-1 text-sm text-white/58">{log.message}</p>
+                            </div>
+                            <p className="text-xs text-white/45">{formatDateTime(log.createdAt)}</p>
+                          </div>
+                          <p className="mt-3 text-xs text-white/45">{log.location} • {log.actorName || "Sistem"}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-[22px] border border-dashed border-white/14 bg-white/[0.03] px-4 py-6 text-sm text-white/55">
+                        Belum ada event pelacakan yang bisa ditampilkan.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[28px] border border-dashed border-white/12 bg-white/[0.03] px-8 py-10 text-center">
+                <div className="flex h-20 w-20 items-center justify-center rounded-[28px] bg-white/[0.06] text-[#0f7bff]">
+                  <Radar size={34} />
+                </div>
+                <h3 className="mt-8 text-3xl font-semibold tracking-tight text-white">Cek resi dari halaman awal</h3>
+                <p className="mt-4 max-w-md text-base text-white/55">
+                  Masukkan AWB di sisi kiri untuk melihat status, rute, dokumen, dan linimasa kiriman terbaru tanpa perlu login pelanggan.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </ScrollScene>
@@ -572,78 +868,137 @@ export default function AboutUsPage() {
         </div>
       </ScrollScene>
 
-      <ScrollScene revealOnce variant="left" id="contact" data-video-clip="3" className="premium-fluid-shell pt-24 pb-8">
+      <ScrollScene revealOnce variant="left" id="complaints" data-video-clip="3" className="premium-fluid-shell pt-24 pb-8">
         <div className="premium-contact-grid grid gap-16">
-          <div className="premium-reveal">
-            <div className="premium-kicker text-xs tracking-[4px]">HUBUNGI KAMI</div>
-            <h3 className="mb-8 mt-3 text-6xl font-semibold tracking-tight">
-              Bangun operasi kargo udara yang lebih siap bersama SkyHub.
+          <div className="premium-reveal premium-complaint-intro">
+            <div className="premium-kicker text-xs tracking-[4px]">KOTAK KELUHAN</div>
+            <h3 className="premium-complaint-title mt-3 text-5xl font-semibold tracking-tight md:text-6xl">
+              Laporkan kendala operasional ke tim SkyHub.
             </h3>
 
-            <div className="space-y-6 text-lg">
-              <div>
-                <div className="font-medium">{infoEmailContact?.label ?? "Surel umum"}</div>
-                <a href={infoEmailContact?.href ?? "mailto:info@skyhub.co"} className="premium-link">
-                  {infoEmailContact?.value ?? "info@skyhub.co"}
-                </a>
-              </div>
-              <div>
-                <div className="font-medium">{opsEmailContact?.label ?? "Surel operasional"}</div>
-                <a href={opsEmailContact?.href ?? "mailto:ops@skyhub.co"} className="premium-link">
-                  {opsEmailContact?.value ?? "ops@skyhub.co"}
-                </a>
-              </div>
-              <div>
-                <div className="font-medium">{supportEmailContact?.label ?? "Surel dukungan"}</div>
-                <a href={supportEmailContact?.href ?? "mailto:support@skyhub.co"} className="premium-link">
-                  {supportEmailContact?.value ?? "support@skyhub.co"}
-                </a>
-              </div>
-              <div>
-                <div className="font-medium">Link resmi aplikasi</div>
-                <a href={APP_CANONICAL_URL} className="premium-link">
-                  {APP_CANONICAL_URL}
-                </a>
-              </div>
+            <p className="premium-complaint-lead">
+              Laporan masuk ke <strong>Kotak Keluhan</strong> di aplikasi operasional untuk ditinjau tim yang bertugas.
+            </p>
+
+            <div className="premium-complaint-checklist">
+              <span className="premium-complaint-checklist-label">Siapkan</span>
+              <ul>
+                <li>Nama dan kontak aktif</li>
+                <li>Topik: pengiriman, penerbangan, dokumen, atau layanan</li>
+                <li>AWB atau referensi (jika ada)</li>
+                <li>Uraian singkat kejadian</li>
+              </ul>
             </div>
+
+            <dl className="premium-complaint-meta">
+              <div>
+                <dt>{supportPathContact?.label ?? "Jalur dukungan"}</dt>
+                <dd>{supportPathContact?.value ?? "Kotak Keluhan di aplikasi operasional"}</dd>
+              </div>
+              <div>
+                <dt>{hoursContact?.label ?? "Jam operasional"}</dt>
+                <dd>{hoursContact?.value ?? "Senin - Jumat, 08:00 - 17:00 WIB"}</dd>
+              </div>
+            </dl>
           </div>
 
           <div className="premium-glass premium-contact-form-card rounded-3xl border border-white/10 p-9">
-            <form className="space-y-5" onSubmit={handleContactSubmit}>
+            <form className="space-y-5" onSubmit={handleComplaintSubmit}>
               <div>
                 <label className="text-xs tracking-widest text-white/60">NAMA ANDA</label>
                 <input
                   type="text"
-                  className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
-                  value={contactState.name}
-                  onChange={(event) => setContactState((current) => ({ ...current, name: event.target.value }))}
+                  className={cn(
+                    "mt-2 w-full rounded-2xl border bg-white/5 px-5 py-3.5 text-sm focus:outline-none",
+                    complaintErrors.name
+                      ? "border-[#ff4d4f] text-white focus:border-[#ff4d4f]"
+                      : "border-white/20 focus:border-[#0066ff]",
+                  )}
+                  value={complaintState.name}
+                  onChange={(event) => updateComplaintField("name", event.target.value)}
                 />
+                {complaintErrors.name ? <p className="mt-2 text-sm text-[#ff6b6d]">{complaintErrors.name}</p> : null}
               </div>
               <div>
-                <label className="text-xs tracking-widest text-white/60">ALAMAT EMAIL</label>
+                <label className="text-xs tracking-widest text-white/60">EMAIL ATAU NOMOR TELEPON</label>
                 <input
-                  type="email"
+                  type="text"
+                  inputMode="email"
+                  className={cn(
+                    "mt-2 w-full rounded-2xl border bg-white/5 px-5 py-3.5 text-sm focus:outline-none",
+                    complaintErrors.contact
+                      ? "border-[#ff4d4f] text-white focus:border-[#ff4d4f]"
+                      : "border-white/20 focus:border-[#0066ff]",
+                  )}
+                  value={complaintState.contact}
+                  onChange={(event) => updateComplaintField("contact", event.target.value)}
+                />
+                {complaintErrors.contact ? <p className="mt-2 text-sm text-[#ff6b6d]">{complaintErrors.contact}</p> : null}
+              </div>
+              <div>
+                <label className="text-xs tracking-widest text-white/60">TOPIK KELUHAN</label>
+                <select
+                  className={cn(
+                    "mt-2 w-full rounded-2xl border bg-white/5 px-5 py-3.5 text-sm focus:outline-none",
+                    complaintErrors.topic
+                      ? "border-[#ff4d4f] text-white focus:border-[#ff4d4f]"
+                      : "border-white/20 focus:border-[#0066ff]",
+                  )}
+                  value={complaintState.topic}
+                  onChange={(event) => updateComplaintField("topic", event.target.value as ComplaintFormState["topic"])}
+                >
+                  <option value="shipment">Pengiriman / AWB</option>
+                  <option value="flight">Penerbangan</option>
+                  <option value="document">Dokumen</option>
+                  <option value="service">Layanan</option>
+                  <option value="other">Lainnya</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs tracking-widest text-white/60">NOMOR AWB / REFERENSI (OPSIONAL)</label>
+                <input
+                  type="text"
                   className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
-                  value={contactState.email}
-                  onChange={(event) => setContactState((current) => ({ ...current, email: event.target.value }))}
+                  value={complaintState.referenceNo}
+                  onChange={(event) => updateComplaintField("referenceNo", event.target.value)}
+                  placeholder="Contoh: CGK-12345678"
                 />
               </div>
               <div>
-                <label className="text-xs tracking-widest text-white/60">PESAN</label>
+                <label className="text-xs tracking-widest text-white/60">URAIAN KELUHAN</label>
                 <textarea
                   rows={4}
-                  className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
-                  value={contactState.message}
-                  onChange={(event) => setContactState((current) => ({ ...current, message: event.target.value }))}
+                  className={cn(
+                    "mt-2 w-full rounded-2xl border bg-white/5 px-5 py-3.5 text-sm focus:outline-none",
+                    complaintErrors.message
+                      ? "border-[#ff4d4f] text-white focus:border-[#ff4d4f]"
+                      : "border-white/20 focus:border-[#0066ff]",
+                  )}
+                  value={complaintState.message}
+                  onChange={(event) => updateComplaintField("message", event.target.value)}
                 />
+                {complaintErrors.message ? <p className="mt-2 text-sm text-[#ff6b6d]">{complaintErrors.message}</p> : null}
               </div>
               <button
                 type="submit"
                 className="w-full rounded-2xl bg-white py-4 font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white"
               >
-                KIRIM PESAN
+                KIRIM KELUHAN
               </button>
-              {contactNotice ? <p className="text-center text-sm text-[#66a8ff]">{contactNotice}</p> : null}
+              {complaintNotice ? (
+                <p
+                  className={cn(
+                    "text-center text-sm",
+                    complaintNotice.tone === "error"
+                      ? "text-[#ff6b6d]"
+                      : complaintNotice.tone === "success"
+                        ? "text-[#8dd0ff]"
+                        : "text-[#66a8ff]",
+                  )}
+                >
+                  {complaintNotice.message}
+                </p>
+              ) : null}
             </form>
           </div>
         </div>
@@ -849,7 +1204,103 @@ export default function AboutUsPage() {
           align-items: start;
         }
 
-        :global(#contact) {
+        .premium-complaint-title {
+          margin-bottom: clamp(1.25rem, 2.5vw, 1.75rem);
+          max-width: 14ch;
+          line-height: 1.05;
+        }
+
+        .premium-complaint-intro {
+          display: flex;
+          flex-direction: column;
+          gap: clamp(1.25rem, 2.2vw, 1.75rem);
+          max-width: 36rem;
+        }
+
+        .premium-complaint-lead {
+          margin: 0;
+          font-size: clamp(1rem, 1.05vw + 0.85rem, 1.125rem);
+          line-height: 1.55;
+          color: rgb(255 255 255 / 0.72);
+        }
+
+        .premium-complaint-lead strong {
+          font-weight: 600;
+          color: rgb(255 255 255 / 0.92);
+        }
+
+        .premium-complaint-checklist {
+          padding: clamp(1rem, 1.5vw, 1.25rem) clamp(1.1rem, 1.8vw, 1.35rem);
+          border-radius: 1.25rem;
+          border: 1px solid rgb(255 255 255 / 0.1);
+          background: rgb(255 255 255 / 0.04);
+        }
+
+        .premium-complaint-checklist-label {
+          display: block;
+          margin-bottom: 0.65rem;
+          font-size: 0.6875rem;
+          font-weight: 600;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: rgb(255 255 255 / 0.5);
+        }
+
+        .premium-complaint-checklist ul {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          display: grid;
+          gap: 0.5rem;
+        }
+
+        .premium-complaint-checklist li {
+          position: relative;
+          padding-left: 1.15rem;
+          font-size: 0.9375rem;
+          line-height: 1.45;
+          color: rgb(255 255 255 / 0.78);
+        }
+
+        .premium-complaint-checklist li::before {
+          content: "";
+          position: absolute;
+          left: 0;
+          top: 0.55em;
+          width: 0.35rem;
+          height: 0.35rem;
+          border-radius: 999px;
+          background: rgb(0 102 255 / 0.85);
+        }
+
+        .premium-complaint-meta {
+          margin: 0;
+          display: grid;
+          gap: 0.85rem;
+          padding-top: 0.15rem;
+        }
+
+        .premium-complaint-meta div {
+          display: grid;
+          gap: 0.2rem;
+        }
+
+        .premium-complaint-meta dt {
+          font-size: 0.6875rem;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: rgb(255 255 255 / 0.45);
+        }
+
+        .premium-complaint-meta dd {
+          margin: 0;
+          font-size: 0.9375rem;
+          line-height: 1.45;
+          color: rgb(255 255 255 / 0.8);
+        }
+
+        :global(#complaints) {
           display: flex;
           align-items: flex-start;
           scroll-margin-top: 5.75rem;

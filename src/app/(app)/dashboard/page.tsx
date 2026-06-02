@@ -21,7 +21,6 @@ import {
 import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState, OpsPanel, PageHeader, SectionHeader, SkeletonBlock, StatCard } from "@/components/ops-ui";
-import { MiniDonutGroup, type DonutSegment } from "@/components/donut-chart";
 
 /* ── Premium HSL Palette ── */
 const DONUT_INDIGO = "hsl(226, 70%, 50%)";
@@ -39,6 +38,7 @@ type BaseShipment = {
   destination: string;
   pieces: number;
   weightKg: number;
+  shippingRate: number;
   status: string;
   statusLabel: string;
   flightNumber: string | null;
@@ -241,6 +241,137 @@ function textMatchesQuery(values: Array<string | number | null | undefined>, que
   return !n || values.join(" ").toLowerCase().includes(n);
 }
 
+function DashboardChartCard({
+  title,
+  subtitle,
+  metric,
+  accent,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  metric: string;
+  accent: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-4 min-w-0">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">{title}</p>
+          <p className="mt-1 text-xs text-[color:var(--muted-fg)]">{subtitle}</p>
+        </div>
+        <strong className="shrink-0 rounded-full px-3 py-1 text-xs font-bold" style={{ color: accent, backgroundColor: `${accent}18` }}>
+          {metric}
+        </strong>
+      </div>
+      <div className="mt-4">{children}</div>
+    </div>
+  );
+}
+
+function VerticalBarChart({
+  items,
+  color,
+}: {
+  items: { label: string; value: number }[];
+  color: string;
+}) {
+  const maxValue = Math.max(...items.map((item) => item.value), 1);
+
+  return (
+    <div className="grid grid-cols-6 gap-2">
+      {items.map((item) => (
+        <div key={item.label} className="flex min-w-0 flex-col items-center gap-2">
+          <div className="flex h-[108px] w-full items-end rounded-[14px] bg-[color:var(--panel-muted)]/85 p-2">
+            <div
+              className="w-full rounded-[10px] transition-[height]"
+              style={{ height: `${Math.max(8, (item.value / maxValue) * 100)}%`, backgroundColor: color }}
+            />
+          </div>
+          <div className="text-center">
+            <p className="text-xs font-semibold text-[color:var(--text-strong)]">{item.value}</p>
+            <p className="text-[10px] uppercase tracking-[0.1em] text-[color:var(--muted-fg)]">{item.label}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TrendLineChart({
+  items,
+  color,
+}: {
+  items: { label: string; value: number }[];
+  color: string;
+}) {
+  const width = 300;
+  const height = 110;
+  const padding = 12;
+  const maxValue = Math.max(...items.map((item) => item.value), 1);
+  const stepX = items.length > 1 ? (width - padding * 2) / (items.length - 1) : 0;
+  const points = items.map((item, index) => {
+    const x = padding + index * stepX;
+    const y = height - padding - (item.value / maxValue) * (height - padding * 2);
+    return { ...item, x, y };
+  });
+  const polyline = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const area = points.length
+    ? `${padding},${height - padding} ${polyline} ${width - padding},${height - padding}`
+    : "";
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-[120px] w-full overflow-visible">
+        <path d={`M ${padding} ${height - padding} H ${width - padding}`} stroke="rgba(148, 163, 184, 0.35)" strokeWidth="1.5" fill="none" />
+        {area ? <polygon points={area} fill={`${color}18`} /> : null}
+        <polyline points={polyline} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((point) => (
+          <circle key={point.label} cx={point.x} cy={point.y} r="4" fill={color} />
+        ))}
+      </svg>
+      <div className="mt-2 grid grid-cols-6 gap-2">
+        {items.map((item) => (
+          <div key={item.label} className="text-center">
+            <p className="text-xs font-semibold text-[color:var(--text-strong)]">{item.value}</p>
+            <p className="text-[10px] uppercase tracking-[0.1em] text-[color:var(--muted-fg)]">{item.label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SegmentedProgressChart({
+  items,
+}: {
+  items: { label: string; value: number; color: string }[];
+}) {
+  const total = Math.max(items.reduce((sum, item) => sum + item.value, 0), 1);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex h-4 overflow-hidden rounded-full bg-[color:var(--panel-muted)]">
+        {items.map((item) => (
+          <div key={item.label} style={{ width: `${(item.value / total) * 100}%`, backgroundColor: item.color }} />
+        ))}
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item.label} className="flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="font-semibold text-[color:var(--text-strong)]">{item.label}</span>
+            </div>
+            <span className="text-[color:var(--muted-fg)]">{item.value.toLocaleString("id-ID")}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -321,7 +452,6 @@ export default function DashboardPage() {
 
   const activeLoaded = shipmentsToday.filter((s) => s.status === "loaded_to_aircraft").length;
   const holdsToday = internalData?.metrics.holds ?? 0;
-  const inProcess = shipmentsToday.length - activeLoaded - holdsToday;
 
   const onTime = internalData?.metrics.onTime ?? 0;
   const delayed = internalData?.metrics.delayed ?? 0;
@@ -330,42 +460,56 @@ export default function DashboardPage() {
   const actionUrgent = alertsToday.length;
   const actionControlled = Math.max(0, 8 - actionUrgent);
 
-  /* ── Donut chart data ── */
-  const shipmentDonut: DonutSegment[] = [
-    { label: "Sudah Muat", value: activeLoaded, color: DONUT_EMERALD },
-    { label: "Diproses", value: Math.max(0, inProcess), color: DONUT_INDIGO },
-    { label: "Tertahan", value: holdsToday, color: DONUT_AMBER },
-  ];
-  const shipmentDonutTotal = shipmentsToday.length || 0;
-
-  const flightDonut: DonutSegment[] = [
-    { label: "On-Time", value: onTime, color: DONUT_EMERALD },
-    { label: "Delayed", value: delayed, color: DONUT_AMBER },
-    { label: "Departed", value: departed, color: DONUT_SKY },
-  ];
-  const flightDonutTotal = flightsToday.length || 0;
-
-  const actionDonut: DonutSegment[] = [
-    { label: "Mendesak", value: actionUrgent, color: DONUT_ROSE },
-    { label: "Terkendali", value: actionControlled, color: DONUT_SLATE },
-  ];
-  const actionDonutTotal = 8;
-
-  const donutCharts = [
-    { title: "Alur Pengiriman", total: shipmentDonutTotal, segments: shipmentDonut },
-    { title: "Status Penerbangan", total: flightDonutTotal, segments: flightDonut },
-    { title: "Beban Tindakan", total: actionDonutTotal, segments: actionDonut },
-  ];
-
   const totalWeightKg = shipmentsToday.reduce((sum, shipment) => sum + shipment.weightKg, 0);
+  const totalRevenue = shipmentsToday.reduce((sum, shipment) => sum + shipment.shippingRate, 0);
   const assignedFlightCount = shipmentsToday.filter((shipment) => shipment.flightNumber).length;
   const pendingDocsCount = shipmentsToday.filter((shipment) => shipment.docStatus.toLowerCase() !== "complete").length;
   const readinessIssuesCount = shipmentsToday.filter((shipment) => shipment.status === "hold").length + pendingDocsCount;
   const activityIssueCount = (internalData?.recentActivity ?? []).filter(
     (activity) => activity.level === "warning" || activity.level === "error",
   ).length;
+  const shipmentFlowBars = useMemo(
+    () => [
+      { label: "Diterima", value: shipmentsToday.filter((shipment) => shipment.status === "received").length },
+      { label: "Sortasi", value: shipmentsToday.filter((shipment) => shipment.status === "sortation").length },
+      { label: "Muat", value: activeLoaded },
+      { label: "Hold", value: holdsToday },
+      { label: "Tiba", value: shipmentsToday.filter((shipment) => shipment.status === "arrived").length },
+      { label: "Dok", value: pendingDocsCount },
+    ],
+    [activeLoaded, holdsToday, pendingDocsCount, shipmentsToday],
+  );
+  const hourlyTrend = useMemo(() => {
+    const buckets = ["00-03", "04-07", "08-11", "12-15", "16-19", "20-23"].map((label, index) => ({
+      label,
+      value: 0,
+      startHour: index * 4,
+    }));
+
+    for (const shipment of shipmentsToday) {
+      const hour = new Date(shipment.receivedAt).getHours();
+      const bucket = Math.min(Math.floor(hour / 4), buckets.length - 1);
+      buckets[bucket].value += shipment.shippingRate;
+    }
+
+    return buckets.map(({ label, value }) => ({
+      label,
+      value: Math.round(value / 100000),
+    }));
+  }, [shipmentsToday]);
+  const actionSegments = useMemo(
+    () => [
+      { label: "Tepat waktu", value: onTime, color: DONUT_EMERALD },
+      { label: "Terlambat", value: delayed, color: DONUT_AMBER },
+      { label: "Berangkat", value: departed, color: DONUT_SKY },
+      { label: "Peringatan", value: actionUrgent, color: DONUT_ROSE },
+      { label: "Terkendali", value: actionControlled, color: DONUT_SLATE },
+    ],
+    [actionControlled, actionUrgent, delayed, departed, onTime],
+  );
   const moduleSummaryCards = [
     { href: "/shipment-ledger", label: "Pengiriman", value: shipmentsToday.length, icon: Boxes, tone: "primary" as const },
+    { href: "/shipment-ledger", label: "Pendapatan", value: `Rp ${totalRevenue.toLocaleString("id-ID")}`, icon: TrendingUp, tone: "success" as const },
     { href: "/shipment-ledger", label: "Berat", value: formatWeight(totalWeightKg), icon: PackageSearch, tone: "success" as const },
     { href: "/shipment-ledger", label: "Terhubung", value: assignedFlightCount, icon: PackageCheck, tone: "info" as const },
     { href: "/shipment-ledger?status=review", label: "Tinjauan", value: readinessIssuesCount, icon: ShieldAlert, tone: "warning" as const },
@@ -524,22 +668,41 @@ export default function DashboardPage() {
       {/* ── ROW 1: Analitik + Cutoff ── */}
       <div className="dashboard-adaptive-row dashboard-analytics-row">
         {/* Analitik Operasional */}
-        <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-5 min-w-0 overflow-hidden">
-          <div className="mb-[10px] flex items-center gap-2">
-            <TrendingUp size={16} className="text-[color:var(--brand-primary)]" />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Analitik Operasional</p>
-          </div>
-          <MiniDonutGroup charts={donutCharts} />
+        <div className="grid h-full min-h-0 min-w-0 gap-3 overflow-hidden lg:grid-cols-3">
+          <DashboardChartCard
+            title="Alur Pengiriman"
+            subtitle="Sebaran status manifest aktif hari ini."
+            metric={`${shipmentsToday.length} manifest`}
+            accent={DONUT_INDIGO}
+          >
+            <VerticalBarChart items={shipmentFlowBars} color={DONUT_INDIGO} />
+          </DashboardChartCard>
+          <DashboardChartCard
+            title="Pendapatan Harian"
+            subtitle="Tarif pengiriman diklaster per blok waktu."
+            metric={`Rp ${totalRevenue.toLocaleString("id-ID")}`}
+            accent={DONUT_EMERALD}
+          >
+            <TrendLineChart items={hourlyTrend} color={DONUT_EMERALD} />
+          </DashboardChartCard>
+          <DashboardChartCard
+            title="Kesehatan Operasi"
+            subtitle="Komposisi penerbangan dan beban tindakan."
+            metric={`${actionUrgent} peringatan`}
+            accent={DONUT_ROSE}
+          >
+            <SegmentedProgressChart items={actionSegments} />
+          </DashboardChartCard>
         </div>
 
         {/* Batas terima penerbangan */}
         <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-5 min-w-0 overflow-hidden">
           <div className="mb-[10px] flex items-center gap-2">
             <TowerControl size={14} className="text-[color:var(--brand-primary)] shrink-0" />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Batas Terima Penerbangan</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Jadwal Pesawat Terdekat</p>
           </div>
           <div className="flex flex-col gap-2">
-            {filteredFlights.length ? sortedFlights.slice(0, 4).map((flight) => (
+            {filteredFlights.length ? filteredFlights.slice(0, 4).map((flight) => (
               <Link
                 key={flight.id}
                 href={`/flight-board?id=${flight.id}`}

@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/format";
+import { AlertDialog } from "@/components/alert-dialog";
 import { AIRCRAFT_TYPE_OPTIONS, STATION_OPTIONS } from "@/lib/constants";
 import {
   getCargoCutoffTime,
@@ -259,14 +260,6 @@ function createFlightDraft(flight: FlightRow | null) {
   };
 }
 
-function filterFlightsByDate(flights: FlightRow[], date: string) {
-  if (!date) {
-    return flights;
-  }
-
-  return flights.filter((flight) => toDateInputValue(flight.departureTime) === date);
-}
-
 function createFlightRowFromMutation(flight: FlightMutationRow): FlightRow {
   const meta = getFlightVisualMeta(flight.flightNumber, flight.aircraftType);
 
@@ -314,7 +307,8 @@ export default function FlightBoardPage() {
   const [status, setStatus] = useState(() => readFlightBoardSearchParams().get("status") || "all");
   const [query, setQuery] = useState(() => readFlightBoardSearchParams().get("query") || "");
   const [appliedQuery, setAppliedQuery] = useState(() => readFlightBoardSearchParams().get("query") || "");
-  const [date, setDate] = useState(() => readFlightBoardSearchParams().get("date") || "");
+  const [dateFrom, setDateFrom] = useState(() => readFlightBoardSearchParams().get("dateFrom") || readFlightBoardSearchParams().get("date") || "");
+  const [dateTo, setDateTo] = useState(() => readFlightBoardSearchParams().get("dateTo") || readFlightBoardSearchParams().get("date") || "");
   const [page, setPage] = useState(() => parsePageParam(readFlightBoardSearchParams().get("page")));
   const [data, setData] = useState<FlightBoardPayload | null>(null);
   const [initialLoadPending, setInitialLoadPending] = useState(true);
@@ -324,18 +318,24 @@ export default function FlightBoardPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [createForm, setCreateForm] = useState(() => createBlankFlightForm());
   const [editDraft, setEditDraft] = useState(() => createBlankFlightForm());
-  const [notice, setNotice] = useState("");
-  const [noticeTone, setNoticeTone] = useState<"info" | "warning">("info");
+  const [alertDialog, setAlertDialog] = useState<{ open: boolean; title: string; description?: string; tone: "error" | "success" | "info" | "warning" }>({ open: false, title: "", tone: "error" });
   const [confirmFlightDelete, setConfirmFlightDelete] = useState(false);
-  const initialDateResolvedRef = useRef(false);
+  const initialDateResolvedRef = useRef(
+    Boolean(
+      readFlightBoardSearchParams().get("date") ||
+        readFlightBoardSearchParams().get("dateFrom") ||
+        readFlightBoardSearchParams().get("dateTo"),
+    ),
+  );
   const latestUrlParamsRef = useRef(readFlightBoardSearchParams().toString());
 
   const replaceFlightBoardUrl = useCallback(
-    (next: { status?: string; query?: string; date?: string; page?: number; id?: string | null }) => {
+    (next: { status?: string; query?: string; dateFrom?: string; dateTo?: string; page?: number; id?: string | null }) => {
       const params = readFlightBoardSearchParams();
       const nextStatus = next.status ?? status;
       const nextQuery = next.query ?? query;
-      const nextDate = next.date ?? date;
+      const nextDateFrom = next.dateFrom ?? dateFrom;
+      const nextDateTo = next.dateTo ?? dateTo;
       const nextPage = next.page ?? page;
       const nextId = next.id === undefined ? params.get("id") : next.id;
 
@@ -345,8 +345,13 @@ export default function FlightBoardPage() {
       if (nextQuery.trim()) params.set("query", nextQuery.trim());
       else params.delete("query");
 
-      if (nextDate) params.set("date", nextDate);
-      else params.delete("date");
+      if (nextDateFrom) params.set("dateFrom", nextDateFrom);
+      else params.delete("dateFrom");
+
+      if (nextDateTo) params.set("dateTo", nextDateTo);
+      else params.delete("dateTo");
+
+      params.delete("date");
 
       if (nextPage > 1) params.set("page", String(nextPage));
       else params.delete("page");
@@ -361,7 +366,7 @@ export default function FlightBoardPage() {
         window.history.replaceState(null, "", nextUrl);
       }
     },
-    [date, page, query, status],
+    [dateFrom, dateTo, page, query, status],
   );
 
   useEffect(() => {
@@ -393,10 +398,9 @@ export default function FlightBoardPage() {
   }, [appliedQuery, query, replaceFlightBoardUrl]);
 
   const applyFlightBoardPayload = useCallback(
-    (payload: FlightBoardPayload, nextDate = date, preferredFlightId = selectedFlightId) => {
-      const visibleFlights = filterFlightsByDate(payload.flights, nextDate);
+    (payload: FlightBoardPayload, preferredFlightId = selectedFlightId) => {
       const nextSelectedFlight = preferredFlightId
-        ? visibleFlights.find((flight) => flight.id === preferredFlightId) ?? null
+        ? payload.flights.find((flight) => flight.id === preferredFlightId) ?? null
         : null;
 
       setData(payload);
@@ -404,34 +408,33 @@ export default function FlightBoardPage() {
       setSelectedFlightId(nextSelectedFlight?.id ?? null);
       setEditDraft(createFlightDraft(nextSelectedFlight));
     },
-    [date, selectedFlightId],
+    [selectedFlightId],
   );
 
   const requestFlightBoard = useCallback(async (options?: { includeDate?: boolean; page?: number }) => {
     const params = new URLSearchParams();
     if (status !== "all") params.set("status", status);
     if (appliedQuery.trim()) params.set("query", appliedQuery.trim());
-    if ((options?.includeDate ?? initialDateResolvedRef.current) && date) params.set("date", date);
+    if (options?.includeDate ?? initialDateResolvedRef.current) {
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
+    }
     params.set("page", String(options?.page ?? page));
     params.set("pageSize", "10");
     const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
     if (!response.ok) return null;
 
     return (await response.json()) as FlightBoardPayload;
-  }, [appliedQuery, date, page, status]);
+  }, [appliedQuery, dateFrom, dateTo, page, status]);
 
   const loadFlightBoard = useCallback(
-    async (options?: { preferredDate?: string; preferredFlightId?: string | null }) => {
+    async (options?: { preferredFlightId?: string | null }) => {
       const payload = await requestFlightBoard({ includeDate: true });
       if (!payload) return;
 
-      applyFlightBoardPayload(
-        payload,
-        options?.preferredDate ?? date,
-        options?.preferredFlightId ?? selectedFlightId,
-      );
+      applyFlightBoardPayload(payload, options?.preferredFlightId ?? selectedFlightId);
     },
-    [applyFlightBoardPayload, date, requestFlightBoard, selectedFlightId],
+    [applyFlightBoardPayload, requestFlightBoard, selectedFlightId],
   );
 
   useEffect(() => {
@@ -444,8 +447,8 @@ export default function FlightBoardPage() {
         }
 
         initialDateResolvedRef.current = true;
-        replaceFlightBoardUrl({ date, page: payload.pagination.page });
-        applyFlightBoardPayload(payload, date);
+        replaceFlightBoardUrl({ dateFrom, dateTo, page: payload.pagination.page });
+        applyFlightBoardPayload(payload);
       })
       .finally(() => {
         if (!cancelled) {
@@ -456,7 +459,7 @@ export default function FlightBoardPage() {
     return () => {
       cancelled = true;
     };
-  }, [applyFlightBoardPayload, date, replaceFlightBoardUrl, requestFlightBoard]);
+  }, [applyFlightBoardPayload, dateFrom, dateTo, replaceFlightBoardUrl, requestFlightBoard]);
 
   useEffect(() => {
     function syncStateFromLocation() {
@@ -470,7 +473,8 @@ export default function FlightBoardPage() {
       setStatus(params.get("status") || "all");
       setQuery(params.get("query") || "");
       setAppliedQuery(params.get("query") || "");
-      setDate(params.get("date") || "");
+      setDateFrom(params.get("dateFrom") || params.get("date") || "");
+      setDateTo(params.get("dateTo") || params.get("date") || "");
       setPage(parsePageParam(params.get("page")));
       setSelectedFlightId(params.get("id"));
     }
@@ -479,11 +483,7 @@ export default function FlightBoardPage() {
     return () => window.removeEventListener("popstate", syncStateFromLocation);
   }, []);
 
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(""), 2600);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
+
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -510,20 +510,22 @@ export default function FlightBoardPage() {
     replaceFlightBoardUrl({ id: null });
   }, [replaceFlightBoardUrl]);
 
-  const handleDateChange = useCallback(
-    (nextDate: string) => {
-      setDate(nextDate);
+  const handleDateRangeChange = useCallback(
+    (next: { dateFrom?: string; dateTo?: string }) => {
+      const nextDateFrom = next.dateFrom ?? dateFrom;
+      const nextDateTo = next.dateTo ?? dateTo;
       setPage(1);
-      const visibleFlights = data?.flights ?? [];
+      setDateFrom(nextDateFrom);
+      setDateTo(nextDateTo);
       const nextSelectedFlight = selectedFlightId
-        ? visibleFlights.find((flight) => flight.id === selectedFlightId) ?? null
+        ? (data?.flights ?? []).find((flight) => flight.id === selectedFlightId) ?? null
         : null;
 
       setSelectedFlightId(nextSelectedFlight?.id ?? null);
       setEditDraft(createFlightDraft(nextSelectedFlight));
-      replaceFlightBoardUrl({ date: nextDate, page: 1, id: nextSelectedFlight?.id ?? null });
+      replaceFlightBoardUrl({ dateFrom: nextDateFrom, dateTo: nextDateTo, page: 1, id: nextSelectedFlight?.id ?? null });
     },
-    [data?.flights, replaceFlightBoardUrl, selectedFlightId],
+    [data?.flights, dateFrom, dateTo, replaceFlightBoardUrl, selectedFlightId],
   );
 
   const handleStatusChange = useCallback(
@@ -556,16 +558,24 @@ export default function FlightBoardPage() {
   async function handleCreateFlight(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    // Validate origin != destination
+    if (createForm.origin === createForm.destination) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Asal dan tujuan tidak boleh sama.", tone: "warning" });
+      return;
+    }
+    if (!createForm.departureTime) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Waktu berangkat wajib diisi.", tone: "warning" });
+      return;
+    }
+
     if (!isFlightNumberSuffixValid(createForm.flightNumberSuffix)) {
-      setNoticeTone("warning");
-      setNotice("Nomor penerbangan harus terdiri dari 3-4 digit.");
+      setAlertDialog({ open: true, title: "Peringatan", description: "Nomor penerbangan harus terdiri dari 3-4 digit.", tone: "warning" });
       return;
     }
 
     const createBlockingIssue = createScheduleIssues.find((issue) => issue.tone === "error");
     if (createBlockingIssue) {
-      setNoticeTone("warning");
-      setNotice(createBlockingIssue.message);
+      setAlertDialog({ open: true, title: "Peringatan", description: createBlockingIssue.message, tone: "warning" });
       return;
     }
 
@@ -592,11 +602,12 @@ export default function FlightBoardPage() {
         const nextQuery = payload.flight.flightNumber;
         setCreateOpen(false);
         setCreateForm(createBlankFlightForm());
-        setDate(nextDate);
+        setDateFrom(nextDate);
+        setDateTo(nextDate);
         setQuery(nextQuery);
         setAppliedQuery(nextQuery);
         setPage(1);
-        replaceFlightBoardUrl({ date: nextDate, query: nextQuery, page: 1 });
+        replaceFlightBoardUrl({ dateFrom: nextDate, dateTo: nextDate, query: nextQuery, page: 1 });
         setData((current) =>
           current
             ? {
@@ -608,21 +619,19 @@ export default function FlightBoardPage() {
         );
         setSelectedFlightId(nextFlight.id);
         setEditDraft(createFlightDraft(nextFlight));
-        setNoticeTone("info");
-        setNotice("Penerbangan berhasil dibuat.");
+        setAlertDialog({ open: true, title: "Berhasil", description: "Penerbangan berhasil dibuat.", tone: "success" });
         void loadFlightBoardWithParams({
-          date: nextDate,
+          dateFrom: nextDate,
+          dateTo: nextDate,
           query: nextQuery,
           preferredFlightId: payload.flight.id,
         });
       } else {
         const errorMessage = await resolveErrorMessage(response, "Gagal membuat penerbangan.");
-        setNoticeTone("warning");
-        setNotice(errorMessage);
+        setAlertDialog({ open: true, title: "Peringatan", description: errorMessage, tone: "warning" });
       }
     } catch {
-      setNoticeTone("warning");
-      setNotice("Koneksi terputus saat membuat penerbangan.");
+      setAlertDialog({ open: true, title: "Peringatan", description: "Koneksi terputus saat membuat penerbangan.", tone: "warning" });
     } finally {
       setSaving(false);
     }
@@ -631,16 +640,24 @@ export default function FlightBoardPage() {
   async function handleSaveFlight() {
     if (!selectedFlight) return;
 
+    // Validate origin != destination
+    if (editDraft.origin === editDraft.destination) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Asal dan tujuan tidak boleh sama.", tone: "warning" });
+      return;
+    }
+    if (!editDraft.departureTime) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Waktu berangkat wajib diisi.", tone: "warning" });
+      return;
+    }
+
     if (!isFlightNumberSuffixValid(editDraft.flightNumberSuffix)) {
-      setNoticeTone("warning");
-      setNotice("Nomor penerbangan harus terdiri dari 3-4 digit.");
+      setAlertDialog({ open: true, title: "Peringatan", description: "Nomor penerbangan harus terdiri dari 3-4 digit.", tone: "warning" });
       return;
     }
 
     const editBlockingIssue = editScheduleIssues.find((issue) => issue.tone === "error");
     if (editBlockingIssue) {
-      setNoticeTone("warning");
-      setNotice(editBlockingIssue.message);
+      setAlertDialog({ open: true, title: "Peringatan", description: editBlockingIssue.message, tone: "warning" });
       return;
     }
 
@@ -664,9 +681,10 @@ export default function FlightBoardPage() {
         const payload = (await response.json()) as { flight: FlightMutationRow };
         const nextFlight = createFlightRowFromMutation(payload.flight);
         const nextDate = toDateInputValue(payload.flight.departureTime);
-        setDate(nextDate);
+        setDateFrom(nextDate);
+        setDateTo(nextDate);
         setPage(1);
-        replaceFlightBoardUrl({ date: nextDate, page: 1 });
+        replaceFlightBoardUrl({ dateFrom: nextDate, dateTo: nextDate, page: 1 });
         setData((current) =>
           current
             ? {
@@ -679,31 +697,30 @@ export default function FlightBoardPage() {
         setSelectedFlightId(nextFlight.id);
         setEditDraft(createFlightDraft(nextFlight));
         setEditOpen(false);
-        setNoticeTone("info");
-        setNotice("Perubahan penerbangan berhasil disimpan.");
+        setAlertDialog({ open: true, title: "Berhasil", description: "Perubahan penerbangan berhasil disimpan.", tone: "success" });
         void loadFlightBoardWithParams({
-          date: nextDate,
+          dateFrom: nextDate,
+          dateTo: nextDate,
           query: appliedQuery,
           preferredFlightId: payload.flight.id,
         });
       } else {
         const errorMessage = await resolveErrorMessage(response, "Gagal memperbarui penerbangan.");
-        setNoticeTone("warning");
-        setNotice(errorMessage);
+        setAlertDialog({ open: true, title: "Peringatan", description: errorMessage, tone: "warning" });
       }
     } catch {
-      setNoticeTone("warning");
-      setNotice("Koneksi terputus saat memperbarui penerbangan.");
+      setAlertDialog({ open: true, title: "Peringatan", description: "Koneksi terputus saat memperbarui penerbangan.", tone: "warning" });
     } finally {
       setSaving(false);
     }
   }
 
-  async function loadFlightBoardWithParams(input: { date: string; query?: string; preferredFlightId?: string | null }) {
+  async function loadFlightBoardWithParams(input: { dateFrom?: string; dateTo?: string; query?: string; preferredFlightId?: string | null }) {
     const params = new URLSearchParams();
     if (status !== "all") params.set("status", status);
     if (input.query?.trim()) params.set("query", input.query.trim());
-    if (input.date) params.set("date", input.date);
+    if (input.dateFrom) params.set("dateFrom", input.dateFrom);
+    if (input.dateTo) params.set("dateTo", input.dateTo);
     params.set("page", "1");
     params.set("pageSize", "10");
 
@@ -711,7 +728,7 @@ export default function FlightBoardPage() {
     if (!response.ok) return;
 
     const payload = (await response.json()) as FlightBoardPayload;
-    applyFlightBoardPayload(payload, input.date, input.preferredFlightId ?? null);
+    applyFlightBoardPayload(payload, input.preferredFlightId ?? null);
   }
 
   async function handleDeleteFlight() {
@@ -740,26 +757,20 @@ export default function FlightBoardPage() {
         setSelectedFlightId(null);
         setEditDraft(createFlightDraft(null));
         setConfirmFlightDelete(false);
-        setNoticeTone("info");
-        setNotice(`Penerbangan ${selectedFlight.flightNumber} berhasil diarsipkan dari papan aktif.`);
+        setAlertDialog({ open: true, title: "Berhasil", description: `Penerbangan ${selectedFlight.flightNumber} berhasil diarsipkan dari papan aktif.`, tone: "success" });
         void loadFlightBoard();
       } else {
         const errorMessage = await resolveErrorMessage(response, "Gagal mengarsipkan penerbangan.");
-        setNoticeTone("warning");
-        setNotice(errorMessage);
+        setAlertDialog({ open: true, title: "Peringatan", description: errorMessage, tone: "warning" });
       }
     } catch {
-      setNoticeTone("warning");
-      setNotice("Koneksi terputus saat mengarsipkan penerbangan.");
+      setAlertDialog({ open: true, title: "Peringatan", description: "Koneksi terputus saat mengarsipkan penerbangan.", tone: "warning" });
     } finally {
       setSaving(false);
     }
   }
 
-  const visibleFlights = useMemo(() => {
-    if (!data) return [];
-    return filterFlightsByDate(data.flights, date);
-  }, [data, date]);
+  const visibleFlights = useMemo(() => data?.flights ?? [], [data]);
 
   const selectedFlight = visibleFlights.find((flight) => flight.id === selectedFlightId) ?? null;
   const activeFlights = visibleFlights.filter((flight) => flight.status !== "departed");
@@ -774,9 +785,10 @@ export default function FlightBoardPage() {
     const params = new URLSearchParams();
     if (status !== "all") params.set("status", status);
     if (appliedQuery.trim()) params.set("query", appliedQuery.trim());
-    if (date) params.set("date", date);
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
     return params.toString();
-  }, [appliedQuery, date, status]);
+  }, [appliedQuery, dateFrom, dateTo, status]);
   const createScheduleIssues = getFlightScheduleIssues(createForm, "create");
   const editScheduleIssues = getFlightScheduleIssues(editDraft, "edit");
 
@@ -790,14 +802,14 @@ export default function FlightBoardPage() {
 
       const payload = await requestFlightBoard({ includeDate: true, page: clampedPage });
       if (!payload) return;
-      applyFlightBoardPayload(payload, date, null);
+      applyFlightBoardPayload(payload, null);
     },
-    [applyFlightBoardPayload, date, replaceFlightBoardUrl, requestFlightBoard, totalFlightPages],
+    [applyFlightBoardPayload, replaceFlightBoardUrl, requestFlightBoard, totalFlightPages],
   );
 
   const filterControls = useMemo(
     () => (
-      <section className="ops-filter-strip" aria-label="Pencarian dan filter Papan Penerbangan">
+      <section className="ops-filter-strip" aria-label="Pencarian dan filter Management Pesawat">
         <div className="ops-filter-search">
           <label className="label" htmlFor="flightboard-query">Cari Penerbangan</label>
           <div className="relative">
@@ -807,11 +819,11 @@ export default function FlightBoardPage() {
               className="input-field input-field-leading"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari nomor penerbangan, rute, atau stasiun"
+              placeholder="Cari nomor penerbangan, angka kode, rute, atau stasiun"
             />
           </div>
         </div>
-      <div className="shell-inline-filters" aria-label="Filter Papan Penerbangan">
+      <div className="shell-inline-filters" aria-label="Filter Management Pesawat">
         <div className="shell-filter-field">
           <label className="label" htmlFor="flightboard-status">Status</label>
           <select id="flightboard-status" className="select-field" value={status} onChange={(event) => handleStatusChange(event.target.value)}>
@@ -822,44 +834,49 @@ export default function FlightBoardPage() {
           </select>
         </div>
         <div className="shell-filter-field shell-filter-field-wide">
-          <label className="label" htmlFor="flightboard-date">Tanggal</label>
+          <label className="label" htmlFor="flightboard-date-from">Tanggal Awal</label>
           <input
-            id="flightboard-date"
+            id="flightboard-date-from"
             type="date"
             className="input-field"
-            value={date}
-            onChange={(event) => handleDateChange(event.target.value)}
+            value={dateFrom}
+            onChange={(event) => handleDateRangeChange({ dateFrom: event.target.value })}
+          />
+        </div>
+        <div className="shell-filter-field shell-filter-field-wide">
+          <label className="label" htmlFor="flightboard-date-to">Tanggal Akhir</label>
+          <input
+            id="flightboard-date-to"
+            type="date"
+            min={dateFrom || undefined}
+            className="input-field"
+            value={dateTo}
+            onChange={(event) => handleDateRangeChange({ dateTo: event.target.value })}
           />
         </div>
       </div>
       </section>
     ),
-    [date, handleDateChange, handleStatusChange, query, status],
+    [dateFrom, dateTo, handleDateRangeChange, handleStatusChange, query, status],
   );
 
   return (
     <div className="page-workspace flightboard-viewport">
       <PageHeader
-        eyebrow="Pemantauan Keberangkatan"
-        title="Papan Penerbangan"
-        subtitle={`Tambah, cari, ubah, dan arsipkan penerbangan. Semua jam operasional memakai ${OPS_TIME_ZONE_LABEL}.`}
+        eyebrow="Management Pesawat"
+        title="Management Pesawat"
+        subtitle={`Kelola jadwal, assignment pesawat, kapasitas, dan arsip keberangkatan. Semua jam operasional memakai ${OPS_TIME_ZONE_LABEL}.`}
       />
 
       {filterControls}
 
-      {notice ? (
-        <div
-          role="status"
-          aria-live="polite"
-          className={
-            noticeTone === "warning"
-              ? "rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-warning)]"
-              : "rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]"
-          }
-        >
-          {notice}
-        </div>
-      ) : null}
+      <AlertDialog
+        open={alertDialog.open}
+        title={alertDialog.title}
+        description={alertDialog.description}
+        tone={alertDialog.tone}
+        onOk={() => setAlertDialog((current) => ({ ...current, open: false }))}
+      />
 
       <div className="grid gap-4 lg:grid-cols-3">
         {highlightedFlights.length ? (
@@ -922,7 +939,7 @@ export default function FlightBoardPage() {
           className="page-pane flightboard-pane flightboard-manifest-panel flight-manifest-panel-space"
         >
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[color:var(--border-soft)] p-5">
-            <SectionHeader title="Manifest Penerbangan" subtitle="Daftar penerbangan yang sudah difilter dan siap dipilih untuk detail lebih lanjut." />
+            <SectionHeader title="Daftar Pesawat Aktif" subtitle="Jadwal flight dan assignment pesawat yang sudah difilter siap dipilih untuk detail lebih lanjut." />
             <div className="flex flex-wrap gap-2">
               {data?.permissions.canExport ? (
                 <Link

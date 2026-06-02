@@ -3,7 +3,6 @@ import type { UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth";
-import { isCustomerAllowedPath } from "@/lib/access";
 import { AUTH_BYPASS_ENABLED } from "@/lib/runtime-flags";
 
 const sessionSecret = process.env.SESSION_SECRET;
@@ -25,6 +24,8 @@ const PUBLIC_API_PATHS = new Set([
   "/api/auth/intro",
   "/api/auth/logout",
   "/api/public/landing-metrics",
+  "/api/public/awb",
+  "/api/public/complaints",
 ]);
 
 function isApiPath(pathname: string) {
@@ -68,7 +69,7 @@ function isSameOriginRequest(request: NextRequest) {
 function parseCaptureRole(request: NextRequest): UserRole | null {
   const role = request.nextUrl.searchParams.get("capture")?.trim().toLowerCase();
 
-  if (role === "admin" || role === "staff" || role === "customer") {
+  if (role === "admin" || role === "staff") {
     return role;
   }
 
@@ -112,8 +113,7 @@ export async function proxy(request: NextRequest) {
     }
 
     if (pathname === "/") {
-      const bypassHome = captureRole === "customer" ? "/awb-tracking" : "/dashboard";
-      return NextResponse.redirect(new URL(bypassHome, request.url));
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
     return NextResponse.next({
@@ -124,7 +124,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const session = await getSession(request);
-  const authenticatedHome = session?.role === "customer" ? "/awb-tracking" : "/dashboard";
+  const authenticatedHome = "/dashboard";
 
   if (isApiPath(pathname)) {
     if (isPublicApiPath(pathname)) {
@@ -168,10 +168,6 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (session.role === "customer" && !isCustomerAllowedPath(pathname)) {
-    return NextResponse.redirect(new URL("/awb-tracking", request.url));
-  }
-
   return NextResponse.next();
 }
 
@@ -187,6 +183,7 @@ export const config = {
     "/flight-board/:path*",
     "/alerts/:path*",
     "/activity-log/:path*",
+    "/complaints/:path*",
     "/reports/:path*",
     "/settings/:path*",
     "/seed/:path*",

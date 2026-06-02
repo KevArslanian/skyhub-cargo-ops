@@ -1,8 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Building2,
-  Check,
   ChevronLeft,
   ChevronRight,
   Monitor,
@@ -13,7 +11,6 @@ import {
   Users2,
 } from "lucide-react";
 import {
-  CUSTOMER_ACCOUNT_STATUS_LABELS,
   ROLE_LABELS,
   STATION_OPTIONS,
   USER_STATUS_LABELS,
@@ -22,6 +19,7 @@ import { cn } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { DataCard, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
 import { OpsDrawer } from "@/components/ops-drawer";
+import { AlertDialog } from "@/components/alert-dialog";
 
 const CAPABILITY_OPTIONS = [
   { value: "shipment:create", label: "Buat pengiriman", description: "Membuat AWB kargo dan manifest baru" },
@@ -32,18 +30,14 @@ const CAPABILITY_OPTIONS = [
   { value: "payment:verify", label: "Verifikasi bayar", description: "Menyetujui verifikasi pembayaran AWB" },
   { value: "reports:export", label: "Cetak laporan", description: "Mencetak data operasional ke PDF atau penampil peramban" },
   { value: "users:manage", label: "Kelola pengguna", description: "Mengundang dan mengelola hak akses anggota tim" },
-  { value: "customer_accounts:manage", label: "Kelola pelanggan", description: "Mengelola kode dan profil akun pelanggan" },
   { value: "settings:workspace", label: "Ruang kerja", description: "Mengatur preferensi dan tampilan default sistem" },
 ] as const;
 
 type SettingsCapability = (typeof CAPABILITY_OPTIONS)[number]["value"];
 
-function defaultCapabilitiesForRole(role: "admin" | "staff" | "customer"): SettingsCapability[] {
+function defaultCapabilitiesForRole(role: "admin" | "staff"): SettingsCapability[] {
   if (role === "admin") return CAPABILITY_OPTIONS.map((item) => item.value);
-  if (role === "staff") {
-    return ["shipment:create", "shipment:update", "shipment:delete", "shipment:document", "flight:manage", "reports:export"];
-  }
-  return [];
+  return ["shipment:create", "shipment:update", "shipment:delete", "shipment:document", "flight:manage", "reports:export"];
 }
 
 type SettingsPayload = {
@@ -51,7 +45,7 @@ type SettingsPayload = {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "staff" | "customer";
+    role: "admin" | "staff";
     station: string;
     customerAccountId: string | null;
     customerAccountName: string | null;
@@ -76,7 +70,7 @@ type SettingsPayload = {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "staff" | "customer";
+    role: "admin" | "staff";
     station: string;
     status: "active" | "invited" | "disabled";
     customerAccountId: string | null;
@@ -343,33 +337,19 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("Profil");
   const [saving, setSaving] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [notice, setNotice] = useState("");
+  const [alertDialog, setAlertDialog] = useState<{ open: boolean; title: string; description?: string; tone: "error" | "success" | "info" | "warning" }>({ open: false, title: "", tone: "error" });
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [customerAccountOpen, setCustomerAccountOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({
     name: "",
     email: "",
     role: "staff",
     station: "SOQ",
-    customerAccountId: "",
-  });
-  const [accountForm, setAccountForm] = useState({
-    code: "",
-    name: "",
-    contactName: "",
-    contactEmail: "",
-    contactPhone: "",
   });
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingUserDraft, setEditingUserDraft] = useState<SettingsPayload["users"][number] | null>(null);
   const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
-  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
-  const [editingAccountDraft, setEditingAccountDraft] =
-    useState<SettingsPayload["customerAccounts"][number] | null>(null);
   const [userSearch, setUserSearch] = useState("");
   const [userPage, setUserPage] = useState(1);
-  const [accountSearch, setAccountSearch] = useState("");
-  const [accountPage, setAccountPage] = useState(1);
 
   async function reloadSettings() {
     const response = await fetch("/api/settings", { cache: "no-store" });
@@ -384,30 +364,18 @@ export default function SettingsPage() {
     void reloadSettings().catch(() => undefined);
   }, []);
 
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(""), 2600);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
+
 
   const tabs = useMemo(() => {
-    const items = [
+    return [
       {
         label: "Tim & Akses",
         icon: Users2,
         note: "Pengguna",
         enabled: data?.permissions.canManageUsers ?? false,
       },
-      {
-        label: "Akun Pelanggan",
-        icon: Building2,
-        note: "Pelanggan",
-        enabled: data?.permissions.canManageCustomerAccounts ?? false,
-      },
     ];
-
-    return items;
-  }, [data?.permissions.canManageCustomerAccounts, data?.permissions.canManageUsers]);
+  }, [data?.permissions.canManageUsers]);
 
   useEffect(() => {
     if (activeTab === "Preferensi") setActiveTab("Profil");
@@ -420,8 +388,6 @@ export default function SettingsPage() {
       const nextQuery = detail.query ?? "";
       if (activeTab === "Tim & Akses") {
         setUserSearch(nextQuery);
-      } else if (activeTab === "Akun Pelanggan") {
-        setAccountSearch(nextQuery);
       } else {
         const normalized = nextQuery.toLowerCase();
         if (["preferensi", "tampilan", "tema", "mode", "pemberitahuan", "notifikasi"].some((keyword) => normalized.includes(keyword))) {
@@ -456,39 +422,13 @@ export default function SettingsPage() {
   const userVisibleStart = filteredUsers.length ? userPageStart + 1 : 0;
   const userVisibleEnd = Math.min(userPageStart + pagedUsers.length, filteredUsers.length);
 
-  const filteredAccounts = useMemo(() => {
-    const normalized = accountSearch.trim().toLowerCase();
-    if (!normalized) return data?.customerAccounts ?? [];
-    return (data?.customerAccounts ?? []).filter((account) =>
-      [account.code, account.name, account.contactName ?? "", account.contactEmail ?? "", account.contactPhone ?? "", account.status]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalized),
-    );
-  }, [accountSearch, data?.customerAccounts]);
-
-  const accountTotalPages = Math.max(1, Math.ceil(filteredAccounts.length / SETTINGS_PAGE_SIZE));
-  const currentAccountPage = Math.min(accountPage, accountTotalPages);
-  const accountPageStart = (currentAccountPage - 1) * SETTINGS_PAGE_SIZE;
-  const pagedAccounts = filteredAccounts.slice(accountPageStart, accountPageStart + SETTINGS_PAGE_SIZE);
-  const accountVisibleStart = filteredAccounts.length ? accountPageStart + 1 : 0;
-  const accountVisibleEnd = Math.min(accountPageStart + pagedAccounts.length, filteredAccounts.length);
-
   useEffect(() => {
     setUserPage(1);
   }, [userSearch]);
 
   useEffect(() => {
-    setAccountPage(1);
-  }, [accountSearch]);
-
-  useEffect(() => {
     setUserPage((current) => Math.min(current, userTotalPages));
   }, [userTotalPages]);
-
-  useEffect(() => {
-    setAccountPage((current) => Math.min(current, accountTotalPages));
-  }, [accountTotalPages]);
 
   function emitSettingsPreview(patch: Partial<SettingsDraft>) {
     window.dispatchEvent(new CustomEvent("skyhub:settings-preview", { detail: patch }));
@@ -530,29 +470,36 @@ export default function SettingsPage() {
   }
 
   async function createUser() {
+    if (!inviteForm.name.trim() || inviteForm.name.trim().length < 2) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Nama pengguna wajib diisi minimal 2 karakter.", tone: "warning" });
+      return;
+    }
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!EMAIL_REGEX.test(inviteForm.email.trim())) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Email pengguna tidak valid.", tone: "warning" });
+      return;
+    }
+
     setSaving(true);
 
     try {
       const response = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...inviteForm,
-          customerAccountId: inviteForm.role === "customer" ? inviteForm.customerAccountId || null : null,
-        }),
+        body: JSON.stringify(inviteForm),
       });
 
       if (response.ok) {
         const payload = (await response.json()) as { user: SettingsPayload["users"][number] };
         setData((current) => (current ? { ...current, users: [...current.users, payload.user] } : current));
-        setInviteForm({ name: "", email: "", role: "staff", station: "SOQ", customerAccountId: "" });
+        setInviteForm({ name: "", email: "", role: "staff", station: "SOQ" });
         setInviteOpen(false);
-        setNotice("Pengguna berhasil dibuat dengan status diundang.");
+        setAlertDialog({ open: true, title: "Pemberitahuan", description: "Pengguna berhasil dibuat dengan status diundang.", tone: "info" });
       } else {
-        setNotice(await readApiError(response, "Gagal membuat pengguna."));
+        setAlertDialog({ open: true, title: "Gagal", description: await readApiError(response, "Gagal membuat pengguna."), tone: "error" });
       }
     } catch {
-      setNotice("Gagal membuat pengguna.");
+      setAlertDialog({ open: true, title: "Pemberitahuan", description: "Gagal membuat pengguna.", tone: "info" });
     } finally {
       setSaving(false);
     }
@@ -573,9 +520,8 @@ export default function SettingsPage() {
           role: editingUserDraft.role,
           status: editingUserDraft.status,
           station: editingUserDraft.station,
-          customerAccountId:
-            editingUserDraft.role === "customer" ? editingUserDraft.customerAccountId : null,
-          capabilities: editingUserDraft.role === "customer" ? [] : editingUserDraft.capabilities,
+          customerAccountId: null,
+          capabilities: editingUserDraft.capabilities,
         }),
       });
 
@@ -583,12 +529,12 @@ export default function SettingsPage() {
         await reloadSettings();
         setEditingUserId(null);
         setEditingUserDraft(null);
-        setNotice("Pengguna berhasil diperbarui.");
+        setAlertDialog({ open: true, title: "Pemberitahuan", description: "Pengguna berhasil diperbarui.", tone: "info" });
       } else {
-        setNotice(await readApiError(response, "Gagal memperbarui pengguna."));
+        setAlertDialog({ open: true, title: "Gagal", description: await readApiError(response, "Gagal memperbarui pengguna."), tone: "error" });
       }
     } catch {
-      setNotice("Gagal memperbarui pengguna.");
+      setAlertDialog({ open: true, title: "Pemberitahuan", description: "Gagal memperbarui pengguna.", tone: "info" });
     } finally {
       setSaving(false);
     }
@@ -606,7 +552,7 @@ export default function SettingsPage() {
           role: userRow.role,
           status: nextStatus,
           station: userRow.station,
-          customerAccountId: userRow.role === "customer" ? userRow.customerAccountId : null,
+          customerAccountId: null,
           capabilities: userRow.capabilities,
         }),
       });
@@ -621,84 +567,15 @@ export default function SettingsPage() {
               }
             : current,
         );
-        setNotice(nextStatus === "active" ? "Akun berhasil diaktifkan." : "Akun berhasil dinonaktifkan.");
+        setAlertDialog({ open: true, title: "Pemberitahuan", description: nextStatus === "active" ? "Akun berhasil diaktifkan." : "Akun berhasil dinonaktifkan.", tone: "info" });
       } else {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        setNotice(payload?.error || "Gagal memperbarui status akun.");
+        setAlertDialog({ open: true, title: "Pemberitahuan", description: payload?.error || "Gagal memperbarui status akun.", tone: "info" });
       }
     } catch {
-      setNotice("Gagal memperbarui status akun.");
+      setAlertDialog({ open: true, title: "Pemberitahuan", description: "Gagal memperbarui status akun.", tone: "info" });
     } finally {
       setTogglingUserId(null);
-    }
-  }
-
-  async function createCustomerAccountEntry() {
-    setSaving(true);
-
-    try {
-      const response = await fetch("/api/customer-accounts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(accountForm),
-      });
-
-      if (response.ok) {
-        const payload = (await response.json()) as {
-          customerAccount: SettingsPayload["customerAccounts"][number];
-        };
-        setData((current) =>
-          current
-            ? {
-                ...current,
-                customerAccounts: [...current.customerAccounts, payload.customerAccount],
-              }
-            : current,
-        );
-        setAccountForm({ code: "", name: "", contactName: "", contactEmail: "", contactPhone: "" });
-        setCustomerAccountOpen(false);
-        setNotice("Akun pelanggan berhasil dibuat.");
-      } else {
-        setNotice(await readApiError(response, "Gagal membuat akun pelanggan."));
-      }
-    } catch {
-      setNotice("Gagal membuat akun pelanggan.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function saveCustomerAccount() {
-    if (!editingAccountId || !editingAccountDraft) return;
-
-    setSaving(true);
-
-    try {
-      const response = await fetch(`/api/customer-accounts/${editingAccountId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: editingAccountDraft.code,
-          name: editingAccountDraft.name,
-          contactName: editingAccountDraft.contactName,
-          contactEmail: editingAccountDraft.contactEmail,
-          contactPhone: editingAccountDraft.contactPhone,
-          status: editingAccountDraft.status,
-        }),
-      });
-
-      if (response.ok) {
-        await reloadSettings();
-        setEditingAccountId(null);
-        setEditingAccountDraft(null);
-        setNotice("Akun pelanggan berhasil diperbarui.");
-      } else {
-        setNotice(await readApiError(response, "Gagal memperbarui akun pelanggan."));
-      }
-    } catch {
-      setNotice("Gagal memperbarui akun pelanggan.");
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -707,14 +584,16 @@ export default function SettingsPage() {
       <PageHeader
         eyebrow="Sistem"
         title="Pengaturan"
-        subtitle="Kelola profil, tampilan dasbor, tim dan akses pengguna, serta akun pelanggan."
+        subtitle="Kelola profil, tampilan dasbor, serta tim dan akses pengguna internal."
       />
 
-      {notice ? (
-        <div className="rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]">
-          {notice}
-        </div>
-      ) : null}
+      <AlertDialog
+        open={alertDialog.open}
+        title={alertDialog.title}
+        description={alertDialog.description}
+        tone={alertDialog.tone}
+        onOk={() => setAlertDialog((current) => ({ ...current, open: false }))}
+      />
 
       {!data ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
@@ -862,10 +741,9 @@ export default function SettingsPage() {
                     <div className="border-t border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/70 p-5 lg:border-l lg:border-t-0">
                       <p className="ops-eyebrow">Akses Ruang Kerja</p>
                       <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">Hak akses dan izin yang melekat pada akun Anda.</p>
-                      <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
                         <DataCard label="Peran" value={ROLE_LABELS[data.profile.role]} />
                         <DataCard label="Stasiun" value={draft.station} />
-                        <DataCard label="Akun pelanggan" value={data.profile.customerAccountName || "-"} />
                       </div>
                     </div>
                   </div>
@@ -907,7 +785,7 @@ export default function SettingsPage() {
 
                 {inviteOpen ? (
                   <div className="mt-5 rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
-                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1fr)_auto]">
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_auto]">
                       <input
                         className="input-field"
                         placeholder="Nama"
@@ -927,7 +805,6 @@ export default function SettingsPage() {
                       >
                         <option value="staff">Staf Operasional</option>
                         <option value="admin">Administrator</option>
-                        <option value="customer">Pelanggan</option>
                       </select>
                       <select
                         className="select-field"
@@ -937,21 +814,6 @@ export default function SettingsPage() {
                         {STATION_OPTIONS.map((station) => (
                           <option key={station} value={station}>
                             {station}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        className="select-field"
-                        value={inviteForm.customerAccountId}
-                        onChange={(event) =>
-                          setInviteForm((current) => ({ ...current, customerAccountId: event.target.value }))
-                        }
-                        disabled={inviteForm.role !== "customer"}
-                      >
-                        <option value="">Akun pelanggan</option>
-                        {data.customerAccounts.map((account) => (
-                          <option key={account.id} value={account.id} disabled={account.status !== "active"}>
-                            {account.name}{account.status !== "active" ? " (nonaktif)" : ""}
                           </option>
                         ))}
                       </select>
@@ -986,7 +848,6 @@ export default function SettingsPage() {
                         <th>Peran</th>
                         <th>Izin rinci</th>
                         <th>Stasiun</th>
-                        <th>Akun Pelanggan</th>
                         <th>Status</th>
                         <th className="text-right">Aksi</th>
                       </tr>
@@ -994,7 +855,7 @@ export default function SettingsPage() {
                     <tbody>
                       {pagedUsers.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="text-center py-8 text-[color:var(--muted-fg)] font-medium">
+                          <td colSpan={7} className="text-center py-8 text-[color:var(--muted-fg)] font-medium">
                             Tidak ada anggota tim yang cocok dengan pencarian Anda.
                           </td>
                         </tr>
@@ -1031,9 +892,6 @@ export default function SettingsPage() {
                               </td>
                               <td>
                                 <span className="font-semibold text-[color:var(--brand-primary)]">{user.station}</span>
-                              </td>
-                              <td>
-                                <span className="text-sm text-[color:var(--muted-fg)]">{user.customerAccountName || "-"}</span>
                               </td>
                               <td>
                                 <div className="flex flex-wrap items-center gap-2">
@@ -1180,7 +1038,6 @@ export default function SettingsPage() {
                           >
                             <option value="staff">Staf Operasional</option>
                             <option value="admin">Administrator</option>
-                            <option value="customer">Pelanggan</option>
                           </select>
                         </div>
 
@@ -1202,30 +1059,6 @@ export default function SettingsPage() {
                             ))}
                           </select>
                         </div>
-                      </div>
-
-                      <div>
-                        <label className="label">Akun Pelanggan</label>
-                        <select
-                          className="select-field mt-2"
-                          value={editingUserDraft.customerAccountId || ""}
-                          onChange={(event) =>
-                            setEditingUserDraft((current) =>
-                              current ? { ...current, customerAccountId: event.target.value || null } : current,
-                            )
-                          }
-                          disabled={editingUserDraft.role !== "customer"}
-                        >
-                          <option value="">Tanpa akun</option>
-                          {data.customerAccounts.map((account) => (
-                            <option key={account.id} value={account.id} disabled={account.status !== "active"}>
-                              {account.name}{account.status !== "active" ? " (nonaktif)" : ""}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="mt-2 text-xs text-[color:var(--muted-2)]">
-                          Peran pelanggan hanya dapat memakai Pelacakan AWB. Akun pelanggan nonaktif akan memblokir login.
-                        </p>
                       </div>
 
                       <div>
@@ -1263,39 +1096,39 @@ export default function SettingsPage() {
                               {editingUserDraft.status === "disabled" ? "✗" : "✓"}
                             </span>
                             <span className="font-semibold text-[color:var(--text-strong)]">
-                              Operasional: {editingUserDraft.role === "customer" ? "Pelacakan AWB" : "Dasbor, Buku Pengiriman, Pelacakan AWB"}
+                              Operasional: Pusat Kendali, Buku Pengiriman, Pelacakan AWB
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className={cn(
                               "inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white",
-                              editingUserDraft.status === "disabled" || editingUserDraft.role === "customer"
+                              editingUserDraft.status === "disabled"
                                 ? "bg-[color:var(--tone-danger)]"
                                 : "bg-[color:var(--tone-success)]"
                             )}>
-                              {editingUserDraft.status === "disabled" || editingUserDraft.role === "customer" ? "✗" : "✓"}
+                              {editingUserDraft.status === "disabled" ? "✗" : "✓"}
                             </span>
                             <span className={cn(
                               "font-semibold",
-                              editingUserDraft.status === "disabled" || editingUserDraft.role === "customer"
+                              editingUserDraft.status === "disabled"
                                 ? "text-[color:var(--muted-fg)] line-through"
                                 : "text-[color:var(--text-strong)]"
                             )}>
-                              Pemantauan: Papan Penerbangan, Pusat Peringatan, Catatan Aktivitas
+                              Pemantauan: Management Pesawat, Pusat Peringatan, Catatan Aktivitas
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className={cn(
                               "inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white",
-                              editingUserDraft.status === "disabled" || editingUserDraft.role === "customer"
+                              editingUserDraft.status === "disabled"
                                 ? "bg-[color:var(--tone-danger)]"
                                 : "bg-[color:var(--tone-success)]"
                             )}>
-                              {editingUserDraft.status === "disabled" || editingUserDraft.role === "customer" ? "✗" : "✓"}
+                              {editingUserDraft.status === "disabled" ? "✗" : "✓"}
                             </span>
                             <span className={cn(
                               "font-semibold",
-                              editingUserDraft.status === "disabled" || editingUserDraft.role === "customer"
+                              editingUserDraft.status === "disabled"
                                 ? "text-[color:var(--muted-fg)] line-through"
                                 : "text-[color:var(--text-strong)]"
                             )}>
@@ -1307,11 +1140,6 @@ export default function SettingsPage() {
 
                       <div>
                         <label className="label">Izin Rinci</label>
-                        {editingUserDraft.role === "customer" ? (
-                          <p className="mt-2 rounded-[16px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-3 py-2 text-xs font-semibold text-[color:var(--tone-info)]">
-                            Peran pelanggan dikunci hanya untuk pelacakan. Izin internal hanya untuk administrator atau staf.
-                          </p>
-                        ) : null}
                         <div className="mt-3 grid gap-2 sm:grid-cols-2">
                            {CAPABILITY_OPTIONS.map((capability) => {
                             const checked = editingUserDraft.capabilities.includes(capability.value);
@@ -1329,7 +1157,6 @@ export default function SettingsPage() {
                                   type="checkbox"
                                   className="mt-1 shrink-0"
                                   checked={checked}
-                                  disabled={editingUserDraft.role === "customer"}
                                   onChange={(event) =>
                                     setEditingUserDraft((current) => {
                                       if (!current) return current;
@@ -1353,338 +1180,6 @@ export default function SettingsPage() {
                   ) : null}
                 </OpsDrawer>
               </OpsPanel>
-            ) : null}
-
-            {activeTab === "Akun Pelanggan" && data.permissions.canManageCustomerAccounts ? (
-              <>
-              <OpsPanel className="p-5">
-                <SectionHeader
-                  title="Akun Pelanggan"
-                  subtitle="Akun, kontak, status."
-                  action={
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={() => setCustomerAccountOpen(true)}
-                    >
-                      <Plus size={16} />
-                      Tambah Akun
-                    </button>
-                  }
-                />
-
-                <div className="settings-table-toolbar">
-                  <span>{filteredAccounts.length} akun{accountSearch ? ` cocok "${accountSearch}"` : ""}</span>
-                  <input
-                    type="text"
-                    className="input-field h-9 max-w-[220px] text-xs"
-                    placeholder="Cari kode atau nama..."
-                    value={accountSearch}
-                    onChange={(event) => {
-                      setAccountSearch(event.target.value);
-                      setAccountPage(1);
-                    }}
-                  />
-                </div>
-
-                <div className="page-scroll table-shell mt-5 rounded-[24px] border border-[color:var(--border-soft)]">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Kode</th>
-                        <th>Nama</th>
-                        <th>Penanggung Jawab</th>
-                        <th>Surel</th>
-                        <th>Telepon</th>
-                        <th>Status</th>
-                        <th>Relasi</th>
-                        <th className="text-right">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pagedAccounts.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="text-center py-8 text-[color:var(--muted-fg)] font-medium">
-                            Tidak ada akun pelanggan yang cocok dengan pencarian Anda.
-                          </td>
-                        </tr>
-                      ) : (
-                        pagedAccounts.map((account) => (
-                          <tr key={account.id}>
-                            <td>
-                              <span className="font-semibold text-[color:var(--brand-primary)]">{account.code}</span>
-                            </td>
-                            <td>{account.name}</td>
-                            <td>{account.contactName || "-"}</td>
-                            <td>{account.contactEmail || "-"}</td>
-                            <td>{account.contactPhone || "-"}</td>
-                            <td>
-                              <StatusBadge value={account.status} label={CUSTOMER_ACCOUNT_STATUS_LABELS[account.status]} />
-                            </td>
-                            <td>
-                              <div className="min-w-[120px] text-xs font-semibold text-[color:var(--muted-fg)]">
-                                <p>{account.userCount} Pengguna</p>
-                                <p className="mt-1">{account.shipmentCount} Pengiriman</p>
-                              </div>
-                            </td>
-                            <td className="text-right">
-                              <button
-                                type="button"
-                                className="btn btn-secondary h-10 px-4"
-                                onClick={() => {
-                                  setEditingAccountId(account.id);
-                                  setEditingAccountDraft(account);
-                                }}
-                              >
-                                Ubah
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="table-pagination-footer">
-                  <button
-                    type="button"
-                    className="topbar-button"
-                    onClick={() => setAccountPage((current) => Math.max(1, current - 1))}
-                    disabled={currentAccountPage <= 1}
-                  >
-                    <ChevronLeft size={16} />
-                    Sebelumnya
-                  </button>
-                  <p>
-                    {accountVisibleStart}-{accountVisibleEnd} dari {filteredAccounts.length} • Halaman {currentAccountPage}/{accountTotalPages}
-                  </p>
-                  <button
-                    type="button"
-                    className="topbar-button"
-                    onClick={() => setAccountPage((current) => Math.min(accountTotalPages, current + 1))}
-                    disabled={currentAccountPage >= accountTotalPages}
-                  >
-                    Berikutnya
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-
-                <OpsDrawer
-                  open={Boolean(editingAccountId && editingAccountDraft)}
-                  title="Ubah Akun Pelanggan"
-                  eyebrow="Kelola Pelanggan"
-                  description="Perbarui kode, profil kontak, dan status akun pelanggan dari panel terpisah."
-                  onClose={() => {
-                    setEditingAccountId(null);
-                    setEditingAccountDraft(null);
-                  }}
-                  footer={
-                    <div className="flex w-full items-center justify-end gap-3">
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => {
-                          setEditingAccountId(null);
-                          setEditingAccountDraft(null);
-                        }}
-                      >
-                        Batal
-                      </button>
-                      <button type="button" className="btn btn-primary" onClick={saveCustomerAccount} disabled={saving}>
-                        <Check size={16} />
-                        {saving ? "Menyimpan..." : "Simpan"}
-                      </button>
-                    </div>
-                  }
-                >
-                  {editingAccountDraft ? (
-                    <div className="space-y-5">
-                      <div className="grid gap-4 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
-                        <div>
-                          <label className="label">Kode</label>
-                          <input
-                            className="input-field mt-2"
-                            value={editingAccountDraft.code}
-                            onChange={(event) =>
-                              setEditingAccountDraft((current) =>
-                                current ? { ...current, code: event.target.value } : current,
-                              )
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Nama Akun</label>
-                          <input
-                            className="input-field mt-2"
-                            value={editingAccountDraft.name}
-                            onChange={(event) =>
-                              setEditingAccountDraft((current) =>
-                                current ? { ...current, name: event.target.value } : current,
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="label">Penanggung Jawab</label>
-                        <input
-                          className="input-field mt-2"
-                          value={editingAccountDraft.contactName || ""}
-                          onChange={(event) =>
-                            setEditingAccountDraft((current) =>
-                              current ? { ...current, contactName: event.target.value } : current,
-                            )
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label className="label">Surel Kontak</label>
-                        <input
-                          className="input-field mt-2"
-                          value={editingAccountDraft.contactEmail || ""}
-                          onChange={(event) =>
-                            setEditingAccountDraft((current) =>
-                              current ? { ...current, contactEmail: event.target.value } : current,
-                            )
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label className="label">Telepon</label>
-                        <input
-                          className="input-field mt-2"
-                          value={editingAccountDraft.contactPhone || ""}
-                          onChange={(event) =>
-                            setEditingAccountDraft((current) =>
-                              current ? { ...current, contactPhone: event.target.value } : current,
-                            )
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label className="label">Status</label>
-                        <select
-                          className="select-field mt-2"
-                          value={editingAccountDraft.status}
-                          onChange={(event) =>
-                            setEditingAccountDraft((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    status: event.target.value as SettingsPayload["customerAccounts"][number]["status"],
-                                  }
-                                : current,
-                            )
-                          }
-                        >
-                          <option value="active">Aktif</option>
-                          <option value="disabled">Nonaktif</option>
-                        </select>
-                        <p className="mt-2 text-xs text-[color:var(--muted-2)]">
-                          Nonaktif memblokir login seluruh pengguna pelanggan yang terhubung ke akun ini.
-                        </p>
-                      </div>
-
-                      <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Relasi Akun</p>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                          <DataCard label="Pengguna terhubung" value={editingAccountDraft.userCount} />
-                          <DataCard label="Pengiriman terhubung" value={editingAccountDraft.shipmentCount} />
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                </OpsDrawer>
-              </OpsPanel>
-
-              <OpsDrawer
-                  open={customerAccountOpen}
-                title="Tambah Akun Pelanggan"
-                eyebrow="Kelola Pelanggan"
-                description="Buat akun pelanggan baru dengan kode unik dan informasi kontak."
-                onClose={() => {
-                  setCustomerAccountOpen(false);
-                  setAccountForm({ code: "", name: "", contactName: "", contactEmail: "", contactPhone: "" });
-                }}
-                footer={
-                  <div className="flex w-full items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => {
-                        setCustomerAccountOpen(false);
-                        setAccountForm({ code: "", name: "", contactName: "", contactEmail: "", contactPhone: "" });
-                      }}
-                    >
-                      Batal
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={createCustomerAccountEntry}
-                      disabled={saving}
-                    >
-                      <Plus size={16} />
-                      {saving ? "Menyimpan..." : "Simpan"}
-                    </button>
-                  </div>
-                }
-              >
-                <div className="space-y-6">
-                  <div>
-                    <label className="label">Kode Akun</label>
-                    <input
-                      className="input-field mt-2"
-                      placeholder="Contoh: CGK-MG-001"
-                      value={accountForm.code}
-                      onChange={(event) => setAccountForm((current) => ({ ...current, code: event.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Nama Akun</label>
-                    <input
-                      className="input-field mt-2"
-                      placeholder="Nama perusahaan atau entitas pelanggan"
-                      value={accountForm.name}
-                      onChange={(event) => setAccountForm((current) => ({ ...current, name: event.target.value }))}
-                    />
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <div>
-                      <label className="label">Penanggung Jawab</label>
-                      <input
-                        className="input-field mt-2"
-                        placeholder="Nama penanggung jawab"
-                        value={accountForm.contactName}
-                        onChange={(event) => setAccountForm((current) => ({ ...current, contactName: event.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Surel</label>
-                      <input
-                        className="input-field mt-2"
-                        placeholder="Surel kontak"
-                        value={accountForm.contactEmail}
-                        onChange={(event) => setAccountForm((current) => ({ ...current, contactEmail: event.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Telepon</label>
-                      <input
-                        className="input-field mt-2"
-                        placeholder="Nomor telepon"
-                        value={accountForm.contactPhone}
-                        onChange={(event) => setAccountForm((current) => ({ ...current, contactPhone: event.target.value }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </OpsDrawer>
-              </>
             ) : null}
           </div>
         </div>

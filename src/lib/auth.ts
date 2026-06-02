@@ -49,7 +49,7 @@ async function resolveCaptureRoleOverride(): Promise<UserRole | null> {
   const headerStore = await headers();
   const role = headerStore.get(CAPTURE_ROLE_HEADER)?.trim().toLowerCase();
 
-  if (role === "admin" || role === "staff" || role === "customer") {
+  if (role === "admin" || role === "staff") {
     return role;
   }
 
@@ -308,7 +308,7 @@ export async function redirectAuthenticatedUserToDashboard() {
   const user = await getCurrentUser();
 
   if (user) {
-    redirect(user.role === "customer" ? "/awb-tracking" : "/dashboard");
+    redirect("/dashboard");
   }
 }
 
@@ -316,7 +316,7 @@ export async function requireIntroForLogin() {
   const user = await getCurrentUser();
 
   if (user) {
-    redirect(user.role === "customer" ? "/awb-tracking" : "/dashboard");
+    redirect("/dashboard");
   }
 
   const hasIntro = await hasIntroSeenCookie();

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Cetak Manifest Penerbangan",
-  description: "Penampil cetak data penerbangan SkyHub.",
+  title: "Cetak Management Pesawat",
+  description: "Penampil cetak jadwal dan assignment pesawat SkyHub.",
 };
 
 export default function ExportFlightsLayout({ children }: { children: ReactNode }) {

@@ -19,18 +19,20 @@ function getFlightTone(status: string): PrintChipTone {
 export default async function FlightsPrintPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; query?: string; date?: string }>;
+  searchParams: Promise<{ status?: string; query?: string; date?: string; dateFrom?: string; dateTo?: string }>;
 }) {
   const user = await requireUser();
   requireInternalUser(user);
   if (!canExportReports(user)) redirect("/dashboard");
   const params = await searchParams;
   const printedAt = new Date();
-  const dateFilter = params.date?.trim() || "";
+  const dateFrom = params.dateFrom?.trim() || params.date?.trim() || "";
+  const dateTo = params.dateTo?.trim() || params.date?.trim() || "";
   const board = await getFlightBoardData(user, {
     status: params.status || undefined,
     query: params.query || undefined,
-    date: dateFilter || undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
     pageSize: 50,
   });
   const flights = board.flights;
@@ -42,7 +44,8 @@ export default async function FlightsPrintPage({
   const filterSummary = [
     params.query ? `Kata kunci: ${params.query}` : null,
     params.status ? `Status: ${params.status}` : null,
-    dateFilter ? `Tanggal: ${dateFilter}` : null,
+    dateFrom ? `Tanggal awal: ${dateFrom}` : null,
+    dateTo ? `Tanggal akhir: ${dateTo}` : null,
   ]
     .filter(Boolean)
     .join(" | ");
@@ -52,8 +55,8 @@ export default async function FlightsPrintPage({
       <AutoPrintReport />
       <PrintCenterLayout
       scriptId="print-flights"
-      documentTitle="Manifest Penerbangan"
-      documentSubtitle="Laporan Penerbangan Operasional"
+      documentTitle="Management Pesawat"
+      documentSubtitle="Laporan Jadwal dan Assignment Pesawat"
       printedAtLabel={formatDateTime(printedAt.toISOString())}
       filterSummary={filterSummary}
       summaryTitle={`Ringkasan • ${flights.length} penerbangan`}
@@ -69,7 +72,7 @@ export default async function FlightsPrintPage({
         <table className="print-table min-w-[1220px]">
           <thead>
             <tr>
-              {["Penerbangan", "Rute", "Batas Terima", "Berangkat", "Tiba", "Gate", "Status", "Pengiriman"].map((header) => (
+              {["Penerbangan", "Pesawat", "Registrasi", "Rute", "Batas Terima", "Berangkat", "Tiba", "Gate", "Status", "Pengiriman"].map((header) => (
                 <th key={header}>{header}</th>
               ))}
             </tr>
@@ -79,6 +82,8 @@ export default async function FlightsPrintPage({
               flights.map((flight) => (
                 <tr key={flight.id}>
                   <td className="whitespace-nowrap font-mono text-xs font-semibold text-[#1d4ed8]">{flight.flightNumber}</td>
+                  <td className="whitespace-nowrap">{flight.aircraftType}</td>
+                  <td className="whitespace-nowrap">{flight.registration}</td>
                   <td className="whitespace-nowrap">{flight.route}</td>
                   <td className="whitespace-nowrap">{formatDateTime(flight.cargoCutoffTime)}</td>
                   <td className="whitespace-nowrap">{formatDateTime(flight.departureTime)}</td>
@@ -92,7 +97,7 @@ export default async function FlightsPrintPage({
               ))
             ) : (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-500">
+                <td colSpan={10} className="px-4 py-8 text-center text-sm text-slate-500">
                   Tidak ada data penerbangan untuk filter ini.
                 </td>
               </tr>

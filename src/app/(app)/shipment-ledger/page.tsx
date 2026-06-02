@@ -28,8 +28,6 @@ import {
   GOODS_STATUS_OPTIONS,
   SERVICE_TYPE_OPTIONS,
   STATION_OPTIONS,
-  VEHICLE_STATUS_OPTIONS,
-  VEHICLE_TYPE_OPTIONS,
 } from "@/lib/constants";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -40,6 +38,7 @@ import {
   SkeletonBlock,
 } from "@/components/ops-ui";
 import { OpsDrawer } from "@/components/ops-drawer";
+import { AlertDialog } from "@/components/alert-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type ShipmentRow = {
@@ -108,6 +107,22 @@ type ShipmentRow = {
   }[];
 };
 
+type FlightOption = {
+  id: string;
+  flightNumber: string;
+  origin: string;
+  destination: string;
+  departureTime: string;
+  cargoCutoffTime: string;
+  aircraftType: string;
+  vehicleName: string;
+  vehicleCode: string;
+  vehicleStatus: string;
+  vehicleCapacityKg: number;
+  usedCapacityKg: number;
+  availableCapacityKg: number;
+};
+
 type LedgerPayload = {
   viewer: {
     role: "admin" | "staff" | "customer";
@@ -123,7 +138,7 @@ type LedgerPayload = {
     canExport: boolean;
   };
   shipments: ShipmentRow[];
-  flights: { id: string; flightNumber: string }[];
+  flights: FlightOption[];
   customerAccounts: { id: string; name: string; code: string }[];
 };
 
@@ -285,6 +300,70 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
   return debouncedValue;
 }
 
+function normalizeDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function matchesOperationalQuery(values: Array<string | number | null | undefined>, query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  const joinedValue = values
+    .filter((value) => value !== null && value !== undefined)
+    .join(" ")
+    .toLowerCase();
+
+  if (joinedValue.includes(normalizedQuery)) {
+    return true;
+  }
+
+  const numericQuery = normalizeDigits(normalizedQuery);
+  if (!numericQuery) {
+    return false;
+  }
+
+  return values.some((value) => normalizeDigits(String(value ?? "")).includes(numericQuery));
+}
+
+function selectRecommendedFlight(flights: FlightOption[], draft: {
+  origin: string;
+  destination: string;
+  weightKg: number;
+  flightId?: string;
+}) {
+  const normalizedOrigin = draft.origin.toUpperCase();
+  const normalizedDestination = draft.destination.toUpperCase();
+  const weightKg = Number(draft.weightKg) || 0;
+  const now = Date.now();
+  const currentSelected = flights.find((flight) => flight.id === draft.flightId) ?? null;
+
+  const matchingFlights = flights
+    .filter((flight) => {
+      if (flight.origin !== normalizedOrigin || flight.destination !== normalizedDestination) {
+        return false;
+      }
+
+      if (new Date(flight.cargoCutoffTime).getTime() <= now) {
+        return false;
+      }
+
+      return flight.availableCapacityKg >= weightKg;
+    })
+    .sort((left, right) => {
+      if (left.availableCapacityKg !== right.availableCapacityKg) {
+        return left.availableCapacityKg - right.availableCapacityKg;
+      }
+
+      return new Date(left.departureTime).getTime() - new Date(right.departureTime).getTime();
+    });
+
+  return currentSelected && matchingFlights.some((flight) => flight.id === currentSelected.id)
+    ? currentSelected
+    : matchingFlights[0] ?? currentSelected;
+}
+
 function formatIsoSecond(value: string) {
   return new Date(value).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
@@ -394,13 +473,14 @@ export default function ShipmentLedgerPage() {
   const [status, setStatus] = useState(searchParams.get("status") || "all");
   const [flight, setFlight] = useState(searchParams.get("flight") || "all");
   const [sortBy, setSortBy] = useState(searchParams.get("sortBy") || "updated");
+  const [dateFrom, setDateFrom] = useState(searchParams.get("dateFrom") || "");
+  const [dateTo, setDateTo] = useState(searchParams.get("dateTo") || "");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [actionNotice, setActionNotice] = useState<string>("");
-  const [actionNoticeTone, setActionNoticeTone] = useState<"info" | "warning">("info");
+  const [alertDialog, setAlertDialog] = useState<{ open: boolean; title: string; description?: string; tone: "error" | "success" | "info" | "warning" }>({ open: false, title: "", tone: "error" });
   const [confirmShipmentDelete, setConfirmShipmentDelete] = useState(false);
   const [confirmDocumentDelete, setConfirmDocumentDelete] = useState<string | null>(null);
   const [form, setForm] = useState(() => createBlankForm());
@@ -449,12 +529,14 @@ export default function ShipmentLedgerPage() {
     if (status !== "all") params.set("status", status);
     if (flight !== "all") params.set("flight", flight);
     if (sortBy) params.set("sortBy", sortBy);
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
 
     const response = await fetch(`/api/shipments?${params.toString()}`, { cache: "no-store" });
     if (!response.ok) return null;
 
     return (await response.json()) as LedgerPayload;
-  }, [debouncedQuery, flight, sortBy, status]);
+  }, [dateFrom, dateTo, debouncedQuery, flight, sortBy, status]);
 
   const loadShipments = useCallback(
     async (preferredShipmentId: string | null = selectedIdRef.current, mode: "initial" | "refresh" = "refresh") => {
@@ -483,11 +565,7 @@ export default function ShipmentLedgerPage() {
     });
   }, [loadShipments]);
 
-  useEffect(() => {
-    if (!actionNotice) return;
-    const timer = window.setTimeout(() => setActionNotice(""), 2600);
-    return () => window.clearTimeout(timer);
-  }, [actionNotice]);
+
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -513,7 +591,7 @@ export default function ShipmentLedgerPage() {
     [data?.shipments],
   );
 
-  const activeFilterCount = [Boolean(query.trim()), status !== "all", flight !== "all", sortBy !== "updated"].filter(
+  const activeFilterCount = [Boolean(query.trim()), status !== "all", flight !== "all", sortBy !== "updated", Boolean(dateFrom), Boolean(dateTo)].filter(
     Boolean,
   ).length;
 
@@ -522,10 +600,30 @@ export default function ShipmentLedgerPage() {
   if (status !== "all") exportParams.set("status", status);
   if (flight !== "all") exportParams.set("flight", flight);
   if (sortBy) exportParams.set("sortBy", sortBy);
+  if (dateFrom) exportParams.set("dateFrom", dateFrom);
+  if (dateTo) exportParams.set("dateTo", dateTo);
 
   const isReadOnly = data?.viewer.readOnly ?? false;
   const urgencyState = getUrgencyState(selectedShipment);
   const confidenceState = getConfidenceState(selectedShipment);
+  const availableFlights = useMemo(() => data?.flights ?? [], [data?.flights]);
+  const recommendedCreateFlight = useMemo(
+    () => selectRecommendedFlight(availableFlights, form),
+    [availableFlights, form],
+  );
+  const recommendedEditFlight = useMemo(
+    () => selectRecommendedFlight(availableFlights, drawerDraft),
+    [availableFlights, drawerDraft],
+  );
+  const activeCreateFlight = useMemo(
+    () => availableFlights.find((item) => item.id === form.flightId) ?? recommendedCreateFlight,
+    [availableFlights, form.flightId, recommendedCreateFlight],
+  );
+  const activeEditFlight = useMemo(
+    () => availableFlights.find((item) => item.id === drawerDraft.flightId) ?? recommendedEditFlight,
+    [availableFlights, drawerDraft.flightId, recommendedEditFlight],
+  );
+  const hasFlightChoices = availableFlights.length > 0;
   const listPageSize = 6;
   const shipments = useMemo(() => data?.shipments ?? [], [data?.shipments]);
   const totalPages = Math.max(1, Math.ceil(shipments.length / listPageSize));
@@ -536,7 +634,7 @@ export default function ShipmentLedgerPage() {
 
   useEffect(() => {
     setListPage(1);
-  }, [debouncedQuery, flight, sortBy, status]);
+  }, [dateFrom, dateTo, debouncedQuery, flight, sortBy, status]);
 
   useEffect(() => {
     if (listPage <= totalPages) return;
@@ -550,11 +648,10 @@ export default function ShipmentLedgerPage() {
     const matchedShipment =
       shipments.find((shipment) => shipment.awb.toLowerCase() === pendingQuery) ??
       shipments.find((shipment) =>
-        [shipment.awb, shipment.commodity, shipment.shipper, shipment.consignee, shipment.customerAccountName, shipment.flightNumber]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(pendingQuery),
+        matchesOperationalQuery(
+          [shipment.awb, shipment.commodity, shipment.shipper, shipment.consignee, shipment.customerAccountName, shipment.flightNumber],
+          pendingQuery,
+        ),
       );
 
     if (!matchedShipment) return;
@@ -578,15 +675,75 @@ export default function ShipmentLedgerPage() {
 
   async function submitCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSaving(true);
 
+    // Client-side validation with popup errors
+    const TEXT_ONLY_REGEX = /^[a-zA-Z\s.,\-&()]+$/;
+    if (!form.commodity.trim() || form.commodity.trim().length < 2) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Komoditas wajib diisi minimal 2 karakter.", tone: "warning" });
+      return;
+    }
+    if (!TEXT_ONLY_REGEX.test(form.commodity.trim())) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Komoditas harus berupa huruf dan spasi, tidak boleh angka atau simbol khusus.", tone: "warning" });
+      return;
+    }
+    if (!form.shipper.trim() || form.shipper.trim().length < 2) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Nama pengirim wajib diisi minimal 2 karakter.", tone: "warning" });
+      return;
+    }
+    if (!form.consignee.trim() || form.consignee.trim().length < 2) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Nama penerima wajib diisi minimal 2 karakter.", tone: "warning" });
+      return;
+    }
+    if (!form.forwarder.trim() || form.forwarder.trim().length < 2) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Nama ekspeditor wajib diisi minimal 2 karakter.", tone: "warning" });
+      return;
+    }
+    if (isNaN(Number(form.weightKg)) || Number(form.weightKg) <= 0) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Berat harus berupa angka lebih dari 0.", tone: "warning" });
+      return;
+    }
+    if (isNaN(Number(form.pieces)) || Number(form.pieces) <= 0 || !Number.isInteger(Number(form.pieces))) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Pieces harus berupa angka bulat lebih dari 0.", tone: "warning" });
+      return;
+    }
+    if (form.volumeM3 !== undefined && form.volumeM3 !== null && form.volumeM3 !== 0 && (isNaN(Number(form.volumeM3)) || Number(form.volumeM3) <= 0)) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Volume harus berupa angka lebih dari 0.", tone: "warning" });
+      return;
+    }
+    if (form.shippingRate !== undefined && (isNaN(Number(form.shippingRate)) || Number(form.shippingRate) < 0)) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Tarif tidak boleh negatif.", tone: "warning" });
+      return;
+    }
+    if (form.vehicleCapacityKg !== undefined && (isNaN(Number(form.vehicleCapacityKg)) || Number(form.vehicleCapacityKg) <= 0)) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Kapasitas kendaraan harus berupa angka lebih dari 0.", tone: "warning" });
+      return;
+    }
+    const PHONE_REGEX = /^(\+62|62|0)8[1-9][0-9]{6,11}$/;
+    if (!PHONE_REGEX.test(form.senderPhone.trim())) {
+      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "No telepon pengirim tidak valid. Gunakan format Indonesia, contoh: 08123456789.", tone: "warning" });
+      return;
+    }
+    if (form.awb && form.awb.trim()) {
+      const AWB_REGEX = /^[0-9]{3}-[0-9]{8}$/;
+      if (!AWB_REGEX.test(form.awb.trim())) {
+        setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Format AWB harus XXX-XXXXXXXX (3 digit, strip, 8 digit).", tone: "warning" });
+        return;
+      }
+    }
+
+    setSaving(true);
     const response = await fetch("/api/shipments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
+        vehicleName: activeCreateFlight?.vehicleName ?? form.vehicleName,
+        vehicleType: "Pesawat",
+        vehicleCode: activeCreateFlight?.vehicleCode ?? form.vehicleCode,
+        vehicleCapacityKg: activeCreateFlight?.vehicleCapacityKg ?? form.vehicleCapacityKg,
+        vehicleStatus: activeCreateFlight?.vehicleStatus ?? form.vehicleStatus,
         flightId: form.flightId || null,
-        customerAccountId: form.customerAccountId || null,
+        customerAccountId: null,
       }),
     });
 
@@ -605,13 +762,22 @@ export default function ShipmentLedgerPage() {
         );
         setSelectedId(payload.shipment.id);
         setDrawerDraft(createDrawerDraft(payload.shipment));
+        if (typeof window !== "undefined") {
+          window.open(`/exports/awb?awb=${encodeURIComponent(payload.shipment.awb)}`, "_blank", "noopener,noreferrer");
+        }
       }
-      setActionNoticeTone("info");
-      setActionNotice("Pengiriman berhasil dibuat.");
+      setAlertDialog({
+        open: true,
+        title: "Berhasil",
+        description: payload.shipment
+          ? `Pengiriman ${payload.shipment.awb} berhasil dibuat. Resi langsung dibuka untuk dicetak.`
+          : "Pengiriman berhasil dibuat.",
+        tone: "success",
+      });
       void loadShipments(payload.shipment?.id ?? selectedId, "refresh");
     } else {
-      setActionNoticeTone("warning");
-      setActionNotice(await resolveErrorMessage(response, "Gagal membuat pengiriman."));
+      
+      setAlertDialog({ open: true, title: "Gagal membuat pengiriman.", description: await resolveErrorMessage(response, "Gagal membuat pengiriman."), tone: "error" });
     }
 
     setSaving(false);
@@ -626,8 +792,13 @@ export default function ShipmentLedgerPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...drawerDraft,
+        vehicleName: activeEditFlight?.vehicleName ?? drawerDraft.vehicleName,
+        vehicleType: "Pesawat",
+        vehicleCode: activeEditFlight?.vehicleCode ?? drawerDraft.vehicleCode,
+        vehicleCapacityKg: activeEditFlight?.vehicleCapacityKg ?? drawerDraft.vehicleCapacityKg,
+        vehicleStatus: activeEditFlight?.vehicleStatus ?? drawerDraft.vehicleStatus,
         flightId: drawerDraft.flightId || null,
-        customerAccountId: drawerDraft.customerAccountId || null,
+        customerAccountId: null,
       }),
     });
 
@@ -647,12 +818,11 @@ export default function ShipmentLedgerPage() {
         setDrawerDraft(createDrawerDraft(payload.shipment));
       }
       setEditOpen(false);
-      setActionNoticeTone("info");
-      setActionNotice("Perubahan pengiriman berhasil disimpan.");
+      setAlertDialog({ open: true, title: "Berhasil", description: "Perubahan pengiriman berhasil disimpan.", tone: "success" });
       void loadShipments(selectedShipment.id, "refresh");
     } else {
-      setActionNoticeTone("warning");
-      setActionNotice(await resolveErrorMessage(response, "Gagal menyimpan pengiriman."));
+      
+      setAlertDialog({ open: true, title: "Gagal menyimpan pengiriman.", description: await resolveErrorMessage(response, "Gagal menyimpan pengiriman."), tone: "error" });
     }
 
     setSaving(false);
@@ -672,16 +842,14 @@ export default function ShipmentLedgerPage() {
       });
 
       if (response.ok) {
-        setActionNoticeTone("info");
-        setActionNotice("Dokumen berhasil diunggah dan tersimpan di basis data.");
+        setAlertDialog({ open: true, title: "Berhasil", description: "Dokumen berhasil diunggah dan tersimpan di basis data.", tone: "success" });
         await loadShipments(selectedShipment.id, "refresh");
       } else {
-        setActionNoticeTone("warning");
-        setActionNotice(await resolveErrorMessage(response, `Gagal mengunggah dokumen. Gunakan ${DOCUMENT_UPLOAD_FORMAT_COPY}`));
+        
+        setAlertDialog({ open: true, title: "Gagal Mengunggah", description: await resolveErrorMessage(response, `Gagal mengunggah dokumen. Gunakan ${DOCUMENT_UPLOAD_FORMAT_COPY}`), tone: "error" });
       }
     } catch {
-      setActionNoticeTone("warning");
-      setActionNotice("Koneksi terputus saat mengunggah dokumen.");
+      setAlertDialog({ open: true, title: "Peringatan", description: "Koneksi terputus saat mengunggah dokumen.", tone: "warning" });
     } finally {
       setSaving(false);
       event.target.value = "";
@@ -697,12 +865,11 @@ export default function ShipmentLedgerPage() {
 
     const payload = (await response.json().catch(() => ({}))) as { warning?: string | null };
     if (response.ok) {
-      setActionNoticeTone(payload.warning ? "warning" : "info");
-      setActionNotice(payload.warning || "Dokumen berhasil dihapus dari tampilan kerja.");
+      setAlertDialog({ open: true, title: payload.warning ? "Peringatan" : "Berhasil", description: payload.warning || "Dokumen berhasil dihapus dari tampilan kerja.", tone: payload.warning ? "warning" : "success" });
       await loadShipments(selectedShipment.id, "refresh");
     } else {
-      setActionNoticeTone("warning");
-      setActionNotice(await resolveErrorMessage(response, "Gagal menghapus dokumen."));
+      
+      setAlertDialog({ open: true, title: "Gagal menghapus dokumen.", description: await resolveErrorMessage(response, "Gagal menghapus dokumen."), tone: "error" });
     }
   }
 
@@ -730,15 +897,13 @@ export default function ShipmentLedgerPage() {
           );
           setDrawerDraft(createDrawerDraft(payload.shipment));
         }
-        setActionNoticeTone("info");
-        setActionNotice("Pembayaran berhasil diverifikasi admin.");
+        setAlertDialog({ open: true, title: "Berhasil", description: "Pembayaran berhasil diverifikasi admin.", tone: "success" });
       } else {
-        setActionNoticeTone("warning");
-        setActionNotice(await resolveErrorMessage(response, "Gagal verifikasi pembayaran."));
+        
+        setAlertDialog({ open: true, title: "Gagal verifikasi pembayaran.", description: await resolveErrorMessage(response, "Gagal verifikasi pembayaran."), tone: "error" });
       }
     } catch {
-      setActionNoticeTone("warning");
-      setActionNotice("Koneksi terputus saat verifikasi pembayaran.");
+      setAlertDialog({ open: true, title: "Peringatan", description: "Koneksi terputus saat verifikasi pembayaran.", tone: "warning" });
     } finally {
       setSaving(false);
     }
@@ -763,12 +928,11 @@ export default function ShipmentLedgerPage() {
       setSelectedId(null);
       setEditOpen(false);
       setConfirmShipmentDelete(false);
-      setActionNoticeTone("info");
-      setActionNotice(`Pengiriman ${selectedShipment.awb} berhasil dihapus dari basis data.`);
+      setAlertDialog({ open: true, title: "Berhasil", description: `Pengiriman ${selectedShipment.awb} berhasil dihapus dari basis data.`, tone: "success" });
       void loadShipments(null, "refresh");
     } else {
-      setActionNoticeTone("warning");
-      setActionNotice(await resolveErrorMessage(response, "Gagal menghapus pengiriman."));
+      
+      setAlertDialog({ open: true, title: "Gagal menghapus pengiriman.", description: await resolveErrorMessage(response, "Gagal menghapus pengiriman."), tone: "error" });
     }
   }
 
@@ -790,7 +954,7 @@ export default function ShipmentLedgerPage() {
               className="input-field input-field-leading"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari AWB, komoditas, pemilik, atau penerbangan"
+              placeholder="Cari AWB, angka kode, komoditas, pemilik, atau penerbangan"
             />
           </div>
         </div>
@@ -828,6 +992,27 @@ export default function ShipmentLedgerPage() {
             <option value="priority">Prioritas Tinjauan</option>
           </select>
         </div>
+        <div className="shell-filter-field shell-filter-field-wide">
+          <label className="label" htmlFor="ledger-date-from">Tanggal Awal</label>
+          <input
+            id="ledger-date-from"
+            type="date"
+            className="input-field"
+            value={dateFrom}
+            onChange={(event) => setDateFrom(event.target.value)}
+          />
+        </div>
+        <div className="shell-filter-field shell-filter-field-wide">
+          <label className="label" htmlFor="ledger-date-to">Tanggal Akhir</label>
+          <input
+            id="ledger-date-to"
+            type="date"
+            min={dateFrom || undefined}
+            className="input-field"
+            value={dateTo}
+            onChange={(event) => setDateTo(event.target.value)}
+          />
+        </div>
         {activeFilterCount > 0 ? (
           <span className="shell-filter-count" aria-label={`${activeFilterCount} filter aktif`}>
             <Filter size={14} />
@@ -837,7 +1022,7 @@ export default function ShipmentLedgerPage() {
       </div>
       </section>
     ),
-    [activeFilterCount, data?.flights, flight, query, sortBy, status],
+    [activeFilterCount, data?.flights, dateFrom, dateTo, flight, query, sortBy, status],
   );
 
   return (
@@ -847,17 +1032,13 @@ export default function ShipmentLedgerPage() {
       {filterControls}
 
       <div role="status" aria-live="polite">
-        {actionNotice ? (
-          <div
-            className={
-              actionNoticeTone === "warning"
-                ? "rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-warning)]"
-                : "rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]"
-            }
-          >
-            {actionNotice}
-          </div>
-        ) : null}
+      <AlertDialog
+        open={alertDialog.open}
+        title={alertDialog.title}
+        description={alertDialog.description}
+        tone={alertDialog.tone}
+        onOk={() => setAlertDialog((current) => ({ ...current, open: false }))}
+      />
       </div>
 
       <div ref={splitPaneRef} className={splitPaneClassName}>
@@ -1278,71 +1459,36 @@ export default function ShipmentLedgerPage() {
                         <div>
                           <label className="label">Nama Kendaraan</label>
                           <input
-                            className="input-field"
-                            value={drawerDraft.vehicleName}
-                            onChange={(event) =>
-                              setDrawerDraft((current) => ({ ...current, vehicleName: event.target.value }))
-                            }
+                            className="input-field input-readonly"
+                            value={activeEditFlight?.vehicleName ?? drawerDraft.vehicleName}
+                            readOnly
                           />
+                          <p className="form-help">Nama pesawat mengikuti assignment flight dan tidak diubah dari manifest.</p>
                         </div>
                         <div>
                           <label className="label">Jenis Kendaraan</label>
-                          <select
-                            className="select-field"
-                            value={drawerDraft.vehicleType}
-                            onChange={(event) =>
-                              setDrawerDraft((current) => ({ ...current, vehicleType: event.target.value }))
-                            }
-                          >
-                            {VEHICLE_TYPE_OPTIONS.map((item) => (
-                              <option key={item} value={item}>
-                                {item}
-                              </option>
-                            ))}
-                          </select>
+                          <input className="input-field input-readonly" value="Pesawat" readOnly />
                         </div>
                         <div>
                           <label className="label">Kode Kendaraan</label>
                           <input
-                            className="input-field"
-                            value={drawerDraft.vehicleCode}
-                            onChange={(event) =>
-                              setDrawerDraft((current) => ({
-                                ...current,
-                                vehicleCode: event.target.value.toUpperCase(),
-                              }))
-                            }
+                            className="input-field input-readonly"
+                            value={activeEditFlight?.vehicleCode ?? drawerDraft.vehicleCode}
+                            readOnly
                           />
                         </div>
                         <div>
                           <label className="label">Kapasitas Muatan</label>
                           <input
-                            className="input-field"
+                            className="input-field input-readonly"
                             type="number"
-                            value={drawerDraft.vehicleCapacityKg}
-                            onChange={(event) =>
-                              setDrawerDraft((current) => ({
-                                ...current,
-                                vehicleCapacityKg: Number(event.target.value),
-                              }))
-                            }
+                            value={activeEditFlight?.vehicleCapacityKg ?? drawerDraft.vehicleCapacityKg}
+                            readOnly
                           />
                         </div>
                         <div>
                           <label className="label">Status Kendaraan</label>
-                          <select
-                            className="select-field"
-                            value={drawerDraft.vehicleStatus}
-                            onChange={(event) =>
-                              setDrawerDraft((current) => ({ ...current, vehicleStatus: event.target.value }))
-                            }
-                          >
-                            {VEHICLE_STATUS_OPTIONS.map((item) => (
-                              <option key={item} value={item}>
-                                {item}
-                              </option>
-                            ))}
-                          </select>
+                          <input className="input-field input-readonly" value={activeEditFlight?.vehicleStatus ?? drawerDraft.vehicleStatus} readOnly />
                         </div>
                         <div>
                           <label className="label">Status Barang</label>
@@ -1385,33 +1531,22 @@ export default function ShipmentLedgerPage() {
                               setDrawerDraft((current) => ({ ...current, flightId: event.target.value }))
                             }
                           >
-                            <option value="">Tanpa penerbangan</option>
+                            <option value="">Pilih otomatis dari pesawat yang tersedia</option>
                             {(data?.flights ?? []).map((item) => (
                               <option key={item.id} value={item.id}>
-                                {item.flightNumber}
+                                {item.flightNumber} · {item.origin}-{item.destination} · sisa {Math.max(0, Math.round(item.availableCapacityKg))} kg
                               </option>
                             ))}
                           </select>
-                        </div>
-                        <div>
-                          <label className="label">Akun Pelanggan</label>
-                          <select
-                            className="select-field"
-                            value={drawerDraft.customerAccountId}
-                            onChange={(event) =>
-                              setDrawerDraft((current) => ({
-                                ...current,
-                                customerAccountId: event.target.value,
-                              }))
-                            }
-                          >
-                            <option value="">Tanpa akun pelanggan</option>
-                            {(data?.customerAccounts ?? []).map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </select>
+                          {recommendedEditFlight ? (
+                            <p className="form-help">
+                              Rekomendasi sistem: {recommendedEditFlight.flightNumber}, sisa {Math.max(0, Math.round(recommendedEditFlight.availableCapacityKg))} kg.
+                            </p>
+                          ) : hasFlightChoices ? (
+                            <p className="form-help">Belum ada flight aktif yang cocok otomatis. Pilih manual jika perlu override jadwal atau kapasitas.</p>
+                          ) : (
+                            <p className="form-help">Belum ada flight aktif yang cocok dengan rute dan berat ini.</p>
+                          )}
                         </div>
                         <div>
                           <label className="label">Status Dokumen</label>
@@ -1778,61 +1913,38 @@ export default function ShipmentLedgerPage() {
                   <div>
                     <label className="label">Nama Kendaraan</label>
                     <input
-                      className="input-field"
-                      value={form.vehicleName}
-                      onChange={(event) => setForm((current) => ({ ...current, vehicleName: event.target.value }))}
+                      className="input-field input-readonly"
+                      value={activeCreateFlight?.vehicleName ?? form.vehicleName}
+                      readOnly
                     />
+                    <p className="form-help">Nama pesawat diambil dari flight yang dipilih atau rekomendasi otomatis.</p>
                   </div>
                   <div>
                     <label className="label">Jenis Kendaraan</label>
-                    <select
-                      className="select-field"
-                      value={form.vehicleType}
-                      onChange={(event) => setForm((current) => ({ ...current, vehicleType: event.target.value }))}
-                    >
-                      {VEHICLE_TYPE_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
+                    <input className="input-field input-readonly" value="Pesawat" readOnly />
                   </div>
                   <div>
                     <label className="label">Kode Kendaraan</label>
                     <input
-                      className="input-field"
-                      value={form.vehicleCode}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, vehicleCode: event.target.value.toUpperCase() }))
-                      }
+                      className="input-field input-readonly"
+                      value={activeCreateFlight?.vehicleCode ?? form.vehicleCode}
+                      readOnly
                     />
                   </div>
                   <div>
                     <label className="label">Kapasitas Muatan</label>
                     <input
-                      className="input-field"
+                      className="input-field input-readonly"
                       type="number"
                       min={1}
                       step={1}
-                      value={form.vehicleCapacityKg}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, vehicleCapacityKg: Number(event.target.value) }))
-                      }
+                      value={activeCreateFlight?.vehicleCapacityKg ?? form.vehicleCapacityKg}
+                      readOnly
                     />
                   </div>
                   <div>
                     <label className="label">Status Kendaraan</label>
-                    <select
-                      className="select-field"
-                      value={form.vehicleStatus}
-                      onChange={(event) => setForm((current) => ({ ...current, vehicleStatus: event.target.value }))}
-                    >
-                      {VEHICLE_STATUS_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
+                    <input className="input-field input-readonly" value={activeCreateFlight?.vehicleStatus ?? form.vehicleStatus} readOnly />
                   </div>
                   <div>
                     <label className="label">Status Barang</label>
@@ -1890,30 +2002,22 @@ export default function ShipmentLedgerPage() {
                       value={form.flightId}
                       onChange={(event) => setForm((current) => ({ ...current, flightId: event.target.value }))}
                     >
-                      <option value="">Tanpa penerbangan</option>
+                      <option value="">Pilih otomatis dari pesawat yang tersedia</option>
                       {(data?.flights ?? []).map((item) => (
                         <option key={item.id} value={item.id}>
-                          {item.flightNumber}
+                          {item.flightNumber} · {item.origin}-{item.destination} · sisa {Math.max(0, Math.round(item.availableCapacityKg))} kg
                         </option>
                       ))}
                     </select>
-                  </div>
-                  <div>
-                    <label className="label">Akun Pelanggan</label>
-                    <select
-                      className="select-field"
-                      value={form.customerAccountId}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, customerAccountId: event.target.value }))
-                      }
-                    >
-                      <option value="">Tanpa akun pelanggan</option>
-                      {(data?.customerAccounts ?? []).map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
+                    {recommendedCreateFlight ? (
+                      <p className="form-help">
+                        Rekomendasi sistem: {recommendedCreateFlight.flightNumber}, sisa {Math.max(0, Math.round(recommendedCreateFlight.availableCapacityKg))} kg.
+                      </p>
+                    ) : hasFlightChoices ? (
+                      <p className="form-help">Belum ada flight aktif yang cocok otomatis. Pilih manual jika perlu override jadwal atau kapasitas.</p>
+                    ) : (
+                      <p className="form-help">Belum ada flight aktif yang cocok dengan rute dan berat ini.</p>
+                    )}
                   </div>
                   <div className="md:col-span-3">
                     <label className="label">Catatan Operator</label>

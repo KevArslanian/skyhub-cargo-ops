@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const data = await getFlightBoardData(user, parsedQuery.data);
     return NextResponse.json(data);
   } catch (error) {
-    return routeErrorResponse(error, "Gagal memuat papan penerbangan.");
+    return routeErrorResponse(error, "Gagal memuat management pesawat.");
   }
 }
 

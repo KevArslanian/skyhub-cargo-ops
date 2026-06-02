@@ -82,9 +82,9 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 export const ROLE_SCOPE_COPY: Record<UserRole, string> = {
-  admin: "Kelola pengguna, akun pelanggan, dan seluruh modul operasional.",
-  staff: "Kelola alur kerja operasional harian tanpa manajemen pengguna atau akun pelanggan.",
-  customer: "Akses pelacakan AWB, cetak, dan pelaporan isu sesuai akun pelanggan.",
+  admin: "Kelola pengguna internal, konfigurasi ruang kerja, dan seluruh modul operasional.",
+  staff: "Kelola alur kerja operasional harian tanpa manajemen pengguna.",
+  customer: "Peran lama pelanggan. Login pelanggan dinonaktifkan dari workspace internal.",
 };
 
 export const USER_STATUS_LABELS: Record<UserStatus, string> = {

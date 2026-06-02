@@ -26,13 +26,13 @@ export const metadata: Metadata = {
     default: APP_NAME,
     template: `%s | ${APP_NAME}`,
   },
-  description: `${APP_SUBTITLE} untuk pelacakan AWB, papan penerbangan, dan dasbor staf operasional.`,
+  description: `${APP_SUBTITLE} untuk pelacakan AWB, management pesawat, dan dasbor staf operasional.`,
   alternates: {
     canonical: "/",
   },
   openGraph: {
     title: APP_NAME,
-    description: `${APP_SUBTITLE} untuk pelacakan AWB, papan penerbangan, dan dasbor staf operasional.`,
+    description: `${APP_SUBTITLE} untuk pelacakan AWB, management pesawat, dan dasbor staf operasional.`,
     url: APP_CANONICAL_URL,
     siteName: APP_NAME,
     type: "website",

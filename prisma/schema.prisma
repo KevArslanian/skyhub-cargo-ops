@@ -74,6 +74,21 @@ enum AlertWorkflowStatus {
   resolved
 }
 
+enum ComplaintStatus {
+  new
+  in_review
+  resolved
+  closed
+}
+
+enum ComplaintTopic {
+  shipment
+  flight
+  document
+  service
+  other
+}
+
 model CustomerAccount {
   id           String                @id @default(cuid())
   code         String                @unique
@@ -190,6 +205,7 @@ model User {
   assignedAlerts      AlertState[]       @relation("AlertAssignee")
   acknowledgedAlerts  AlertState[]       @relation("AlertAcknowledger")
   resolvedAlerts      AlertState[]       @relation("AlertResolver")
+  handledComplaints   PublicComplaint[]  @relation("ComplaintHandler")
   createdShipments  Shipment[]        @relation("ShipmentCreator")
   trackingLogs      TrackingLog[]      @relation("TrackingActor")
   customerAccount   CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
@@ -461,4 +477,26 @@ model AlertState {
   @@index([status, updatedAt])
   @@index([assignedToId])
   @@index([entityType, entityId])
+}
+
+model PublicComplaint {
+  id             String           @id @default(cuid())
+  ticketCode     String           @unique
+  reporterName   String
+  contact        String
+  topic          ComplaintTopic
+  referenceNo    String?
+  message        String
+  status         ComplaintStatus  @default(new)
+  source         String           @default("about-us")
+  handledById    String?
+  handledByName  String?
+  handledAt      DateTime?
+  resolutionNote String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  handledBy      User?            @relation("ComplaintHandler", fields: [handledById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([topic, createdAt])
 }
