@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { listShipments } from "@/lib/data";
 import { formatDateTime } from "@/lib/format";
 import { AutoPrintReport } from "@/components/auto-print-report";
+import { PrintCenterLayout } from "@/components/print-center-layout";
 import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
-import { PrintCenterLayout } from "@deltaoga/skyhub-print-center/layout";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +29,9 @@ export default async function ShipmentsPrintPage({
   const printedAt = new Date();
 
   const filterSummary = [
-    params.query ? `Query: ${params.query}` : null,
+    params.query ? `Kata kunci: ${params.query}` : null,
     params.status ? `Status: ${params.status}` : null,
-    params.flight ? `Flight: ${params.flight}` : null,
+    params.flight ? `Penerbangan: ${params.flight}` : null,
     params.sortBy ? `Urut: ${params.sortBy}` : null,
   ]
     .filter(Boolean)
@@ -52,12 +52,12 @@ export default async function ShipmentsPrintPage({
       <AutoPrintReport />
       <PrintCenterLayout
       scriptId="print-shipments"
-      documentTitle="Ledger Shipment"
-      documentSubtitle="Manifest Shipment Operasional"
+      documentTitle="Buku Pengiriman"
+      documentSubtitle="Manifest Pengiriman Operasional"
       printedAtLabel={formatDateTime(printedAt.toISOString())}
       filterSummary={filterSummary}
-      summaryTitle={`Ringkasan • ${data.shipments.length} shipment`}
-      summarySubtitle="Distribusi status shipment pada filter aktif."
+      summaryTitle={`Ringkasan • ${data.shipments.length} pengiriman`}
+      summarySubtitle="Distribusi status pengiriman pada filter aktif."
       summaryChips={[
         { label: `${data.shipments.length} Total`, tone: "info" },
         ...distributionChips,
@@ -97,7 +97,7 @@ export default async function ShipmentsPrintPage({
             ) : (
               <tr>
                 <td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-500">
-                  Tidak ada data shipment untuk filter ini.
+                  Tidak ada data pengiriman untuk filter ini.
                 </td>
               </tr>
             )}

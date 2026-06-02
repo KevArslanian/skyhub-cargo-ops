@@ -11,13 +11,13 @@ export async function GET(request: Request) {
     const parsedQuery = flightListQuerySchema.safeParse(Object.fromEntries(searchParams));
 
     if (!parsedQuery.success) {
-      return validationErrorResponse(parsedQuery.error, "Filter flight tidak valid.");
+      return validationErrorResponse(parsedQuery.error, "Filter penerbangan tidak valid.");
     }
 
     const data = await getFlightBoardData(user, parsedQuery.data);
     return NextResponse.json(data);
   } catch (error) {
-    return routeErrorResponse(error, "Gagal memuat papan flight.");
+    return routeErrorResponse(error, "Gagal memuat papan penerbangan.");
   }
 }
 
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const parsed = flightCreateSchema.safeParse(json);
 
     if (!parsed.success) {
-      return validationErrorResponse(parsed.error, "Input flight tidak valid.");
+      return validationErrorResponse(parsed.error, "Input penerbangan tidak valid.");
     }
 
     const flight = await createFlight({
@@ -38,6 +38,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ flight });
   } catch (error) {
-    return routeErrorResponse(error, "Gagal membuat flight.");
+    return routeErrorResponse(error, "Gagal membuat penerbangan.");
   }
 }

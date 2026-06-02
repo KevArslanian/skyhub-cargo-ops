@@ -73,15 +73,15 @@ export const COMPANY_HERO_HEADLINE =
   "Pusat kendali kargo udara yang cepat dipindai, elegan dibaca, dan stabil untuk shift operasional panjang.";
 
 export const COMPANY_HERO_COPY =
-  "SkyHub menyatukan pelacakan AWB, manifest board, pengelolaan shipment, audit, alert, dan preferensi staff operasional dalam satu sistem operasional yang formal, tenang, dan siap dipakai sepanjang hari.";
+  "SkyHub menyatukan pelacakan AWB, papan manifest, pengelolaan pengiriman, audit, peringatan, dan preferensi staf operasional dalam satu sistem operasional yang formal, tenang, dan siap dipakai sepanjang hari.";
 
 export const COMPANY_ABOUT_COPY =
-  "Dirancang untuk staff operasional, admin, dan customer portal, SkyHub menjaga hierarchy data tetap tegas: status lebih cepat terbaca, exception lebih cepat terlihat, dan aksi kerja tetap dekat ke konteks shipment.";
+  "Dirancang untuk staf operasional, admin, dan portal pelanggan, SkyHub menjaga hierarki data tetap tegas: status lebih cepat terbaca, masalah lebih cepat terlihat, dan aksi kerja tetap dekat ke konteks pengiriman.";
 
 export const COMPANY_HERO_PILLS = [
-  "Internal cargo operations system",
-  "Swipeable information deck",
-  "Manual controls, no autoplay",
+  "Sistem operasi kargo internal",
+  "Deck informasi yang bisa digeser",
+  "Kontrol manual tanpa putar otomatis",
 ] as const;
 
 export const COMPANY_OPERATOR_NOTE =
@@ -90,15 +90,15 @@ export const COMPANY_OPERATOR_NOTE =
 export const COMPANY_HERO_METRICS: CompanyFactItem[] = [
   {
     label: "Mode Operasional",
-    value: "Internal cargo operations workspace",
+    value: "Ruang kerja operasi kargo internal",
   },
   {
     label: "Cakupan",
-    value: "AWB tracking, manifest, audit, alerts, user preferences",
+    value: "Pelacakan AWB, manifest, audit, peringatan, preferensi pengguna",
   },
   {
     label: "Akses",
-    value: "Staff operasional, admin, dan portal pelanggan",
+    value: "Staf operasional, admin, dan portal pelanggan",
   },
 ];
 
@@ -109,15 +109,15 @@ export const COMPANY_FACTS: CompanyFactItem[] = [
   },
   {
     label: "Platform",
-    value: "Command center internal dengan portal akun pelanggan",
+    value: "Pusat kendali internal dengan portal akun pelanggan",
   },
   {
     label: "Cakupan layanan",
-    value: "Monitoring shipment, manifest, assignment flight, audit, alert, dan review readiness",
+    value: "Pemantauan pengiriman, manifest, penugasan penerbangan, audit, peringatan, dan tinjauan kesiapan",
   },
   {
     label: "Karakter produk",
-    value: "Enterprise dashboard yang fokus pada speed of scanning dan operational clarity",
+    value: "Dasbor operasional yang fokus pada kecepatan pemindaian dan kejelasan keputusan",
   },
 ];
 
@@ -125,7 +125,7 @@ export const COMPANY_CONTACT_ITEMS: CompanyContactItem[] = [
   {
     icon: Building2,
     label: "Kantor",
-    value: "SkyHub Operations Center",
+    value: "Pusat Operasi SkyHub",
   },
   {
     icon: MapPin,
@@ -134,19 +134,19 @@ export const COMPANY_CONTACT_ITEMS: CompanyContactItem[] = [
   },
   {
     icon: Mail,
-    label: "Email umum",
+    label: "Surel umum",
     value: "info@skyhub.co",
     href: "mailto:info@skyhub.co",
   },
   {
     icon: Mail,
-    label: "Email operasional",
+    label: "Surel operasional",
     value: "ops@skyhub.co",
     href: "mailto:ops@skyhub.co",
   },
   {
     icon: Mail,
-    label: "Email dukungan",
+    label: "Surel dukungan",
     value: "support@skyhub.co",
     href: "mailto:support@skyhub.co",
   },
@@ -175,8 +175,8 @@ export const COMPANY_CONTACT_ITEMS: CompanyContactItem[] = [
   },
   {
     icon: ShieldCheck,
-    label: "Support path",
-    value: "24 jam monitoring support untuk eskalasi operasional",
+    label: "Jalur dukungan",
+    value: "Monitoring dukungan 24 jam untuk eskalasi operasional",
   },
 ];
 
@@ -216,131 +216,131 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
   {
     id: "ringkasan",
     label: "Ringkasan Perusahaan",
-    title: "SkyHub mempertemukan monitoring kargo, alur review, dan kendali peran dalam satu ruang kontrol.",
+    title: "SkyHub mempertemukan pemantauan kargo, alur tinjauan, dan kendali peran dalam satu ruang kontrol.",
     description:
-      "Platform ini dibuat untuk operasional harian yang padat. Data inti selalu berada di depan, exception tidak tenggelam, dan staff dapat berpindah dari tracking ke manifest tanpa kehilangan konteks.",
+      "Platform ini dibuat untuk operasional harian yang padat. Data inti selalu berada di depan, masalah tidak tenggelam, dan staf dapat berpindah dari pelacakan ke manifest tanpa kehilangan konteks.",
     artworkSrc: "/auth/about-stage-atlas.svg",
-    artworkAlt: "Editorial company summary scene with aviation lighting and command deck composition.",
-    stageEyebrow: "Company Identity Stage",
-    stageLabel: "Operational atlas with calm hierarchy",
-    stageNote: "Card aktif mendorong hero visual agar identitas perusahaan, scope layanan, dan positioning produk terasa hidup sejak fold pertama.",
+    artworkAlt: "Adegan ringkasan perusahaan dengan pencahayaan aviasi dan komposisi ruang kendali.",
+    stageEyebrow: "Panggung Identitas Perusahaan",
+    stageLabel: "Atlas operasional dengan hierarki tenang",
+    stageNote: "Kartu aktif mendorong visual hero agar identitas perusahaan, cakupan layanan, dan posisi produk terasa hidup sejak layar pertama.",
     sceneFacts: [
       { label: "Status operasional", value: "Normal dan aktif sepanjang shift" },
-      { label: "Scope layanan", value: "Shipment, flight, audit, customer portal" },
-      { label: "Visual tone", value: "Blue-white, editorial, enterprise" },
+      { label: "Cakupan layanan", value: "Pengiriman, penerbangan, audit, portal pelanggan" },
+      { label: "Nada visual", value: "Biru-putih, editorial, enterprise" },
     ],
-    chips: ["Operational workspace", "Brand-led blue system", "Rounded enterprise layout"],
+    chips: ["Ruang kerja operasional", "Sistem biru berbasis brand", "Layout enterprise membulat"],
     metrics: [
-      { label: "Ruang kendali", value: "Internal cargo operations center" },
-      { label: "Narasi utama", value: "Speed of scanning without losing calm" },
-      { label: "Arah visual", value: "Premium internal operations system" },
+      { label: "Ruang kendali", value: "Pusat operasi kargo internal" },
+      { label: "Narasi utama", value: "Cepat dipindai tanpa kehilangan ketenangan" },
+      { label: "Arah visual", value: "Sistem operasi internal premium" },
     ],
     note: "Ringkasan perusahaan harus terasa seperti satu deck identitas yang siap dibaca cepat, bukan paragraf profil statis.",
   },
   {
     id: "fokus",
     label: "Fokus Platform",
-    title: "Lima capability utama dipusatkan untuk mempercepat pemindaian dan keputusan staff.",
+    title: "Lima kapabilitas utama dipusatkan untuk mempercepat pemindaian dan keputusan staf.",
     description:
-      "Alih-alih daftar fitur panjang, capability platform dipresentasikan sebagai blok kerja yang langsung menjawab aktivitas shift dan monitoring kiriman.",
+      "Alih-alih daftar fitur panjang, kapabilitas platform dipresentasikan sebagai blok kerja yang langsung menjawab aktivitas shift dan pemantauan kiriman.",
     artworkSrc: "/auth/about-stage-operations.svg",
-    artworkAlt: "Operational capability scene with modular cargo tracking overlays and runway-like framing.",
-    stageEyebrow: "Capability Stage",
-    stageLabel: "Function blocks that read like a control deck",
-    stageNote: "Visual stage diarahkan ke kapabilitas kerja: tracking, manifest, flight assignment, audit, dan notifikasi tersusun sebagai runway informasi.",
+    artworkAlt: "Adegan kapabilitas operasional dengan lapisan pelacakan kargo dan bingkai seperti runway.",
+    stageEyebrow: "Panggung Kapabilitas",
+    stageLabel: "Blok fungsi yang terbaca seperti ruang kendali",
+    stageNote: "Panggung visual diarahkan ke kapabilitas kerja: pelacakan, manifest, penugasan penerbangan, audit, dan pemberitahuan tersusun sebagai jalur informasi.",
     sceneFacts: [
-      { label: "Tracking", value: "Timeline AWB, status aktif, exception, update terakhir" },
-      { label: "Manifest", value: "Board, filter cepat, review status, detail panel" },
-      { label: "Audit", value: "Alert, chronology, dan jalur eskalasi" },
+      { label: "Pelacakan", value: "Linimasa AWB, status aktif, masalah, update terakhir" },
+      { label: "Manifest", value: "Papan, filter cepat, tinjauan status, panel detail" },
+      { label: "Audit", value: "Peringatan, kronologi, dan jalur eskalasi" },
     ],
     highlights: [
       {
         icon: Radar,
-        title: "Monitoring shipment",
-        description: "Timeline AWB, status aktif, exception, dan update terakhir tampil sebagai konteks utama.",
+        title: "Pemantauan pengiriman",
+        description: "Linimasa AWB, status aktif, masalah, dan update terakhir tampil sebagai konteks utama.",
       },
       {
         icon: Workflow,
-        title: "Manifest board",
-        description: "Daftar shipment, filter cepat, review status, dan relasi ke panel detail dalam satu flow.",
+        title: "Papan manifest",
+        description: "Daftar pengiriman, filter cepat, tinjauan status, dan relasi ke panel detail dalam satu alur.",
       },
       {
         icon: PlaneTakeoff,
-        title: "Flight assignment",
-        description: "Shipment yang terhubung ke flight aktif tetap terlihat bersama readiness dan urgensinya.",
+        title: "Assignment penerbangan",
+        description: "Pengiriman yang terhubung ke penerbangan aktif tetap terlihat bersama kesiapan dan urgensinya.",
       },
       {
         icon: BellRing,
-        title: "Audit & alert",
-        description: "Log kronologis, exception alerts, dan jalur eskalasi dibangun untuk tindakan cepat.",
+        title: "Audit & peringatan",
+        description: "Catatan kronologis, peringatan masalah, dan jalur eskalasi dibangun untuk tindakan cepat.",
       },
     ],
-    note: "Capability highlights harus terasa seperti blok kerja staff, bukan copy pemasaran generik.",
+    note: "Highlight kapabilitas harus terasa seperti blok kerja staf, bukan copy pemasaran generik.",
   },
   {
     id: "kualitas",
     label: "Kualitas Operasional",
     title: "Kepadatan informasi dibuat tinggi, tetapi ritme baca tetap dijaga.",
     description:
-      "SkyHub menempatkan angka, timestamp, identifier, dan severity sebagai hirarki primer. Efek visual dipakai seperlunya untuk memperjelas state, bukan mengganggu fokus staff.",
+      "SkyHub menempatkan angka, waktu, identitas data, dan tingkat masalah sebagai hierarki primer. Efek visual dipakai seperlunya untuk memperjelas kondisi tampilan, bukan mengganggu fokus staf.",
     artworkSrc: "/auth/about-stage-network.svg",
-    artworkAlt: "Operational quality scene with layered data bands, clean spacing, and aviation corridor lighting.",
-    stageEyebrow: "Quality Signals",
-    stageLabel: "Dense, legible, and predictable under pressure",
+    artworkAlt: "Adegan kualitas operasional dengan lapisan data, jarak rapi, dan cahaya koridor aviasi.",
+    stageEyebrow: "Sinyal Kualitas",
+    stageLabel: "Padat, terbaca, dan mudah diprediksi saat tekanan tinggi",
     stageNote: "Hero visual untuk card ini menegaskan bahwa ketenangan layout adalah bagian dari kualitas operasional, bukan hanya pilihan estetika.",
     sceneFacts: [
-      { label: "Readability", value: "Angka dan identifier selalu paling kontras" },
-      { label: "State design", value: "Hover, selected, warning, sync, empty, loading" },
-      { label: "Stability", value: "Panel bounded dan mudah diprediksi selama shift" },
+      { label: "Keterbacaan", value: "Angka dan identifier selalu paling kontras" },
+      { label: "Desain state", value: "Hover, terpilih, peringatan, sinkron, kosong, memuat" },
+      { label: "Stabilitas", value: "Panel terbatas dan mudah diprediksi selama shift" },
     ],
     metrics: [
       { label: "Kecepatan akses", value: "Pola layout konsisten untuk tugas berulang" },
       { label: "Struktur informasi", value: "Header, summary, table, detail panel terhubung jelas" },
-      { label: "Stabilitas dashboard", value: "Panel bounded dengan state yang mudah diprediksi" },
+      { label: "Stabilitas dasbor", value: "Panel terbatas dengan kondisi tampilan yang mudah diprediksi" },
       { label: "Akurasi data", value: "Status, log, dan dokumen diringkas dari sumber yang sama" },
-      { label: "Usability staff", value: "Scanning cepat di desktop, tetap nyaman di tablet/mobile" },
+      { label: "Kegunaan staf", value: "Pemindaian cepat di desktop, tetap nyaman di tablet/mobile" },
     ],
-    note: "Quality principles dipresentasikan seperti KPI produk agar halaman profile terasa hidup dan dapat dipindai.",
+    note: "Prinsip kualitas dipresentasikan seperti KPI produk agar halaman profil terasa hidup dan dapat dipindai.",
   },
   {
     id: "akses",
-    label: "Akses & Environment",
-    title: "Sistem menangani beberapa tipe pengguna dan workspace behavior yang berbeda.",
+    label: "Akses & Lingkungan",
+    title: "Sistem menangani beberapa tipe pengguna dan perilaku ruang kerja yang berbeda.",
     description:
-      "Operator internal membutuhkan command center yang padat. Portal pelanggan membutuhkan status yang lebih ringkas. Keduanya tetap memakai identitas visual yang sama, namun konteksnya dibedakan oleh role-based access.",
+      "Operator internal membutuhkan pusat kendali yang padat. Portal pelanggan membutuhkan status yang lebih ringkas. Keduanya tetap memakai identitas visual yang sama, namun konteksnya dibedakan oleh akses berbasis peran.",
     artworkSrc: "/auth/about-stage-atlas.svg",
-    artworkAlt: "Access environment scene with layered lounge framing and role-based control zones.",
-    stageEyebrow: "Access Environment",
-    stageLabel: "Shared identity with role-aware workspaces",
-    stageNote: "Card ini harus menegaskan bahwa pemisahan internal portal dan customer portal dilakukan lewat akses, bukan lewat brand yang tercerai-berai.",
+    artworkAlt: "Adegan lingkungan akses dengan lapisan ruang dan zona kontrol berbasis peran.",
+    stageEyebrow: "Lingkungan Akses",
+    stageLabel: "Identitas bersama dengan ruang kerja sadar peran",
+    stageNote: "Kartu ini menegaskan bahwa pemisahan portal internal dan portal pelanggan dilakukan lewat akses, bukan lewat brand yang tercerai-berai.",
     sceneFacts: [
-      { label: "Pengguna internal", value: "Staff operasional dan admin" },
-      { label: "Portal pelanggan", value: "Status shipment dan dokumen ringkas berbasis akun" },
-      { label: "Behavior", value: "Sidebar, topbar, refresh, preferensi bersifat personal" },
+      { label: "Pengguna internal", value: "Staf operasional dan admin" },
+      { label: "Portal pelanggan", value: "Status pengiriman dan dokumen ringkas berbasis akun" },
+      { label: "Perilaku", value: "Menu samping, bar atas, penyegaran, preferensi bersifat personal" },
     ],
     highlights: [
       {
         icon: Users,
         title: "Pengguna internal",
-        description: "Staff operasional dan admin mengelola manifest, tracking, review, dan exception harian.",
+        description: "Staf operasional dan admin mengelola manifest, pelacakan, tinjauan, dan masalah harian.",
       },
       {
         icon: BriefcaseBusiness,
         title: "Portal pelanggan",
-        description: "Akun pelanggan melihat status shipment, timeline, dan ringkasan dokumen secara terbatas.",
+        description: "Akun pelanggan melihat status pengiriman, linimasa, dan ringkasan dokumen secara terbatas.",
       },
       {
         icon: LockKeyhole,
-        title: "Role-based access",
-        description: "Panel, aksi, dan data yang tersedia menyesuaikan peran dan relasi account.",
+        title: "Akses berbasis peran",
+        description: "Panel, aksi, dan data yang tersedia menyesuaikan peran dan relasi akun.",
       },
       {
         icon: LayoutPanelTop,
-        title: "Workspace behavior",
-        description: "Sidebar, topbar, preferensi, dan refresh behavior tersimpan sebagai lingkungan kerja personal.",
+        title: "Perilaku ruang kerja",
+        description: "Menu samping, bar atas, preferensi, dan perilaku penyegaran tersimpan sebagai lingkungan kerja personal.",
       },
     ],
-    note: "Perbedaan antar mode akses harus jelas, tetapi transisi mental user tetap ringan karena language visualnya konsisten.",
+    note: "Perbedaan antar mode akses harus jelas, tetapi transisi mental pengguna tetap ringan karena bahasa visualnya konsisten.",
   },
   {
     id: "kontak",
@@ -389,66 +389,66 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
 
 export const COMPANY_SUPPORT_SLA: CompanyFactItem[] = [
   {
-    label: "Response target",
+    label: "Batas tindak lanjut",
     value: "< 5 menit untuk eskalasi operasional aktif",
   },
   {
-    label: "Update rhythm",
+    label: "Pembaruan status",
     value: "Sinkronisasi status dan audit trail per perubahan kerja",
   },
   {
-    label: "Review path",
-    value: "Exception, hold, dan dokumen incomplete diarahkan ke review terpusat",
+    label: "Jalur tinjauan",
+    value: "Masalah, hold, dan dokumen belum lengkap diarahkan ke tinjauan terpusat",
   },
 ];
 
 export const COMPANY_SUPPORT_TIMELINE: CompanyTimelineItem[] = [
   {
     label: "01",
-    title: "Intake & validation",
-    description: "Shipment diterima, divalidasi, dan langsung masuk ke papan manifest serta tracking context.",
+    title: "Penerimaan & validasi",
+    description: "Pengiriman diterima, divalidasi, dan langsung masuk ke papan manifest serta konteks pelacakan.",
   },
   {
     label: "02",
-    title: "Manifest & assignment",
-    description: "Operator mengaitkan shipment ke flight, memeriksa readiness, dan menandai isu dokumen bila perlu.",
+    title: "Manifest & penugasan",
+    description: "Operator mengaitkan pengiriman ke penerbangan, memeriksa kesiapan, dan menandai isu dokumen bila perlu.",
   },
   {
     label: "03",
-    title: "In-transit monitoring",
-    description: "Timeline AWB, status perjalanan, dan log event diperbarui agar exception tidak terlambat ditindak.",
+    title: "Pemantauan perjalanan",
+    description: "Linimasa AWB, status perjalanan, dan log kejadian diperbarui agar masalah tidak terlambat ditindak.",
   },
   {
     label: "04",
-    title: "Closure & audit",
-    description: "Riwayat aktivitas, dokumen, dan hasil status akhir tetap bisa ditelusuri untuk kebutuhan review.",
+    title: "Penutupan & audit",
+    description: "Riwayat aktivitas, dokumen, dan hasil status akhir tetap bisa ditelusuri untuk kebutuhan tinjauan.",
   },
 ];
 
 export const COMPANY_OPERATIONAL_PRINCIPLES: CompanyHighlightItem[] = [
   {
     icon: Gauge,
-    title: "Scan-first hierarchy",
-    description: "AWB, angka, dan severity selalu tampil lebih kontras daripada dekorasi visual.",
+    title: "Hierarki cepat pindai",
+    description: "AWB, angka, dan tingkat masalah selalu tampil lebih kontras daripada dekorasi visual.",
   },
   {
     icon: ScanSearch,
-    title: "Dense but calm",
+    title: "Padat tetapi tenang",
     description: "Informasi dipadatkan secara disiplin tanpa menjadikan layar terasa sesak.",
   },
   {
     icon: ChartNoAxesCombined,
-    title: "Data over ornament",
+    title: "Data di atas ornamen",
     description: "Border, badge, dan hover dipakai untuk keputusan, bukan sekadar pemanis.",
   },
   {
     icon: Files,
-    title: "Audit-ready",
-    description: "Log, status, dan dokumen dirancang agar mudah ditelusuri kembali saat review.",
+    title: "Siap audit",
+    description: "Log, status, dan dokumen dirancang agar mudah ditelusuri kembali saat tinjauan.",
   },
   {
     icon: Route,
-    title: "Role-aware environment",
-    description: "Perbedaan internal portal dan customer portal diatur dari akses, bukan dari brand yang tercerai.",
+    title: "Lingkungan sadar peran",
+    description: "Perbedaan portal internal dan portal pelanggan diatur dari akses, bukan dari brand yang tercerai.",
   },
 ];

@@ -27,14 +27,14 @@ export async function GET(request: Request) {
     const parsedQuery = shipmentListQuerySchema.safeParse(Object.fromEntries(searchParams));
 
     if (!parsedQuery.success) {
-      return validationErrorResponse(parsedQuery.error, "Filter shipment tidak valid.");
+      return validationErrorResponse(parsedQuery.error, "Filter pengiriman tidak valid.");
     }
 
     const data = await listShipments(user, parsedQuery.data);
 
     return NextResponse.json(data);
   } catch (error) {
-    return routeErrorResponse(error, "Gagal memuat shipment.");
+    return routeErrorResponse(error, "Gagal memuat pengiriman.");
   }
 }
 
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     const parsed = shipmentCreateSchema.safeParse(payload);
 
     if (!parsed.success) {
-      return validationErrorResponse(parsed.error, "Input shipment tidak valid.");
+      return validationErrorResponse(parsed.error, "Input pengiriman tidak valid.");
     }
 
     const shipment = await createShipment({
@@ -59,6 +59,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ shipment });
   } catch (error) {
-    return routeErrorResponse(error, "Gagal membuat shipment.");
+    return routeErrorResponse(error, "Gagal membuat pengiriman.");
   }
 }

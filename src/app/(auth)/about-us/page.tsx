@@ -52,33 +52,33 @@ const capabilityCard = COMPANY_SWIPE_CARDS.find((card) => card.id === "fokus");
 const CAPABILITIES = capabilityCard?.highlights?.slice(0, 3) ?? [
   {
     icon: Satellite,
-    title: "Live Flight Board",
-    description: "Status flight, cutoff kargo, dan assignment terlihat dari sumber data operasional yang sama.",
+    title: "Papan Penerbangan Langsung",
+    description: "Status penerbangan, batas terima kargo, dan penugasan terlihat dari sumber data operasional yang sama.",
   },
   {
     icon: Plane,
-    title: "AWB Intelligence",
-    description: "Tracking AWB, dokumen, exception, dan status readiness tetap dekat ke konteks shipment.",
+    title: "Intelijen AWB",
+    description: "Pelacakan AWB, dokumen, masalah, dan status kesiapan tetap dekat ke konteks pengiriman.",
   },
   {
     icon: Shield,
-    title: "Exception Command",
-    description: "Hold, dokumen incomplete, dan alert operasional disatukan untuk respons cepat.",
+    title: "Kendali Masalah",
+    description: "Hold, dokumen belum lengkap, dan peringatan operasional disatukan untuk respons cepat.",
   },
 ];
 
 const OPERATIONS = COMPANY_SUPPORT_TIMELINE.map((item) => ({
   index: item.label,
   title: item.title.toUpperCase(),
-  duration: item.label === "01" ? "Intake" : item.label === "02" ? "Manifest" : item.label === "03" ? "Monitor" : "Audit",
+  duration: item.label === "01" ? "Penerimaan" : item.label === "02" ? "Manifest" : item.label === "03" ? "Pantau" : "Audit",
   copy: item.description,
 }));
 
 const ABOUT_CLIPS: AboutClip[] = [
-  { src: "/media/about/sky-clouds.mp4", poster: "/media/about/sky-clouds.jpg", label: "In transit" },
-  { src: "/media/about/takeoff-sunrise.mp4", poster: "/media/about/takeoff-sunrise.jpg", label: "Departure" },
-  { src: "/media/about/data-network.mp4", poster: "/media/about/data-network.jpg", label: "Network" },
-  { src: "/media/about/city-aerial.mp4", poster: "/media/about/city-aerial.jpg", label: "Ground ops" },
+  { src: "/media/about/sky-clouds.mp4", poster: "/media/about/sky-clouds.jpg", label: "Dalam perjalanan" },
+  { src: "/media/about/takeoff-sunrise.mp4", poster: "/media/about/takeoff-sunrise.jpg", label: "Keberangkatan" },
+  { src: "/media/about/data-network.mp4", poster: "/media/about/data-network.jpg", label: "Jaringan" },
+  { src: "/media/about/city-aerial.mp4", poster: "/media/about/city-aerial.jpg", label: "Operasi darat" },
 ];
 
 const ABOUT_SCRUB_VIDEO = {
@@ -93,11 +93,11 @@ function getContact(label: string) {
 const officeContact = getContact("Kantor");
 const addressContact = getContact("Alamat");
 const phoneContact = getContact("Telepon");
-const opsEmailContact = getContact("Email operasional");
-const infoEmailContact = getContact("Email umum");
-const supportEmailContact = getContact("Email dukungan");
+const opsEmailContact = getContact("Surel operasional");
+const infoEmailContact = getContact("Surel umum");
+const supportEmailContact = getContact("Surel dukungan");
 const hoursContact = getContact("Jam operasional");
-const supportPathContact = getContact("Support path");
+const supportPathContact = getContact("Jalur dukungan");
 
 export default function AboutUsPage() {
   const router = useRouter();
@@ -289,7 +289,7 @@ export default function AboutUsPage() {
     if (!email.trim() || !password.trim()) {
       setLoginError({
         code: LOGIN_ERROR_CODES.INVALID_INPUT,
-        message: "Email dan password wajib diisi.",
+        message: "Surel dan kata sandi wajib diisi.",
       });
       return;
     }
@@ -308,7 +308,7 @@ export default function AboutUsPage() {
       if (!response.ok) {
         setLoginError({
           code: payload.code,
-          message: payload.error || "Login gagal.",
+          message: payload.error || "Masuk gagal.",
         });
         return;
       }
@@ -319,7 +319,7 @@ export default function AboutUsPage() {
     } catch {
       setLoginError({
         code: LOGIN_ERROR_CODES.AUTH_UNAVAILABLE,
-        message: "Tidak dapat menjangkau layanan login saat ini.",
+        message: "Tidak dapat menjangkau layanan masuk saat ini.",
       });
     } finally {
       setSubmitting(false);
@@ -330,17 +330,17 @@ export default function AboutUsPage() {
     event.preventDefault();
 
     if (!contactState.name.trim() || !contactState.email.trim() || !contactState.message.trim()) {
-      setContactNotice("Lengkapi nama, email, dan pesan terlebih dahulu.");
+      setContactNotice("Lengkapi nama, surel, dan pesan terlebih dahulu.");
       return;
     }
 
     const subject = encodeURIComponent(`SkyHub Inquiry - ${contactState.name}`);
     const body = encodeURIComponent(
-      `Name: ${contactState.name}\nEmail: ${contactState.email}\n\nMessage:\n${contactState.message}`,
+      `Nama: ${contactState.name}\nSurel: ${contactState.email}\n\nPesan:\n${contactState.message}`,
     );
 
     window.location.href = `mailto:${opsEmailContact?.value ?? "ops@skyhub.co"}?subject=${subject}&body=${body}`;
-    setContactNotice("Membuka email client...");
+    setContactNotice("Membuka aplikasi surel...");
   }
 
   return (
@@ -368,23 +368,23 @@ export default function AboutUsPage() {
 
           <div className="hidden items-center gap-9 text-sm font-medium md:flex">
             <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("overview")}>
-              Overview
+              Ringkasan
             </button>
             <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("about")}>
-              About Us
+              Tentang Kami
             </button>
             <button
               type="button"
               className="transition hover:text-[#0066ff]"
               onClick={() => scrollToId("capabilities")}
             >
-              Capabilities
+              Kapabilitas
             </button>
             <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("operations")}>
-              Operations
+              Operasi
             </button>
             <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("contact")}>
-              Contact
+              Kontak
             </button>
           </div>
         </div>
@@ -397,7 +397,7 @@ export default function AboutUsPage() {
         <div className="premium-fluid-shell relative z-10 text-left">
           <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-5 py-1 text-xs tracking-[3px]">
             <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#00a3ff]" />
-            LIVE / SOEDIRMAN CONTROL CENTER
+            LIVE / PUSAT KONTROL SOEDIRMAN
           </div>
 
           <h1 className="mb-8 max-w-[1500px] text-[64px] font-semibold leading-[0.92] tracking-[-0.05em] md:text-[92px] 2xl:text-[112px]">
@@ -412,7 +412,7 @@ export default function AboutUsPage() {
               onClick={() => setModalOpen(true)}
               className="premium-magnetic-btn group flex h-16 items-center justify-center gap-3 rounded-3xl bg-white px-14 text-lg font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white"
             >
-              LOGIN
+              MASUK
               <ArrowRight className="transition group-hover:-rotate-45" />
             </button>
             <button
@@ -420,7 +420,7 @@ export default function AboutUsPage() {
               onClick={() => scrollToId("about")}
               className="h-16 rounded-3xl border border-white/40 px-9 text-lg font-medium transition-all hover:bg-white/5"
             >
-              Explore Platform
+              Jelajahi Platform
             </button>
           </div>
         </div>
@@ -429,11 +429,11 @@ export default function AboutUsPage() {
       <ScrollScene variant="left" id="about" data-video-clip="1" className="premium-fluid-shell border-t border-white/10 py-24">
         <div className="premium-about-grid grid items-center gap-16">
           <div className="premium-reveal">
-            <div className="premium-kicker mb-4 text-xs tracking-[4px]">OUR STORY</div>
+            <div className="premium-kicker mb-4 text-xs tracking-[4px]">CERITA KAMI</div>
             <h2 className="mb-8 text-6xl font-semibold leading-none tracking-tight">
-              Built for those who
+              Dibangun untuk tim operasi{" "}
               <br />
-              command the skies.
+              yang mengatur ritme udara.
             </h2>
 
             <div className="space-y-6 text-lg text-white/70">
@@ -453,7 +453,7 @@ export default function AboutUsPage() {
                 <Building2 className="text-[#0066ff]" size={30} />
               </div>
               <div>
-                <div className="text-2xl font-semibold">{officeContact?.value ?? "SkyHub Operations Center"}</div>
+                <div className="text-2xl font-semibold">{officeContact?.value ?? "Pusat Operasi SkyHub"}</div>
                 <div className="text-sm text-white/60">Jakarta, Indonesia</div>
               </div>
             </div>
@@ -482,7 +482,7 @@ export default function AboutUsPage() {
                   <Mail size={20} />
                 </div>
                 <div>
-                  <div className="font-medium">{opsEmailContact?.label ?? "Email operasional"}</div>
+                  <div className="font-medium">{opsEmailContact?.label ?? "Surel operasional"}</div>
                   <div className="text-white/70">{opsEmailContact?.value ?? "-"}</div>
                 </div>
               </div>
@@ -495,7 +495,7 @@ export default function AboutUsPage() {
                   <div className="text-white/70">
                     {hoursContact?.value ?? "-"}
                     <br />
-                    {supportPathContact?.value ?? "24 jam monitoring support untuk eskalasi operasional"}
+                    {supportPathContact?.value ?? "Monitoring dukungan 24 jam untuk eskalasi operasional"}
                   </div>
                 </div>
               </div>
@@ -507,8 +507,8 @@ export default function AboutUsPage() {
       <ScrollScene variant="depth" id="capabilities" data-video-clip="2" className="border-y border-white/10 bg-black/35 py-20">
         <div className="premium-fluid-shell">
           <div className="premium-reveal mb-16">
-            <div className="premium-kicker text-xs tracking-[4px]">WHAT WE DELIVER</div>
-            <h3 className="mt-4 text-6xl font-semibold tracking-tight">{capabilityCard?.title ?? "Capabilities that define the edge."}</h3>
+            <div className="premium-kicker text-xs tracking-[4px]">YANG KAMI SEDIAKAN</div>
+            <h3 className="mt-4 text-6xl font-semibold tracking-tight">{capabilityCard?.title ?? "Kapabilitas yang menjaga operasi tetap tajam."}</h3>
           </div>
 
           <div className="premium-auto-grid grid gap-6">
@@ -530,8 +530,8 @@ export default function AboutUsPage() {
 
       <ScrollScene variant="right" id="operations" data-video-clip="3" className="premium-fluid-shell py-24">
         <div className="premium-reveal mb-12">
-          <div className="premium-kicker text-xs tracking-[4px]">THE RHYTHM OF CARGO</div>
-          <h3 className="mt-3 text-6xl font-semibold tracking-tight">Operations that never sleep.</h3>
+          <div className="premium-kicker text-xs tracking-[4px]">RITME KARGO</div>
+          <h3 className="mt-3 text-6xl font-semibold tracking-tight">Operasi yang terus terpantau.</h3>
         </div>
 
         <div className="premium-auto-grid premium-auto-grid-compact grid gap-6">
@@ -548,26 +548,26 @@ export default function AboutUsPage() {
 
       <ScrollScene variant="depth" id="metrics" data-video-clip="2" className="border-y border-white/10 bg-black/35 py-20">
         <div className="premium-reveal premium-fluid-shell">
-          <div className="premium-kicker text-xs tracking-[4px]">PROVEN AT SCALE</div>
-          <h3 className="mt-4 text-6xl font-semibold tracking-tight">Numbers that matter.</h3>
+          <div className="premium-kicker text-xs tracking-[4px]">TERUKUR DI OPERASI</div>
+          <h3 className="mt-4 text-6xl font-semibold tracking-tight">Angka yang perlu dipantau.</h3>
         </div>
 
         <div className="premium-fluid-shell mt-16 grid grid-cols-1 gap-px sm:grid-cols-2 xl:grid-cols-4">
           <div className="premium-glass p-10 text-center">
             <div className="text-5xl font-semibold md:text-7xl">{Math.floor(counter.shipments).toLocaleString()}</div>
-            <div className="mt-2 text-sm text-white/60">Shipments today</div>
+            <div className="mt-2 text-sm text-white/60">Pengiriman hari ini</div>
           </div>
           <div className="premium-glass p-10 text-center">
             <div className="text-5xl font-semibold md:text-7xl">{Math.floor(counter.flights).toLocaleString()}</div>
-            <div className="mt-2 text-sm text-white/60">Active flights</div>
+            <div className="mt-2 text-sm text-white/60">Penerbangan aktif</div>
           </div>
           <div className="premium-glass p-10 text-center">
             <div className="text-5xl font-semibold md:text-7xl">{counter.accuracy.toFixed(1)}</div>
-            <div className="mt-2 text-sm text-white/60">On-time accuracy</div>
+            <div className="mt-2 text-sm text-white/60">Akurasi tepat waktu</div>
           </div>
           <div className="premium-glass p-10 text-center">
             <div className="text-5xl font-semibold md:text-7xl">{counter.uptime.toFixed(2)}</div>
-            <div className="mt-2 text-sm text-white/60">Platform uptime</div>
+            <div className="mt-2 text-sm text-white/60">Waktu aktif platform</div>
           </div>
         </div>
       </ScrollScene>
@@ -575,26 +575,26 @@ export default function AboutUsPage() {
       <ScrollScene revealOnce variant="left" id="contact" data-video-clip="3" className="premium-fluid-shell pt-24 pb-8">
         <div className="premium-contact-grid grid gap-16">
           <div className="premium-reveal">
-            <div className="premium-kicker text-xs tracking-[4px]">GET IN TOUCH</div>
+            <div className="premium-kicker text-xs tracking-[4px]">HUBUNGI KAMI</div>
             <h3 className="mb-8 mt-3 text-6xl font-semibold tracking-tight">
-              Let&apos;s build the future of air cargo together.
+              Bangun operasi kargo udara yang lebih siap bersama SkyHub.
             </h3>
 
             <div className="space-y-6 text-lg">
               <div>
-                <div className="font-medium">{infoEmailContact?.label ?? "Email umum"}</div>
+                <div className="font-medium">{infoEmailContact?.label ?? "Surel umum"}</div>
                 <a href={infoEmailContact?.href ?? "mailto:info@skyhub.co"} className="premium-link">
                   {infoEmailContact?.value ?? "info@skyhub.co"}
                 </a>
               </div>
               <div>
-                <div className="font-medium">{opsEmailContact?.label ?? "Email operasional"}</div>
+                <div className="font-medium">{opsEmailContact?.label ?? "Surel operasional"}</div>
                 <a href={opsEmailContact?.href ?? "mailto:ops@skyhub.co"} className="premium-link">
                   {opsEmailContact?.value ?? "ops@skyhub.co"}
                 </a>
               </div>
               <div>
-                <div className="font-medium">{supportEmailContact?.label ?? "Email dukungan"}</div>
+                <div className="font-medium">{supportEmailContact?.label ?? "Surel dukungan"}</div>
                 <a href={supportEmailContact?.href ?? "mailto:support@skyhub.co"} className="premium-link">
                   {supportEmailContact?.value ?? "support@skyhub.co"}
                 </a>
@@ -611,7 +611,7 @@ export default function AboutUsPage() {
           <div className="premium-glass premium-contact-form-card rounded-3xl border border-white/10 p-9">
             <form className="space-y-5" onSubmit={handleContactSubmit}>
               <div>
-                <label className="text-xs tracking-widest text-white/60">YOUR NAME</label>
+                <label className="text-xs tracking-widest text-white/60">NAMA ANDA</label>
                 <input
                   type="text"
                   className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
@@ -620,7 +620,7 @@ export default function AboutUsPage() {
                 />
               </div>
               <div>
-                <label className="text-xs tracking-widest text-white/60">EMAIL ADDRESS</label>
+                <label className="text-xs tracking-widest text-white/60">ALAMAT EMAIL</label>
                 <input
                   type="email"
                   className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
@@ -629,7 +629,7 @@ export default function AboutUsPage() {
                 />
               </div>
               <div>
-                <label className="text-xs tracking-widest text-white/60">MESSAGE</label>
+                <label className="text-xs tracking-widest text-white/60">PESAN</label>
                 <textarea
                   rows={4}
                   className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
@@ -641,7 +641,7 @@ export default function AboutUsPage() {
                 type="submit"
                 className="w-full rounded-2xl bg-white py-4 font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white"
               >
-                SEND MESSAGE
+                KIRIM PESAN
               </button>
               {contactNotice ? <p className="text-center text-sm text-[#66a8ff]">{contactNotice}</p> : null}
             </form>
@@ -662,7 +662,7 @@ export default function AboutUsPage() {
               type="button"
               onClick={() => setModalOpen(false)}
               className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/60 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
-              aria-label="Close login modal"
+              aria-label="Tutup modal masuk"
             >
               <X size={18} />
             </button>
@@ -677,13 +677,13 @@ export default function AboutUsPage() {
                   className="premium-logo-plane"
                 />
               </div>
-              <div className="text-[1.55rem] font-semibold leading-tight">SkyHub Command</div>
-              <div className="mt-1 text-sm text-white/50">Secure Operator Access</div>
+              <div className="text-[1.55rem] font-semibold leading-tight">Komando SkyHub</div>
+              <div className="mt-1 text-sm text-white/50">Akses operator aman</div>
             </div>
 
             <form className="space-y-4" onSubmit={handleLogin}>
               <div>
-                <label className="mb-2 block text-xs tracking-widest text-white/60">EMAIL</label>
+                <label className="mb-2 block text-xs tracking-widest text-white/60">SUREL</label>
                 <input
                   type="email"
                   className="h-12 w-full rounded-[18px] border border-white/15 bg-white/[0.06] px-4 text-sm text-white outline-none transition focus:border-[#0066ff] focus:bg-white/[0.08]"
@@ -692,7 +692,7 @@ export default function AboutUsPage() {
                 />
               </div>
               <div>
-                <label className="mb-2 block text-xs tracking-widest text-white/60">PASSWORD</label>
+                <label className="mb-2 block text-xs tracking-widest text-white/60">KATA SANDI</label>
                 <input
                   type="password"
                   className="h-12 w-full rounded-[18px] border border-white/15 bg-white/[0.06] px-4 text-sm text-white outline-none transition focus:border-[#0066ff] focus:bg-white/[0.08]"
@@ -716,7 +716,7 @@ export default function AboutUsPage() {
                 className="mt-3 h-12 w-full rounded-[18px] bg-white font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={submitting}
               >
-                {submitting ? "LOGGING IN..." : "LOGIN"}
+                {submitting ? "MEMPROSES..." : "MASUK"}
               </button>
             </form>
           </div>

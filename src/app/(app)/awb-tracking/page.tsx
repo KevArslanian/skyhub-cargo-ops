@@ -19,7 +19,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { AWB_REGEX } from "@/lib/constants";
-import { formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
+import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { DataCard, EmptyState, OpsPanel, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
 
@@ -75,7 +75,9 @@ export default function AwbTrackingPage() {
   const [awb, setAwb] = useState(awbFromQuery);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [reportingIssue, setReportingIssue] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
+  const [actionMessageTone, setActionMessageTone] = useState<"info" | "warning">("info");
   const [shipment, setShipment] = useState<ShipmentPayload>(null);
   const [notFound, setNotFound] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
@@ -115,12 +117,24 @@ export default function AwbTrackingPage() {
       }
 
       setLoading(true);
-      const response = await fetch(`/api/shipments?awb=${encodeURIComponent(awbFromQuery)}`, { cache: "no-store" });
-      const payload = (await response.json()) as { shipment: ShipmentPayload };
-      setShipment(payload.shipment);
-      setNotFound(!payload.shipment);
-      setLoading(false);
-      fetchRecentSearches();
+      try {
+        const response = await fetch(`/api/shipments?awb=${encodeURIComponent(awbFromQuery)}`, { cache: "no-store" });
+        const payload = (await response.json().catch(() => null)) as { shipment?: ShipmentPayload; error?: string } | null;
+
+        if (!response.ok) {
+          setShipment(null);
+          setNotFound(false);
+          setError(payload?.error || "Pelacakan AWB belum bisa dimuat.");
+          return;
+        }
+
+        setError("");
+        setShipment(payload?.shipment ?? null);
+        setNotFound(!payload?.shipment);
+        fetchRecentSearches();
+      } finally {
+        setLoading(false);
+      }
 
       if (shouldScrollToResultRef.current) {
         shouldScrollToResultRef.current = false;
@@ -174,14 +188,28 @@ export default function AwbTrackingPage() {
 
   async function handleReportIssue() {
     if (!awbFromQuery) return;
-    const response = await fetch("/api/awb/report-issue", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ awb: awbFromQuery }),
-    });
 
-    if (response.ok) {
-      setActionMessage("Isu berhasil dicatat untuk ditinjau.");
+    setReportingIssue(true);
+    try {
+      const response = await fetch("/api/awb/report-issue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ awb: awbFromQuery }),
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (response.ok) {
+        setActionMessageTone("info");
+        setActionMessage("Masalah AWB sudah masuk Pusat Peringatan untuk ditindaklanjuti.");
+      } else {
+        setActionMessageTone("warning");
+        setActionMessage(payload?.error || "Gagal mencatat masalah AWB.");
+      }
+    } catch {
+      setActionMessageTone("warning");
+      setActionMessage("Koneksi terputus saat mencatat masalah AWB.");
+    } finally {
+      setReportingIssue(false);
     }
   }
 
@@ -192,8 +220,8 @@ export default function AwbTrackingPage() {
           <OpsPanel className="page-pane awb-tracking-panel h-full overflow-hidden p-0">
             <div className="border-b border-[color:var(--border-soft)] p-6">
               <SectionHeader
-                title="Input Tracking"
-                subtitle="Masukkan nomor AWB untuk membuka status, ringkasan kiriman, dan timeline event."
+                title="Input Pelacakan"
+                subtitle="Masukkan nomor AWB untuk membuka status, ringkasan kiriman, dan linimasa event."
               />
               <form onSubmit={handleSubmit} className="mt-5 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <div>
@@ -222,30 +250,42 @@ export default function AwbTrackingPage() {
 
               <div className="mt-4 flex flex-wrap gap-3">
                 {shipment ? (
-                  <Link href={`/exports/awb?awb=${encodeURIComponent(shipment.awb)}`} className="btn btn-secondary">
+                  <Link
+                    href={`/exports/awb?awb=${encodeURIComponent(shipment.awb)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-secondary"
+                  >
                     <Printer size={16} />
-                    Print
+                    Cetak
                   </Link>
                 ) : (
-                  <button type="button" className="btn btn-secondary" disabled title="Cetak tersedia setelah hasil tracking muncul">
+                  <button type="button" className="btn btn-secondary" disabled title="Cetak tersedia setelah hasil pelacakan muncul">
                     <Printer size={16} />
-                    Print
+                    Cetak
                   </button>
                 )}
                 <button
                   type="button"
                   className="btn btn-warning"
                   onClick={handleReportIssue}
-                  disabled={!shipment}
-                  title={!shipment ? "Laporkan isu tersedia setelah hasil tracking muncul" : undefined}
+                  disabled={!shipment || reportingIssue}
+                  title={!shipment ? "Laporkan isu tersedia setelah hasil pelacakan muncul" : undefined}
                 >
-                  <TriangleAlert size={16} />
-                  Laporkan Isu
+                  {reportingIssue ? <LoaderCircle size={16} className="animate-spin" /> : <TriangleAlert size={16} />}
+                  {reportingIssue ? "Mencatat..." : "Laporkan Isu"}
                 </button>
               </div>
 
               {actionMessage ? (
-                <div className="mt-4 rounded-[18px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-info)]">
+                <div
+                  className={cn(
+                    "mt-4 rounded-[18px] border px-4 py-3 text-sm font-medium",
+                    actionMessageTone === "warning"
+                      ? "border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]"
+                      : "border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] text-[color:var(--tone-info)]",
+                  )}
+                >
                   {actionMessage}
                 </div>
               ) : null}
@@ -263,7 +303,7 @@ export default function AwbTrackingPage() {
             {!loading && !shipment && !notFound ? (
               <EmptyState
                 icon={Radar}
-                title="Tracking siap digunakan"
+                title="Pelacakan siap digunakan"
                 copy="Masukkan AWB valid untuk menampilkan status, ringkasan, dan kronologi pengiriman."
                 className="awb-tracking-empty py-10"
               />
@@ -283,7 +323,7 @@ export default function AwbTrackingPage() {
                 <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <p className="label">Hasil Tracking</p>
+                      <p className="label">Hasil Pelacakan</p>
                       <h2 className="mt-2 font-mono text-2xl font-black text-[color:var(--brand-primary)]">{shipment.awb}</h2>
                       <p className="mt-2 text-sm text-[color:var(--muted-fg)]">
                         {shipment.origin} {" -> "} {shipment.destination}
@@ -293,7 +333,7 @@ export default function AwbTrackingPage() {
                   </div>
 
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <DataCard label="Flight" value={shipment.flightNumber || "-"} icon={PlaneTakeoff} />
+                    <DataCard label="Penerbangan" value={shipment.flightNumber || "-"} icon={PlaneTakeoff} />
                     <DataCard label="Dokumen" value={shipment.docStatus} icon={FileCheck2} />
                     <DataCard label="Kargo" value={`${shipment.pieces} pcs`} note={formatWeight(shipment.weightKg)} icon={Package2} />
                     <DataCard
@@ -306,7 +346,7 @@ export default function AwbTrackingPage() {
                 </div>
 
                 <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
-                  <p className="label">Timeline Tracking</p>
+                  <p className="label">Linimasa Pelacakan</p>
                   <div className="mt-4 space-y-3">
                     {shipment.trackingLogs.length ? (
                       shipment.trackingLogs.map((log) => (
@@ -338,7 +378,7 @@ export default function AwbTrackingPage() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm text-[color:var(--muted-fg)]">Belum ada event tracking.</p>
+                      <p className="text-sm text-[color:var(--muted-fg)]">Belum ada event pelacakan.</p>
                     )}
                   </div>
                 </div>
@@ -349,7 +389,7 @@ export default function AwbTrackingPage() {
         </div>
 
         <OpsPanel className="awb-history-panel p-5">
-          <SectionHeader title="History Tracking" subtitle="Riwayat pencarian AWB terakhir untuk akses cepat." />
+          <SectionHeader title="Riwayat Pelacakan" subtitle="Riwayat pencarian AWB terakhir untuk akses cepat." />
           <div className="awb-history-list mt-5 space-y-3">
             {recentSearches.length ? (
               pagedRecentSearches.map((item) => (
@@ -363,7 +403,7 @@ export default function AwbTrackingPage() {
                     <div>
                       <p className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{item.awb}</p>
                       <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
-                        {item.origin && item.destination ? `${item.origin} -> ${item.destination}` : "Riwayat tracking"}
+                        {item.origin && item.destination ? `${item.origin} -> ${item.destination}` : "Riwayat pelacakan"}
                       </p>
                     </div>
                     <span className="text-xs text-[color:var(--muted-fg)]">{formatRelativeShort(item.createdAt)}</span>
@@ -379,7 +419,7 @@ export default function AwbTrackingPage() {
                 </button>
               ))
             ) : (
-              <EmptyState icon={History} variant="neutral" title="Belum ada riwayat" copy="Riwayat pencarian AWB akan muncul di sini setelah kamu melakukan tracking." />
+              <EmptyState icon={History} variant="neutral" title="Belum ada riwayat" copy="Riwayat pencarian AWB akan muncul di sini setelah kamu melakukan pelacakan." />
             )}
           </div>
           {recentSearches.length > RECENT_PAGE_SIZE ? (

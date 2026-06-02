@@ -64,7 +64,7 @@ function validateFlightDateOrder<T extends { cargoCutoffTime?: string; departure
     context.addIssue({
       code: "custom",
       path: ["departureTime"],
-      message: "Waktu berangkat wajib dikirim jika cutoff atau estimasi tiba dikirim.",
+      message: "Waktu berangkat wajib dikirim jika batas kargo atau estimasi tiba dikirim.",
     });
     return;
   }
@@ -73,7 +73,7 @@ function validateFlightDateOrder<T extends { cargoCutoffTime?: string; departure
     context.addIssue({
       code: "custom",
       path: ["cargoCutoffTime"],
-      message: "Cargo cutoff harus sebelum atau sama dengan waktu berangkat.",
+      message: "Batas kargo harus sebelum atau sama dengan waktu berangkat.",
     });
   }
 
@@ -88,7 +88,7 @@ function validateFlightDateOrder<T extends { cargoCutoffTime?: string; departure
 
 export const loginSchema = z.object({
   email: z.email({ message: "Masukkan email yang valid." }),
-  password: z.string().min(6, "Password minimal 6 karakter."),
+  password: z.string().min(6, "Kata sandi minimal 6 karakter."),
   remember: z.boolean().optional().default(false),
 });
 
@@ -208,7 +208,7 @@ export const customerAccountCreateSchema = z.object({
   name: z.string().trim().min(2, "Nama akun wajib diisi."),
   contactName: z.string().trim().optional().default(""),
   contactEmail: z.string().trim().optional().default("").refine((value) => !value || z.email().safeParse(value).success, {
-    message: "Email kontak tidak valid.",
+    message: "Surel kontak tidak valid.",
   }),
   contactPhone: z.string().trim().optional().default(""),
 });
@@ -218,7 +218,7 @@ export const customerAccountUpdateSchema = z.object({
   name: z.string().trim().min(2).optional(),
   contactName: z.string().trim().optional(),
   contactEmail: z.string().trim().optional().refine((value) => value === undefined || !value || z.email().safeParse(value).success, {
-    message: "Email kontak tidak valid.",
+    message: "Surel kontak tidak valid.",
   }),
   contactPhone: z.string().trim().optional(),
   status: z.enum(["active", "disabled"]).optional(),
@@ -230,7 +230,7 @@ export const flightCreateSchema = z.object({
     .trim()
     .transform((value) => value.toUpperCase())
     .refine((value) => FLIGHT_NUMBER_REGEX.test(value), {
-      message: "Format flight harus CODE-XXX/XXXX dengan kode maskapai yang tersedia.",
+      message: "Format penerbangan harus CODE-XXX/XXXX dengan kode maskapai yang tersedia.",
     }),
   aircraftType: z.enum(AIRCRAFT_TYPE_OPTIONS),
   origin: z.enum(STATION_OPTIONS),
@@ -249,7 +249,7 @@ export const flightUpdateSchema = z.object({
     .trim()
     .transform((value) => value.toUpperCase())
     .refine((value) => FLIGHT_NUMBER_REGEX.test(value), {
-      message: "Format flight harus CODE-XXX/XXXX dengan kode maskapai yang tersedia.",
+      message: "Format penerbangan harus CODE-XXX/XXXX dengan kode maskapai yang tersedia.",
     })
     .optional(),
   aircraftType: z.enum(AIRCRAFT_TYPE_OPTIONS).optional(),
@@ -272,7 +272,7 @@ export const shipmentListQuerySchema = z.object({
     .trim()
     .transform((value) => value.toUpperCase())
     .refine((value) => value === "ALL" || FLIGHT_NUMBER_REGEX.test(value), {
-      message: "Filter flight harus berisi nomor flight valid.",
+      message: "Filter penerbangan harus berisi nomor penerbangan valid.",
     })
     .transform((value) => (value === "ALL" ? "all" : value))
     .optional(),
@@ -294,7 +294,7 @@ export const flightListQuerySchema = z.object({
 
 export const alertActionSchema = z
   .object({
-    alertKey: z.string().trim().min(3, "Kunci alert wajib diisi."),
+    alertKey: z.string().trim().min(3, "Kunci peringatan wajib diisi."),
     action: z.enum(["acknowledge", "assign", "snooze", "resolve", "reopen"]),
     assigneeId: z.string().trim().min(1).optional().nullable(),
     snoozeMinutes: z.coerce.number().int().min(5).max(1440).optional().nullable(),
@@ -305,7 +305,7 @@ export const alertActionSchema = z
       context.addIssue({
         code: "custom",
         path: ["assigneeId"],
-        message: "Pilih staff untuk assignment alert.",
+        message: "Pilih staf untuk penugasan peringatan.",
       });
     }
   });

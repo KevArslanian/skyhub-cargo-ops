@@ -2,8 +2,8 @@ import { requireUser } from "@/lib/auth";
 import { getShipmentByAwb } from "@/lib/data";
 import { formatDateTime, formatWeight } from "@/lib/format";
 import { AutoPrintReport } from "@/components/auto-print-report";
+import { PrintCenterLayout } from "@/components/print-center-layout";
 import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
-import { PrintCenterLayout } from "@deltaoga/skyhub-print-center/layout";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +29,8 @@ export default async function AwbPrintPage({
     ? [
         { label: shipment.statusLabel, tone: getShipmentTone(shipment.status) },
         { label: `Dokumen ${shipment.docStatus}`, tone: "info" as const },
-        { label: `Readiness ${shipment.readiness}`, tone: "neutral" as const },
-        { label: shipment.flightNumber || "Tanpa Flight", tone: "neutral" as const },
+        { label: `Kesiapan ${shipment.readiness}`, tone: "neutral" as const },
+        { label: shipment.flightNumber || "Tanpa Penerbangan", tone: "neutral" as const },
       ]
     : [{ label: "AWB tidak ditemukan", tone: "warning" as const }];
 
@@ -39,15 +39,15 @@ export default async function AwbPrintPage({
       <AutoPrintReport />
       <PrintCenterLayout
       scriptId="print-awb"
-      documentTitle={shipment ? `AWB ${shipment.awb}` : "AWB Tracking"}
+      documentTitle={shipment ? `AWB ${shipment.awb}` : "Pelacakan AWB"}
       documentSubtitle="Dokumen Pelacakan AWB"
       printedAtLabel={formatDateTime(printedAt.toISOString())}
       filterSummary={awb ? `AWB: ${awb}` : "AWB belum diberikan"}
-      summaryTitle={shipment ? "Ringkasan Shipment" : "Status Permintaan"}
+      summaryTitle={shipment ? "Ringkasan Pengiriman" : "Status Permintaan"}
       summarySubtitle={
         shipment
           ? `${shipment.origin} -> ${shipment.destination} • ${shipment.commodity}`
-          : "Masukkan query `?awb=XXX-XXXXXXXX` untuk mencetak dokumen tracking AWB."
+          : "Masukkan query `?awb=XXX-XXXXXXXX` untuk mencetak dokumen pelacakan AWB."
       }
       summaryChips={summaryChips}
       documentCode={buildPrintDocumentCode("AWB", printedAt)}
@@ -56,11 +56,11 @@ export default async function AwbPrintPage({
         <>
           <section className="grid gap-3 border-t border-slate-200 bg-white px-8 py-5 md:grid-cols-2">
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Shipper</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Pengirim</p>
               <p className="mt-1 font-semibold text-slate-900">{shipment.shipper}</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Consignee</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Penerima</p>
               <p className="mt-1 font-semibold text-slate-900">{shipment.consignee}</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -100,7 +100,7 @@ export default async function AwbPrintPage({
                 ) : (
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">
-                      Belum ada timeline tracking untuk AWB ini.
+                      Belum ada linimasa pelacakan untuk AWB ini.
                     </td>
                   </tr>
                 )}

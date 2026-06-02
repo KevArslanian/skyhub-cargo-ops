@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
   Check,
-
   ChevronLeft,
   ChevronRight,
   Monitor,
@@ -26,16 +25,16 @@ import { DataCard, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/
 import { OpsDrawer } from "@/components/ops-drawer";
 
 const CAPABILITY_OPTIONS = [
-  { value: "shipment:create", label: "Buat shipment", description: "Membuat AWB kargo & manifest baru" },
-  { value: "shipment:update", label: "Edit shipment", description: "Mengubah detail berat, koli, & status kargo" },
-  { value: "shipment:delete", label: "Hapus shipment", description: "Menghapus entri kargo dari ledger" },
-  { value: "shipment:document", label: "Dokumen shipment", description: "Mengupload & memvalidasi file dokumen manifest" },
-  { value: "flight:manage", label: "Kelola flight", description: "Membuat, mengedit, & menjadwalkan flight baru" },
+  { value: "shipment:create", label: "Buat pengiriman", description: "Membuat AWB kargo dan manifest baru" },
+  { value: "shipment:update", label: "Ubah pengiriman", description: "Mengubah detail berat, koli, dan status kargo" },
+  { value: "shipment:delete", label: "Hapus pengiriman", description: "Menghapus entri kargo dari buku pengiriman" },
+  { value: "shipment:document", label: "Dokumen pengiriman", description: "Mengunggah dan memvalidasi file dokumen manifest" },
+  { value: "flight:manage", label: "Kelola penerbangan", description: "Membuat, mengubah, dan menjadwalkan penerbangan baru" },
   { value: "payment:verify", label: "Verifikasi bayar", description: "Menyetujui verifikasi pembayaran AWB" },
-  { value: "reports:export", label: "Export laporan", description: "Mengekspor data operasional ke PDF/Print" },
-  { value: "users:manage", label: "Kelola user", description: "Mengundang & mengelola hak akses anggota tim" },
-  { value: "customer_accounts:manage", label: "Kelola pelanggan", description: "Mengelola kode & profil akun pelanggan" },
-  { value: "settings:workspace", label: "Workspace", description: "Mengatur preferensi & tampilan default sistem" },
+  { value: "reports:export", label: "Cetak laporan", description: "Mencetak data operasional ke PDF atau penampil peramban" },
+  { value: "users:manage", label: "Kelola pengguna", description: "Mengundang dan mengelola hak akses anggota tim" },
+  { value: "customer_accounts:manage", label: "Kelola pelanggan", description: "Mengelola kode dan profil akun pelanggan" },
+  { value: "settings:workspace", label: "Ruang kerja", description: "Mengatur preferensi dan tampilan default sistem" },
 ] as const;
 
 type SettingsCapability = (typeof CAPABILITY_OPTIONS)[number]["value"];
@@ -141,40 +140,197 @@ function getInitials(name: string) {
     .join("");
 }
 
-function PreferenceToggleCard({
-  title,
-  copy,
-  checked,
-  onChange,
-  hint,
+async function readApiError(response: Response, fallback: string) {
+  const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+  return payload?.error || fallback;
+}
+
+function WorkspaceSettingsPanel({
+  draft,
+  hasDraftChanges,
+  saving,
+  onPatch,
+  onSave,
 }: {
-  title: string;
-  copy: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  hint?: string;
+  draft: SettingsDraft;
+  hasDraftChanges: boolean;
+  saving: boolean;
+  onPatch: (patch: Partial<SettingsDraft>) => void;
+  onSave: () => void;
 }) {
+  const themeOptions = [
+    { value: "light" as const, label: "Terang", icon: SunMedium },
+    { value: "dark" as const, label: "Gelap", icon: MoonStar },
+    { value: "system" as const, label: "Sistem", icon: Monitor },
+  ];
+  const accentOptions = [
+    { value: "blue", hex: "#003d9b", label: "Biru" },
+    { value: "teal", hex: "#0d9488", label: "Hijau kebiruan" },
+    { value: "amber", hex: "#d97706", label: "Kuning" },
+    { value: "rose", hex: "#e11d48", label: "Merah muda" },
+    { value: "violet", hex: "#7c3aed", label: "Ungu" },
+  ];
+
   return (
-    <label
-      className={cn(
-        "flex w-full min-w-0 max-w-full items-center justify-between gap-4 rounded-[24px] border px-4 py-4 transition-colors",
-        checked
-          ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]"
-          : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]",
-      )}
-    >
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="font-semibold text-[color:var(--text-strong)]">{title}</p>
-          <StatusBadge
-            value={checked ? "success" : "disabled"}
-            label={checked ? "Aktif" : "Nonaktif"}
-            className="normal-case tracking-normal"
+    <div className="rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="ops-eyebrow">Preferensi Ruang Kerja</p>
+          <p className="mt-1 text-lg font-bold text-[color:var(--text-strong)]">Pengaturan</p>
+          <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">
+            Mode tampilan, susunan data, pemberitahuan operasional, dan ritme kerja.
+          </p>
+        </div>
+        <StatusBadge
+          value={hasDraftChanges ? "warning" : "success"}
+          label={hasDraftChanges ? "Ada perubahan" : "Sinkron"}
+          className="shrink-0 normal-case tracking-normal"
+        />
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">Mode Tampilan</p>
+          <div className="grid grid-cols-3 gap-2">
+            {themeOptions.map((option) => {
+              const Icon = option.icon;
+              const active = draft.theme === option.value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={cn(
+                    "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[14px] border px-2 text-xs font-bold transition-all",
+                    active
+                      ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-white shadow-[0_10px_20px_rgba(0,61,155,0.16)]"
+                      : "border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] text-[color:var(--muted-fg)] hover:text-[color:var(--text-strong)]",
+                  )}
+                  onClick={() => onPatch({ theme: option.value })}
+                >
+                  <Icon size={14} />
+                  <span className="truncate">{option.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">Aksen</p>
+          <div className="flex flex-wrap gap-2.5">
+            {accentOptions.map((color) => (
+              <button
+                key={color.value}
+                type="button"
+                className={cn(
+                  "h-8 w-8 rounded-full border-2 transition-all",
+                  draft.accentColor === color.value
+                    ? "border-[color:var(--text-strong)] ring-2 ring-[color:var(--brand-primary-soft)] ring-offset-2 ring-offset-[color:var(--panel-muted)]"
+                    : "border-transparent hover:scale-105",
+                )}
+                style={{ backgroundColor: color.hex }}
+                onClick={() => onPatch({ accentColor: color.value })}
+                aria-label={`Warna aksen ${color.label}`}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-2 rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4 sm:grid-cols-2">
+          <button
+            type="button"
+            className={cn(
+              "rounded-[16px] border px-3 py-3 text-left transition-all",
+              !draft.compactRows
+                ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]"
+                : "border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]",
+            )}
+            onClick={() => onPatch({ compactRows: false })}
+          >
+            <span className="block text-xs font-bold text-[color:var(--text-strong)]">Nyaman</span>
+            <span className="mt-1 block text-[11px] text-[color:var(--muted-fg)]">Baris lega</span>
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "rounded-[16px] border px-3 py-3 text-left transition-all",
+              draft.compactRows
+                ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]"
+                : "border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]",
+            )}
+            onClick={() => onPatch({ compactRows: true })}
+          >
+            <span className="block text-xs font-bold text-[color:var(--text-strong)]">Ringkas</span>
+            <span className="mt-1 block text-[11px] text-[color:var(--muted-fg)]">Data padat</span>
+          </button>
+        </div>
+
+        <div className="space-y-2 rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
+          <SidebarToggle
+            label="Menu samping terlipat"
+            checked={draft.sidebarCollapsed}
+            onChange={(value) => onPatch({ sidebarCollapsed: value })}
+          />
+          <SidebarToggle
+            label="Penyegaran otomatis"
+            checked={draft.autoRefresh}
+            onChange={(value) => onPatch({ autoRefresh: value })}
           />
         </div>
-        <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{copy}</p>
-        {hint ? <p className="mt-2 text-xs text-[color:var(--muted-2)]">{hint}</p> : null}
+
+        <div className="space-y-2 rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4 lg:col-span-2">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">Pemberitahuan Operasional</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+          <SidebarToggle
+            label="Batas terima penerbangan"
+            checked={draft.cutoffAlert}
+            onChange={(value) => onPatch({ cutoffAlert: value })}
+          />
+          <SidebarToggle
+            label="Masalah kargo"
+            checked={draft.exceptionAlert}
+            onChange={(value) => onPatch({ exceptionAlert: value })}
+          />
+          <SidebarToggle
+            label="Nada kritis"
+            checked={draft.soundAlert}
+            onChange={(value) => onPatch({ soundAlert: value })}
+          />
+          <SidebarToggle
+            label="Ringkasan shift"
+            checked={draft.emailDigest}
+            onChange={(value) => onPatch({ emailDigest: value })}
+          />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="btn btn-primary w-full justify-center lg:col-span-2"
+          onClick={onSave}
+          disabled={saving || !hasDraftChanges}
+        >
+          <ShieldCheck size={16} />
+          {saving ? "Menyimpan..." : hasDraftChanges ? "Simpan Pengaturan" : "Tersimpan"}
+        </button>
       </div>
+    </div>
+  );
+}
+
+function SidebarToggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex min-h-11 items-center justify-between gap-3 rounded-[15px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-3 py-2.5">
+      <span className="min-w-0 truncate text-xs font-semibold text-[color:var(--text-strong)]">{label}</span>
       <span className="relative inline-flex shrink-0 items-center">
         <input
           type="checkbox"
@@ -182,90 +338,10 @@ function PreferenceToggleCard({
           checked={checked}
           onChange={(event) => onChange(event.target.checked)}
         />
-        <span className="h-7 w-12 rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] transition-colors peer-checked:border-[color:var(--brand-primary)] peer-checked:bg-[color:var(--brand-primary)]" />
-        <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
+        <span className="h-6 w-10 rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] transition-colors peer-checked:border-[color:var(--brand-primary)] peer-checked:bg-[color:var(--brand-primary)]" />
+        <span className="pointer-events-none absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-4" />
       </span>
     </label>
-  );
-}
-
-function ThemePreviewCard({
-  label,
-  title,
-  description,
-  active,
-  onSelect,
-  mode,
-}: {
-  label: string;
-  title: string;
-  description: string;
-  active: boolean;
-  onSelect: () => void;
-  mode: "light" | "dark" | "system";
-}) {
-  const isDark = mode === "dark";
-  const isSystem = mode === "system";
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        "w-full min-w-0 max-w-full rounded-[24px] border p-4 text-left transition-all",
-        active
-          ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] shadow-[0_14px_28px_rgba(0,61,155,0.12)]"
-          : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] hover:border-[rgba(0,82,204,0.12)]",
-      )}
-    >
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">{label}</p>
-          <p className="mt-2 font-semibold text-[color:var(--text-strong)]">{title}</p>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{description}</p>
-        </div>
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-[16px] border border-[color:var(--border-soft)] bg-white/70 text-[color:var(--brand-primary)] dark:bg-white/[0.04]">
-          {isDark ? <MoonStar size={18} /> : isSystem ? <Monitor size={18} /> : <SunMedium size={18} />}
-        </span>
-      </div>
-
-      <div
-        className={cn(
-          "mt-4 overflow-hidden rounded-[20px] border p-3",
-          isDark ? "border-[#203a58] bg-[#0f2037]" : isSystem ? "border-[#d7e2ef] bg-[linear-gradient(135deg,white_50%,#0f2037_50%)]" : "border-[#d7e2ef] bg-white",
-        )}
-      >
-        <div
-          className={cn(
-            "flex h-8 items-center justify-between rounded-[14px] px-3",
-            isDark ? "bg-[#122840] text-[#d9e7fb]" : "bg-[#f4f7fb] text-[#0b1d33]",
-          )}
-        >
-          <div className="flex items-center gap-2 text-[11px] font-semibold">
-            <span className={cn("h-2 w-2 rounded-full", isDark ? "bg-[#6da7ff]" : "bg-[#003d9b]")} />
-            SkyHub
-          </div>
-          <div className="h-2 w-16 rounded-full bg-current/15" />
-        </div>
-        <div className="mt-3 grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-3">
-          <div className={cn("rounded-[16px] p-3", isDark ? "bg-[#122840]" : "bg-[#eff4fa]")}>
-            <div className="h-2 w-14 rounded-full bg-current/15" />
-            <div className="mt-3 h-6 w-24 rounded-full bg-current/12" />
-            <div className="mt-3 h-14 rounded-[12px] bg-current/10" />
-          </div>
-          <div className="space-y-3">
-            <div className={cn("rounded-[16px] p-3", isDark ? "bg-[#122840]" : "bg-[#eff4fa]")}>
-              <div className="h-3 w-10 rounded-full bg-current/15" />
-              <div className="mt-3 h-5 w-16 rounded-full bg-current/12" />
-            </div>
-            <div className={cn("rounded-[16px] p-3", isDark ? "bg-[#122840]" : "bg-[#eff4fa]")}>
-              <div className="h-3 w-12 rounded-full bg-current/15" />
-              <div className="mt-3 h-5 w-20 rounded-full bg-current/12" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </button>
   );
 }
 
@@ -326,25 +402,12 @@ export default function SettingsPage() {
     () => JSON.stringify(baseDraft) !== JSON.stringify(draft),
     [baseDraft, draft],
   );
-
   const tabs = useMemo(() => {
     const items = [
       {
-        label: "Profil",
-        icon: UserCircle2,
-        note: "Identitas",
-        enabled: true,
-      },
-      {
-        label: "Preferensi",
-        icon: Monitor,
-        note: "Tampilan",
-        enabled: true,
-      },
-      {
         label: "Tim & Akses",
         icon: Users2,
-        note: "User",
+        note: "Pengguna",
         enabled: data?.permissions.canManageUsers ?? false,
       },
       {
@@ -359,6 +422,10 @@ export default function SettingsPage() {
   }, [data?.permissions.canManageCustomerAccounts, data?.permissions.canManageUsers]);
 
   useEffect(() => {
+    if (activeTab === "Preferensi") setActiveTab("Profil");
+  }, [activeTab]);
+
+  useEffect(() => {
     function handleContextSearch(event: Event) {
       const detail = (event as CustomEvent<{ pathname?: string; query?: string }>).detail;
       if (detail?.pathname !== "/settings") return;
@@ -369,6 +436,10 @@ export default function SettingsPage() {
         setAccountSearch(nextQuery);
       } else {
         const normalized = nextQuery.toLowerCase();
+        if (["preferensi", "tampilan", "tema", "mode", "pemberitahuan", "notifikasi"].some((keyword) => normalized.includes(keyword))) {
+          setActiveTab("Profil");
+          return;
+        }
         const matchedTab = tabs.find((tab) => tab.label.toLowerCase().includes(normalized));
         if (matchedTab) setActiveTab(matchedTab.label);
       }
@@ -442,65 +513,93 @@ export default function SettingsPage() {
 
   async function saveSettings() {
     setSaving(true);
-    const response = await fetch("/api/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(draft),
-    });
 
-    if (response.ok) {
-      const payload = (await response.json()) as SettingsPayload;
-      setData(payload);
-      setDraft(toDraft(payload));
-      emitSettingsPreview(toDraft(payload));
-      setNotice("Pengaturan berhasil disimpan.");
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draft),
+      });
+
+      if (response.ok) {
+        window.localStorage.setItem("skyhub-accent-color", draft.accentColor);
+        const payload = (await response.json()) as SettingsPayload;
+        setData(payload);
+        setDraft(toDraft(payload));
+        emitSettingsPreview(toDraft(payload));
+        setNotice("Pengaturan berhasil disimpan.");
+      } else {
+        setNotice(await readApiError(response, "Gagal menyimpan pengaturan."));
+      }
+    } catch {
+      setNotice("Gagal menyimpan pengaturan.");
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
   }
 
   async function createUser() {
-    const response = await fetch("/api/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...inviteForm,
-        customerAccountId: inviteForm.role === "customer" ? inviteForm.customerAccountId || null : null,
-      }),
-    });
+    setSaving(true);
 
-    if (response.ok) {
-      const payload = (await response.json()) as { user: SettingsPayload["users"][number] };
-      setData((current) => (current ? { ...current, users: [...current.users, payload.user] } : current));
-      setInviteForm({ name: "", email: "", role: "staff", station: "SOQ", customerAccountId: "" });
-      setInviteOpen(false);
-      setNotice("Pengguna berhasil dibuat dengan status diundang.");
+    try {
+      const response = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...inviteForm,
+          customerAccountId: inviteForm.role === "customer" ? inviteForm.customerAccountId || null : null,
+        }),
+      });
+
+      if (response.ok) {
+        const payload = (await response.json()) as { user: SettingsPayload["users"][number] };
+        setData((current) => (current ? { ...current, users: [...current.users, payload.user] } : current));
+        setInviteForm({ name: "", email: "", role: "staff", station: "SOQ", customerAccountId: "" });
+        setInviteOpen(false);
+        setNotice("Pengguna berhasil dibuat dengan status diundang.");
+      } else {
+        setNotice(await readApiError(response, "Gagal membuat pengguna."));
+      }
+    } catch {
+      setNotice("Gagal membuat pengguna.");
+    } finally {
+      setSaving(false);
     }
   }
 
   async function saveUser() {
     if (!editingUserId || !editingUserDraft) return;
 
-    const response = await fetch(`/api/users/${editingUserId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: editingUserDraft.name,
-        email: editingUserDraft.email,
-        role: editingUserDraft.role,
-        status: editingUserDraft.status,
-        station: editingUserDraft.station,
-        customerAccountId:
-          editingUserDraft.role === "customer" ? editingUserDraft.customerAccountId : null,
-        capabilities: editingUserDraft.capabilities,
-      }),
-    });
+    setSaving(true);
 
-    if (response.ok) {
-      await reloadSettings();
-      setEditingUserId(null);
-      setEditingUserDraft(null);
-      setNotice("Pengguna berhasil diperbarui.");
+    try {
+      const response = await fetch(`/api/users/${editingUserId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editingUserDraft.name,
+          email: editingUserDraft.email,
+          role: editingUserDraft.role,
+          status: editingUserDraft.status,
+          station: editingUserDraft.station,
+          customerAccountId:
+            editingUserDraft.role === "customer" ? editingUserDraft.customerAccountId : null,
+          capabilities: editingUserDraft.role === "customer" ? [] : editingUserDraft.capabilities,
+        }),
+      });
+
+      if (response.ok) {
+        await reloadSettings();
+        setEditingUserId(null);
+        setEditingUserDraft(null);
+        setNotice("Pengguna berhasil diperbarui.");
+      } else {
+        setNotice(await readApiError(response, "Gagal memperbarui pengguna."));
+      }
+    } catch {
+      setNotice("Gagal memperbarui pengguna.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -544,51 +643,71 @@ export default function SettingsPage() {
   }
 
   async function createCustomerAccountEntry() {
-    const response = await fetch("/api/customer-accounts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(accountForm),
-    });
+    setSaving(true);
 
-    if (response.ok) {
-      const payload = (await response.json()) as {
-        customerAccount: SettingsPayload["customerAccounts"][number];
-      };
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              customerAccounts: [...current.customerAccounts, payload.customerAccount],
-            }
-          : current,
-      );
-      setAccountForm({ code: "", name: "", contactName: "", contactEmail: "", contactPhone: "" });
-      setCustomerAccountOpen(false);
-      setNotice("Akun pelanggan berhasil dibuat.");
+    try {
+      const response = await fetch("/api/customer-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(accountForm),
+      });
+
+      if (response.ok) {
+        const payload = (await response.json()) as {
+          customerAccount: SettingsPayload["customerAccounts"][number];
+        };
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                customerAccounts: [...current.customerAccounts, payload.customerAccount],
+              }
+            : current,
+        );
+        setAccountForm({ code: "", name: "", contactName: "", contactEmail: "", contactPhone: "" });
+        setCustomerAccountOpen(false);
+        setNotice("Akun pelanggan berhasil dibuat.");
+      } else {
+        setNotice(await readApiError(response, "Gagal membuat akun pelanggan."));
+      }
+    } catch {
+      setNotice("Gagal membuat akun pelanggan.");
+    } finally {
+      setSaving(false);
     }
   }
 
   async function saveCustomerAccount() {
     if (!editingAccountId || !editingAccountDraft) return;
 
-    const response = await fetch(`/api/customer-accounts/${editingAccountId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code: editingAccountDraft.code,
-        name: editingAccountDraft.name,
-        contactName: editingAccountDraft.contactName,
-        contactEmail: editingAccountDraft.contactEmail,
-        contactPhone: editingAccountDraft.contactPhone,
-        status: editingAccountDraft.status,
-      }),
-    });
+    setSaving(true);
 
-    if (response.ok) {
-      await reloadSettings();
-      setEditingAccountId(null);
-      setEditingAccountDraft(null);
-      setNotice("Akun pelanggan berhasil diperbarui.");
+    try {
+      const response = await fetch(`/api/customer-accounts/${editingAccountId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: editingAccountDraft.code,
+          name: editingAccountDraft.name,
+          contactName: editingAccountDraft.contactName,
+          contactEmail: editingAccountDraft.contactEmail,
+          contactPhone: editingAccountDraft.contactPhone,
+          status: editingAccountDraft.status,
+        }),
+      });
+
+      if (response.ok) {
+        await reloadSettings();
+        setEditingAccountId(null);
+        setEditingAccountDraft(null);
+        setNotice("Akun pelanggan berhasil diperbarui.");
+      } else {
+        setNotice(await readApiError(response, "Gagal memperbarui akun pelanggan."));
+      }
+    } catch {
+      setNotice("Gagal memperbarui akun pelanggan.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -597,7 +716,7 @@ export default function SettingsPage() {
       <PageHeader
         eyebrow="Sistem"
         title="Pengaturan"
-        subtitle="Kelola profil, tampilan dashboard, tim & akses pengguna, serta akun pelanggan."
+        subtitle="Kelola profil, tampilan dasbor, tim dan akses pengguna, serta akun pelanggan."
       />
 
       {notice ? (
@@ -607,7 +726,7 @@ export default function SettingsPage() {
       ) : null}
 
       {!data ? (
-        <div className="grid gap-6 xl:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
           <OpsPanel className="p-4">
             <SkeletonBlock className="h-32 w-full rounded-[24px]" />
             <div className="mt-4 space-y-3">
@@ -625,9 +744,9 @@ export default function SettingsPage() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[minmax(200px,260px)_minmax(0,1fr)] split-pane-shell split-pane-shell-settings">
+        <div className="grid gap-4 lg:grid-cols-[minmax(280px,320px)_minmax(0,1fr)] split-pane-shell split-pane-shell-settings">
           <OpsPanel className="page-pane split-pane-left p-4">
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
                 <div className="flex items-start gap-3.5">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[color:var(--brand-primary)] font-[family:var(--font-heading)] text-[1.05rem] font-black tracking-[-0.04em] text-white">
@@ -646,42 +765,66 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const active = activeTab === tab.label;
-                const disabled = !tab.enabled;
+              <button
+                type="button"
+                className={cn(
+                  "flex w-full min-w-0 items-center justify-between gap-3 rounded-[22px] border px-4 py-4 text-left transition-colors",
+                  activeTab === "Profil"
+                    ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]"
+                    : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] hover:text-[color:var(--text-strong)]",
+                )}
+                onClick={() => setActiveTab("Profil")}
+              >
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-[16px] border border-[color:var(--border-soft)] bg-white/70 dark:bg-white/[0.04]">
+                    <UserCircle2 size={18} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold">Profil</span>
+                    <span className="block truncate text-xs text-[color:var(--muted-2)]">Akun dan akses saya</span>
+                  </span>
+                </span>
+                <ChevronRight size={16} />
+              </button>
 
-                return (
-                  <button
-                    key={tab.label}
-                    type="button"
-                    title={disabled ? "Membutuhkan izin admin untuk mengakses menu ini" : undefined}
-                    className={cn(
-                      "flex w-full min-w-0 items-center justify-between gap-3 rounded-[22px] border px-4 py-4 text-left transition-colors",
-                      disabled
-                        ? "cursor-not-allowed border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] opacity-40"
-                        : active
-                        ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]"
-                        : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] hover:text-[color:var(--text-strong)]",
-                    )}
-                    onClick={() => !disabled && setActiveTab(tab.label)}
-                    aria-disabled={disabled}
-                  >
-                    <span className="flex min-w-0 items-center gap-3">
-                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-[16px] border border-[color:var(--border-soft)] bg-white/70 dark:bg-white/[0.04]">
-                        <Icon size={18} />
+              <div className="space-y-2">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const active = activeTab === tab.label;
+                  const disabled = !tab.enabled;
+
+                  return (
+                    <button
+                      key={tab.label}
+                      type="button"
+                      title={disabled ? "Membutuhkan izin administrator untuk mengakses menu ini" : undefined}
+                      className={cn(
+                        "flex w-full min-w-0 items-center justify-between gap-3 rounded-[22px] border px-4 py-4 text-left transition-colors",
+                        disabled
+                          ? "cursor-not-allowed border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] opacity-40"
+                          : active
+                            ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]"
+                            : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] hover:text-[color:var(--text-strong)]",
+                      )}
+                      onClick={() => !disabled && setActiveTab(tab.label)}
+                      aria-disabled={disabled}
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-[16px] border border-[color:var(--border-soft)] bg-white/70 dark:bg-white/[0.04]">
+                          <Icon size={18} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold">{tab.label}</span>
+                          <span className="block truncate text-xs text-[color:var(--muted-2)]">
+                            {disabled ? "Izin administrator diperlukan" : tab.note}
+                          </span>
+                        </span>
                       </span>
-                      <span className="min-w-0">
-                        <span className="block truncate font-semibold">{tab.label}</span>
-                        <span className="block truncate text-xs text-[color:var(--muted-2)]">{disabled ? "Izin admin diperlukan" : tab.note}</span>
-                      </span>
-                    </span>
-                    <ChevronRight size={16} />
-                  </button>
-                );
-              })}
-            </div>
+                      <ChevronRight size={16} />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
           </OpsPanel>
@@ -690,8 +833,8 @@ export default function SettingsPage() {
             {activeTab === "Profil" ? (
               <>
                 <OpsPanel className="overflow-hidden p-0">
-                  <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                    <div className="p-6">
+                  <div className="grid gap-0 lg:grid-cols-[minmax(0,1.08fr)_minmax(280px,0.92fr)]">
+                    <div className="p-5">
                       <SectionHeader
                         title="Profil Pengguna"
                       />
@@ -705,7 +848,7 @@ export default function SettingsPage() {
                           />
                         </div>
                         <div>
-                          <label className="label">Email</label>
+                          <label className="label">Surel</label>
                           <input className="input-field input-readonly" value={data.profile.email} readOnly />
                         </div>
                         <div>
@@ -725,10 +868,10 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <div className="border-t border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/70 p-6 xl:border-l xl:border-t-0">
-                      <p className="ops-eyebrow">Akses Workspace</p>
+                    <div className="border-t border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/70 p-5 lg:border-l lg:border-t-0">
+                      <p className="ops-eyebrow">Akses Ruang Kerja</p>
                       <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">Hak akses dan izin yang melekat pada akun Anda.</p>
-                      <div className="mt-4 grid gap-3">
+                      <div className="mt-4 grid grid-cols-3 gap-2">
                         <DataCard label="Peran" value={ROLE_LABELS[data.profile.role]} />
                         <DataCard label="Stasiun" value={draft.station} />
                         <DataCard label="Akun pelanggan" value={data.profile.customerAccountName || "-"} />
@@ -737,197 +880,13 @@ export default function SettingsPage() {
                   </div>
                 </OpsPanel>
 
-                <div className="sticky bottom-0 z-10 mt-4 rounded-[26px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/92 px-5 py-4 shadow-[0_14px_34px_rgba(11,30,52,0.10)] backdrop-blur">
-                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-[color:var(--text-strong)]">
-                        {hasDraftChanges ? "Perubahan profil belum disimpan" : "Profil sudah sinkron"}
-                      </p>
-                    </div>
-                    <button type="button" className="btn btn-primary" onClick={saveSettings} disabled={saving}>
-                      <ShieldCheck size={16} />
-                      {saving ? "Menyimpan..." : "Simpan Perubahan"}
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : null}
-
-            {activeTab === "Preferensi" ? (
-              <>
-                <div className="grid gap-5 xl:grid-cols-2">
-                  <OpsPanel className="p-5">
-                    <SectionHeader
-                      title="Tampilan"
-                      subtitle="Pilih tema, warna aksen, dan kerapatan tampilan."
-                    />
-                    <div className="mt-5 space-y-6">
-                      <div>
-                        <p className="text-sm font-bold text-[color:var(--text-strong)]">Mode Tampilan</p>
-                        <p className="mt-1 text-xs text-[color:var(--muted-fg)]">Tema warna untuk seluruh antarmuka.</p>
-                        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                          <ThemePreviewCard
-                            label="Mode terang"
-                            title="Light shell"
-                            description="Fokus tinggi untuk ruang kontrol."
-                            mode="light"
-                            active={draft.theme === "light"}
-                            onSelect={() => applyDraftPatch({ theme: "light" })}
-                          />
-                          <ThemePreviewCard
-                            label="Mode gelap"
-                            title="Dark shell"
-                            description="Luminansi rendah untuk shift malam."
-                            mode="dark"
-                            active={draft.theme === "dark"}
-                            onSelect={() => applyDraftPatch({ theme: "dark" })}
-                          />
-                          <ThemePreviewCard
-                            label="Ikuti Sistem"
-                            title="System shell"
-                            description="Otomatis mengikuti preferensi perangkat."
-                            mode="system"
-                            active={draft.theme === "system"}
-                            onSelect={() => applyDraftPatch({ theme: "system" })}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="border-t border-[color:var(--border-soft)] pt-6">
-                        <p className="text-sm font-bold text-[color:var(--text-strong)]">Warna Aksen</p>
-                        <p className="mt-1 text-xs text-[color:var(--muted-fg)]">Warna utama tombol, link, dan elemen interaktif.</p>
-                        <div className="mt-4 flex flex-wrap gap-3">
-                          {[
-                            { value: "blue", hex: "#003d9b", label: "Biru" },
-                            { value: "teal", hex: "#0d9488", label: "Teal" },
-                            { value: "amber", hex: "#d97706", label: "Amber" },
-                            { value: "rose", hex: "#e11d48", label: "Rose" },
-                            { value: "violet", hex: "#7c3aed", label: "Violet" },
-                          ].map((color) => (
-                            <button
-                              key={color.value}
-                              type="button"
-                              className={cn(
-                                "h-10 w-10 rounded-full border-2 transition-all",
-                                draft.accentColor === color.value
-                                  ? "border-[color:var(--text-strong)] ring-2 ring-[color:var(--brand-primary-soft)] ring-offset-2 ring-offset-[color:var(--panel-bg)]"
-                                  : "border-transparent hover:scale-110"
-                              )}
-                              style={{ backgroundColor: color.hex }}
-                              onClick={() => applyDraftPatch({ accentColor: color.value })}
-                              aria-label={`Warna aksen ${color.label}`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </OpsPanel>
-
-                  <OpsPanel className="p-5">
-                    <SectionHeader
-                      title="Kerapatan Tampilan"
-                      subtitle="Sesuaikan jarak antar baris dan elemen."
-                    />
-                    <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                      {[
-                        { value: false, label: "Nyaman", description: "Jarak longgar, mudah dibaca saat inspeksi detail." },
-                        { value: true, label: "Ringkas", description: "Jarak rapat, lebih banyak data dalam satu layar." },
-                      ].map((option) => (
-                        <button
-                          key={String(option.value)}
-                          type="button"
-                          className={cn(
-                            "rounded-[20px] border-2 px-4 py-5 text-left transition-all",
-                            draft.compactRows === option.value
-                              ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)]"
-                              : "border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] hover:border-[color:var(--border-strong)]"
-                          )}
-                          onClick={() => applyDraftPatch({ compactRows: option.value })}
-                        >
-                          <p className="text-sm font-bold text-[color:var(--text-strong)]">{option.label}</p>
-                          <p className="mt-1.5 text-xs leading-5 text-[color:var(--muted-fg)]">{option.description}</p>
-                        </button>
-                      ))}
-                    </div>
-                    <div className="mt-5">
-                      <PreferenceToggleCard
-                        title="Sidebar terlipat"
-                        copy="Beri ruang kerja lebih luas dengan sidebar default tertutup."
-                        checked={draft.sidebarCollapsed}
-                        onChange={(value) => applyDraftPatch({ sidebarCollapsed: value })}
-                      />
-                    </div>
-                  </OpsPanel>
-
-                  <OpsPanel className="p-5">
-                    <SectionHeader
-                      title="Notifikasi"
-                      subtitle="Alert praktis."
-                    />
-                    <div className="mt-5 space-y-4">
-                      <PreferenceToggleCard
-                        title="Cutoff alerts"
-                        copy="Peringatan cutoff flight."
-                        checked={draft.cutoffAlert}
-                        onChange={(value) => applyDraftPatch({ cutoffAlert: value })}
-                      />
-                      <PreferenceToggleCard
-                        title="Exception alerts"
-                        copy="Sorot hold dan data bermasalah."
-                        checked={draft.exceptionAlert}
-                        onChange={(value) => applyDraftPatch({ exceptionAlert: value })}
-                      />
-                    </div>
-                  </OpsPanel>
-
-                  <OpsPanel className="p-5">
-                    <SectionHeader
-                      title="Refresh & Behavior"
-                      subtitle="Sinkronisasi."
-                    />
-                    <div className="mt-5 space-y-4">
-                      <PreferenceToggleCard
-                        title="Penyegaran otomatis"
-                        copy="Segarkan panel tanpa reload manual."
-                        checked={draft.autoRefresh}
-                        onChange={(value) => applyDraftPatch({ autoRefresh: value })}
-                      />
-                      <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="font-semibold text-[color:var(--text-strong)]">Interval penyegaran</p>
-                            <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">
-                              Semakin pendek interval, semakin cepat update datang, tetapi semakin tinggi aktivitas refresh.
-                            </p>
-                          </div>
-                          <StatusBadge value={draft.autoRefresh ? "success" : "disabled"} label={draft.autoRefresh ? "Aktif" : "Manual"} />
-                        </div>
-                        <div className="mt-4 flex items-center gap-3">
-                          <input
-                            type="number"
-                            min={5}
-                            max={60}
-                            className="input-field w-full sm:max-w-[140px]"
-                            value={draft.refreshIntervalSeconds}
-                            onChange={(event) =>
-                              applyDraftPatch({ refreshIntervalSeconds: Number(event.target.value) })
-                            }
-                          />
-                          <span className="text-sm text-[color:var(--muted-fg)]">detik per refresh</span>
-                        </div>
-                      </div>
-                    </div>
-                  </OpsPanel>
-                </div>
-
-                <div className="sticky bottom-0 z-10 mt-4 rounded-[26px] border border-[color:var(--tone-success-border)] bg-[color:var(--tone-success-soft)] px-5 py-3">
-                  <div className="flex items-center gap-2">
-                    <Check size={14} className="text-[color:var(--tone-success)]" />
-                    <p className="text-xs font-semibold text-[color:var(--tone-success)]">
-                      Tersimpan otomatis — perubahan langsung diterapkan
-                    </p>
-                  </div>
-                </div>
+                <WorkspaceSettingsPanel
+                  draft={draft}
+                  hasDraftChanges={hasDraftChanges}
+                  saving={saving}
+                  onPatch={applyDraftPatch}
+                  onSave={saveSettings}
+                />
               </>
             ) : null}
 
@@ -935,7 +894,7 @@ export default function SettingsPage() {
               <OpsPanel className="p-5">
                 <SectionHeader
                   title="Tim & Akses"
-                  subtitle="User, role, izin."
+                  subtitle="Pengguna, peran, dan izin."
                   action={
                     <button type="button" className="btn btn-primary" onClick={() => setInviteOpen((current) => !current)}>
                       <Plus size={16} />
@@ -945,14 +904,14 @@ export default function SettingsPage() {
                 />
 
                 <div className="mt-5 grid gap-4 xl:grid-cols-3">
-                  <DataCard label="Total user" value={data.users.length} tone="primary" />
+                  <DataCard label="Total pengguna" value={data.users.length} tone="primary" />
                   <DataCard
-                    label="User aktif"
+                    label="Pengguna aktif"
                     value={data.users.filter((user) => user.status === "active").length}
                     tone="success"
                   />
                   <DataCard
-                    label="Perlu follow-up"
+                    label="Perlu tindak lanjut"
                     value={data.users.filter((user) => user.status !== "active").length}
                     tone="warning"
                   />
@@ -969,7 +928,7 @@ export default function SettingsPage() {
                       />
                       <input
                         className="input-field"
-                        placeholder="Email"
+                        placeholder="Surel"
                         value={inviteForm.email}
                         onChange={(event) => setInviteForm((current) => ({ ...current, email: event.target.value }))}
                       />
@@ -978,8 +937,8 @@ export default function SettingsPage() {
                         value={inviteForm.role}
                         onChange={(event) => setInviteForm((current) => ({ ...current, role: event.target.value }))}
                       >
-                        <option value="staff">Staff Operasional</option>
-                        <option value="admin">Admin</option>
+                        <option value="staff">Staf Operasional</option>
+                        <option value="admin">Administrator</option>
                         <option value="customer">Pelanggan</option>
                       </select>
                       <select
@@ -1003,14 +962,14 @@ export default function SettingsPage() {
                       >
                         <option value="">Akun pelanggan</option>
                         {data.customerAccounts.map((account) => (
-                          <option key={account.id} value={account.id}>
-                            {account.name}
+                          <option key={account.id} value={account.id} disabled={account.status !== "active"}>
+                            {account.name}{account.status !== "active" ? " (nonaktif)" : ""}
                           </option>
                         ))}
                       </select>
-                      <button type="button" className="btn btn-primary" onClick={createUser}>
+                      <button type="button" className="btn btn-primary" onClick={createUser} disabled={saving}>
                         <Plus size={16} />
-                        Simpan
+                        {saving ? "Menyimpan..." : "Simpan"}
                       </button>
                     </div>
                   </div>
@@ -1021,7 +980,7 @@ export default function SettingsPage() {
                   <input
                     type="text"
                     className="input-field h-9 max-w-[220px] text-xs"
-                    placeholder="Cari nama atau email..."
+                    placeholder="Cari nama atau surel..."
                     value={userSearch}
                     onChange={(event) => {
                       setUserSearch(event.target.value);
@@ -1035,9 +994,9 @@ export default function SettingsPage() {
                     <thead>
                       <tr>
                         <th>Nama</th>
-                        <th>Email</th>
+                        <th>Surel</th>
                         <th>Peran</th>
-                        <th>Izin granular</th>
+                        <th>Izin rinci</th>
                         <th>Stasiun</th>
                         <th>Akun Pelanggan</th>
                         <th>Status</th>
@@ -1079,7 +1038,7 @@ export default function SettingsPage() {
                                       +{user.capabilities.length - 3}
                                     </span>
                                   ) : null}
-                                  {!user.capabilities.length ? <span className="text-xs text-[color:var(--muted-2)]">Read-only</span> : null}
+                                  {!user.capabilities.length ? <span className="text-xs text-[color:var(--muted-2)]">Hanya baca</span> : null}
                                 </div>
                               </td>
                               <td>
@@ -1117,7 +1076,7 @@ export default function SettingsPage() {
                                     setEditingUserDraft(user);
                                   }}
                                 >
-                                  Edit
+                                  Ubah
                                 </button>
                               </td>
                             </tr>
@@ -1153,9 +1112,9 @@ export default function SettingsPage() {
 
               <OpsDrawer
                   open={Boolean(editingUserId && editingUserDraft)}
-                  title="Edit Hak Akses & Profil"
+                  title="Ubah Hak Akses & Profil"
                   eyebrow="Kelola Anggota Tim"
-                  description="Sesuaikan peran, stasiun, dan izin granular pengguna."
+                  description="Sesuaikan peran, stasiun, dan izin rinci pengguna."
                   onClose={() => {
                     setEditingUserId(null);
                     setEditingUserDraft(null);
@@ -1199,7 +1158,7 @@ export default function SettingsPage() {
                       </div>
 
                       <div>
-                        <label className="label">Alamat Email</label>
+                      <label className="label">Alamat Surel</label>
                         <input
                           className="input-field mt-2"
                           value={editingUserDraft.email}
@@ -1213,7 +1172,7 @@ export default function SettingsPage() {
 
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div>
-                          <label className="label">Peran (Role)</label>
+                          <label className="label">Peran</label>
                           <select
                             className="select-field mt-2"
                             value={editingUserDraft.role}
@@ -1231,8 +1190,8 @@ export default function SettingsPage() {
                               )
                             }
                           >
-                            <option value="staff">Staff Operasional</option>
-                            <option value="admin">Admin</option>
+                            <option value="staff">Staf Operasional</option>
+                            <option value="admin">Administrator</option>
                             <option value="customer">Pelanggan</option>
                           </select>
                         </div>
@@ -1271,11 +1230,14 @@ export default function SettingsPage() {
                         >
                           <option value="">Tanpa akun</option>
                           {data.customerAccounts.map((account) => (
-                            <option key={account.id} value={account.id}>
-                              {account.name}
+                            <option key={account.id} value={account.id} disabled={account.status !== "active"}>
+                              {account.name}{account.status !== "active" ? " (nonaktif)" : ""}
                             </option>
                           ))}
                         </select>
+                        <p className="mt-2 text-xs text-[color:var(--muted-2)]">
+                          Peran pelanggan hanya dapat memakai Pelacakan AWB. Akun pelanggan nonaktif akan memblokir login.
+                        </p>
                       </div>
 
                       <div>
@@ -1313,7 +1275,7 @@ export default function SettingsPage() {
                               {editingUserDraft.status === "disabled" ? "✗" : "✓"}
                             </span>
                             <span className="font-semibold text-[color:var(--text-strong)]">
-                              Operasional: {editingUserDraft.role === "customer" ? "Pelacakan AWB" : "Dashboard, Ledger, Pelacakan AWB"}
+                              Operasional: {editingUserDraft.role === "customer" ? "Pelacakan AWB" : "Dasbor, Buku Pengiriman, Pelacakan AWB"}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -1331,7 +1293,7 @@ export default function SettingsPage() {
                                 ? "text-[color:var(--muted-fg)] line-through"
                                 : "text-[color:var(--text-strong)]"
                             )}>
-                              Pemantauan: Papan Penerbangan, Alert Center, Log Aktivitas
+                              Pemantauan: Papan Penerbangan, Pusat Peringatan, Catatan Aktivitas
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -1356,7 +1318,12 @@ export default function SettingsPage() {
                       </div>
 
                       <div>
-                        <label className="label">Izin Granular (Capabilities)</label>
+                        <label className="label">Izin Rinci</label>
+                        {editingUserDraft.role === "customer" ? (
+                          <p className="mt-2 rounded-[16px] border border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] px-3 py-2 text-xs font-semibold text-[color:var(--tone-info)]">
+                            Peran pelanggan dikunci hanya untuk pelacakan. Izin internal hanya untuk administrator atau staf.
+                          </p>
+                        ) : null}
                         <div className="mt-3 grid gap-2 sm:grid-cols-2">
                            {CAPABILITY_OPTIONS.map((capability) => {
                             const checked = editingUserDraft.capabilities.includes(capability.value);
@@ -1374,6 +1341,7 @@ export default function SettingsPage() {
                                   type="checkbox"
                                   className="mt-1 shrink-0"
                                   checked={checked}
+                                  disabled={editingUserDraft.role === "customer"}
                                   onChange={(event) =>
                                     setEditingUserDraft((current) => {
                                       if (!current) return current;
@@ -1437,8 +1405,8 @@ export default function SettingsPage() {
                       <tr>
                         <th>Kode</th>
                         <th>Nama</th>
-                        <th>PIC</th>
-                        <th>Email</th>
+                        <th>Penanggung Jawab</th>
+                        <th>Surel</th>
                         <th>Telepon</th>
                         <th>Status</th>
                         <th>Relasi</th>
@@ -1467,8 +1435,8 @@ export default function SettingsPage() {
                             </td>
                             <td>
                               <div className="min-w-[120px] text-xs font-semibold text-[color:var(--muted-fg)]">
-                                <p>{account.userCount} User</p>
-                                <p className="mt-1">{account.shipmentCount} Shipment</p>
+                                <p>{account.userCount} Pengguna</p>
+                                <p className="mt-1">{account.shipmentCount} Pengiriman</p>
                               </div>
                             </td>
                             <td className="text-right">
@@ -1480,7 +1448,7 @@ export default function SettingsPage() {
                                   setEditingAccountDraft(account);
                                 }}
                               >
-                                Edit
+                                Ubah
                               </button>
                             </td>
                           </tr>
@@ -1515,7 +1483,7 @@ export default function SettingsPage() {
 
                 <OpsDrawer
                   open={Boolean(editingAccountId && editingAccountDraft)}
-                  title="Edit Akun Pelanggan"
+                  title="Ubah Akun Pelanggan"
                   eyebrow="Kelola Pelanggan"
                   description="Perbarui kode, profil kontak, dan status akun pelanggan dari panel terpisah."
                   onClose={() => {
@@ -1534,9 +1502,9 @@ export default function SettingsPage() {
                       >
                         Batal
                       </button>
-                      <button type="button" className="btn btn-primary" onClick={saveCustomerAccount}>
+                      <button type="button" className="btn btn-primary" onClick={saveCustomerAccount} disabled={saving}>
                         <Check size={16} />
-                        Simpan
+                        {saving ? "Menyimpan..." : "Simpan"}
                       </button>
                     </div>
                   }
@@ -1571,7 +1539,7 @@ export default function SettingsPage() {
                       </div>
 
                       <div>
-                        <label className="label">PIC</label>
+                        <label className="label">Penanggung Jawab</label>
                         <input
                           className="input-field mt-2"
                           value={editingAccountDraft.contactName || ""}
@@ -1584,7 +1552,7 @@ export default function SettingsPage() {
                       </div>
 
                       <div>
-                        <label className="label">Email Kontak</label>
+                        <label className="label">Surel Kontak</label>
                         <input
                           className="input-field mt-2"
                           value={editingAccountDraft.contactEmail || ""}
@@ -1628,13 +1596,16 @@ export default function SettingsPage() {
                           <option value="active">Aktif</option>
                           <option value="disabled">Nonaktif</option>
                         </select>
+                        <p className="mt-2 text-xs text-[color:var(--muted-2)]">
+                          Nonaktif memblokir login seluruh pengguna pelanggan yang terhubung ke akun ini.
+                        </p>
                       </div>
 
                       <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
                         <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">Relasi Akun</p>
                         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                          <DataCard label="User terhubung" value={editingAccountDraft.userCount} />
-                          <DataCard label="Shipment terhubung" value={editingAccountDraft.shipmentCount} />
+                          <DataCard label="Pengguna terhubung" value={editingAccountDraft.userCount} />
+                          <DataCard label="Pengiriman terhubung" value={editingAccountDraft.shipmentCount} />
                         </div>
                       </div>
                     </div>
@@ -1667,9 +1638,10 @@ export default function SettingsPage() {
                       type="button"
                       className="btn btn-primary"
                       onClick={createCustomerAccountEntry}
+                      disabled={saving}
                     >
                       <Plus size={16} />
-                      Simpan
+                      {saving ? "Menyimpan..." : "Simpan"}
                     </button>
                   </div>
                 }
@@ -1695,19 +1667,19 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid gap-4 sm:grid-cols-3">
                     <div>
-                      <label className="label">PIC (Kontak)</label>
+                      <label className="label">Penanggung Jawab</label>
                       <input
                         className="input-field mt-2"
-                        placeholder="Nama PIC"
+                        placeholder="Nama penanggung jawab"
                         value={accountForm.contactName}
                         onChange={(event) => setAccountForm((current) => ({ ...current, contactName: event.target.value }))}
                       />
                     </div>
                     <div>
-                      <label className="label">Email</label>
+                      <label className="label">Surel</label>
                       <input
                         className="input-field mt-2"
-                        placeholder="Email kontak"
+                        placeholder="Surel kontak"
                         value={accountForm.contactEmail}
                         onChange={(event) => setAccountForm((current) => ({ ...current, contactEmail: event.target.value }))}
                       />

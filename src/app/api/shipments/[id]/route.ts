@@ -16,7 +16,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const parsed = shipmentUpdateSchema.safeParse(json);
 
     if (!parsed.success) {
-      return validationErrorResponse(parsed.error, "Perubahan shipment tidak valid.");
+      return validationErrorResponse(parsed.error, "Perubahan pengiriman tidak valid.");
     }
 
     const shipment = await updateShipment(id, {
@@ -27,7 +27,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({ shipment });
   } catch (error) {
-    return routeErrorResponse(error, "Gagal memperbarui shipment.");
+    return routeErrorResponse(error, "Gagal memperbarui pengiriman.");
   }
 }
 
@@ -39,6 +39,6 @@ export async function DELETE(_: Request, context: RouteContext) {
     await deleteShipment(id, user.id);
     return NextResponse.json({ success: true });
   } catch (error) {
-    return routeErrorResponse(error, "Gagal menghapus shipment.");
+    return routeErrorResponse(error, "Gagal menghapus pengiriman.");
   }
 }

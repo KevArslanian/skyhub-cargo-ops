@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Settings",
+  title: "Pengaturan",
   description: "Preferensi akun, tema, tim, akses, dan pengaturan pelanggan.",
 };
 

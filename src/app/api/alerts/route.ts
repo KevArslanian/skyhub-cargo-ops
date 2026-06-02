@@ -1,27 +1,27 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
 import { routeErrorResponse, validationErrorResponse } from "@/lib/api";
 import { getAlertCenterData, updateAlertState } from "@/lib/data";
 import { alertActionSchema } from "@/lib/validators";
 
 export async function GET() {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const data = await getAlertCenterData(user);
     return NextResponse.json(data);
   } catch (error) {
-    return routeErrorResponse(error, "Gagal memuat alert center.");
+    return routeErrorResponse(error, "Gagal memuat pusat peringatan.");
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const payload = await request.json();
     const parsed = alertActionSchema.safeParse(payload);
 
     if (!parsed.success) {
-      return validationErrorResponse(parsed.error, "Aksi alert tidak valid.");
+      return validationErrorResponse(parsed.error, "Aksi peringatan tidak valid.");
     }
 
     const result = await updateAlertState({
@@ -36,6 +36,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result);
   } catch (error) {
-    return routeErrorResponse(error, "Gagal memperbarui status alert.");
+    return routeErrorResponse(error, "Gagal memperbarui status peringatan.");
   }
 }

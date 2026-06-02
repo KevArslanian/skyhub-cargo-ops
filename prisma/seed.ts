@@ -754,7 +754,7 @@ async function main() {
   for (let index = 0; index < 1; index += 1) {
     await prisma.user.create({
       data: {
-        name: `Staff Operasional ${String(index + 5).padStart(2, "0")}`,
+        name: `Staf Operasional ${String(index + 5).padStart(2, "0")}`,
         email: `staff-extra-${index + 1}@skyhub.test`,
         passwordHash: PASSWORD_HASH,
         role: UserRole.staff,
@@ -781,7 +781,7 @@ async function main() {
   for (let index = 0; index < 1; index += 1) {
     await prisma.user.create({
       data: {
-        name: `Undangan Staff ${String(index + 2).padStart(2, "0")}`,
+        name: `Undangan Staf ${String(index + 2).padStart(2, "0")}`,
         email: `invited-staff-${index + 2}@skyhub.test`,
         passwordHash: PASSWORD_HASH,
         role: UserRole.staff,
@@ -808,7 +808,7 @@ async function main() {
   for (let index = 0; index < 1; index += 1) {
     await prisma.user.create({
       data: {
-        name: `Staff Nonaktif ${String(index + 2).padStart(2, "0")}`,
+        name: `Staf Nonaktif ${String(index + 2).padStart(2, "0")}`,
         email: `disabled-staff-${index + 2}@skyhub.test`,
         passwordHash: PASSWORD_HASH,
         role: UserRole.staff,
@@ -1077,7 +1077,7 @@ async function main() {
       action: "Login",
       targetType: "session",
       targetLabel: "Konsol Operasional",
-      description: "Staff login ke sistem untuk memantau workflow harian.",
+      description: "Staf login ke sistem untuk memantau alur kerja harian.",
       level: "info",
       createdAt: subMinutes(now, 20),
     },

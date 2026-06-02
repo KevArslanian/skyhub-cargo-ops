@@ -44,11 +44,11 @@ function getDocumentExtension(fileName: string) {
 
 export function validateDocumentUpload(file: File) {
   if (!file.size) {
-    throw new AccessError("File wajib diunggah.", 400, "DOCUMENT_REQUIRED");
+    throw new AccessError("Berkas wajib diunggah.", 400, "DOCUMENT_REQUIRED");
   }
 
   if (file.size > MAX_DOCUMENT_UPLOAD_BYTES) {
-    throw new AccessError("Ukuran file melebihi batas 15 MB.", 400, "DOCUMENT_TOO_LARGE");
+    throw new AccessError("Ukuran berkas melebihi batas 15 MB.", 400, "DOCUMENT_TOO_LARGE");
   }
 
   const extension = getDocumentExtension(file.name);

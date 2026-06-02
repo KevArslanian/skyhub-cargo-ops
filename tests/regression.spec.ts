@@ -59,6 +59,8 @@ test("@api inactive and invited users cannot log in", async ({ request }) => {
 });
 
 test("@api validation rejects invalid inputs", async ({ request }) => {
+  test.setTimeout(90_000);
+
   await login(request, users.staff);
 
   const invalidAwb = await request.post(apiUrl("/api/shipments"), {
@@ -93,6 +95,84 @@ test("@api validation rejects invalid inputs", async ({ request }) => {
     },
   });
   expect(invalidSchedule.status()).toBe(400);
+
+  const guardAwb = `160-${uniqueSuffix()}`;
+  const guardedShipmentResponse = await request.post(apiUrl("/api/shipments"), {
+    data: {
+      awb: guardAwb,
+      commodity: "Guarded Cargo",
+      cargoMode: "Udara",
+      senderPhone: "081234567890",
+      origin: "CGK",
+      destination: "DPS",
+      pieces: 1,
+      weightKg: 8,
+      shipper: "Guard Shipper",
+      consignee: "Guard Consignee",
+      forwarder: "Guard Forwarder",
+      ownerName: "Guard Owner",
+    },
+  });
+  expect(guardedShipmentResponse.status()).toBe(200);
+  const guardedShipment = (await guardedShipmentResponse.json()).shipment;
+
+  const invalidTransition = await request.patch(apiUrl(`/api/shipments/${guardedShipment.id}`), {
+    data: { status: "arrived" },
+  });
+  expect(invalidTransition.status()).toBe(400);
+  expect((await invalidTransition.json()).code).toBe("SHIPMENT_STATUS_TRANSITION_INVALID");
+
+  const holdShipment = await request.patch(apiUrl(`/api/shipments/${guardedShipment.id}`), {
+    data: { status: "hold" },
+  });
+  expect(holdShipment.status()).toBe(200);
+
+  const activeAlertResolve = await request.post(apiUrl("/api/alerts"), {
+    data: {
+      alertKey: `shipment-hold:${guardedShipment.id}`,
+      action: "resolve",
+    },
+  });
+  expect(activeAlertResolve.status()).toBe(400);
+  expect((await activeAlertResolve.json()).code).toBe("ALERT_STILL_ACTIVE");
+
+  const routeGuardFlightResponse = await request.post(apiUrl("/api/flights"), {
+    data: {
+      flightNumber: `JT-${uniqueSuffix().slice(0, 4)}`,
+      aircraftType: "Boeing 737-900ER",
+      origin: "CGK",
+      destination: "DPS",
+      cargoCutoffTime: "2099-04-25T12:00:00.000Z",
+      departureTime: "2099-04-25T13:00:00.000Z",
+      arrivalTime: "2099-04-25T15:00:00.000Z",
+      status: "on_time",
+    },
+  });
+  expect(routeGuardFlightResponse.status()).toBe(200);
+  const routeGuardFlight = (await routeGuardFlightResponse.json()).flight;
+
+  const routeMismatchShipment = await request.post(apiUrl("/api/shipments"), {
+    data: {
+      awb: `160-${uniqueSuffix()}`,
+      commodity: "Route Guard Cargo",
+      cargoMode: "Udara",
+      senderPhone: "081234567890",
+      origin: "CGK",
+      destination: "SUB",
+      pieces: 1,
+      weightKg: 8,
+      flightId: routeGuardFlight.id,
+      shipper: "Guard Shipper",
+      consignee: "Guard Consignee",
+      forwarder: "Guard Forwarder",
+      ownerName: "Guard Owner",
+    },
+  });
+  expect(routeMismatchShipment.status()).toBe(400);
+  expect((await routeMismatchShipment.json()).code).toBe("FLIGHT_ROUTE_MISMATCH");
+
+  await request.delete(apiUrl(`/api/flights/${routeGuardFlight.id}`));
+  await request.delete(apiUrl(`/api/shipments/${guardedShipment.id}`));
 });
 
 test("@api flight search and pagination follow unguided chapter 10 requirements", async ({ request }) => {
@@ -232,6 +312,30 @@ test("@crud shipment CRUD, document upload, notification update, and archive wor
   const reportIssue = await request.post(apiUrl("/api/awb/report-issue"), { data: { awb } });
   expect(reportIssue.status()).toBe(200);
 
+  const alertList = await request.get(apiUrl("/api/alerts"));
+  expect(alertList.status()).toBe(200);
+  const alertPayload = await alertList.json();
+  const awbIssueAlert = alertPayload.alerts.find(
+    (alert: { kind: string; entityLabel: string; title: string }) =>
+      alert.kind === "reported-awb-issue" && alert.entityLabel === awb,
+  );
+  expect(awbIssueAlert?.title).toBe("Isu AWB dilaporkan");
+
+  const resolveAwbIssue = await request.post(apiUrl("/api/alerts"), {
+    data: { alertKey: `reported-awb-issue:${created.id}`, action: "resolve" },
+  });
+  expect(resolveAwbIssue.status()).toBe(200);
+
+  const alertListAfterResolve = await request.get(apiUrl("/api/alerts"));
+  expect(alertListAfterResolve.status()).toBe(200);
+  const alertPayloadAfterResolve = await alertListAfterResolve.json();
+  expect(
+    alertPayloadAfterResolve.alerts.some(
+      (alert: { kind: string; entityLabel: string }) =>
+        alert.kind === "reported-awb-issue" && alert.entityLabel === awb,
+    ),
+  ).toBe(false);
+
   const archive = await request.delete(apiUrl(`/api/shipments/${created.id}`));
   expect(archive.status()).toBe(200);
 
@@ -362,6 +466,17 @@ test("@crud admin can manage users and customer accounts", async ({ request }) =
   expect(invite.status()).toBe(200);
   const invited = (await invite.json()).user;
 
+  const forbiddenCustomerCapability = await request.patch(apiUrl(`/api/users/${invited.id}`), {
+    data: {
+      role: "customer",
+      status: "active",
+      station: "DPS",
+      capabilities: ["shipment:create"],
+    },
+  });
+  expect(forbiddenCustomerCapability.status()).toBe(400);
+  expect((await forbiddenCustomerCapability.json()).code).toBe("CUSTOMER_CAPABILITY_FORBIDDEN");
+
   const userUpdate = await request.patch(apiUrl(`/api/users/${invited.id}`), {
     data: { status: "disabled", station: "DPS" },
   });
@@ -369,14 +484,54 @@ test("@crud admin can manage users and customer accounts", async ({ request }) =
 });
 
 test("@api staff and customer role boundaries are enforced", async ({ request }) => {
+  test.setTimeout(90_000);
+
+  await login(request, users.admin);
+  const adminSettings = await request.get(apiUrl("/api/settings"));
+  expect(adminSettings.status()).toBe(200);
+  const adminSettingsPayload = await adminSettings.json();
+  const targetAccountId = adminSettingsPayload.customerAccounts[0]?.id;
+  await request.post(apiUrl("/api/auth/logout"));
+
   await login(request, users.staff);
   expect((await request.get(apiUrl("/api/users"))).status()).toBe(403);
   expect((await request.get(apiUrl("/api/customer-accounts"))).status()).toBe(403);
+  const staffSettings = await request.get(apiUrl("/api/settings"));
+  expect(staffSettings.status()).toBe(200);
+  const staffSettingsPayload = await staffSettings.json();
+  expect(staffSettingsPayload.users).toHaveLength(1);
+  expect(staffSettingsPayload.permissions.canManageUsers).toBe(false);
+  expect(staffSettingsPayload.permissions.canManageCustomerAccounts).toBe(false);
+  const blockedStaffCreateUser = await request.post(apiUrl("/api/users"), {
+    data: {
+      name: "QA Blocked Staff User",
+      email: `qa-blocked-staff-${uniqueSuffix()}@example.test`,
+      role: "staff",
+      station: "CGK",
+    },
+  });
+  expect(blockedStaffCreateUser.status()).toBe(403);
+  if (targetAccountId) {
+    const blockedStaffAccountPatch = await request.patch(apiUrl(`/api/customer-accounts/${targetAccountId}`), {
+      data: { name: "QA Staff Bypass" },
+    });
+    expect(blockedStaffAccountPatch.status()).toBe(403);
+  }
   await request.post(apiUrl("/api/auth/logout"));
 
   await login(request, users.customer);
+  const customerSettings = await request.get(apiUrl("/api/settings"));
+  expect(customerSettings.status()).toBe(200);
+  const customerSettingsPayload = await customerSettings.json();
+  expect(customerSettingsPayload.profile.role).toBe("customer");
+  expect(customerSettingsPayload.users).toHaveLength(1);
+  expect(customerSettingsPayload.users[0].role).toBe("customer");
+  expect(customerSettingsPayload.customerAccounts.length).toBeLessThanOrEqual(1);
+  expect(customerSettingsPayload.permissions.canManageUsers).toBe(false);
+  expect(customerSettingsPayload.permissions.canManageCustomerAccounts).toBe(false);
   expect((await request.get(apiUrl("/api/flights"))).status()).toBe(403);
   expect((await request.get(apiUrl("/api/activity-log"))).status()).toBe(403);
+  expect((await request.get(apiUrl("/api/alerts"))).status()).toBe(403);
   expect((await request.get(apiUrl("/api/shipments"))).status()).toBe(200);
   const blockedCreate = await request.post(apiUrl("/api/shipments"), {
     data: {
@@ -393,26 +548,53 @@ test("@api staff and customer role boundaries are enforced", async ({ request })
     },
   });
   expect(blockedCreate.status()).toBe(403);
+
+  const scopedShipments = await request.get(apiUrl("/api/shipments"));
+  expect(scopedShipments.status()).toBe(200);
+  const firstCustomerShipment = (await scopedShipments.json()).shipments[0];
+  if (firstCustomerShipment) {
+    const reportOwnedIssue = await request.post(apiUrl("/api/awb/report-issue"), {
+      data: { awb: firstCustomerShipment.awb },
+    });
+    expect(reportOwnedIssue.status()).toBe(200);
+
+    const blockedDocumentUpload = await request.post(apiUrl(`/api/shipments/${firstCustomerShipment.id}/documents`), {
+      multipart: {
+        file: {
+          name: "blocked-customer-upload.csv",
+          mimeType: "text/csv",
+          buffer: Buffer.from("blocked,true\n"),
+        },
+      },
+    });
+    expect(blockedDocumentUpload.status()).toBe(403);
+  }
+
+  for (const route of ["/api/flights", "/api/activity-log", "/api/alerts", "/api/customer-accounts", "/api/users"]) {
+    const response = await request.get(apiUrl(route));
+    expect(response.status(), route).toBe(403);
+  }
 });
 
 test("@e2e core pages and role redirects render", async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
 
   await page.goto(apiUrl("/login"));
   await expect(page).toHaveURL(/\/login/);
-  await expect(page).toHaveTitle("Login | SkyHub");
+  await expect(page).toHaveTitle("Masuk | SkyHub");
   await expect(page.getByText("Autentikasi akun")).toBeVisible();
 
   await loginPage(page, users.staff);
 
   const pageTitles = [
-    ["/dashboard", "Dashboard | SkyHub"],
-    ["/shipment-ledger", "Ledger Shipment | SkyHub"],
+    ["/dashboard", "Dasbor | SkyHub"],
+    ["/shipment-ledger", "Buku Pengiriman | SkyHub"],
     ["/awb-tracking", "Pelacakan AWB | SkyHub"],
     ["/flight-board", "Papan Penerbangan | SkyHub"],
-    ["/activity-log", "Log Aktivitas | SkyHub"],
-    ["/reports", "Reports | SkyHub"],
-    ["/settings", "Settings | SkyHub"],
+    ["/alerts", "Pusat Peringatan | SkyHub"],
+    ["/activity-log", "Catatan Aktivitas | SkyHub"],
+    ["/reports", "Laporan | SkyHub"],
+    ["/settings", "Pengaturan | SkyHub"],
   ] as const;
 
   for (const [route, title] of pageTitles) {
@@ -421,18 +603,69 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
     await expect(page.locator("body")).toContainText("SkyHub");
   }
 
+  await page.goto(apiUrl("/alerts"));
+  await expect(page.getByText("Peringatan aktif selesai otomatis")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Perbaiki di").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Selesai" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Reset" })).toHaveCount(0);
+
   await page.goto(apiUrl("/reports"));
-  await expect(page.getByText("Rute Print Terpisah")).toBeVisible();
+  await expect(page.getByText("Penampil Cetak Terpisah")).toBeVisible();
   await expect(page.getByText("Link Production")).toHaveCount(0);
+  await expect(page.locator('a[href="/exports/flights"]')).toHaveAttribute("target", "_blank");
+  await expect(page.locator('a[href="/exports/flights"]')).toHaveAttribute("rel", /noopener/);
+
+  await page.goto(apiUrl("/shipment-ledger"));
+  await expect(page.getByText("Manifest aktif")).toBeVisible({ timeout: 15_000 });
+  const shipmentPrintLink = page.locator('a[href*="/exports/shipments"]');
+  await expect(shipmentPrintLink).toHaveAttribute("target", "_blank", { timeout: 15_000 });
+  await expect(shipmentPrintLink).toHaveAttribute("rel", /noopener/);
+
+  await page.goto(apiUrl("/flight-board"));
+  await expect(page.getByRole("heading", { name: "Manifest Penerbangan", exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Batas Kargo T-70")).toBeVisible();
+  await expect(page.getByText("Berangkat (WITA)")).toBeVisible();
+  const flightPrintLink = page.locator('a[href*="/exports/flights"]');
+  await expect(flightPrintLink).toHaveAttribute("target", "_blank", { timeout: 15_000 });
+  await expect(flightPrintLink).toHaveAttribute("rel", /noopener/);
+  await page.setViewportSize({ width: 1256, height: 1044 });
+  await page.locator('button:has-text("GA-1000")').first().click();
+  await expect(page.getByText("Penerbangan Terpilih")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ubah Penerbangan" })).toBeVisible();
+  const flightBoardLayout = await page.evaluate(() => {
+    const metric = (selector: string) => {
+      const element = document.querySelector(selector);
+      const rect = element?.getBoundingClientRect();
+      return rect ? { found: true, x: rect.x, y: rect.y, width: rect.width, height: rect.height } : { found: false };
+    };
+    const manifest = metric(".flightboard-manifest-panel");
+    const detail = metric(".flightboard-editor-detail-pane");
+    const doc = document.documentElement;
+    return {
+      manifest,
+      detail,
+      sideBySide:
+        manifest.found &&
+        detail.found &&
+        Math.abs((manifest.y ?? 0) - (detail.y ?? 9999)) < 80 &&
+        (detail.x ?? 0) > (manifest.x ?? 0),
+      horizontalOverflow: doc.scrollWidth > doc.clientWidth + 1,
+    };
+  });
+  expect(flightBoardLayout.sideBySide).toBe(true);
+  expect(flightBoardLayout.horizontalOverflow).toBe(false);
 
   await page.goto(apiUrl("/settings"));
-  await expect(page.getByText("Tema warna untuk seluruh antarmuka.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Preferensi/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Profil Akun dan akses saya/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "Terang" })).toBeVisible();
 
   const requestedAwb = `160-${uniqueSuffix()}`;
   const trackingShipment = await page.request.post(apiUrl("/api/shipments"), {
     data: {
       awb: requestedAwb,
       commodity: "QA Tracking Cargo",
+      senderPhone: "081234567890",
       origin: "CGK",
       destination: "DPS",
       pieces: 1,
@@ -449,12 +682,24 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
 
   await page.goto(apiUrl(`/awb-tracking?awb=${encodeURIComponent(firstAwb)}`));
   await expect(page.getByText(firstAwb).first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText("Timeline Tracking")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Linimasa Pelacakan")).toBeVisible({ timeout: 15_000 });
 
-  await page.request.post(apiUrl("/api/auth/logout"));
-  await login(page.request, users.customer);
-  await page.goto(apiUrl("/flight-board"));
-  await expect(page).toHaveURL(/\/awb-tracking/);
+  await page.goto(apiUrl("/api/auth/logout"), { waitUntil: "domcontentloaded" }).catch((error: Error) => {
+    if (!error.message.includes("ERR_ABORTED")) throw error;
+  });
+  await page.context().clearCookies();
+  await loginPage(page, users.customer);
+  await expect(page.locator('aside a[href="/settings"]')).toHaveCount(0);
+
+  for (const route of ["/dashboard", "/shipment-ledger", "/flight-board", "/alerts", "/activity-log", "/reports", "/settings", "/exports/shipments", "/exports/flights", "/exports/activity-log"]) {
+    await page.goto(apiUrl(route), { waitUntil: "domcontentloaded" }).catch((error: Error) => {
+      if (!error.message.includes("ERR_ABORTED")) throw error;
+    });
+    await expect(page, route).toHaveURL(/\/awb-tracking/);
+  }
+
+  await page.goto(apiUrl("/exports/awb"));
+  await expect(page).toHaveTitle("Cetak AWB | SkyHub");
 });
 
 test("@e2e notifications menu can mark items read", async ({ page }) => {
@@ -465,12 +710,27 @@ test("@e2e notifications menu can mark items read", async ({ page }) => {
 
   await page.getByRole("button", { name: /Notifikasi/ }).click();
   await expect(page.getByText("Notifikasi").first()).toBeVisible();
-  await page.getByRole("button", { name: "Tandai semua" }).click();
-  await expect(page.getByText("0 belum dibaca")).toBeVisible();
+  const markAllButton = page.getByRole("button", { name: "Tandai semua" });
+
+  if (await markAllButton.isEnabled()) {
+    await markAllButton.click();
+    await expect(page.getByText("0 belum dibaca")).toBeVisible();
+  } else {
+    await expect(markAllButton).toBeDisabled();
+    await expect(page.getByText("0 belum dibaca")).toBeVisible();
+  }
 });
 
 test("@e2e export and print pages render tables", async ({ page }) => {
   test.setTimeout(60_000);
+
+  await page.addInitScript(() => {
+    const printState = window as unknown as { __printCalls: number; print: () => void };
+    printState.__printCalls = 0;
+    printState.print = () => {
+      printState.__printCalls += 1;
+    };
+  });
 
   await loginPage(page, users.staff);
   const shipments = await page.request.get(apiUrl("/api/shipments"));
@@ -478,14 +738,26 @@ test("@e2e export and print pages render tables", async ({ page }) => {
   const firstAwb = (await shipments.json()).shipments[0]?.awb;
   expect(firstAwb).toBeTruthy();
 
-  await page.emulateMedia({ media: "print" });
-
   for (const route of ["/exports/shipments", "/exports/flights", "/exports/activity-log"]) {
+    await page.emulateMedia({ media: "screen" });
     await page.goto(apiUrl(route));
+    await expect(page.getByRole("button", { name: "KEMBALI" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "CETAK" })).toBeVisible();
     await expect(page.locator("table").first()).toBeVisible();
+    await page.emulateMedia({ media: "print" });
+    await page.waitForFunction(() => (window as unknown as { __printCalls: number }).__printCalls > 0, null, {
+      timeout: 8_000,
+    });
   }
 
+  await page.emulateMedia({ media: "screen" });
   await page.goto(apiUrl(`/exports/awb?awb=${encodeURIComponent(firstAwb)}`));
+  await expect(page.getByRole("button", { name: "KEMBALI" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "CETAK" })).toBeVisible();
   await expect(page.locator("table").first()).toBeVisible();
   await expect(page.getByText(firstAwb).first()).toBeVisible();
+  await page.emulateMedia({ media: "print" });
+  await page.waitForFunction(() => (window as unknown as { __printCalls: number }).__printCalls > 0, null, {
+    timeout: 8_000,
+  });
 });

@@ -16,7 +16,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const parsed = flightUpdateSchema.safeParse(json);
 
     if (!parsed.success) {
-      return validationErrorResponse(parsed.error, "Perubahan flight tidak valid.");
+      return validationErrorResponse(parsed.error, "Perubahan penerbangan tidak valid.");
     }
 
     const flight = await updateFlight({
@@ -27,7 +27,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({ flight });
   } catch (error) {
-    return routeErrorResponse(error, "Gagal memperbarui flight.");
+    return routeErrorResponse(error, "Gagal memperbarui penerbangan.");
   }
 }
 
@@ -39,6 +39,6 @@ export async function DELETE(_: Request, context: RouteContext) {
     await deleteFlight(id, user.id);
     return NextResponse.json({ success: true });
   } catch (error) {
-    return routeErrorResponse(error, "Gagal menghapus flight.");
+    return routeErrorResponse(error, "Gagal mengarsipkan penerbangan.");
   }
 }

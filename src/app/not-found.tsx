@@ -22,7 +22,7 @@ export default function NotFound() {
         </p>
         <div className="mt-6">
           <Link href="/dashboard" className="btn btn-primary">
-            Kembali ke dashboard
+            Kembali ke dasbor
           </Link>
         </div>
       </div>

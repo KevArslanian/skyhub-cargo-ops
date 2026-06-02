@@ -20,13 +20,13 @@ import {
   Search,
   Settings2,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { getNavigationForRole } from "@/lib/access";
 import { APP_NAME, APP_SUBTITLE, ROLE_LABELS } from "@/lib/constants";
 import { cn, formatRelativeShort } from "@/lib/format";
 import { BrandMark } from "./brand-mark";
 import { ShellSearchProvider } from "./shell-search-provider";
 import { ShellTopbarControlsContext } from "./shell-topbar-controls";
+import { runThemeTransition, useTheme } from "./theme-provider";
 
 type ShellProps = {
   user: {
@@ -83,6 +83,24 @@ const navGroupIconMap = {
   sistem: Settings2,
 } as const;
 
+const ACCENT_COLORS = {
+  blue: ["#003d9b", "#0052cc", "#0059cf", "rgba(0, 61, 155, 0.09)"],
+  teal: ["#0d766e", "#0d9488", "#14b8a6", "rgba(13, 148, 136, 0.12)"],
+  amber: ["#b45309", "#d97706", "#f59e0b", "rgba(217, 119, 6, 0.13)"],
+  rose: ["#be123c", "#e11d48", "#f43f5e", "rgba(225, 29, 72, 0.12)"],
+  violet: ["#6d28d9", "#7c3aed", "#8b5cf6", "rgba(124, 58, 237, 0.12)"],
+} as const;
+
+function applyAccentColor(value?: string | null) {
+  if (typeof document === "undefined") return;
+
+  const color = value && value in ACCENT_COLORS ? ACCENT_COLORS[value as keyof typeof ACCENT_COLORS] : ACCENT_COLORS.blue;
+  document.documentElement.style.setProperty("--brand-primary", color[0]);
+  document.documentElement.style.setProperty("--brand-primary-2", color[1]);
+  document.documentElement.style.setProperty("--brand-primary-3", color[2]);
+  document.documentElement.style.setProperty("--brand-primary-soft", color[3]);
+}
+
 export function AppShell({ user, settings, notifications, children }: ShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -125,9 +143,11 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   const displayedNavigationGroups = navigation.groups
     .map((group) => ({ ...group, items: group.items.filter((item) => item.href !== "/settings") }))
     .filter((group) => group.items.length > 0);
+  const canOpenSettings = navigation.items.some((item) => item.href === "/settings");
+  const isSettingsActive = pathname === "/settings" || pathname.startsWith("/settings/");
 
   useEffect(() => {
-    setShellSettings((current) => ({ ...settings, theme: current.theme }));
+    setShellSettings(settings);
   }, [settings]);
 
   useEffect(() => {
@@ -135,16 +155,10 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       setMounted(true);
     }
 
-    const storedTheme = window.localStorage.getItem("theme");
-    const storedPreference =
-      storedTheme === "dark" || storedTheme === "light" || storedTheme === "system" ? storedTheme : null;
-    const nextPreference = storedPreference ?? themePreference;
+    const storedAccent = window.localStorage.getItem("skyhub-accent-color");
 
-    if (storedPreference && storedPreference !== themePreference) {
-      setShellSettings((current) => ({ ...current, theme: storedPreference }));
-    }
-
-    setTheme(nextPreference);
+    setTheme(themePreference);
+    applyAccentColor(storedAccent);
   }, [mounted, setTheme, themePreference]);
 
   useEffect(() => {
@@ -153,14 +167,19 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
   useEffect(() => {
     function handleSettingsPreview(event: Event) {
-      const customEvent = event as CustomEvent<Partial<ShellProps["settings"]>>;
+      const customEvent = event as CustomEvent<Partial<ShellProps["settings"]> & { accentColor?: string }>;
       const nextSettings = customEvent.detail;
       if (!nextSettings) return;
 
       setShellSettings((current) => ({ ...current, ...nextSettings }));
       if (nextSettings.theme === "dark" || nextSettings.theme === "light" || nextSettings.theme === "system") {
         window.localStorage.setItem("theme", nextSettings.theme);
+        runThemeTransition();
         setTheme(nextSettings.theme);
+      }
+      if (typeof nextSettings.accentColor === "string") {
+        window.localStorage.setItem("skyhub-accent-color", nextSettings.accentColor);
+        applyAccentColor(nextSettings.accentColor);
       }
     }
 
@@ -379,12 +398,12 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   }
 
   const searchPlaceholder = useMemo(() => {
-    if (pathname === "/dashboard") return "Cari dashboard";
-    if (pathname === "/shipment-ledger") return "Cari shipment";
-    if (pathname === "/flight-board") return "Cari flight";
-    if (pathname === "/alerts") return "Cari alert";
-    if (pathname === "/activity-log") return "Cari log";
-    if (pathname === "/settings") return "Cari settings";
+    if (pathname === "/dashboard") return "Cari dasbor";
+    if (pathname === "/shipment-ledger") return "Cari pengiriman";
+    if (pathname === "/flight-board") return "Cari penerbangan";
+    if (pathname === "/alerts") return "Cari peringatan";
+    if (pathname === "/activity-log") return "Cari catatan";
+    if (pathname === "/settings") return "Cari pengaturan";
     return "Cari";
   }, [pathname]);
   const shellSearchConfig = useMemo(
@@ -556,31 +575,45 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                         <p className="truncate text-xs text-[color:var(--muted-fg)]">{ROLE_LABELS[user.role]} | {user.customerAccountName || user.station}</p>
                       </div>
                     </div>
-                    <div className="grid gap-1 border-t border-[color:var(--border-soft)] pt-3">
-                      <Link href="/settings" className="sidebar-link" onClick={() => setMobileOpen(false)}>
-                        <Settings2 size={18} className="shrink-0" />
-                        <div className="min-w-0">
-                          <p className="truncate">Settings</p>
-                          <p className="truncate text-[11px] font-medium text-[color:var(--muted-2)]">Preferensi umum</p>
-                        </div>
-                      </Link>
-                    </div>
+                    {canOpenSettings ? (
+                      <div className="grid gap-1 border-t border-[color:var(--border-soft)] pt-3">
+                        <Link
+                          href="/settings"
+                          className={cn("sidebar-link", isSettingsActive && "sidebar-link-active")}
+                          onClick={() => setMobileOpen(false)}
+                        >
+                          <Settings2 size={18} className="shrink-0" />
+                          <div className="min-w-0">
+                            <p className="truncate">Pengaturan</p>
+                            <p className="truncate text-[11px] font-medium text-[color:var(--muted-2)]">Profil, akses, preferensi</p>
+                          </div>
+                        </Link>
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
-                    <Link
-                      href="/settings"
-                      title="Settings"
-                      aria-label="Settings"
-                      className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary)] text-sm font-black !text-white hover:opacity-90 transition-opacity"
-                      onClick={() => setMobileOpen(false)}
-                    >
+                    <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary)] text-sm font-black text-white">
                       {user.name
                         .split(" ")
                         .map((part) => part[0])
                         .join("")
                         .slice(0, 2)}
-                    </Link>
+                    </div>
+                    {canOpenSettings ? (
+                      <Link
+                        href="/settings"
+                        title="Pengaturan"
+                        aria-label="Pengaturan"
+                        className={cn(
+                          "flex h-11 w-11 items-center justify-center rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel)] text-[color:var(--muted-fg)] transition-colors hover:text-[color:var(--text-strong)]",
+                          isSettingsActive && "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]",
+                        )}
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        <Settings2 size={18} />
+                      </Link>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -591,11 +624,11 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                   collapsed && "h-11 justify-center px-0",
                 )}
                 onClick={handleSignOut}
-                title="Logout"
-                aria-label="Logout"
+                title="Keluar"
+                aria-label="Keluar"
               >
                 <LogOut size={18} className="shrink-0" />
-                {!collapsed ? <span>Logout</span> : null}
+                {!collapsed ? <span>Keluar</span> : null}
               </button>
             </div>
           </div>
@@ -676,7 +709,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                     onClick={() => setNotificationOpen((value) => !value)}
                   >
                     <Bell size={18} />
-                    <span className="hidden sm:inline">Notifikasi</span>
+                    <span className="hidden sm:inline">Pemberitahuan</span>
                     {unreadCount > 0 ? (
                       <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[color:var(--panel-bg)] bg-[color:var(--brand-primary)] px-1 text-[10px] font-bold leading-none text-white shadow-[0_6px_16px_rgba(0,61,155,0.24)]">
                         {unreadCount}
@@ -689,7 +722,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                       <div className="flex items-center justify-between border-b border-[color:var(--border-soft)] px-4 py-4">
                         <div>
                           <p className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
-                            Notifikasi
+                            Pemberitahuan
                           </p>
                           <p className="text-sm text-[color:var(--muted-fg)]">{unreadCount} belum dibaca</p>
                         </div>
@@ -724,8 +757,8 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                         ) : (
                           <div className="px-4 py-10 text-center">
                             <Bell size={26} className="mx-auto text-[color:var(--muted-2)]" />
-                            <p className="mt-3 text-sm font-medium text-[color:var(--muted-fg)]">Tidak ada notifikasi baru</p>
-                            <p className="mt-1 text-xs text-[color:var(--muted-2)]">Notifikasi akan muncul di sini saat ada aktivitas.</p>
+                            <p className="mt-3 text-sm font-medium text-[color:var(--muted-fg)]">Tidak ada pemberitahuan baru</p>
+                            <p className="mt-1 text-xs text-[color:var(--muted-2)]">Pemberitahuan akan muncul di sini saat ada aktivitas.</p>
                           </div>
                         )}
                       </div>
@@ -739,7 +772,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                               router.push("/activity-log");
                             }}
                           >
-                            Buka Log Aktivitas
+                            Buka Catatan Aktivitas
                           </button>
                         </div>
                       ) : null}

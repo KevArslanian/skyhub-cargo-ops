@@ -116,7 +116,7 @@ function deriveShipmentTransactionStatus(input: {
 }
 
 function deriveShipmentGoodsStatus(status: ShipmentStatus) {
-  if (status === "hold") return "Pending";
+  if (status === "hold") return "Menunggu";
   if (status === "arrived") return "Sampai Tujuan";
   if (status === "loaded_to_aircraft" || status === "departed") return "Dalam Pengiriman";
   return "Diproses";
@@ -280,6 +280,13 @@ type FlightDateInterval = {
 };
 
 type DerivedFlightStatus = "on_time" | "delayed" | "departed";
+type FlightAssignmentInput = {
+  currentShipmentId?: string;
+  origin: string;
+  destination: string;
+  weightKg: number;
+  status: ShipmentStatus;
+};
 
 function formatOpsDate(value: Date) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -340,22 +347,14 @@ function appendFlightDateFilter(where: Prisma.FlightWhereInput, intervals?: Flig
   where.AND = [...existingAnd, filter];
 }
 
-function deriveFlightStatus(input: { status?: FlightStatus | DerivedFlightStatus; departureTime: Date; arrivalTime: Date }, now = new Date()): DerivedFlightStatus {
-  if (input.status === "departed" || now >= input.departureTime) {
-    return "departed";
-  }
-
-  if (input.status === "delayed") {
-    return "delayed";
-  }
-
-  return "on_time";
+function deriveFlightStatus(input: { status?: FlightStatus | DerivedFlightStatus }): DerivedFlightStatus {
+  return input.status ?? "on_time";
 }
 
 function assertFlightScheduleOrder(input: { cargoCutoffTime: Date; departureTime: Date; arrivalTime: Date }) {
   if (input.cargoCutoffTime.getTime() > input.departureTime.getTime()) {
     throw new AccessError(
-      "Cargo cutoff harus sebelum atau sama dengan waktu berangkat.",
+      "Batas kargo harus sebelum atau sama dengan waktu berangkat.",
       400,
       "INVALID_FLIGHT_SCHEDULE",
     );
@@ -415,7 +414,7 @@ async function validateCustomerAccount(customerAccountId?: string | null) {
   return account;
 }
 
-async function validateFlight(flightId?: string | null) {
+async function validateFlight(flightId?: string | null, assignment?: FlightAssignmentInput) {
   if (!flightId) {
     return null;
   }
@@ -428,11 +427,67 @@ async function validateFlight(flightId?: string | null) {
     select: {
       id: true,
       flightNumber: true,
+      origin: true,
+      destination: true,
+      cargoCutoffTime: true,
+      status: true,
+      aircraft: {
+        select: {
+          capacityKg: true,
+        },
+      },
+      shipments: {
+        where: { archivedAt: null },
+        select: {
+          id: true,
+          weightKg: true,
+        },
+      },
     },
   });
 
   if (!flight) {
-    throw new AccessError("Flight tidak ditemukan atau sudah diarsipkan.", 400, "FLIGHT_INVALID");
+    throw new AccessError("Penerbangan tidak ditemukan atau sudah diarsipkan.", 400, "FLIGHT_INVALID");
+  }
+
+  if (assignment) {
+    const origin = assignment.origin.toUpperCase();
+    const destination = assignment.destination.toUpperCase();
+
+    if (flight.status === FlightStatus.departed) {
+      throw new AccessError("Penerbangan sudah berangkat dan tidak bisa menerima penugasan pengiriman baru.", 400, "FLIGHT_ALREADY_DEPARTED");
+    }
+
+    if (flight.origin !== origin || flight.destination !== destination) {
+      throw new AccessError(
+        `Rute pengiriman ${origin} -> ${destination} tidak cocok dengan penerbangan ${flight.flightNumber} ${flight.origin} -> ${flight.destination}.`,
+        400,
+        "FLIGHT_ROUTE_MISMATCH",
+      );
+    }
+
+    if (flight.cargoCutoffTime <= new Date()) {
+      throw new AccessError("Batas kargo penerbangan sudah lewat. Pilih penerbangan lain yang masih terbuka.", 400, "FLIGHT_CUTOFF_CLOSED");
+    }
+
+    if (assignment.status === ShipmentStatus.departed || assignment.status === ShipmentStatus.arrived) {
+      throw new AccessError("Pengiriman yang sudah berangkat atau tiba tidak bisa dipindahkan ke penerbangan baru.", 400, "SHIPMENT_ALREADY_MOVED");
+    }
+
+    const capacityKg = flight.aircraft?.capacityKg ?? null;
+    if (capacityKg) {
+      const currentLoad = flight.shipments.reduce(
+        (sum, shipment) => (shipment.id === assignment.currentShipmentId ? sum : sum + shipment.weightKg),
+        0,
+      );
+      if (currentLoad + assignment.weightKg > capacityKg) {
+        throw new AccessError(
+          `Kapasitas penerbangan ${flight.flightNumber} tidak cukup untuk tambahan ${assignment.weightKg} kg.`,
+          400,
+          "FLIGHT_CAPACITY_EXCEEDED",
+        );
+      }
+    }
   }
 
   return flight;
@@ -440,13 +495,13 @@ async function validateFlight(flightId?: string | null) {
 
 function ensureShipmentCapability(user: AccessUser, capability: "shipment:create" | "shipment:update" | "shipment:delete" | "shipment:document") {
   if (!hasCapability(user, capability)) {
-    throw new AccessError("Akses shipment tidak cukup untuk aksi ini.", 403, "SHIPMENT_CAPABILITY_REQUIRED");
+    throw new AccessError("Akses pengiriman tidak cukup untuk aksi ini.", 403, "SHIPMENT_CAPABILITY_REQUIRED");
   }
 }
 
 function ensureFlightManager(user: AccessUser) {
   if (!canManageFlights(user)) {
-    throw new AccessError("Perubahan flight hanya untuk admin atau staff.", 403, "FLIGHT_MANAGER_ONLY");
+    throw new AccessError("Perubahan penerbangan hanya untuk admin atau staf.", 403, "FLIGHT_MANAGER_ONLY");
   }
 }
 
@@ -454,7 +509,7 @@ function ensureAllowedFlightNumber(flightNumber: string) {
   const normalized = normalizeFlightNumber(flightNumber);
   if (!isAllowedFlightNumber(normalized)) {
     throw new AccessError(
-      "Format flight harus CODE-XXX/XXXX dengan kode maskapai yang tersedia.",
+      "Format penerbangan harus CODE-XXX/XXXX dengan kode maskapai yang tersedia.",
       400,
       "FLIGHT_CODE_NOT_ALLOWED",
     );
@@ -546,7 +601,7 @@ async function getShipmentRecordForMutation(shipmentId: string) {
   });
 
   if (!shipment) {
-    throw new AccessError("Shipment tidak ditemukan.", 404, "SHIPMENT_NOT_FOUND");
+    throw new AccessError("Pengiriman tidak ditemukan.", 404, "SHIPMENT_NOT_FOUND");
   }
 
   return shipment;
@@ -641,6 +696,30 @@ const FLIGHT_READY_SHIPMENT_STATUSES = new Set<ShipmentStatus>([
   ShipmentStatus.departed,
   ShipmentStatus.arrived,
 ]);
+const FLIGHT_ASSIGNABLE_SHIPMENT_STATUSES = new Set<ShipmentStatus>([
+  ShipmentStatus.received,
+  ShipmentStatus.sortation,
+  ShipmentStatus.loaded_to_aircraft,
+  ShipmentStatus.hold,
+]);
+const SHIPMENT_STATUS_TRANSITIONS: Record<ShipmentStatus, Set<ShipmentStatus>> = {
+  [ShipmentStatus.received]: new Set([ShipmentStatus.received, ShipmentStatus.sortation, ShipmentStatus.hold]),
+  [ShipmentStatus.sortation]: new Set([ShipmentStatus.sortation, ShipmentStatus.loaded_to_aircraft, ShipmentStatus.hold]),
+  [ShipmentStatus.loaded_to_aircraft]: new Set([
+    ShipmentStatus.loaded_to_aircraft,
+    ShipmentStatus.departed,
+    ShipmentStatus.hold,
+  ]),
+  [ShipmentStatus.departed]: new Set([ShipmentStatus.departed, ShipmentStatus.arrived, ShipmentStatus.hold]),
+  [ShipmentStatus.arrived]: new Set([ShipmentStatus.arrived]),
+  [ShipmentStatus.hold]: new Set([
+    ShipmentStatus.hold,
+    ShipmentStatus.received,
+    ShipmentStatus.sortation,
+    ShipmentStatus.loaded_to_aircraft,
+    ShipmentStatus.departed,
+  ]),
+};
 
 type AlertSeverity = "critical" | "warning" | "info";
 
@@ -660,13 +739,20 @@ function getAlertTone(severity: AlertSeverity) {
   return "info";
 }
 
-// SLA target (in minutes) before each exception kind is considered breached.
+function getAlertKindPriority(kind: string) {
+  if (kind === "reported-awb-issue") return -2;
+  if (kind === "cutoff-risk" || kind === "capacity-risk") return -1;
+  return 0;
+}
+
+// Operational follow-up limit (in minutes) before each exception kind is considered late.
 const ALERT_SLA_MINUTES: Record<string, number> = {
   "shipment-hold": 240,
   "document-gate": 180,
   "readiness-gate": 240,
   "stale-update": 360,
   "unassigned-flight": 180,
+  "reported-awb-issue": 90,
   "flight-delay": 120,
   "cutoff-risk": 120,
   "capacity-risk": 60,
@@ -676,58 +762,75 @@ function getAlertSlaMinutes(kind: string) {
   return ALERT_SLA_MINUTES[kind] ?? 240;
 }
 
-// Returns minutes remaining until SLA breach (negative = already breached).
+// Returns minutes remaining until the follow-up limit is late (negative = already late).
 function getAlertSlaRemainingMinutes(kind: string, ageMinutes: number) {
   return getAlertSlaMinutes(kind) - ageMinutes;
+}
+
+function assertShipmentStatusTransition(currentStatus: ShipmentStatus, nextStatus: ShipmentStatus) {
+  if (SHIPMENT_STATUS_TRANSITIONS[currentStatus]?.has(nextStatus)) {
+    return;
+  }
+
+  throw new AccessError(
+    `Transisi pengiriman dari ${SHIPMENT_STATUS_LABELS[currentStatus]} ke ${SHIPMENT_STATUS_LABELS[nextStatus]} tidak valid untuk alur operasional.`,
+    400,
+    "SHIPMENT_STATUS_TRANSITION_INVALID",
+  );
 }
 
 function getAlertResolutionMeta(kind: string) {
   const fallback = {
     cause: "Kondisi operasional melewati aturan pantau sistem.",
-    clearCondition: "Alert hilang otomatis saat data sumber kembali normal.",
+    clearCondition: "Peringatan hilang otomatis saat data sumber kembali normal.",
     targetModule: "Modul terkait",
   };
 
   const meta: Record<string, typeof fallback> = {
     "shipment-hold": {
-      cause: "Shipment masih berstatus hold.",
-      clearCondition: "Ubah status shipment dari hold setelah alasan hold selesai.",
-      targetModule: "Ledger Shipment",
+      cause: "Pengiriman masih berstatus hold.",
+      clearCondition: "Ubah status pengiriman dari hold setelah alasan hold selesai.",
+      targetModule: "Buku Pengiriman",
     },
     "document-gate": {
-      cause: "Dokumen belum complete atau masih perlu review.",
-      clearCondition: "Upload dokumen pendukung sampai status dokumen otomatis complete.",
-      targetModule: "Dokumen Shipment",
+      cause: "Dokumen belum lengkap atau masih perlu review.",
+      clearCondition: "Unggah dokumen pendukung sampai status dokumen otomatis lengkap.",
+      targetModule: "Dokumen Pengiriman",
     },
     "readiness-gate": {
-      cause: "Kesiapan shipment masih pending.",
-      clearCondition: "Selesaikan dokumen, pembayaran, assignment, atau hold sampai readiness otomatis ready.",
-      targetModule: "Review Operasional",
+      cause: "Kesiapan pengiriman masih pending.",
+      clearCondition: "Selesaikan dokumen, pembayaran, penugasan, atau hold sampai kesiapan pengiriman menjadi Siap.",
+      targetModule: "Tinjauan Operasional",
     },
     "stale-update": {
       cause: "Status aktif tidak berubah lebih dari 6 jam.",
-      clearCondition: "Tambahkan update status atau checkpoint terbaru pada shipment.",
-      targetModule: "Tracking Shipment",
+      clearCondition: "Tambahkan update status atau checkpoint terbaru pada pengiriman.",
+      targetModule: "Pelacakan Pengiriman",
     },
     "unassigned-flight": {
-      cause: "Shipment aktif belum terhubung ke flight.",
-      clearCondition: "Pilih flight pada shipment atau pindahkan ke hold bila belum siap.",
-      targetModule: "Ledger Shipment",
+      cause: "Pengiriman aktif belum terhubung ke penerbangan.",
+      clearCondition: "Pilih penerbangan pada pengiriman atau pindahkan ke hold bila belum siap.",
+      targetModule: "Buku Pengiriman",
+    },
+    "reported-awb-issue": {
+      cause: "Pengguna menandai AWB bermasalah dari halaman pelacakan.",
+      clearCondition: "Konfirmasi isu di buku pengiriman, hubungi penanggung jawab terkait, lalu tandai peringatan selesai.",
+      targetModule: "Buku Pengiriman",
     },
     "flight-delay": {
-      cause: "Flight ditandai terlambat dari status operasional.",
-      clearCondition: "Perbarui jadwal atau tandai flight berangkat saat status operasional sudah jelas.",
-      targetModule: "Papan Flight",
+      cause: "Penerbangan ditandai terlambat dari status operasional.",
+      clearCondition: "Perbarui jadwal atau tandai penerbangan berangkat saat status operasional sudah jelas.",
+      targetModule: "Papan Penerbangan",
     },
     "cutoff-risk": {
-      cause: "Cutoff flight dekat atau sudah lewat saat masih ada shipment belum clear.",
-      clearCondition: "Clear pending shipment, pindahkan shipment, atau tutup manifest.",
-      targetModule: "Papan Flight",
+      cause: "Batas terima penerbangan dekat atau sudah lewat saat masih ada pengiriman yang belum siap.",
+      clearCondition: "Selesaikan pengiriman pending, pindahkan pengiriman, atau tutup manifest.",
+      targetModule: "Papan Penerbangan",
     },
     "capacity-risk": {
-      cause: "Total berat manifest mendekati atau melewati kapasitas aircraft.",
-      clearCondition: "Kurangi load, pindahkan shipment berat, atau pakai aircraft/flight lain.",
-      targetModule: "Manifest Flight",
+      cause: "Total berat manifest mendekati atau melewati kapasitas pesawat.",
+      clearCondition: "Kurangi muatan, pindahkan pengiriman berat, atau pakai pesawat dan penerbangan lain.",
+      targetModule: "Manifest Penerbangan",
     },
   };
 
@@ -880,7 +983,7 @@ async function getInternalMetricsSnapshot(scopedShipments: Prisma.ShipmentWhereI
 
   const flightsWithDerivedStatus = flightsToday.map((flight) => ({
     ...flight,
-    status: deriveFlightStatus(flight, now),
+    status: deriveFlightStatus(flight),
   }));
   const onTime = flightsWithDerivedStatus.filter((flight) => flight.status === "on_time").length;
   const delayed = flightsWithDerivedStatus.filter((flight) => flight.status === "delayed").length;
@@ -921,14 +1024,14 @@ export async function getLandingMetricsData() {
 
 export async function getAlertCenterData(user: AccessUser & { name: string }) {
   if (!isInternalRole(user.role)) {
-    throw new AccessError("Alert center hanya untuk pengguna internal.", 403, "INTERNAL_ROUTE_ONLY");
+    throw new AccessError("Pusat Peringatan hanya untuk pengguna internal.", 403, "INTERNAL_ROUTE_ONLY");
   }
 
   const now = new Date();
   const staleBefore = new Date(now.getTime() - 6 * 60 * 60 * 1000);
   const scopedShipments = scopeShipmentWhere(user);
 
-  const [shipments, unassignedShipments, flights, notificationCount] = await Promise.all([
+  const [shipments, unassignedShipments, flights, notificationCount, reportedIssueLogs] = await Promise.all([
     db.shipment.findMany({
       where: {
         ...scopedShipments,
@@ -986,9 +1089,65 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
         read: false,
       },
     }),
+    db.activityLog.findMany({
+      where: {
+        action: "Laporkan Isu",
+        targetType: "tracking",
+        targetId: { not: null },
+        createdAt: { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
+      },
+      orderBy: { createdAt: "desc" },
+      take: ALERT_LOOKBACK_LIMIT,
+      select: {
+        id: true,
+        targetId: true,
+        targetLabel: true,
+        description: true,
+        createdAt: true,
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    }),
   ]);
 
   const alerts: Array<ReturnType<typeof createShipmentAlert>> = [];
+  const reportedIssueTargetIds = Array.from(
+    new Set(reportedIssueLogs.map((log) => log.targetId).filter((targetId): targetId is string => Boolean(targetId))),
+  );
+  const reportedIssueShipments = reportedIssueTargetIds.length
+    ? await db.shipment.findMany({
+        where: {
+          ...scopedShipments,
+          id: { in: reportedIssueTargetIds },
+        },
+        include: shipmentInclude,
+      })
+    : [];
+  const reportedShipmentById = new Map(reportedIssueShipments.map((shipment) => [shipment.id, shipment]));
+  const seenReportedIssueShipments = new Set<string>();
+
+  for (const log of reportedIssueLogs) {
+    if (!log.targetId || seenReportedIssueShipments.has(log.targetId)) continue;
+    const shipment = reportedShipmentById.get(log.targetId);
+    if (!shipment) continue;
+
+    seenReportedIssueShipments.add(log.targetId);
+    alerts.push(
+      createShipmentAlert({
+        shipment,
+        now,
+        kind: "reported-awb-issue",
+        title: "Isu AWB dilaporkan",
+        detail: `AWB ${shipment.awb} ditandai bermasalah dari pelacakan. ${log.description}`,
+        severity: "warning",
+        recommendation: "Tugaskan penanggung jawab, cek linimasa pelacakan, hubungi penanggung jawab pengiriman, dan catat hasil tindak lanjut.",
+        triggeredAt: log.createdAt,
+      }),
+    );
+  }
 
   for (const shipment of shipments) {
     if (shipment.status === ShipmentStatus.hold) {
@@ -998,10 +1157,10 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
           shipment,
           now,
           kind: "shipment-hold",
-          title: "Shipment tertahan",
+          title: "Pengiriman tertahan",
           detail: `AWB ${shipment.awb} masih hold di rute ${serializeRoute(shipment.origin, shipment.destination)}.`,
           severity: ageMinutes >= 240 ? "critical" : "warning",
-          recommendation: "Tentukan alasan hold, PIC review, dan batas waktu release sebelum manifest ditutup.",
+          recommendation: "Tentukan alasan hold, minta penanggung jawab melakukan tinjauan, dan tetapkan batas waktu pelepasan sebelum manifest ditutup.",
         }),
       );
     }
@@ -1013,9 +1172,9 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
           now,
           kind: "document-gate",
           title: "Dokumen belum lengkap",
-          detail: `Dokumen AWB ${shipment.awb} berstatus ${shipment.docStatus}; shipment belum aman untuk proses akhir.`,
+          detail: `Dokumen AWB ${shipment.awb} berstatus ${shipment.docStatus}; pengiriman belum aman untuk proses akhir.`,
           severity: shipment.status === ShipmentStatus.loaded_to_aircraft ? "critical" : "warning",
-          recommendation: "Minta dokumen pendukung, tandai hasil review, lalu ubah readiness setelah valid.",
+          recommendation: "Minta dokumen pendukung, tandai hasil review, lalu ubah kesiapan pengiriman setelah valid.",
         }),
       );
     }
@@ -1026,10 +1185,10 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
           shipment,
           now,
           kind: "readiness-gate",
-          title: "Readiness pending",
-          detail: `Readiness AWB ${shipment.awb} masih ${shipment.readiness}; shipment perlu clearance operasional.`,
+          title: "Kesiapan pending",
+          detail: `Kesiapan AWB ${shipment.awb} masih ${shipment.readiness}; pengiriman perlu persetujuan operasional.`,
           severity: "warning",
-          recommendation: "Cek label, dokumen, special handling, dan assignment flight sebelum muat.",
+          recommendation: "Cek label, dokumen, penanganan khusus, dan penugasan penerbangan sebelum muat.",
         }),
       );
     }
@@ -1046,7 +1205,7 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
           title: "Update terlalu lama",
           detail: `AWB ${shipment.awb} belum bergerak lebih dari 6 jam pada status ${SHIPMENT_STATUS_LABELS[shipment.status]}.`,
           severity: "info",
-          recommendation: "Minta scan checkpoint terbaru atau tandai alasan keterlambatan di catatan shipment.",
+          recommendation: "Minta scan checkpoint terbaru atau tandai alasan keterlambatan di catatan pengiriman.",
         }),
       );
     }
@@ -1058,10 +1217,10 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
         shipment,
         now,
         kind: "unassigned-flight",
-        title: "Belum masuk flight",
-        detail: `AWB ${shipment.awb} belum punya assignment flight meski masih aktif di gudang.`,
+        title: "Belum masuk penerbangan",
+        detail: `AWB ${shipment.awb} belum punya penugasan penerbangan meski masih aktif di gudang.`,
         severity: shipment.status === ShipmentStatus.hold ? "warning" : "info",
-        recommendation: "Pasangkan ke flight tersedia atau pindahkan ke hold dengan alasan operasional yang jelas.",
+        recommendation: "Pasangkan ke penerbangan tersedia atau pindahkan ke hold dengan alasan operasional yang jelas.",
       }),
     );
   }
@@ -1086,7 +1245,7 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
       alerts.push({
         id: `flight-delay-${flight.id}`,
         kind: "flight-delay",
-        title: "Flight terlambat",
+        title: "Penerbangan terlambat",
         detail: `${flight.flightNumber} ${route} terlambat; manifest perlu sinkron dengan slot baru.`,
         severity: "warning",
         tone: "warning",
@@ -1098,7 +1257,7 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
         station: flight.origin,
         ownerName: meta.airlineName,
         statusLabel: FLIGHT_STATUS_LABELS[flight.status],
-        recommendedAction: "Broadcast perubahan slot, cek ulang cutoff, dan prioritaskan shipment time-sensitive.",
+        recommendedAction: "Sampaikan perubahan slot, cek ulang batas terima kargo, dan prioritaskan pengiriman yang sensitif waktu.",
         cause: resolutionMeta.cause,
         clearCondition: resolutionMeta.clearCondition,
         targetModule: resolutionMeta.targetModule,
@@ -1114,8 +1273,8 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
       alerts.push({
         id: `cutoff-risk-${flight.id}`,
         kind: "cutoff-risk",
-        title: minutesToCutoff < 0 ? "Cutoff terlewat" : "Cutoff mendekat",
-        detail: `${flight.flightNumber} punya ${pendingShipments.length} shipment belum clear menjelang cutoff.`,
+        title: minutesToCutoff < 0 ? "Batas terima terlewat" : "Batas terima mendekat",
+        detail: `${flight.flightNumber} punya ${pendingShipments.length} pengiriman belum siap menjelang batas terima kargo.`,
         severity: minutesToCutoff < 0 ? "critical" : "warning",
         tone: minutesToCutoff < 0 ? "error" : "warning",
         entityType: "flight",
@@ -1126,7 +1285,7 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
         station: flight.origin,
         ownerName: meta.airlineName,
         statusLabel: FLIGHT_STATUS_LABELS[flight.status],
-        recommendedAction: "Tutup manifest parsial, eskalasi shipment pending, atau pindahkan ke flight berikutnya.",
+        recommendedAction: "Tutup manifest parsial, eskalasi pengiriman pending, atau pindahkan ke penerbangan berikutnya.",
         cause: resolutionMeta.cause,
         clearCondition: resolutionMeta.clearCondition,
         targetModule: resolutionMeta.targetModule,
@@ -1153,8 +1312,8 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
         route,
         station: flight.origin,
         ownerName: flight.aircraft?.registration ?? meta.airlineName,
-        statusLabel: `${Math.round(loadRatio * 100)}% load`,
-        recommendedAction: "Pisahkan shipment berat, cek dimensi aktual, dan siapkan overflow ke flight cadangan.",
+        statusLabel: `${Math.round(loadRatio * 100)}% muatan`,
+        recommendedAction: "Pisahkan pengiriman berat, cek dimensi aktual, dan siapkan limpahan ke penerbangan cadangan.",
         cause: resolutionMeta.cause,
         clearCondition: resolutionMeta.clearCondition,
         targetModule: resolutionMeta.targetModule,
@@ -1205,7 +1364,9 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
     .sort((left, right) => {
       const severityDiff = getAlertPriority(left.severity) - getAlertPriority(right.severity);
       if (severityDiff) return severityDiff;
-      // Most SLA-urgent first within the same severity.
+      const kindPriorityDiff = getAlertKindPriority(left.kind) - getAlertKindPriority(right.kind);
+      if (kindPriorityDiff) return kindPriorityDiff;
+      // Most time-urgent first within the same severity.
       const slaDiff = left.slaRemainingMinutes - right.slaRemainingMinutes;
       if (slaDiff) return slaDiff;
       return new Date(right.triggeredAt).getTime() - new Date(left.triggeredAt).getTime();
@@ -1263,79 +1424,79 @@ export async function getAlertCenterData(user: AccessUser & { name: string }) {
     conditionChecks: [
       buildConditionCheck({
         id: "hold-sla",
-        label: "Hold dan SLA release",
+        label: "Hold dan batas pelepasan",
         count: holdCount,
         threshold: 0,
         normalCopy: "Tidak ada hold aktif pada cakupan data terbaru.",
-        actionCopy: `${holdCount} shipment masih hold dan perlu keputusan release atau eskalasi.`,
-        mechanism: "Butuh timer SLA hold, alasan hold wajib, dan owner eskalasi per station.",
+        actionCopy: `${holdCount} pengiriman masih hold dan perlu keputusan pelepasan atau eskalasi.`,
+        mechanism: "Setiap hold butuh batas tindak lanjut, alasan tertulis, dan penanggung jawab eskalasi per stasiun.",
       }),
       buildConditionCheck({
         id: "document-gate",
-        label: "Gerbang dokumen",
+        label: "Validasi dokumen",
         count: docIssueCount,
         threshold: 0,
-        normalCopy: "Dokumen utama sudah lengkap untuk shipment yang dipantau.",
-        actionCopy: `${docIssueCount} shipment masih punya dokumen incomplete atau review.`,
-        mechanism: "Butuh document gate sebelum status loaded_to_aircraft dapat dipakai.",
+        normalCopy: "Dokumen utama sudah lengkap untuk pengiriman yang dipantau.",
+        actionCopy: `${docIssueCount} pengiriman masih punya dokumen belum lengkap atau review.`,
+        mechanism: "Dokumen wajib lengkap sebelum status Muat ke pesawat dipakai.",
       }),
       buildConditionCheck({
         id: "readiness",
-        label: "Readiness operasional",
+        label: "Kesiapan operasional",
         count: readinessIssueCount,
         threshold: 0,
-        normalCopy: "Readiness shipment berada di kondisi aman.",
-        actionCopy: `${readinessIssueCount} shipment belum ready untuk eksekusi penuh.`,
-        mechanism: "Butuh checklist label, special handling, volume, dan flight assignment.",
+        normalCopy: "Kesiapan pengiriman berada di kondisi aman.",
+        actionCopy: `${readinessIssueCount} pengiriman belum siap untuk eksekusi penuh.`,
+        mechanism: "Periksa label, penanganan khusus, volume, dan penugasan penerbangan.",
       }),
       buildConditionCheck({
         id: "cutoff",
-        label: "Cutoff flight",
+        label: "Batas terima penerbangan",
         count: cutoffRiskCount,
         threshold: 0,
-        normalCopy: "Tidak ada manifest pending dekat cutoff.",
-        actionCopy: `${cutoffRiskCount} flight punya risiko cutoff atau cutoff terlewat.`,
-        mechanism: "Butuh countdown cutoff, freeze manifest, dan rencana pindah flight.",
+        normalCopy: "Tidak ada pengiriman pending menjelang batas terima.",
+        actionCopy: `${cutoffRiskCount} penerbangan punya risiko batas terima atau batasnya sudah terlewat.`,
+        mechanism: "Pantau hitung mundur batas terima, hentikan penambahan manifest, dan siapkan pindah penerbangan.",
       }),
       buildConditionCheck({
         id: "capacity",
-        label: "Kapasitas manifest",
+        label: "Kapasitas muatan",
         count: capacityRiskCount,
         threshold: 0,
-        normalCopy: "Load factor flight masih dalam batas aman.",
-        actionCopy: `${capacityRiskCount} flight hampir penuh atau melewati kapasitas.`,
-        mechanism: "Butuh load factor guard berbasis berat aktual dan kapasitas aircraft.",
+        normalCopy: "Berat manifest masih dalam batas aman.",
+        actionCopy: `${capacityRiskCount} penerbangan hampir penuh atau melewati kapasitas.`,
+        mechanism: "Bandingkan berat aktual dengan kapasitas pesawat sebelum manifest ditutup.",
       }),
       buildConditionCheck({
         id: "freshness",
-        label: "Freshness update",
+        label: "Update terakhir",
         count: staleUpdateCount,
         threshold: 0,
-        normalCopy: "Checkpoint aktif masih segar.",
-        actionCopy: `${staleUpdateCount} shipment aktif belum bergerak lebih dari 6 jam.`,
-        mechanism: "Butuh scan cadence per area: gudang, sortation, apron, dan terminal tujuan.",
+        normalCopy: "Update checkpoint masih baru.",
+        actionCopy: `${staleUpdateCount} pengiriman aktif belum bergerak lebih dari 6 jam.`,
+        mechanism: "Wajib ada scan checkpoint berkala di gudang, sortation, apron, dan terminal tujuan.",
       }),
     ],
     environmentMechanisms: [
       {
-        title: "SLA per exception",
-        detail: "Hold, dokumen, readiness, dan cutoff punya jam target berbeda agar prioritas tidak hanya berdasarkan urutan data.",
+        title: "Batas respon per masalah",
+        detail: "Hold, dokumen, kesiapan, dan batas terima punya batas waktu berbeda agar prioritas tidak hanya berdasarkan urutan data.",
       },
       {
-        title: "Gate sebelum muat",
-        detail: "Shipment tidak ideal masuk loaded_to_aircraft bila dokumen belum complete atau readiness masih pending.",
+        title: "Validasi sebelum muat",
+        detail: "Pengiriman tidak boleh masuk Muat ke pesawat bila dokumen belum lengkap atau kesiapan masih menunggu.",
       },
       {
-        title: "Capacity guard",
-        detail: "Manifest perlu membandingkan total berat terhadap kapasitas aircraft untuk menangkap overflow sejak awal.",
+        title: "Kontrol kapasitas",
+        detail: "Manifest perlu membandingkan total berat terhadap kapasitas pesawat untuk menangkap limpahan sejak awal.",
       },
       {
-        title: "Delay propagation",
-        detail: "Flight delayed harus menurunkan ulang cutoff, notifikasi customer, dan prioritas barang time-sensitive.",
+        title: "Dampak keterlambatan penerbangan",
+        detail: "Penerbangan terlambat harus menghitung ulang batas terima, notifikasi pelanggan, dan prioritas barang sensitif waktu.",
       },
       {
-        title: "Station escalation",
-        detail: "Alert perlu owner, station, dan rekomendasi aksi agar terlihat seperti operasi gudang nyata.",
+        title: "Eskalasi stasiun",
+        detail: "Peringatan perlu penanggung jawab, stasiun, dan rekomendasi aksi agar terlihat seperti operasi gudang nyata.",
       },
     ],
   };
@@ -1346,13 +1507,102 @@ export type AlertAction = "acknowledge" | "assign" | "snooze" | "resolve" | "reo
 function parseAlertKey(alertKey: string) {
   const separatorIndex = alertKey.indexOf(":");
   if (separatorIndex <= 0) {
-    throw new AccessError("Kunci alert tidak valid.", 400, "ALERT_KEY_INVALID");
+    throw new AccessError("Kunci peringatan tidak valid.", 400, "ALERT_KEY_INVALID");
   }
 
   return {
     kind: alertKey.slice(0, separatorIndex),
     entityId: alertKey.slice(separatorIndex + 1),
   };
+}
+
+async function assertAlertSourceCleared(kind: string, entityId: string, now = new Date()) {
+  if (
+    kind === "shipment-hold" ||
+    kind === "document-gate" ||
+    kind === "readiness-gate" ||
+    kind === "stale-update" ||
+    kind === "unassigned-flight"
+  ) {
+    const shipment = await db.shipment.findFirst({
+      where: { id: entityId, archivedAt: null },
+      select: {
+        id: true,
+        status: true,
+        docStatus: true,
+        readiness: true,
+        updatedAt: true,
+        flightId: true,
+      },
+    });
+
+    if (!shipment) return;
+
+    const staleBefore = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+    const stillActive =
+      (kind === "shipment-hold" && shipment.status === ShipmentStatus.hold) ||
+      (kind === "document-gate" && shipment.docStatus !== ShipmentDocStatus.Complete) ||
+      (kind === "readiness-gate" && shipment.readiness !== ShipmentReadiness.Ready) ||
+      (kind === "stale-update" && ACTIVE_STALE_STATUSES.has(shipment.status) && shipment.updatedAt < staleBefore) ||
+      (kind === "unassigned-flight" && !shipment.flightId && FLIGHT_ASSIGNABLE_SHIPMENT_STATUSES.has(shipment.status));
+
+    if (stillActive) {
+      throw new AccessError("Peringatan belum bisa diselesaikan karena kondisi sumber masih aktif.", 400, "ALERT_STILL_ACTIVE");
+    }
+
+    return;
+  }
+
+  if (kind === "reported-awb-issue") {
+    return;
+  }
+
+  if (kind === "flight-delay" || kind === "cutoff-risk" || kind === "capacity-risk") {
+    const flight = await db.flight.findFirst({
+      where: { id: entityId, archivedAt: null },
+      include: {
+        aircraft: {
+          select: {
+            capacityKg: true,
+          },
+        },
+        shipments: {
+          where: { archivedAt: null },
+          select: {
+            status: true,
+            docStatus: true,
+            readiness: true,
+            weightKg: true,
+          },
+        },
+      },
+    });
+
+    if (!flight) return;
+
+    const pendingShipments = flight.shipments.filter(
+      (shipment) =>
+        !FLIGHT_READY_SHIPMENT_STATUSES.has(shipment.status) ||
+        shipment.docStatus !== ShipmentDocStatus.Complete ||
+        shipment.readiness !== ShipmentReadiness.Ready,
+    );
+    const minutesToCutoff = Math.round((flight.cargoCutoffTime.getTime() - now.getTime()) / 60000);
+    const capacityKg = flight.aircraft?.capacityKg ?? null;
+    const activeWeight = flight.shipments.reduce((sum, shipment) => sum + shipment.weightKg, 0);
+    const loadRatio = capacityKg ? activeWeight / capacityKg : 0;
+    const stillActive =
+      (kind === "flight-delay" && flight.status === FlightStatus.delayed) ||
+      (kind === "cutoff-risk" && flight.status !== FlightStatus.departed && pendingShipments.length > 0 && minutesToCutoff <= 120) ||
+      (kind === "capacity-risk" && capacityKg !== null && loadRatio >= 0.92);
+
+    if (stillActive) {
+      throw new AccessError("Peringatan belum bisa diselesaikan karena kondisi sumber masih aktif.", 400, "ALERT_STILL_ACTIVE");
+    }
+
+    return;
+  }
+
+  throw new AccessError("Jenis peringatan tidak dikenal atau tidak bisa divalidasi.", 400, "ALERT_KIND_INVALID");
 }
 
 export async function updateAlertState(input: {
@@ -1370,16 +1620,20 @@ export async function updateAlertState(input: {
   }
 
   if (!isInternalRole(actor.role)) {
-    throw new AccessError("Alert center hanya untuk pengguna internal.", 403, "INTERNAL_ROUTE_ONLY");
+    throw new AccessError("Pusat Peringatan hanya untuk pengguna internal.", 403, "INTERNAL_ROUTE_ONLY");
   }
 
   const { kind, entityId } = parseAlertKey(input.alertKey);
   const now = new Date();
 
+  if (input.action === "resolve") {
+    await assertAlertSourceCleared(kind, entityId, now);
+  }
+
   let assignedToName: string | null = null;
   if (input.action === "assign") {
     if (!input.assigneeId) {
-      throw new AccessError("Pilih staff untuk assignment alert.", 400, "ALERT_ASSIGNEE_REQUIRED");
+      throw new AccessError("Pilih staf untuk penugasan peringatan.", 400, "ALERT_ASSIGNEE_REQUIRED");
     }
 
     const assignee = await db.user.findFirst({
@@ -1388,7 +1642,7 @@ export async function updateAlertState(input: {
     });
 
     if (!assignee) {
-      throw new AccessError("Staff tujuan assignment tidak ditemukan atau nonaktif.", 400, "ALERT_ASSIGNEE_INVALID");
+      throw new AccessError("Staf tujuan penugasan tidak ditemukan atau nonaktif.", 400, "ALERT_ASSIGNEE_INVALID");
     }
 
     assignedToName = assignee.name;
@@ -1397,7 +1651,12 @@ export async function updateAlertState(input: {
   const baseRecord = {
     alertKey: input.alertKey,
     kind,
-    entityType: kind.startsWith("flight") || kind === "cutoff-risk" || kind === "capacity-risk" ? "flight" : "shipment",
+    entityType:
+      kind === "reported-awb-issue"
+        ? "tracking"
+        : kind.startsWith("flight") || kind === "cutoff-risk" || kind === "capacity-risk"
+          ? "flight"
+          : "shipment",
     entityId,
     lastSeenAt: now,
   };
@@ -1425,8 +1684,8 @@ export async function updateAlertState(input: {
         lastSeenAt: now,
         ...(noteValue !== undefined ? { note: noteValue } : {}),
       };
-      logAction = "Acknowledge Alert";
-      logDescription = `Alert ${input.alertKey} di-acknowledge oleh ${input.actorName}.`;
+      logAction = "Tangani Peringatan";
+      logDescription = `Peringatan ${input.alertKey} ditangani oleh ${input.actorName}.`;
       break;
     }
     case "assign": {
@@ -1443,8 +1702,8 @@ export async function updateAlertState(input: {
         lastSeenAt: now,
         ...(noteValue !== undefined ? { note: noteValue } : {}),
       };
-      logAction = "Assign Alert";
-      logDescription = `Alert ${input.alertKey} ditugaskan ke ${assignedToName} oleh ${input.actorName}.`;
+      logAction = "Tugaskan Peringatan";
+      logDescription = `Peringatan ${input.alertKey} ditugaskan ke ${assignedToName} oleh ${input.actorName}.`;
       break;
     }
     case "snooze": {
@@ -1462,8 +1721,8 @@ export async function updateAlertState(input: {
         lastSeenAt: now,
         ...(noteValue !== undefined ? { note: noteValue } : {}),
       };
-      logAction = "Snooze Alert";
-      logDescription = `Alert ${input.alertKey} di-snooze ${minutes} menit oleh ${input.actorName}.`;
+      logAction = "Tunda Peringatan";
+      logDescription = `Peringatan ${input.alertKey} ditunda ${minutes} menit oleh ${input.actorName}.`;
       break;
     }
     case "resolve": {
@@ -1481,8 +1740,8 @@ export async function updateAlertState(input: {
         lastSeenAt: now,
         ...(noteValue !== undefined ? { note: noteValue } : {}),
       };
-      logAction = "Resolve Alert";
-      logDescription = `Alert ${input.alertKey} ditandai selesai oleh ${input.actorName}.`;
+      logAction = "Selesaikan Peringatan";
+      logDescription = `Peringatan ${input.alertKey} ditandai selesai oleh ${input.actorName}.`;
       break;
     }
     case "reopen": {
@@ -1499,12 +1758,12 @@ export async function updateAlertState(input: {
         acknowledgedAt: null,
         lastSeenAt: now,
       };
-      logAction = "Reopen Alert";
-      logDescription = `Alert ${input.alertKey} dibuka kembali oleh ${input.actorName}.`;
+      logAction = "Buka Ulang Peringatan";
+      logDescription = `Peringatan ${input.alertKey} dibuka kembali oleh ${input.actorName}.`;
       break;
     }
     default: {
-      throw new AccessError("Aksi alert tidak dikenal.", 400, "ALERT_ACTION_INVALID");
+      throw new AccessError("Aksi peringatan tidak dikenal.", 400, "ALERT_ACTION_INVALID");
     }
   }
 
@@ -1568,16 +1827,16 @@ export async function getDashboardData(user: AccessUser) {
         awb: shipment.awb,
         title:
           shipment.status === "hold"
-            ? "Shipment perlu penanganan"
+            ? "Pengiriman perlu penanganan"
             : shipment.docStatus.toLowerCase() !== "complete"
               ? "Dokumen masih menunggu validasi"
-              : "Shipment perlu tindak lanjut",
+              : "Pengiriman perlu tindak lanjut",
         detail:
           shipment.status === "hold"
-            ? `Shipment ${shipment.awb} masih tertahan dan sedang ditinjau tim internal.`
+            ? `Pengiriman ${shipment.awb} masih tertahan dan sedang ditinjau tim internal.`
             : shipment.docStatus.toLowerCase() !== "complete"
               ? `Status dokumen ${shipment.awb} masih ${shipment.docStatus}.`
-              : `Shipment ${shipment.awb} masih berstatus ${shipment.statusLabel}.`,
+              : `Pengiriman ${shipment.awb} masih berstatus ${shipment.statusLabel}.`,
       })),
       documentSummary: serializedShipments.slice(0, 10).map((shipment) => ({
         id: shipment.id,
@@ -1640,11 +1899,11 @@ export async function getDashboardData(user: AccessUser) {
       .map((shipment) => ({
         id: shipment.id,
         awb: shipment.awb,
-        title: shipment.status === "hold" ? "Shipment tertahan" : "Dokumen perlu ditinjau",
+        title: shipment.status === "hold" ? "Pengiriman tertahan" : "Dokumen perlu ditinjau",
         detail:
           shipment.status === "hold"
-            ? `Shipment ${shipment.awb} masih berstatus tertahan dan perlu penanganan tim operasional.`
-            : `Shipment ${shipment.awb} memiliki status dokumen ${shipment.docStatus}.`,
+            ? `Pengiriman ${shipment.awb} masih berstatus tertahan dan perlu penanganan tim operasional.`
+            : `Pengiriman ${shipment.awb} memiliki status dokumen ${shipment.docStatus}.`,
       })),
     recentActivity: recentActivity.map((activity) => ({
       id: activity.id,
@@ -1800,7 +2059,12 @@ export async function createShipment(input: {
   const awb = input.awb && AWB_REGEX.test(input.awb) ? input.awb : await generateUniqueAwb();
   const [customerAccount, flight] = await Promise.all([
     validateCustomerAccount(input.customerAccountId ?? null),
-    validateFlight(input.flightId ?? null),
+    validateFlight(input.flightId ?? null, {
+      origin: input.origin,
+      destination: input.destination,
+      weightKg: input.weightKg,
+      status: ShipmentStatus.received,
+    }),
   ]);
 
   const guardFields = deriveShipmentGuardFields({
@@ -1809,68 +2073,68 @@ export async function createShipment(input: {
     documents: [],
   });
 
-  const shipment = await db.$transaction(async (tx) => {
-    const created = await tx.shipment.create({
-      data: {
-        awb,
-        sentAt: parseCargoDate(input.sentAt),
-        commodity: input.commodity,
-        cargoMode: input.cargoMode,
-        senderPhone: input.senderPhone,
-        origin: input.origin.toUpperCase(),
-        destination: input.destination.toUpperCase(),
-        pieces: input.pieces,
-        weightKg: input.weightKg,
-        volumeM3: input.volumeM3 ?? null,
-        specialHandling: input.specialHandling || "",
-        serviceType: input.serviceType,
-        shippingRate: input.shippingRate,
-        vehicleName: input.vehicleName,
-        vehicleType: input.vehicleType,
-        vehicleCode: input.vehicleCode.toUpperCase(),
-        vehicleCapacityKg: input.vehicleCapacityKg,
-        vehicleStatus: input.vehicleStatus,
-        goodsStatus: guardFields.goodsStatus,
-        transactionStatus: guardFields.transactionStatus,
-        docStatus: guardFields.docStatus,
-        readiness: guardFields.readiness,
-        shipper: input.shipper,
-        consignee: input.consignee,
-        forwarder: input.forwarder,
-        ownerName: input.ownerName,
-        notes: input.notes || "",
-        status: "received",
-        flightId: flight?.id ?? null,
-        customerAccountId: customerAccount?.id ?? null,
-        createdById: actor.id,
-        trackingLogs: {
-          create: {
-            status: "received",
-            message: `Kargo ${input.cargoMode.toLowerCase()} diterima dan data resi dibuat.`,
-            location: "Gudang Operasional",
-            actorName: input.actorName,
-            visibility: "customer",
-            actorUserId: actor.id,
-          },
+  const shipment = await db.shipment.create({
+    data: {
+      awb,
+      sentAt: parseCargoDate(input.sentAt),
+      commodity: input.commodity,
+      cargoMode: input.cargoMode,
+      senderPhone: input.senderPhone,
+      origin: input.origin.toUpperCase(),
+      destination: input.destination.toUpperCase(),
+      pieces: input.pieces,
+      weightKg: input.weightKg,
+      volumeM3: input.volumeM3 ?? null,
+      specialHandling: input.specialHandling || "",
+      serviceType: input.serviceType,
+      shippingRate: input.shippingRate,
+      vehicleName: input.vehicleName,
+      vehicleType: input.vehicleType,
+      vehicleCode: input.vehicleCode.toUpperCase(),
+      vehicleCapacityKg: input.vehicleCapacityKg,
+      vehicleStatus: input.vehicleStatus,
+      goodsStatus: guardFields.goodsStatus,
+      transactionStatus: guardFields.transactionStatus,
+      docStatus: guardFields.docStatus,
+      readiness: guardFields.readiness,
+      shipper: input.shipper,
+      consignee: input.consignee,
+      forwarder: input.forwarder,
+      ownerName: input.ownerName,
+      notes: input.notes || "",
+      status: "received",
+      flightId: flight?.id ?? null,
+      customerAccountId: customerAccount?.id ?? null,
+      createdById: actor.id,
+      trackingLogs: {
+        create: {
+          status: "received",
+          message: `Kargo ${input.cargoMode.toLowerCase()} diterima dan data resi dibuat.`,
+          location: "Gudang Operasional",
+          actorName: input.actorName,
+          visibility: "customer",
+          actorUserId: actor.id,
         },
       },
-      include: shipmentInclude,
-    });
+    },
+    include: shipmentInclude,
+  });
 
-    await tx.activityLog.create({
+  try {
+    await db.activityLog.create({
       data: {
         userId: actor.id,
-        action: "Buat Shipment",
+        action: "Buat Pengiriman",
         targetType: "shipment",
-        targetId: created.id,
-        targetLabel: created.awb,
-        description: `Shipment baru ${created.awb} dibuat untuk rute ${created.origin} -> ${created.destination}.`,
+        targetId: shipment.id,
+        targetLabel: shipment.awb,
+        description: `Pengiriman baru ${shipment.awb} dibuat untuk rute ${shipment.origin} -> ${shipment.destination}.`,
         level: "success",
       },
     });
-
-    return created;
-  });
+  } catch (error) {
+    console.error("[shipment-create-activity-log]", error);
+  }
 
   return serializeShipment(shipment, actor);
 }
@@ -1913,16 +2177,37 @@ export async function updateShipment(
 
   const current = await getShipmentRecordForMutation(shipmentId);
   if (current.archivedAt) {
-    throw new AccessError("Shipment sudah diarsipkan.", 400, "SHIPMENT_ARCHIVED");
+    throw new AccessError("Pengiriman sudah diarsipkan.", 400, "SHIPMENT_ARCHIVED");
   }
 
+  const nextStatus = input.status ?? current.status;
+  assertShipmentStatusTransition(current.status, nextStatus);
+
+  const nextShippingRate = input.shippingRate ?? current.shippingRate;
+  const nextOrigin = input.origin ? input.origin.toUpperCase() : current.origin;
+  const nextDestination = input.destination ? input.destination.toUpperCase() : current.destination;
+  const nextWeightKg = input.weightKg ?? current.weightKg;
+  const targetFlightId = input.flightId !== undefined ? input.flightId : current.flightId;
+  const shouldValidateFlightAssignment =
+    input.flightId !== undefined ||
+    input.origin !== undefined ||
+    input.destination !== undefined ||
+    input.weightKg !== undefined ||
+    (targetFlightId !== null &&
+      input.status !== undefined &&
+      (nextStatus === ShipmentStatus.loaded_to_aircraft || nextStatus === ShipmentStatus.departed));
   const [customerAccount, flight] = await Promise.all([
     input.customerAccountId !== undefined ? validateCustomerAccount(input.customerAccountId) : Promise.resolve(null),
-    input.flightId !== undefined ? validateFlight(input.flightId) : Promise.resolve(null),
+    shouldValidateFlightAssignment
+      ? validateFlight(targetFlightId, {
+          origin: nextOrigin,
+          destination: nextDestination,
+          currentShipmentId: shipmentId,
+          weightKg: nextWeightKg,
+          status: nextStatus,
+        })
+      : Promise.resolve(null),
   ]);
-
-  const nextStatus = input.status ?? current.status;
-  const nextShippingRate = input.shippingRate ?? current.shippingRate;
   const nextGuardFields = deriveShipmentGuardFields({
     status: nextStatus,
     shippingRate: nextShippingRate,
@@ -1930,7 +2215,7 @@ export async function updateShipment(
     goodsStatus: input.goodsStatus,
     transactionStatus: input.transactionStatus,
   });
-  const nextFlightId = input.flightId !== undefined ? flight?.id ?? null : current.flightId;
+  const nextFlightId = shouldValidateFlightAssignment ? flight?.id ?? null : current.flightId;
   const nextCustomerAccountId =
     input.customerAccountId !== undefined ? customerAccount?.id ?? null : current.customerAccountId;
 
@@ -1945,10 +2230,10 @@ export async function updateShipment(
         cargoMode: input.cargoMode ?? current.cargoMode,
         senderPhone: input.senderPhone ?? current.senderPhone,
         commodity: input.commodity ?? current.commodity,
-        origin: input.origin ? input.origin.toUpperCase() : current.origin,
-        destination: input.destination ? input.destination.toUpperCase() : current.destination,
+        origin: nextOrigin,
+        destination: nextDestination,
         pieces: input.pieces ?? current.pieces,
-        weightKg: input.weightKg ?? current.weightKg,
+        weightKg: nextWeightKg,
         serviceType: input.serviceType ?? current.serviceType,
         shippingRate: nextShippingRate,
         vehicleName: input.vehicleName ?? current.vehicleName,
@@ -1982,14 +2267,14 @@ export async function updateShipment(
     await tx.activityLog.create({
       data: {
         userId: actor.id,
-        action: nextStatus !== current.status ? "Ubah Status" : "Perbarui Shipment",
+        action: nextStatus !== current.status ? "Ubah Status" : "Perbarui Pengiriman",
         targetType: "shipment",
         targetId: shipmentId,
         targetLabel: current.awb,
         description:
           nextStatus !== current.status
             ? `Status ${current.awb} berubah dari ${SHIPMENT_STATUS_LABELS[current.status]} ke ${SHIPMENT_STATUS_LABELS[nextStatus]}.`
-            : `Detail shipment ${current.awb} diperbarui.`,
+            : `Detail pengiriman ${current.awb} diperbarui.`,
         level: nextStatus === "hold" ? "warning" : "info",
       },
     });
@@ -2013,7 +2298,7 @@ export async function archiveShipment(shipmentId: string, archived: boolean, use
   });
 
   if (!current) {
-    throw new AccessError("Shipment tidak ditemukan.", 404, "SHIPMENT_NOT_FOUND");
+    throw new AccessError("Pengiriman tidak ditemukan.", 404, "SHIPMENT_NOT_FOUND");
   }
 
   await db.$transaction(async (tx) => {
@@ -2027,13 +2312,13 @@ export async function archiveShipment(shipmentId: string, archived: boolean, use
     await tx.activityLog.create({
       data: {
         userId: actor.id,
-        action: archived ? "Arsipkan Shipment" : "Pulihkan Shipment",
+        action: archived ? "Arsipkan Pengiriman" : "Pulihkan Pengiriman",
         targetType: "shipment",
         targetId: shipmentId,
         targetLabel: current.awb,
         description: archived
-          ? `Shipment ${current.awb} diarsipkan dari daftar kerja aktif.`
-          : `Shipment ${current.awb} dipulihkan kembali ke daftar kerja aktif.`,
+          ? `Pengiriman ${current.awb} diarsipkan dari daftar kerja aktif.`
+          : `Pengiriman ${current.awb} dipulihkan kembali ke daftar kerja aktif.`,
         level: archived ? "warning" : "success",
       },
     });
@@ -2050,26 +2335,27 @@ export async function deleteShipment(shipmentId: string, userId: string) {
 
   const current = await db.shipment.findUnique({
     where: { id: shipmentId },
-    select: { id: true, awb: true },
+    select: { id: true, awb: true, archivedAt: true },
   });
 
   if (!current) {
-    throw new AccessError("Shipment tidak ditemukan.", 404, "SHIPMENT_NOT_FOUND");
+    throw new AccessError("Pengiriman tidak ditemukan.", 404, "SHIPMENT_NOT_FOUND");
   }
 
   await db.$transaction(async (tx) => {
-    await tx.shipment.delete({
+    await tx.shipment.update({
       where: { id: shipmentId },
+      data: { archivedAt: current.archivedAt ?? new Date() },
     });
 
     await tx.activityLog.create({
       data: {
         userId: actor.id,
-        action: "Hapus Shipment",
+        action: "Arsipkan Pengiriman",
         targetType: "shipment",
         targetId: shipmentId,
         targetLabel: current.awb,
-        description: `Shipment ${current.awb} dihapus dari database.`,
+        description: `Pengiriman ${current.awb} diarsipkan dari daftar kerja aktif.`,
         level: "warning",
       },
     });
@@ -2093,7 +2379,7 @@ export async function addShipmentDocument(input: {
   ensureShipmentCapability(actor, "shipment:document");
   const shipment = await getShipmentRecordForMutation(input.shipmentId);
   if (shipment.archivedAt) {
-    throw new AccessError("Shipment sudah diarsipkan.", 400, "SHIPMENT_ARCHIVED");
+    throw new AccessError("Pengiriman sudah diarsipkan.", 400, "SHIPMENT_ARCHIVED");
   }
 
   const document = await db.$transaction(async (tx) => {
@@ -2134,7 +2420,7 @@ export async function addShipmentDocument(input: {
         targetType: "document",
         targetId: input.shipmentId,
         targetLabel: input.fileName,
-        description: `${input.fileName} diunggah dan tersimpan di database untuk shipment ${shipment.awb}.`,
+        description: `${input.fileName} diunggah dan tersimpan di basis data untuk pengiriman ${shipment.awb}.`,
         level: "success",
       },
     });
@@ -2229,7 +2515,7 @@ export async function verifyShipmentPaymentDocument(input: {
         targetType: "shipment",
         targetId: input.shipmentId,
         targetLabel: document.shipment.awb,
-        description: `Pembayaran shipment ${document.shipment.awb} diverifikasi dari dokumen ${document.fileName}.`,
+        description: `Pembayaran pengiriman ${document.shipment.awb} diverifikasi dari dokumen ${document.fileName}.`,
         level: "success",
       },
     });
@@ -2341,7 +2627,7 @@ export async function deleteShipmentDocument(input: {
         targetType: "document",
         targetId: document.id,
         targetLabel: document.fileName,
-        description: `Dokumen ${document.fileName} disembunyikan dari shipment ${document.shipment.awb} dan menunggu cleanup blob.`,
+        description: `Dokumen ${document.fileName} disembunyikan dari pengiriman ${document.shipment.awb} dan menunggu pembersihan file.`,
         level: "info",
       },
     });
@@ -2362,7 +2648,7 @@ export async function deleteShipmentDocument(input: {
       },
     });
   } catch (error) {
-    warning = "Dokumen berhasil disembunyikan, tetapi cleanup blob gagal. Tim internal perlu menindaklanjuti penyimpanan.";
+    warning = "Dokumen berhasil disembunyikan, tetapi pembersihan file gagal. Tim internal perlu menindaklanjuti penyimpanan.";
 
     await db.$transaction(async (tx) => {
       await tx.shipmentDocument.update({
@@ -2597,6 +2883,10 @@ export async function updateUserAccess(
   const nextRole = input.role ?? current.role;
   const nextStatus = input.status ?? current.status;
 
+  if (nextRole === "customer" && input.capabilities?.length) {
+    throw new AccessError("Peran pelanggan hanya boleh akses pelacakan AWB dan tidak dapat menerima izin internal.", 400, "CUSTOMER_CAPABILITY_FORBIDDEN");
+  }
+
   if (current.id === actor.id && nextStatus === "disabled") {
     throw new AccessError("Akun admin yang sedang dipakai tidak dapat dinonaktifkan.", 400, "SELF_DISABLE_NOT_ALLOWED");
   }
@@ -2814,7 +3104,7 @@ export async function getFlightBoardData(
   filters?: { status?: string; query?: string; date?: string; shift?: FlightBoardShift; page?: number; pageSize?: number },
 ) {
   if (!isInternalRole(user.role)) {
-    throw new AccessError("Halaman flight hanya untuk pengguna internal.", 403, "INTERNAL_ROUTE_ONLY");
+    throw new AccessError("Halaman penerbangan hanya untuk pengguna internal.", 403, "INTERNAL_ROUTE_ONLY");
   }
 
   const where: Prisma.FlightWhereInput = scopeFlightWhere();
@@ -2831,8 +3121,6 @@ export async function getFlightBoardData(
 
   const requestedPageSize = filters?.pageSize ?? 10;
   const pageSize = Math.min(Math.max(requestedPageSize, 1), 50);
-  const now = new Date();
-
   const flights = await db.flight.findMany({
     where,
     include: flightBoardInclude,
@@ -2841,7 +3129,7 @@ export async function getFlightBoardData(
 
   const serializedFlights = flights.map((flight) => {
     const meta = getFlightVisualMeta(flight.flightNumber, flight.aircraftType);
-    const status = deriveFlightStatus(flight, now);
+    const status = deriveFlightStatus(flight);
 
     return {
       id: flight.id,
@@ -2956,7 +3244,7 @@ export async function createFlight(input: {
         departureTime,
         arrivalTime,
         cargoCutoffTime,
-        status: deriveFlightStatus({ status: input.status, departureTime, arrivalTime }),
+        status: deriveFlightStatus({ status: input.status }),
         gate: input.gate || getGateForDestination(input.destination),
         remarks: input.remarks || null,
         imageUrl: meta.aircraftImageUrl,
@@ -2966,11 +3254,11 @@ export async function createFlight(input: {
     await tx.activityLog.create({
       data: {
         userId: actor.id,
-        action: "Buat Flight",
+        action: "Buat Penerbangan",
         targetType: "flight",
         targetId: created.id,
         targetLabel: created.flightNumber,
-        description: `Flight ${created.flightNumber} dibuat untuk rute ${created.origin} -> ${created.destination}.`,
+        description: `Penerbangan ${created.flightNumber} dibuat untuk rute ${created.origin} -> ${created.destination}.`,
         level: "success",
       },
     });
@@ -3014,12 +3302,13 @@ export async function updateFlight(input: {
       departureTime: true,
       arrivalTime: true,
       cargoCutoffTime: true,
+      status: true,
       archivedAt: true,
     },
   });
 
   if (!current) {
-    throw new AccessError("Flight tidak ditemukan.", 404, "FLIGHT_NOT_FOUND");
+    throw new AccessError("Penerbangan tidak ditemukan.", 404, "FLIGHT_NOT_FOUND");
   }
 
   const normalizedFlightNumber = ensureAllowedFlightNumber(input.flightNumber ?? current.flightNumber);
@@ -3043,7 +3332,7 @@ export async function updateFlight(input: {
         departureTime: input.departureTime ? departureTime : undefined,
         arrivalTime,
         cargoCutoffTime,
-        status: deriveFlightStatus({ status: input.status, departureTime, arrivalTime }),
+        status: deriveFlightStatus({ status: input.status ?? current.status }),
         gate: input.gate ?? getGateForDestination(nextDestination),
         remarks: input.remarks,
         imageUrl: meta.aircraftImageUrl,
@@ -3054,16 +3343,16 @@ export async function updateFlight(input: {
     await tx.activityLog.create({
       data: {
         userId: actor.id,
-        action: input.archived === undefined ? "Perbarui Flight" : input.archived ? "Arsipkan Flight" : "Pulihkan Flight",
+        action: input.archived === undefined ? "Perbarui Penerbangan" : input.archived ? "Arsipkan Penerbangan" : "Pulihkan Penerbangan",
         targetType: "flight",
         targetId: next.id,
         targetLabel: next.flightNumber,
         description:
           input.archived === undefined
-            ? `Detail flight ${next.flightNumber} diperbarui.`
+            ? `Detail penerbangan ${next.flightNumber} diperbarui.`
             : input.archived
-              ? `Flight ${next.flightNumber} diarsipkan dari papan kerja aktif.`
-              : `Flight ${next.flightNumber} dipulihkan kembali ke papan kerja aktif.`,
+              ? `Penerbangan ${next.flightNumber} diarsipkan dari papan kerja aktif.`
+              : `Penerbangan ${next.flightNumber} dipulihkan kembali ke papan kerja aktif.`,
         level: input.archived ? "warning" : "info",
       },
     });
@@ -3087,30 +3376,79 @@ export async function deleteFlight(flightId: string, actorUserId: string) {
     select: {
       id: true,
       flightNumber: true,
+      archivedAt: true,
     },
   });
 
   if (!current) {
-    throw new AccessError("Flight tidak ditemukan.", 404, "FLIGHT_NOT_FOUND");
+    throw new AccessError("Penerbangan tidak ditemukan.", 404, "FLIGHT_NOT_FOUND");
   }
 
   await db.$transaction(async (tx) => {
-    await tx.flight.delete({
+    await tx.flight.update({
       where: { id: flightId },
+      data: { archivedAt: current.archivedAt ?? new Date() },
     });
 
     await tx.activityLog.create({
       data: {
         userId: actor.id,
-        action: "Hapus Flight",
+        action: "Arsipkan Penerbangan",
         targetType: "flight",
         targetId: flightId,
         targetLabel: current.flightNumber,
-        description: `Flight ${current.flightNumber} dihapus dari database.`,
+        description: `Penerbangan ${current.flightNumber} diarsipkan dari papan kerja aktif.`,
         level: "warning",
       },
     });
   });
+}
+
+const ACTIVITY_ALERT_KIND_LABELS: Record<string, string> = {
+  "shipment-hold": "Pengiriman Tertahan",
+  "document-gate": "Dokumen Belum Lengkap",
+  "readiness-gate": "Kesiapan Belum Aman",
+  "stale-update": "Update Terlalu Lama",
+  "unassigned-flight": "Belum Masuk Penerbangan",
+  "reported-awb-issue": "Isu AWB Dilaporkan",
+  "flight-delay": "Penerbangan Terlambat",
+  "cutoff-risk": "Risiko Batas Terima",
+  "capacity-risk": "Risiko Kapasitas",
+};
+
+function formatActivityAction(action: string) {
+  return action
+    .replace(/\bShipment\b/g, "Pengiriman")
+    .replace(/\bAlert\b/g, "Peringatan")
+    .replace(/\bStaff\b/g, "Staf")
+    .replace(/\bworkflow\b/gi, "alur kerja");
+}
+
+function getActivityActionStorageCandidates(action: string) {
+  const candidates = new Set([action]);
+  candidates.add(action.replace(/\bPengiriman\b/g, "Shipment"));
+  candidates.add(action.replace(/\bPeringatan\b/g, "Alert"));
+  candidates.add(action.replace(/\bStaf\b/g, "Staff"));
+  candidates.add(action.replace(/\balur kerja\b/gi, "workflow"));
+  return Array.from(candidates);
+}
+
+function formatActivityTargetLabel(targetType: string, targetLabel: string) {
+  if (targetType !== "alert") return targetLabel;
+  const [kind] = targetLabel.split(":");
+  return `Peringatan: ${ACTIVITY_ALERT_KIND_LABELS[kind] ?? "Kondisi Operasional"}`;
+}
+
+function formatActivityDescription(description: string) {
+  return description
+    .replace(/\bShipment baru\b/g, "Pengiriman baru")
+    .replace(/\bshipment\b/g, "pengiriman")
+    .replace(/\bAlert\b/g, "Peringatan")
+    .replace(/\bStaff\b/g, "Staf")
+    .replace(/\bworkflow\b/gi, "alur kerja")
+    .replace(/Peringatan ([a-z-]+):[a-z0-9]+/gi, (_match, kind: string) => {
+      return `Peringatan ${ACTIVITY_ALERT_KIND_LABELS[kind] ?? "Kondisi Operasional"}`;
+    });
 }
 
 export async function listActivityLogs(
@@ -3122,42 +3460,6 @@ export async function listActivityLogs(
   }
 
   const where: Prisma.ActivityLogWhereInput = {};
-  const existingLogCount = await db.activityLog.count();
-
-  if (existingLogCount === 0) {
-    await db.activityLog.createMany({
-      data: [
-        {
-          userId: user.id,
-          action: "Bootstrap Log Aktivitas",
-          targetType: "system",
-          targetId: null,
-          targetLabel: "activity-log",
-          description: "Log aktivitas awal dibuat otomatis supaya halaman audit langsung memiliki data.",
-          level: "success",
-        },
-        {
-          userId: user.id,
-          action: "Sinkronisasi Sistem",
-          targetType: "system",
-          targetId: null,
-          targetLabel: "seed-audit",
-          description: "Sistem menyiapkan entri audit dasar untuk pemeriksaan operasional.",
-          level: "info",
-        },
-        {
-          userId: user.id,
-          action: "Peringatan Audit",
-          targetType: "system",
-          targetId: null,
-          targetLabel: "audit-warning",
-          description: "Contoh peringatan dibuat agar ringkasan warning tidak kosong.",
-          level: "warning",
-        },
-      ],
-    });
-  }
-
   if (filters?.query) {
     where.OR = [
       { targetLabel: { contains: filters.query, mode: "insensitive" } },
@@ -3167,7 +3469,7 @@ export async function listActivityLogs(
   }
 
   if (filters?.action && filters.action !== "all") {
-    where.action = filters.action;
+    where.action = { in: getActivityActionStorageCandidates(filters.action) };
   }
 
   if (filters?.userId && filters.userId !== "all") {
@@ -3191,10 +3493,10 @@ export async function listActivityLogs(
     users,
     logs: logs.map((log) => ({
       id: log.id,
-      action: log.action,
+      action: formatActivityAction(log.action),
       targetType: log.targetType,
-      targetLabel: log.targetLabel,
-      description: log.description,
+      targetLabel: formatActivityTargetLabel(log.targetType, log.targetLabel),
+      description: formatActivityDescription(log.description),
       level: log.level,
       userName: log.user?.name ?? "Sistem",
       userId: log.userId,
@@ -3457,7 +3759,7 @@ export async function searchScoped(user: AccessUser, query: string, scope: Searc
 	      ...shipments.map((shipment) => ({
 	        path: scope === "awb" ? `/awb-tracking?awb=${shipment.awb}` : `/shipment-ledger?query=${shipment.awb}`,
 	        label: shipment.awb,
-	        kind: scope === "awb" ? "AWB" : "Shipment",
+	        kind: scope === "awb" ? "AWB" : "Pengiriman",
 	        description: `${shipment.origin}-${shipment.destination} - ${shipment.commodity}`,
 	      })),
 	    );
@@ -3478,7 +3780,7 @@ export async function searchScoped(user: AccessUser, query: string, scope: Searc
       ...flights.map((flight) => ({
         path: `/flight-board?query=${flight.flightNumber}`,
         label: flight.flightNumber,
-        kind: "Flight",
+        kind: "Penerbangan",
         description: `${flight.origin}-${flight.destination} - ${FLIGHT_STATUS_LABELS[flight.status]}`,
       })),
     );
@@ -3518,7 +3820,7 @@ export async function searchGlobalLegacy(user: AccessUser, query: string) {
     });
 
     if (flight) {
-      return { path: `/flight-board?query=${flight.flightNumber}`, label: flight.flightNumber, kind: "Flight" };
+      return { path: `/flight-board?query=${flight.flightNumber}`, label: flight.flightNumber, kind: "Penerbangan" };
     }
   }
 
@@ -3533,7 +3835,7 @@ export async function searchGlobalLegacy(user: AccessUser, query: string) {
   });
 
   if (shipment) {
-    return { path: `/shipment-ledger?query=${shipment.awb}`, label: shipment.awb, kind: "Shipment" };
+    return { path: `/shipment-ledger?query=${shipment.awb}`, label: shipment.awb, kind: "Pengiriman" };
   }
 
   return null;

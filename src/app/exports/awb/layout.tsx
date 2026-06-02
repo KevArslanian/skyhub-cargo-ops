@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Export AWB",
-  description: "Cetak ringkasan Airway Bill dan timeline shipment.",
+  title: "Cetak AWB",
+  description: "Penampil cetak ringkasan Airway Bill dan linimasa pengiriman.",
 };
 
 export default function ExportAwbLayout({ children }: { children: ReactNode }) {

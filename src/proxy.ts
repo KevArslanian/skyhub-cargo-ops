@@ -185,6 +185,7 @@ export const config = {
     "/shipment-ledger/:path*",
     "/awb-tracking/:path*",
     "/flight-board/:path*",
+    "/alerts/:path*",
     "/activity-log/:path*",
     "/reports/:path*",
     "/settings/:path*",

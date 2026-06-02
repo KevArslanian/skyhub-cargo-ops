@@ -72,7 +72,7 @@ export default function ActivityLogPage() {
 
   const filterControls = useMemo(
     () => (
-      <section className="ops-filter-strip" aria-label="Pencarian dan filter Log Aktivitas">
+      <section className="ops-filter-strip" aria-label="Pencarian dan filter Catatan Aktivitas">
         <div className="ops-filter-search">
           <label className="label" htmlFor="activity-query">Cari Log</label>
           <div className="relative">
@@ -85,11 +85,11 @@ export default function ActivityLogPage() {
                 setQuery(event.target.value);
                 setPage(1);
               }}
-              placeholder="Cari aksi, target, user, atau deskripsi"
+              placeholder="Cari aksi, target, pengguna, atau deskripsi"
             />
           </div>
         </div>
-      <div className="shell-inline-filters" aria-label="Filter Log Aktivitas">
+      <div className="shell-inline-filters" aria-label="Filter Catatan Aktivitas">
         <div className="shell-filter-field">
           <label className="label" htmlFor="activity-action">Aksi</label>
           <select
@@ -144,14 +144,14 @@ export default function ActivityLogPage() {
     <div className="page-workspace activity-log-workspace">
       <PageHeader
         eyebrow="Jejak Audit"
-        title="Log Aktivitas"
+        title="Catatan Aktivitas"
         subtitle="Audit internal."
       />
 
       {filterControls}
 
       <OpsPanel className="page-pane activity-log-panel p-5">
-        <SectionHeader title="Timeline Aktivitas" />
+        <SectionHeader title="Linimasa Aktivitas" />
         <div className="page-scroll activity-log-scroll mt-5 table-shell">
           <table className="data-table">
             <thead>
@@ -159,7 +159,7 @@ export default function ActivityLogPage() {
                 <th>Waktu</th>
                 <th>Pengguna</th>
                 <th>Aksi</th>
-                <th>Target</th>
+                <th>Objek</th>
                 <th>Deskripsi</th>
                 <th>Level</th>
               </tr>

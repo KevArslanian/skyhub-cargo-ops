@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     });
 
     if (!user || !compareSync(parsed.data.password, user.passwordHash)) {
-      return respondWithError(401, LOGIN_ERROR_CODES.INVALID_CREDENTIALS, "Email atau password tidak cocok.");
+      return respondWithError(401, LOGIN_ERROR_CODES.INVALID_CREDENTIALS, "Surel atau kata sandi tidak cocok.");
     }
 
     if (user.status !== "active") {
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       return respondWithError(
         503,
         LOGIN_ERROR_CODES.DATABASE_NOT_READY,
-        "Database login belum siap dipakai saat ini.",
+        "Basis data akses masuk belum siap dipakai saat ini.",
       );
     }
 
@@ -76,10 +76,10 @@ export async function POST(request: Request) {
       return respondWithError(
         503,
         LOGIN_ERROR_CODES.AUTH_UNAVAILABLE,
-        "Koneksi database autentikasi belum tersedia.",
+        "Koneksi basis data autentikasi belum tersedia.",
       );
     }
 
-    return respondWithError(500, LOGIN_ERROR_CODES.AUTH_UNAVAILABLE, "Tidak dapat memproses login saat ini.");
+    return respondWithError(500, LOGIN_ERROR_CODES.AUTH_UNAVAILABLE, "Tidak dapat memproses akses masuk saat ini.");
   }
 }

@@ -298,7 +298,7 @@ export async function requireApiUser() {
   const user = await getCurrentUser();
 
   if (!user) {
-    throw new AccessError("Autentikasi diperlukan. Silakan login terlebih dahulu.", 401, "UNAUTHENTICATED");
+    throw new AccessError("Autentikasi diperlukan. Silakan masuk terlebih dahulu.", 401, "UNAUTHENTICATED");
   }
 
   return user;

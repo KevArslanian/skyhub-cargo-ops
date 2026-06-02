@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { getFlightBoardData } from "@/lib/data";
 import { formatDateTime } from "@/lib/format";
 import { AutoPrintReport } from "@/components/auto-print-report";
+import { PrintCenterLayout } from "@/components/print-center-layout";
 import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
-import { PrintCenterLayout } from "@deltaoga/skyhub-print-center/layout";
 
 export const dynamic = "force-dynamic";
 
@@ -26,23 +26,21 @@ export default async function FlightsPrintPage({
   if (!canExportReports(user)) redirect("/dashboard");
   const params = await searchParams;
   const printedAt = new Date();
-
+  const dateFilter = params.date?.trim() || "";
   const board = await getFlightBoardData(user, {
     status: params.status || undefined,
     query: params.query || undefined,
+    date: dateFilter || undefined,
+    pageSize: 50,
   });
-
-  const dateFilter = params.date?.trim() || "";
-  const flights = dateFilter
-    ? board.flights.filter((flight) => flight.departureTime.slice(0, 10) === dateFilter)
-    : board.flights;
+  const flights = board.flights;
 
   const onTimeCount = flights.filter((flight) => flight.status === "on_time").length;
   const delayedCount = flights.filter((flight) => flight.status === "delayed").length;
   const departedCount = flights.filter((flight) => flight.status === "departed").length;
 
   const filterSummary = [
-    params.query ? `Query: ${params.query}` : null,
+    params.query ? `Kata kunci: ${params.query}` : null,
     params.status ? `Status: ${params.status}` : null,
     dateFilter ? `Tanggal: ${dateFilter}` : null,
   ]
@@ -54,12 +52,12 @@ export default async function FlightsPrintPage({
       <AutoPrintReport />
       <PrintCenterLayout
       scriptId="print-flights"
-      documentTitle="Manifest Flight"
-      documentSubtitle="Laporan Flight Operasional"
+      documentTitle="Manifest Penerbangan"
+      documentSubtitle="Laporan Penerbangan Operasional"
       printedAtLabel={formatDateTime(printedAt.toISOString())}
       filterSummary={filterSummary}
-      summaryTitle={`Ringkasan • ${flights.length} flight`}
-      summarySubtitle="Distribusi status flight berdasarkan filter aktif."
+      summaryTitle={`Ringkasan • ${flights.length} penerbangan`}
+      summarySubtitle="Distribusi status penerbangan berdasarkan filter aktif."
       summaryChips={[
         { label: `${onTimeCount} TERJADWAL`, tone: "success" },
         { label: `${delayedCount} TERLAMBAT`, tone: "warning" },
@@ -71,7 +69,7 @@ export default async function FlightsPrintPage({
         <table className="print-table min-w-[1220px]">
           <thead>
             <tr>
-              {["Flight", "Rute", "Cutoff", "Berangkat", "Tiba", "Gate", "Status", "Shipment"].map((header) => (
+              {["Penerbangan", "Rute", "Batas Terima", "Berangkat", "Tiba", "Gate", "Status", "Pengiriman"].map((header) => (
                 <th key={header}>{header}</th>
               ))}
             </tr>
@@ -95,7 +93,7 @@ export default async function FlightsPrintPage({
             ) : (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-500">
-                  Tidak ada data flight untuk filter ini.
+                  Tidak ada data penerbangan untuk filter ini.
                 </td>
               </tr>
             )}

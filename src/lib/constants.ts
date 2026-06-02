@@ -31,12 +31,12 @@ export const AIRCRAFT_TYPE_OPTIONS = [
 export const CARGO_MODE_OPTIONS = ["Darat", "Udara", "Laut"] as const;
 export const SERVICE_TYPE_OPTIONS = ["Biasa", "Cepat", "VVIP"] as const;
 export const VEHICLE_TYPE_OPTIONS = ["Truk Box", "Pesawat", "Kapal Cargo"] as const;
-export const VEHICLE_STATUS_OPTIONS = ["Aktif", "Maintenance", "Nonaktif"] as const;
+export const VEHICLE_STATUS_OPTIONS = ["Aktif", "Perawatan", "Nonaktif"] as const;
 export const GOODS_STATUS_OPTIONS = [
   "Diproses",
   "Dalam Pengiriman",
   "Sampai Tujuan",
-  "Pending",
+  "Menunggu",
   "Selesai",
 ] as const;
 export const TRANSACTION_STATUS_OPTIONS = ["Belum_Lunas", "Menunggu_Verifikasi", "Lunas", "Tidak_Ditagih", "Pending"] as const;
@@ -46,18 +46,18 @@ export const SHIPMENT_TRANSACTION_STATUS_LABELS: Record<ShipmentTransactionStatu
   Menunggu_Verifikasi: "Menunggu Verifikasi",
   Lunas: "Lunas",
   Tidak_Ditagih: "Tidak Ditagih",
-  Pending: "Pending",
+  Pending: "Menunggu",
 };
 
 export const SHIPMENT_DOC_STATUS_LABELS: Record<ShipmentDocStatus, string> = {
-  Complete: "Complete",
-  Partial: "Partial",
-  Review: "Review",
+  Complete: "Lengkap",
+  Partial: "Sebagian",
+  Review: "Ditinjau",
 };
 
 export const SHIPMENT_READINESS_LABELS: Record<ShipmentReadiness, string> = {
-  Ready: "Ready",
-  Pending: "Pending",
+  Ready: "Siap",
+  Pending: "Menunggu",
 };
 
 export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
@@ -76,14 +76,14 @@ export const FLIGHT_STATUS_LABELS: Record<FlightStatus, string> = {
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  admin: "Admin",
-  staff: "Staff Operasional",
+  admin: "Administrator",
+  staff: "Staf Operasional",
   customer: "Pelanggan",
 };
 
 export const ROLE_SCOPE_COPY: Record<UserRole, string> = {
   admin: "Kelola pengguna, akun pelanggan, dan seluruh modul operasional.",
-  staff: "Kelola workflow operasional harian tanpa manajemen pengguna atau akun pelanggan.",
+  staff: "Kelola alur kerja operasional harian tanpa manajemen pengguna atau akun pelanggan.",
   customer: "Akses pelacakan AWB, cetak, dan pelaporan isu sesuai akun pelanggan.",
 };
 

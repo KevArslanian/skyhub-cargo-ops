@@ -94,7 +94,7 @@ export const PROTECTED_ROUTE_PREFIXES = [
 export const NAVIGATION_ITEMS: NavigationItem[] = [
   {
     href: "/dashboard",
-    label: "Dashboard",
+    label: "Dasbor",
     hint: "Ringkasan operasional",
     groupId: "operasional",
     groupLabel: "Operasional",
@@ -102,7 +102,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   },
   {
     href: "/shipment-ledger",
-    label: "Ledger Shipment",
+    label: "Buku Pengiriman",
     hint: "Manifest dan detail kiriman",
     groupId: "operasional",
     groupLabel: "Operasional",
@@ -111,7 +111,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   {
     href: "/awb-tracking",
     label: "Pelacakan AWB",
-    hint: "Status dan timeline AWB",
+    hint: "Status dan linimasa AWB",
     groupId: "operasional",
     groupLabel: "Operasional",
     roles: ["admin", "staff", "customer"],
@@ -119,22 +119,22 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   {
     href: "/flight-board",
     label: "Papan Penerbangan",
-    hint: "Cutoff dan manifest flight",
+    hint: "Batas terima dan manifest penerbangan",
     groupId: "pemantauan",
     groupLabel: "Pemantauan",
     roles: ["admin", "staff"],
   },
   {
     href: "/alerts",
-    label: "Alert Center",
-    hint: "Exception dan eskalasi",
+    label: "Pusat Peringatan",
+    hint: "Pengecualian dan eskalasi",
     groupId: "pemantauan",
     groupLabel: "Pemantauan",
     roles: ["admin", "staff"],
   },
   {
     href: "/activity-log",
-    label: "Log Aktivitas",
+    label: "Catatan Aktivitas",
     hint: "Jejak audit operasional",
     groupId: "pemantauan",
     groupLabel: "Pemantauan",

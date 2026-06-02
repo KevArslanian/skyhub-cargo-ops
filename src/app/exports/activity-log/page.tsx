@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { listActivityLogs } from "@/lib/data";
 import { formatDateTime } from "@/lib/format";
 import { AutoPrintReport } from "@/components/auto-print-report";
+import { PrintCenterLayout } from "@/components/print-center-layout";
 import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
-import { PrintCenterLayout } from "@deltaoga/skyhub-print-center/layout";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +30,9 @@ export default async function ActivityLogPrintPage({
   const printedAt = new Date();
 
   const filterSummary = [
-    params.query ? `Query: ${params.query}` : null,
+    params.query ? `Kata kunci: ${params.query}` : null,
     params.action ? `Aksi: ${params.action}` : null,
-    params.userId ? `User: ${params.userId}` : null,
+    params.userId ? `Pengguna: ${params.userId}` : null,
   ]
     .filter(Boolean)
     .join(" | ");
@@ -53,17 +53,17 @@ export default async function ActivityLogPrintPage({
       <AutoPrintReport />
       <PrintCenterLayout
       scriptId="print-activity-log"
-      documentTitle="Log Aktivitas Operasional"
-      documentSubtitle="Audit Trail Aktivitas Pengguna"
+      documentTitle="Catatan Aktivitas Operasional"
+      documentSubtitle="Jejak Audit Aktivitas Pengguna"
       printedAtLabel={formatDateTime(printedAt.toISOString())}
       filterSummary={filterSummary}
       summaryTitle={`Ringkasan • ${data.logs.length} entri`}
       summarySubtitle="Distribusi level aktivitas pada filter aktif."
       summaryChips={[
-        { label: `${levelCounters.success} SUCCESS`, tone: "success" },
-        { label: `${levelCounters.info} INFO`, tone: "info" },
-        { label: `${levelCounters.warning} WARNING`, tone: "warning" },
-        { label: `${levelCounters.error} ERROR`, tone: "danger" },
+        { label: `${levelCounters.success} Sukses`, tone: "success" },
+        { label: `${levelCounters.info} Info`, tone: "info" },
+        { label: `${levelCounters.warning} Peringatan`, tone: "warning" },
+        { label: `${levelCounters.error} Galat`, tone: "danger" },
       ]}
       documentCode={buildPrintDocumentCode("ACTIVITY-LOG", printedAt)}
     >

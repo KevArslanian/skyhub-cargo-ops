@@ -30,7 +30,7 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const loginError = errors.form ? getLoginErrorDetail(errors.formCode, errors.form) : null;
-  const crudAccounts = DEMO_LOGIN_ACCOUNTS.filter((account) => account.label !== "Customer");
+  const crudAccounts = DEMO_LOGIN_ACCOUNTS.filter((account) => !account.email.startsWith("customer@"));
 
   function fillAccount(emailValue: string, passwordValue: string) {
     setEmail(emailValue);
@@ -42,8 +42,8 @@ export default function LoginPage() {
     event.preventDefault();
 
     const nextErrors: FormErrors = {};
-    if (!email.trim()) nextErrors.email = "Email wajib diisi.";
-    if (!password.trim()) nextErrors.password = "Password wajib diisi.";
+    if (!email.trim()) nextErrors.email = "Surel wajib diisi.";
+    if (!password.trim()) nextErrors.password = "Kata sandi wajib diisi.";
 
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors);
@@ -63,7 +63,7 @@ export default function LoginPage() {
       const payload = (await response.json()) as LoginResponse;
       if (!response.ok) {
         setErrors({
-          form: payload.error || "Login gagal.",
+          form: payload.error || "Masuk gagal.",
           formCode: payload.code,
         });
         return;
@@ -73,7 +73,7 @@ export default function LoginPage() {
       router.refresh();
     } catch {
       setErrors({
-        form: "Tidak dapat menjangkau layanan login saat ini.",
+        form: "Tidak dapat menjangkau layanan masuk saat ini.",
         formCode: LOGIN_ERROR_CODES.AUTH_UNAVAILABLE,
       });
     } finally {
@@ -118,7 +118,7 @@ export default function LoginPage() {
                   {account.email}
                 </span>
                 <span className="mt-1 block text-xs leading-5 text-[color:var(--muted-fg)]">
-                  Password: {account.password}
+                  Kata sandi: {account.password}
                 </span>
               </button>
             ))}
@@ -126,7 +126,7 @@ export default function LoginPage() {
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
-              <label className="label">Email</label>
+              <label className="label">Surel</label>
               <input
                 type="email"
                 autoComplete="username"
@@ -139,7 +139,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="label">Password</label>
+              <label className="label">Kata Sandi</label>
               <div className="relative mt-2">
                 <input
                   className="input-field input-field-trailing"
@@ -147,13 +147,13 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Masukkan password"
+                  placeholder="Masukkan kata sandi"
                 />
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-[color:var(--muted-fg)] transition hover:bg-[color:var(--panel-muted)]"
                   onClick={() => setShowPassword((value) => !value)}
-                  aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                  aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -182,7 +182,7 @@ export default function LoginPage() {
 
             <button type="submit" className="btn btn-primary w-full rounded-[20px]" disabled={submitting}>
               {submitting ? <Loader2 size={18} className="animate-spin" /> : <ArrowRight size={18} />}
-              {submitting ? "Memproses login..." : "Masuk"}
+              {submitting ? "Memproses akses masuk..." : "Masuk"}
             </button>
           </form>
         </section>

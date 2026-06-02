@@ -9,14 +9,13 @@ import {
   CheckCircle2,
   Clock3,
   Hand,
-  RotateCcw,
   Search,
   ShieldAlert,
   SlidersHorizontal,
   Timer,
   UserCheck,
 } from "lucide-react";
-import { EmptyState, OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
+import { EmptyState, OpsPanel, PageHeader, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDateTime } from "@/lib/format";
 
@@ -88,10 +87,22 @@ type AlertRow = AlertCenterPayload["alerts"][number];
 type AlertAction = "acknowledge" | "assign" | "snooze" | "resolve" | "reopen";
 
 const severityLabels: Record<string, string> = {
-  all: "Semua severity",
+  all: "Semua tingkat",
   critical: "Kritis",
-  warning: "Warning",
+  warning: "Perhatian",
   info: "Info",
+};
+
+const alertKindLabels: Record<string, string> = {
+  "shipment-hold": "Pengiriman Tertahan",
+  "document-gate": "Dokumen Belum Lengkap",
+  "readiness-gate": "Kesiapan Belum Aman",
+  "stale-update": "Update Terlalu Lama",
+  "unassigned-flight": "Belum Masuk Penerbangan",
+  "reported-awb-issue": "Isu AWB Dilaporkan",
+  "flight-delay": "Penerbangan Terlambat",
+  "cutoff-risk": "Risiko Batas Terima",
+  "capacity-risk": "Risiko Kapasitas",
 };
 
 const workflowLabels: Record<AlertWorkflowStatus, string> = {
@@ -117,17 +128,39 @@ function formatAge(minutes: number) {
   return rest ? `${hours} jam ${rest} menit` : `${hours} jam`;
 }
 
-function formatSla(remaining: number) {
+function formatResponseDeadline(remaining: number) {
   if (remaining < 0) {
-    return { label: `Lewat ${formatAge(Math.abs(remaining))}`, tone: "danger" as const };
+    return { label: `Terlambat ${formatAge(Math.abs(remaining))}`, tone: "danger" as const };
   }
   if (remaining <= 30) {
-    return { label: `${formatAge(remaining)} lagi`, tone: "warning" as const };
+    return { label: `Sisa ${formatAge(remaining)}`, tone: "warning" as const };
   }
-  return { label: `${formatAge(remaining)} lagi`, tone: "success" as const };
+  return { label: `Sisa ${formatAge(remaining)}`, tone: "success" as const };
 }
 
-const slaTextClass: Record<"danger" | "warning" | "success", string> = {
+function getAlertTimerContext(alert: AlertRow) {
+  if (alert.kind === "cutoff-risk") {
+    return {
+      columnLabel: "Sisa ke Batas Terima",
+      title: `Batas kargo ${formatDateTime(alert.triggeredAt)}`,
+      description: "Hitung mundur ini mengikuti jadwal batas terima kargo penerbangan, bukan umur peringatan.",
+      ageLabel: "Jarak ke batas terima",
+    };
+  }
+
+  return {
+    columnLabel: "Batas Tindak Lanjut",
+    title: `Batas tindak lanjut ${formatAge(alert.slaMinutes)} sejak peringatan muncul`,
+    description: "Hitung mundur ini menunjukkan sisa waktu untuk mengambil tindakan pertama yang tercatat.",
+    ageLabel: "Umur peringatan",
+  };
+}
+
+function getAlertKindLabel(kind: string) {
+  return alertKindLabels[kind] ?? "Kondisi Operasional";
+}
+
+const responseDeadlineTextClass: Record<"danger" | "warning" | "success", string> = {
   danger: "text-[color:var(--tone-danger)]",
   warning: "text-[color:var(--tone-warning)]",
   success: "text-[color:var(--tone-success)]",
@@ -135,6 +168,8 @@ const slaTextClass: Record<"danger" | "warning" | "success", string> = {
 
 export default function AlertsPage() {
   const [data, setData] = useState<AlertCenterPayload | null>(null);
+  const [loadingAlerts, setLoadingAlerts] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
   const [severity, setSeverity] = useState("all");
   const [kind, setKind] = useState("all");
@@ -160,10 +195,22 @@ export default function AlertsPage() {
   }, []);
 
   const loadAlerts = useCallback(async () => {
-    const response = await fetch("/api/alerts", { cache: "no-store" });
-    if (!response.ok) return;
-    const payload = (await response.json()) as AlertCenterPayload;
-    setData(payload);
+    setLoadingAlerts(true);
+    setLoadError("");
+    try {
+      const response = await fetch("/api/alerts", { cache: "no-store" });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        setLoadError(payload.error || "Gagal memuat peringatan operasional.");
+        return;
+      }
+      const payload = (await response.json()) as AlertCenterPayload;
+      setData(payload);
+    } catch {
+      setLoadError("Koneksi terputus saat memuat peringatan operasional.");
+    } finally {
+      setLoadingAlerts(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -232,9 +279,9 @@ export default function AlertsPage() {
 
   const filterControls = useMemo(
     () => (
-      <section className="ops-filter-strip" aria-label="Pencarian dan filter Alert Center">
+      <section className="ops-filter-strip" aria-label="Pencarian dan filter pusat peringatan">
         <div className="ops-filter-search">
-          <label className="label" htmlFor="alerts-query">Cari Alert</label>
+          <label className="label" htmlFor="alerts-query">Cari Peringatan</label>
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
             <input
@@ -242,13 +289,13 @@ export default function AlertsPage() {
               className="input-field input-field-leading"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari alert, rute, station, owner, atau tindakan"
+              placeholder="Cari peringatan, rute, stasiun, penanggung jawab, atau tindakan"
             />
           </div>
         </div>
-      <div className="shell-inline-filters" aria-label="Filter Alert Center">
+      <div className="shell-inline-filters" aria-label="Filter pusat peringatan">
         <div className="shell-filter-field">
-          <label className="label" htmlFor="alerts-severity">Severity</label>
+          <label className="label" htmlFor="alerts-severity">Tingkat</label>
           <select id="alerts-severity" className="select-field" value={severity} onChange={(event) => setSeverity(event.target.value)}>
             {Object.entries(severityLabels).map(([value, label]) => (
               <option key={value} value={value}>
@@ -263,17 +310,17 @@ export default function AlertsPage() {
             <option value="all">Semua jenis</option>
             {kindOptions.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {getAlertKindLabel(item)}
               </option>
             ))}
           </select>
         </div>
         <div className="shell-filter-field">
-          <label className="label" htmlFor="alerts-owner">Owner</label>
+          <label className="label" htmlFor="alerts-owner">Penanggung Jawab</label>
           <select id="alerts-owner" className="select-field" value={owner} onChange={(event) => setOwner(event.target.value)}>
-            <option value="all">Semua owner</option>
+            <option value="all">Semua penanggung jawab</option>
             <option value="mine">Ditugaskan ke saya</option>
-            <option value="unassigned">Belum ada owner</option>
+            <option value="unassigned">Belum ada penanggung jawab</option>
             {(data?.assignableUsers ?? []).map((user) => (
               <option key={user.id} value={user.id}>
                 {user.name}
@@ -281,14 +328,14 @@ export default function AlertsPage() {
             ))}
           </select>
         </div>
-        <span className="shell-filter-count" aria-label={`${filteredAlerts.length} alert tampil`}>
+        <span className="shell-filter-count" aria-label={data ? `${filteredAlerts.length} peringatan tampil` : "Peringatan sedang dimuat"}>
           <SlidersHorizontal size={14} />
-          {filteredAlerts.length}
+          {data ? filteredAlerts.length : "Memuat"}
         </span>
       </div>
       </section>
     ),
-    [data?.assignableUsers, filteredAlerts.length, kind, kindOptions, owner, query, severity],
+    [data, filteredAlerts.length, kind, kindOptions, owner, query, severity],
   );
 
   useEffect(() => {
@@ -333,20 +380,23 @@ export default function AlertsPage() {
         if (!response.ok) {
           const payload = (await response.json().catch(() => ({}))) as { error?: string };
           setActionNoticeTone("warning");
-          setActionNotice(payload.error || "Gagal memperbarui status alert.");
+          setActionNotice(payload.error || "Gagal memperbarui status peringatan.");
           return;
         }
 
         const messages: Record<AlertAction, string> = {
-          acknowledge: `Alert ${alert.entityLabel} ditandai sedang ditangani.`,
-          assign: `Alert ${alert.entityLabel} berhasil ditugaskan.`,
-          snooze: `Alert ${alert.entityLabel} ditunda sementara.`,
-          resolve: `Alert ${alert.entityLabel} ditandai selesai.`,
-          reopen: `Alert ${alert.entityLabel} dibuka kembali.`,
+          acknowledge: `Peringatan ${alert.entityLabel} ditandai sedang ditangani.`,
+          assign: `Peringatan ${alert.entityLabel} berhasil ditugaskan.`,
+          snooze: `Peringatan ${alert.entityLabel} ditunda sementara.`,
+          resolve: `Peringatan ${alert.entityLabel} ditandai selesai.`,
+          reopen: `Peringatan ${alert.entityLabel} dibuka kembali.`,
         };
         setActionNoticeTone("info");
         setActionNotice(messages[action]);
         await loadAlerts();
+      } catch {
+        setActionNoticeTone("warning");
+        setActionNotice("Koneksi terputus saat memperbarui status peringatan.");
       } finally {
         setPendingAction(false);
       }
@@ -355,15 +405,21 @@ export default function AlertsPage() {
   );
 
   const conditionChecks = data?.conditionChecks ?? [];
+  const selectedAlertManualResolve = selectedAlert?.kind === "reported-awb-issue";
+  const initialLoading = loadingAlerts && !data;
 
   return (
     <div className="page-workspace alerts-viewport">
-      <PageHeader eyebrow="Alert Center" title="Pusat Alert Operasional" subtitle="Exception dan eskalasi." />
+      <PageHeader eyebrow="Pusat Peringatan" title="Pusat Peringatan Operasional" subtitle="Masalah dan eskalasi." />
 
       {filterControls}
 
       <div role="status" aria-live="polite">
-        {actionNotice ? (
+        {loadError ? (
+          <div className="rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-medium text-[color:var(--tone-warning)]">
+            {loadError}
+          </div>
+        ) : actionNotice ? (
           <div
             className={
               actionNoticeTone === "warning"
@@ -379,42 +435,56 @@ export default function AlertsPage() {
       <OpsPanel className="p-5">
         <SectionHeader title="Eskalasi" />
         <div className="mt-5 table-shell">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Aturan</th>
-                <th>Status</th>
-                <th>Jumlah</th>
-                <th>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {conditionChecks.map((item) => (
-                <tr key={item.id}>
-                  <td className="font-semibold text-[color:var(--text-strong)]">{item.label}</td>
-                  <td>
-                    <StatusBadge value={item.status === "action" ? "warning" : "success"} label={item.statusLabel} />
-                  </td>
-                  <td>{item.count}</td>
-                  <td className="text-sm text-[color:var(--muted-fg)]">{item.mechanism}</td>
-                </tr>
+          {initialLoading ? (
+            <div className="grid gap-3 p-4" aria-label="Memuat aturan eskalasi">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <SkeletonBlock key={index} className="h-12 w-full rounded-[18px]" />
               ))}
-            </tbody>
-          </table>
+            </div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Aturan</th>
+                  <th>Status</th>
+                  <th>Jumlah</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conditionChecks.map((item) => (
+                  <tr key={item.id}>
+                    <td className="font-semibold text-[color:var(--text-strong)]">{item.label}</td>
+                    <td>
+                      <StatusBadge value={item.status === "action" ? "warning" : "success"} label={item.statusLabel} />
+                    </td>
+                    <td>{item.count}</td>
+                    <td className="text-sm text-[color:var(--muted-fg)]">{item.mechanism}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </OpsPanel>
 
       <div className="alerts-content-grid grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
         <OpsPanel className="page-pane alerts-panel p-5">
-          <SectionHeader title="Daftar Alert" subtitle="Klik row untuk detail dan aksi." />
+          <SectionHeader title="Daftar Peringatan" subtitle="Klik baris untuk detail dan aksi." />
           <div className="page-scroll internal-scrollbar alerts-table-scroll mt-5 table-shell">
-            {paginatedAlerts.length ? (
+            {initialLoading ? (
+              <div className="grid gap-3 p-4" aria-label="Memuat daftar peringatan">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <SkeletonBlock key={index} className="h-[72px] w-full rounded-[18px]" />
+                ))}
+              </div>
+            ) : paginatedAlerts.length ? (
               <table className="data-table min-w-[720px]">
                 <thead>
                   <tr>
-                    <th>Severity</th>
-                    <th>Alert</th>
-                    <th>SLA</th>
+                    <th>Tingkat</th>
+                    <th>Peringatan</th>
+                    <th>Batas Tindak Lanjut</th>
                     <th>Status</th>
                     <th className="text-right">Aksi</th>
                   </tr>
@@ -422,7 +492,8 @@ export default function AlertsPage() {
                 <tbody>
                   {paginatedAlerts.map((alert) => {
                     const selected = selectedAlert?.id === alert.id;
-                    const sla = formatSla(alert.slaRemainingMinutes);
+                    const responseDeadline = formatResponseDeadline(alert.slaRemainingMinutes);
+                    const timerContext = getAlertTimerContext(alert);
                     return (
                       <tr
                         key={alert.id}
@@ -436,19 +507,22 @@ export default function AlertsPage() {
                           <div className="flex items-center gap-2">
                             <p className="font-semibold text-[color:var(--text-strong)]">{alert.entityLabel}</p>
                             <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
-                              {alert.kind}
+                              {getAlertKindLabel(alert.kind)}
                             </span>
                           </div>
                           <p className="mt-0.5 text-xs text-[color:var(--muted-fg)]">{alert.title}</p>
                           <p className="mt-0.5 text-xs text-[color:var(--muted-2)]">{alert.route}</p>
                         </td>
                         <td>
-                          <span className={`text-sm font-semibold ${slaTextClass[sla.tone]}`}>{sla.label}</span>
+                          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
+                            {timerContext.columnLabel}
+                          </p>
+                          <span className={`text-sm font-semibold ${responseDeadlineTextClass[responseDeadline.tone]}`}>{responseDeadline.label}</span>
                         </td>
                         <td>
                           <StatusBadge value={workflowBadgeTone[alert.workflowStatus]} label={workflowLabels[alert.workflowStatus]} />
                           <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
-                            {alert.assignedToName || "Belum ada owner"}
+                            {alert.assignedToName || "Belum ada penanggung jawab"}
                           </p>
                         </td>
                         <td className="text-right">
@@ -470,7 +544,7 @@ export default function AlertsPage() {
               <EmptyState
                 icon={CheckCircle2}
                 variant="success"
-                title="Tidak ada alert pada filter ini"
+                title="Tidak ada peringatan pada filter ini"
                 copy="Semua kondisi pada filter ini sudah aman atau sudah ditangani."
                 className="m-4"
               />
@@ -481,19 +555,17 @@ export default function AlertsPage() {
               type="button"
               className="topbar-button"
               onClick={() => setAlertPage((current) => Math.max(1, current - 1))}
-              disabled={currentAlertPage <= 1}
+              disabled={initialLoading || currentAlertPage <= 1}
             >
               <ChevronLeft size={16} />
               Sebelumnya
             </button>
-            <p>
-              {visibleStart}-{visibleEnd} dari {filteredAlerts.length} • Halaman {currentAlertPage}/{totalAlertPages}
-            </p>
+            <p>{initialLoading ? "Memuat data peringatan" : `${visibleStart}-${visibleEnd} dari ${filteredAlerts.length} • Halaman ${currentAlertPage}/${totalAlertPages}`}</p>
             <button
               type="button"
               className="topbar-button"
               onClick={() => setAlertPage((current) => Math.min(totalAlertPages, current + 1))}
-              disabled={currentAlertPage >= totalAlertPages}
+              disabled={initialLoading || currentAlertPage >= totalAlertPages}
             >
               Berikutnya
               <ChevronRight size={16} />
@@ -502,8 +574,15 @@ export default function AlertsPage() {
         </OpsPanel>
 
         <OpsPanel className="page-pane alerts-panel p-5">
-          <SectionHeader title="Detail Alert" subtitle={selectedAlert ? selectedAlert.entityLabel : "Pilih alert"} />
-          {selectedAlert ? (
+          <SectionHeader title="Detail Peringatan" subtitle={selectedAlert ? selectedAlert.entityLabel : "Pilih peringatan"} />
+          {initialLoading ? (
+            <div className="mt-5 grid gap-4" aria-label="Memuat detail peringatan">
+              <SkeletonBlock className="h-8 w-48 rounded-[16px]" />
+              <SkeletonBlock className="h-24 w-full rounded-[18px]" />
+              <SkeletonBlock className="h-28 w-full rounded-[18px]" />
+              <SkeletonBlock className="h-48 w-full rounded-[18px]" />
+            </div>
+          ) : selectedAlert ? (
             <div className="page-scroll internal-scrollbar alerts-detail-scroll mt-5 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge value={selectedAlert.tone} label={severityLabels[selectedAlert.severity]} />
@@ -521,13 +600,14 @@ export default function AlertsPage() {
               </div>
 
               {(() => {
-                const sla = formatSla(selectedAlert.slaRemainingMinutes);
+                const responseDeadline = formatResponseDeadline(selectedAlert.slaRemainingMinutes);
+                const timerContext = getAlertTimerContext(selectedAlert);
                 return (
                   <div
                     className={
-                      sla.tone === "danger"
+                      responseDeadline.tone === "danger"
                         ? "rounded-[18px] border border-[color:var(--tone-danger-border)] bg-[color:var(--tone-danger-soft)] px-4 py-3"
-                        : sla.tone === "warning"
+                        : responseDeadline.tone === "warning"
                           ? "rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3"
                           : "rounded-[18px] border border-[color:var(--tone-success-border)] bg-[color:var(--tone-success-soft)] px-4 py-3"
                     }
@@ -535,10 +615,13 @@ export default function AlertsPage() {
                     <div className="flex items-center justify-between gap-3">
                       <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
                         <Timer size={14} />
-                        SLA {formatAge(selectedAlert.slaMinutes)}
+                        {timerContext.columnLabel}
                       </span>
-                      <span className={`text-sm font-bold ${slaTextClass[sla.tone]}`}>{sla.label}</span>
+                      <span className={`text-sm font-bold ${responseDeadlineTextClass[responseDeadline.tone]}`}>{responseDeadline.label}</span>
                     </div>
+                    <p className="mt-2 text-xs leading-5 text-[color:var(--muted-fg)]">
+                      {timerContext.title}. {timerContext.description}
+                    </p>
                   </div>
                 );
               })()}
@@ -549,18 +632,18 @@ export default function AlertsPage() {
                   <p className="mt-2 font-semibold text-[color:var(--text-strong)]">{selectedAlert.route}</p>
                 </div>
                 <div className="ops-panel-muted p-4">
-                  <p className="label">Umur</p>
+                  <p className="label">{getAlertTimerContext(selectedAlert).ageLabel}</p>
                   <p className="mt-2 font-semibold text-[color:var(--text-strong)]">{formatAge(selectedAlert.ageMinutes)}</p>
                   <p className="mt-1 text-xs text-[color:var(--muted-fg)]">{formatDateTime(selectedAlert.triggeredAt)}</p>
                 </div>
                 <div className="ops-panel-muted p-4">
-                  <p className="label">Owner</p>
+                  <p className="label">Penanggung Jawab</p>
                   <p className="mt-2 font-semibold text-[color:var(--text-strong)]">
                     {selectedAlert.assignedToName || "Belum ditugaskan"}
                   </p>
                   {selectedAlert.acknowledgedByName ? (
                     <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
-                      Di-acknowledge oleh {selectedAlert.acknowledgedByName}
+                      Ditangani oleh {selectedAlert.acknowledgedByName}
                     </p>
                   ) : null}
                 </div>
@@ -576,6 +659,11 @@ export default function AlertsPage() {
 
               <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
                 <p className="label">Tindakan</p>
+                <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">
+                  {selectedAlertManualResolve
+                    ? "Laporan AWB bersifat manual. Setelah penanggung jawab memeriksa buku pengiriman dan menghubungi pihak terkait, tandai peringatan selesai."
+                    : "Peringatan aktif selesai otomatis setelah kondisi di modul sumber sudah beres. Gunakan detail sumber untuk memperbaiki data, lalu muat ulang daftar peringatan."}
+                </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {selectedAlert.workflowStatus !== "acknowledged" ? (
                     <button
@@ -588,24 +676,17 @@ export default function AlertsPage() {
                       Tangani
                     </button>
                   ) : null}
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={pendingAction}
-                    onClick={() => void runAction(selectedAlert, "resolve")}
-                  >
-                    <CheckCircle2 size={16} />
-                    Selesai
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={pendingAction}
-                    onClick={() => void runAction(selectedAlert, "reopen")}
-                  >
-                    <RotateCcw size={16} />
-                    Reset
-                  </button>
+                  {selectedAlertManualResolve ? (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={pendingAction}
+                      onClick={() => void runAction(selectedAlert, "resolve")}
+                    >
+                      <CheckCircle2 size={16} />
+                      Selesai
+                    </button>
+                  ) : null}
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -618,7 +699,7 @@ export default function AlertsPage() {
                         value={assigneeChoice}
                         onChange={(event) => setAssigneeChoice(event.target.value)}
                       >
-                        <option value="">Pilih staff</option>
+                        <option value="">Pilih staf</option>
                         {(data?.assignableUsers ?? []).map((user) => (
                           <option key={user.id} value={user.id}>
                             {user.name} • {user.station}
@@ -664,15 +745,15 @@ export default function AlertsPage() {
 
               <Link href={selectedAlert.href} className="btn btn-primary w-full justify-center">
                 <ArrowUpRight size={16} />
-                Buka Data di {selectedAlert.targetModule}
+                Perbaiki di {selectedAlert.targetModule}
               </Link>
             </div>
           ) : (
             <EmptyState
               icon={ShieldAlert}
               variant="neutral"
-              title="Belum ada alert"
-              copy="Data operasional belum tersedia atau semua exception sudah ditangani."
+              title="Belum ada peringatan"
+              copy="Data operasional belum tersedia atau semua pengecualian sudah ditangani."
               className="m-0"
             />
           )}

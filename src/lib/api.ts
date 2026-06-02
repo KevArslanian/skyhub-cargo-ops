@@ -7,9 +7,9 @@ type ValidationErrorLike = {
 };
 
 const UNIQUE_CONSTRAINT_MESSAGES: Record<string, string> = {
-  User_email_key: "Email sudah terdaftar.",
+  User_email_key: "Surel sudah terdaftar.",
   CustomerAccount_code_key: "Kode akun pelanggan sudah terdaftar.",
-  Flight_flightNumber_key: "Nomor flight sudah terdaftar.",
+  Flight_flightNumber_key: "Nomor penerbangan sudah terdaftar.",
   Shipment_awb_key: "AWB sudah terdaftar.",
 };
 
@@ -17,7 +17,7 @@ const PRISMA_ERROR_MESSAGES: Record<string, { status: number; code: string; mess
   P2000: {
     status: 400,
     code: "VALUE_TOO_LONG",
-    message: "Input terlalu panjang untuk kolom database.",
+    message: "Masukan terlalu panjang untuk kolom basis data.",
   },
   P2003: {
     status: 400,
@@ -28,6 +28,11 @@ const PRISMA_ERROR_MESSAGES: Record<string, { status: number; code: string; mess
     status: 404,
     code: "RECORD_NOT_FOUND",
     message: "Data tidak ditemukan atau sudah dihapus.",
+  },
+  P2028: {
+    status: 503,
+    code: "DATABASE_TRANSACTION_TIMEOUT",
+    message: "Transaksi basis data terlalu lama diproses. Coba ulangi setelah beberapa saat.",
   },
 };
 
@@ -93,7 +98,7 @@ export function routeErrorResponse(error: unknown, fallbackMessage: string) {
   if (error instanceof Prisma.PrismaClientInitializationError) {
     return NextResponse.json(
       {
-        error: "Koneksi database belum tersedia. Coba beberapa saat lagi.",
+        error: "Koneksi basis data belum tersedia. Coba beberapa saat lagi.",
         code: "DATABASE_UNAVAILABLE",
       },
       { status: 503 },

@@ -9,6 +9,6 @@ export async function GET() {
     const data = await getDashboardData(user);
     return NextResponse.json(data);
   } catch (error) {
-    return routeErrorResponse(error, "Gagal memuat dashboard.");
+    return routeErrorResponse(error, "Gagal memuat dasbor.");
   }
 }

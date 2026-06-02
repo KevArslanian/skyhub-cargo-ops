@@ -351,8 +351,8 @@ export default function DashboardPage() {
   const actionDonutTotal = 8;
 
   const donutCharts = [
-    { title: "Alur Shipment", total: shipmentDonutTotal, segments: shipmentDonut },
-    { title: "Status Flight", total: flightDonutTotal, segments: flightDonut },
+    { title: "Alur Pengiriman", total: shipmentDonutTotal, segments: shipmentDonut },
+    { title: "Status Penerbangan", total: flightDonutTotal, segments: flightDonut },
     { title: "Beban Tindakan", total: actionDonutTotal, segments: actionDonut },
   ];
 
@@ -364,15 +364,15 @@ export default function DashboardPage() {
     (activity) => activity.level === "warning" || activity.level === "error",
   ).length;
   const moduleSummaryCards = [
-    { href: "/shipment-ledger", label: "Shipment", value: shipmentsToday.length, icon: Boxes, tone: "primary" as const },
+    { href: "/shipment-ledger", label: "Pengiriman", value: shipmentsToday.length, icon: Boxes, tone: "primary" as const },
     { href: "/shipment-ledger", label: "Berat", value: formatWeight(totalWeightKg), icon: PackageSearch, tone: "success" as const },
-    { href: "/shipment-ledger", label: "Assigned", value: assignedFlightCount, icon: PackageCheck, tone: "info" as const },
-    { href: "/shipment-ledger?status=review", label: "Review", value: readinessIssuesCount, icon: ShieldAlert, tone: "warning" as const },
-    { href: "/flight-board?status=on_time", label: "On-Time", value: onTime, icon: TowerControl, tone: "success" as const },
-    { href: "/flight-board?status=delayed", label: "Delayed", value: delayed, icon: TriangleAlert, tone: "warning" as const },
-    { href: "/flight-board?status=departed", label: "Departed", value: departed, icon: FileCheck2, tone: "info" as const },
-    { href: "/alerts", label: "Alert", value: alertsToday.length, icon: BellRing, tone: alertsToday.length ? "danger" as const : "success" as const },
-    { href: "/activity-log", label: "Log Risk", value: activityIssueCount, icon: History, tone: activityIssueCount ? "warning" as const : "info" as const },
+    { href: "/shipment-ledger", label: "Terhubung", value: assignedFlightCount, icon: PackageCheck, tone: "info" as const },
+    { href: "/shipment-ledger?status=review", label: "Tinjauan", value: readinessIssuesCount, icon: ShieldAlert, tone: "warning" as const },
+    { href: "/flight-board?status=on_time", label: "Tepat Waktu", value: onTime, icon: TowerControl, tone: "success" as const },
+    { href: "/flight-board?status=delayed", label: "Terlambat", value: delayed, icon: TriangleAlert, tone: "warning" as const },
+    { href: "/flight-board?status=departed", label: "Berangkat", value: departed, icon: FileCheck2, tone: "info" as const },
+    { href: "/alerts", label: "Peringatan", value: alertsToday.length, icon: BellRing, tone: alertsToday.length ? "danger" as const : "success" as const },
+    { href: "/activity-log", label: "Catatan Risiko", value: activityIssueCount, icon: History, tone: activityIssueCount ? "warning" as const : "info" as const },
   ];
 
   /* ── Filtered / paged data ── */
@@ -400,24 +400,68 @@ export default function DashboardPage() {
 
   const customerShipmentWindow = getPageWindow(customerFilteredShipments, customerShipmentPage, DASHBOARD_COMPACT_PAGE_SIZE);
 
-  /* ── Customer dashboard (unchanged) ── */
+  if (loading && !data) {
+    return (
+      <div className="dashboard-fixed-viewport flex h-auto flex-col gap-[14px] overflow-x-hidden" aria-label="Memuat dasbor operasional">
+        <div className="dashboard-summary-strip grid min-w-0 gap-2">
+          {Array.from({ length: 9 }).map((_, index) => (
+            <SkeletonBlock key={index} className="h-[58px] w-full rounded-[16px]" />
+          ))}
+        </div>
+        <div className="dashboard-adaptive-row dashboard-analytics-row">
+          <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-4">
+            <SkeletonBlock className="h-6 w-48 rounded-[12px]" />
+            <SkeletonBlock className="mt-4 h-[130px] w-full rounded-[18px]" />
+          </div>
+          <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-4">
+            <SkeletonBlock className="h-6 w-52 rounded-[12px]" />
+            <div className="mt-4 grid gap-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <SkeletonBlock key={index} className="h-7 w-full rounded-[10px]" />
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="dashboard-adaptive-row dashboard-manifest-action-row">
+          <OpsPanel className="flex h-full flex-col rounded-[18px] p-4">
+            <SkeletonBlock className="h-8 w-48 rounded-[12px]" />
+            <div className="mt-4 grid gap-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <SkeletonBlock key={index} className="h-[34px] w-full rounded-[12px]" />
+              ))}
+            </div>
+          </OpsPanel>
+          <OpsPanel className="flex h-full flex-col rounded-[18px] p-4">
+            <SkeletonBlock className="h-8 w-44 rounded-[12px]" />
+            <div className="mt-4 grid gap-2">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <SkeletonBlock key={index} className="h-[48px] w-full rounded-[12px]" />
+              ))}
+            </div>
+          </OpsPanel>
+        </div>
+      </div>
+    );
+  }
+
+  /* Dasbor pelanggan */
   if (customerData) {
     return (
       <div className="page-workspace h-full min-h-0 overflow-y-auto">
         <PageHeader
           eyebrow="Portal Pelanggan"
-          title="Dashboard Pelanggan"
-          subtitle={`Ringkasan shipment milik ${customerData.viewer.customerAccountName || "akun Anda"}.`}
+          title="Dasbor Pelanggan"
+          subtitle={`Ringkasan pengiriman milik ${customerData.viewer.customerAccountName || "akun Anda"}.`}
         />
         <div className="grid gap-4 xl:grid-cols-4">
-          <StatCard label="Shipment Aktif" value={loading ? <SkeletonBlock className="mt-4 h-9 w-16 rounded-[10px]" /> : customerData.metrics.activeShipments} note="Dalam proses." icon={Boxes} tone="primary" />
+          <StatCard label="Pengiriman Aktif" value={loading ? <SkeletonBlock className="mt-4 h-9 w-16 rounded-[10px]" /> : customerData.metrics.activeShipments} note="Dalam proses." icon={Boxes} tone="primary" />
           <StatCard label="Perlu Tindakan" value={loading ? <SkeletonBlock className="mt-4 h-9 w-16 rounded-[10px]" /> : customerData.metrics.actionRequired} note="Hold / dokumen." icon={ShieldAlert} tone="warning" />
-          <StatCard label="Dokumen Pending" value={loading ? <SkeletonBlock className="mt-4 h-9 w-16 rounded-[10px]" /> : customerData.metrics.pendingDocuments} note="Masih diproses." icon={FileCheck2} tone="info" />
+          <StatCard label="Dokumen Menunggu" value={loading ? <SkeletonBlock className="mt-4 h-9 w-16 rounded-[10px]" /> : customerData.metrics.pendingDocuments} note="Masih diproses." icon={FileCheck2} tone="info" />
           <StatCard label="Tiba" value={loading ? <SkeletonBlock className="mt-4 h-9 w-16 rounded-[10px]" /> : customerData.metrics.arrived} note="Sudah di tujuan." icon={PackageCheck} tone="success" />
         </div>
         <div className="page-grid-2">
           <OpsPanel className="page-pane p-5">
-            <SectionHeader title="Shipment Saya" subtitle="Shipment terhubung ke akun Anda." action={<Link href="/shipment-ledger" className="btn btn-secondary">Buka ledger</Link>} />
+            <SectionHeader title="Pengiriman Saya" subtitle="Pengiriman terhubung ke akun Anda." action={<Link href="/shipment-ledger" className="btn btn-secondary">Buka buku pengiriman</Link>} />
             <div className="page-scroll mt-4 table-shell">
               <table className="data-table">
                 <thead><tr><th>AWB</th><th>Komoditas</th><th>Status</th><th>Dokumen</th><th>Update</th></tr></thead>
@@ -430,7 +474,7 @@ export default function DashboardPage() {
                       <td><p className="text-sm font-semibold">{s.documentSummary.docStatus}</p><p className="mt-1 text-xs text-[color:var(--muted-fg)]">{s.documentSummary.count} dokumen</p></td>
                       <td className="text-sm text-[color:var(--muted-fg)]">{formatRelativeShort(s.updatedAt)}</td>
                     </tr>
-                  )) : (<tr><td colSpan={5}><EmptyState icon={Boxes} title="Belum ada shipment" copy="Shipment Anda akan tampil di sini." className="m-4" /></td></tr>)}
+                  )) : (<tr><td colSpan={5}><EmptyState icon={Boxes} title="Belum ada pengiriman" copy="Pengiriman Anda akan tampil di sini." className="m-4" /></td></tr>)}
                 </tbody>
               </table>
             </div>
@@ -438,23 +482,23 @@ export default function DashboardPage() {
           </OpsPanel>
           <div className="page-stack">
             <OpsPanel className="page-pane p-5">
-              <SectionHeader title="Perlu Tindakan" subtitle="Shipment perlu pemantauan." />
+              <SectionHeader title="Perlu Tindakan" subtitle="Pengiriman perlu pemantauan." />
               <div className="page-scroll mt-4 space-y-3">
                 {customerData.actionItems.length ? customerData.actionItems.map((item) => (
                   <div key={item.id} className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
                     <div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-[color:var(--tone-warning)]">{item.title}</p><p className="mt-2 text-sm text-[color:var(--text-strong)]">{item.detail}</p></div><BellRing size={18} className="shrink-0 text-[color:var(--tone-warning)]" /></div>
                     <Link href={`/awb-tracking?awb=${item.awb}`} className="mt-4 inline-flex text-sm font-semibold text-[color:var(--brand-primary)]">Buka pelacakan</Link>
                   </div>
-                )) : (<EmptyState icon={ShieldAlert} title="Tidak ada tindakan" copy="Semua shipment dalam jalur normal." />)}
+                )) : (<EmptyState icon={ShieldAlert} title="Tidak ada tindakan" copy="Semua pengiriman dalam jalur normal." />)}
               </div>
             </OpsPanel>
             <OpsPanel className="page-pane p-5">
-              <SectionHeader title="Ringkasan Dokumen" subtitle="Status dokumen per shipment." />
+              <SectionHeader title="Ringkasan Dokumen" subtitle="Status dokumen per pengiriman." />
               <div className="page-scroll mt-4 space-y-3">
                 {customerData.documentSummary.length ? customerData.documentSummary.map((item) => (
                   <div key={item.id} className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
-                    <div className="flex items-start justify-between gap-3"><div><p className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{item.awb}</p><p className="mt-2 text-sm font-semibold">{item.docStatus}</p></div><StatusBadge value={item.docStatus === "Complete" ? "success" : "warning"} label={`${item.count} dokumen`} /></div>
-                    <p className="mt-3 text-xs text-[color:var(--muted-fg)]">{item.latestUploadedAt ? `Upload ${formatDateTime(item.latestUploadedAt)}` : "Belum ada upload"}</p>
+                    <div className="flex items-start justify-between gap-3"><div><p className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{item.awb}</p><p className="mt-2 text-sm font-semibold">{item.docStatus}</p></div><StatusBadge value={item.docStatus === "Lengkap" ? "success" : "warning"} label={`${item.count} dokumen`} /></div>
+                    <p className="mt-3 text-xs text-[color:var(--muted-fg)]">{item.latestUploadedAt ? `Unggah ${formatDateTime(item.latestUploadedAt)}` : "Belum ada unggahan"}</p>
                   </div>
                 )) : (<p className="text-sm text-[color:var(--muted-fg)]">Belum ada ringkasan.</p>)}
               </div>
@@ -466,7 +510,7 @@ export default function DashboardPage() {
   }
 
   /* ══════════════════════════════════════════════════════════════
-     INTERNAL DASHBOARD — REDESIGNED SINGLE-VIEWPORT
+     INTERNAL DASHBOARD, REDESIGNED SINGLE-VIEWPORT
      ══════════════════════════════════════════════════════════════ */
   return (
     <div className="dashboard-fixed-viewport flex h-auto flex-col gap-[14px] overflow-x-hidden">
@@ -487,11 +531,11 @@ export default function DashboardPage() {
           <MiniDonutGroup charts={donutCharts} />
         </div>
 
-        {/* Mendekati Cutoff */}
+        {/* Batas terima penerbangan */}
         <div className="h-full min-h-0 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/80 p-4 min-w-0 overflow-visible">
           <div className="mb-[10px] flex items-center gap-2">
             <TowerControl size={14} className="text-[color:var(--brand-primary)] shrink-0" />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Mendekati Cutoff</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Batas Terima Penerbangan</p>
           </div>
           <div className="flex flex-col gap-2">
             {filteredFlights.length ? sortedFlights.slice(0, 4).map((flight) => (
@@ -512,7 +556,7 @@ export default function DashboardPage() {
                 <span className="shrink-0 text-[10px] uppercase tracking-wider text-[color:var(--muted-fg)]">{flight.statusLabel}</span>
               </Link>
             )) : (
-              <p className="py-1 text-xs text-[color:var(--muted-fg)]">Belum ada flight untuk hari ini.</p>
+              <p className="py-1 text-xs text-[color:var(--muted-fg)]">Belum ada penerbangan untuk hari ini.</p>
             )}
           </div>
         </div>
@@ -567,7 +611,7 @@ export default function DashboardPage() {
                   className="inline-flex h-[36px] items-center gap-2 rounded-full border border-[color:var(--brand-primary-soft)] bg-[color:var(--brand-primary-soft)] px-5 text-sm font-bold text-[color:var(--brand-primary)] transition-all hover:bg-[color:var(--brand-primary)] hover:text-white"
                 >
                   <PackageSearch size={16} />
-                  Lihat semua di Ledger
+                  Lihat semua di buku pengiriman
                 </Link>
               </div>
             </>
@@ -589,7 +633,7 @@ export default function DashboardPage() {
           <div className="flex h-[44px] shrink-0 items-start justify-between gap-3 border-b border-[color:var(--border-soft)] min-w-0">
             <div className="min-w-0">
               <h2 className="truncate font-[family:var(--font-heading)] text-[18px] font-extrabold leading-6 tracking-[-0.03em] text-[color:var(--text-strong)]">Pusat Tindakan</h2>
-              <p className="mt-0.5 truncate text-[13px] leading-[17px] text-[color:var(--muted-fg)]">{filteredAlerts.length > 0 ? `${alertPage.visibleStart}-${alertPage.visibleEnd} dari ${filteredAlerts.length} alert` : "0 alert"}</p>
+              <p className="mt-0.5 truncate text-[13px] leading-[17px] text-[color:var(--muted-fg)]">{filteredAlerts.length > 0 ? `${alertPage.visibleStart}-${alertPage.visibleEnd} dari ${filteredAlerts.length} peringatan` : "0 peringatan"}</p>
             </div>
           </div>
           <div className="mt-0 flex h-[180px] shrink-0 flex-col gap-[8px] min-w-0 overflow-visible">
@@ -610,8 +654,8 @@ export default function DashboardPage() {
               <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-[color:var(--border-soft)]">
                 <div className="text-center">
                   <BellRing size={18} className="mx-auto text-[color:var(--brand-primary)]" />
-                  <p className="mt-2 text-[12px] font-bold text-[color:var(--text-strong)]">Tidak ada alert</p>
-                  <p className="mt-1 text-[11px] leading-[14px] text-[color:var(--muted-fg)]">Semua shipment normal.</p>
+                  <p className="mt-2 text-[12px] font-bold text-[color:var(--text-strong)]">Tidak ada peringatan</p>
+                  <p className="mt-1 text-[11px] leading-[14px] text-[color:var(--muted-fg)]">Semua pengiriman normal.</p>
                 </div>
               </div>
             )}

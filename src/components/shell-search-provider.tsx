@@ -15,7 +15,7 @@ export type ShellSearchConfig = {
 
 const ShellSearchContext = createContext<ShellSearchConfig>({
   scope: "global",
-  placeholder: "Cari AWB, shipment, atau flight",
+  placeholder: "Cari AWB, pengiriman, atau penerbangan",
 });
 
 export function ShellSearchProvider({ children, value }: { children: React.ReactNode; value: ShellSearchConfig }) {

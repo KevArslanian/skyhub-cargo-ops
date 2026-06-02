@@ -20,7 +20,7 @@ export async function POST(request: Request, context: RouteContext) {
     const uploadedFile = formData.get("file");
 
     if (!(uploadedFile instanceof File)) {
-      return NextResponse.json({ error: "File wajib diunggah." }, { status: 400 });
+      return NextResponse.json({ error: "Berkas wajib diunggah." }, { status: 400 });
     }
 
     const validatedFile = validateDocumentUpload(uploadedFile);

@@ -18,7 +18,7 @@ export function PageHeader({
   // here for screen readers and landmark navigation, then render the action bar.
   return (
     <>
-      <h1 className="sr-only">{eyebrow ? `${eyebrow} — ${title}` : title}</h1>
+      <h1 className="sr-only">{eyebrow ? `${eyebrow}: ${title}` : title}</h1>
       {subtitle ? <p className="sr-only">{subtitle}</p> : null}
       {actions ? (
         <header className={cn("page-action-toolbar", className)} aria-label="Aksi halaman">

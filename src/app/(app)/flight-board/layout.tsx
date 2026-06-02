@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "Papan Penerbangan",
-  description: "Manajemen flight, cutoff cargo, jadwal berangkat, dan manifest flight.",
+  description: "Manajemen penerbangan, batas terima kargo, jadwal berangkat, dan manifest penerbangan.",
 };
 
 export default function FlightBoardLayout({ children }: { children: ReactNode }) {

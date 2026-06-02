@@ -34,7 +34,7 @@ export default function GlobalError({
             Coba lagi
           </button>
           <Link href="/dashboard" className="btn btn-secondary">
-            Kembali ke dashboard
+            Kembali ke dasbor
           </Link>
         </div>
       </div>
