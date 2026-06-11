@@ -941,7 +941,7 @@ export default function SettingsPage() {
             </div>
           </OpsPanel>
         )
-      ) : !canManageUsersAccess ? (
+      ) : !data ? null : !canManageUsersAccess ? (
         <div className="page-stack min-h-0 overflow-hidden pt-2">
           <OpsPanel className="settings-single-page flex min-h-0 flex-col overflow-y-auto p-5">
             <SettingsIdentitySummary draft={draft} profile={data.profile} variant="inline" />
