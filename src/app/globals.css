@@ -902,6 +902,58 @@ textarea {
   box-shadow: 0 0 0 4px rgba(198, 40, 40, 0.18);
 }
 
+/* Shard C2 — solid operator surfaces (panels, filters, AWB, banners) */
+.ops-shell-main-scroll .ops-panel,
+.ops-shell-main-scroll .panel,
+.ops-shell-main-scroll .ops-filter-bar,
+.awb-tracking-workspace .ops-filter-bar,
+.awb-tracking-panel,
+.awb-history-panel,
+.settings-single-page .ops-panel {
+  background: var(--panel-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dark .ops-shell-main-scroll .ops-panel,
+.dark .ops-shell-main-scroll .panel,
+.dark .ops-shell-main-scroll .ops-filter-bar,
+.dark .awb-tracking-workspace .ops-filter-bar,
+.dark .awb-tracking-panel,
+.dark .awb-history-panel,
+.dark .settings-single-page .ops-panel {
+  background: var(--panel-bg);
+}
+
+.awb-tracking-workspace .input-field,
+.awb-tracking-workspace .select-field,
+.awb-tracking-workspace .glass-select-trigger,
+.awb-tracking-workspace .glass-date-picker-control {
+  background: var(--panel-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dark .awb-tracking-workspace .input-field,
+.dark .awb-tracking-workspace .select-field,
+.dark .awb-tracking-workspace .glass-select-trigger,
+.dark .awb-tracking-workspace .glass-date-picker-control {
+  background: var(--panel-bg);
+}
+
+.ops-feedback-banner,
+.ops-feedback-banner--warning,
+.ops-feedback-banner--error,
+.ops-feedback-banner--info {
+  opacity: 1;
+}
+
+.ops-feedback-banner--warning .ops-feedback-banner-icon,
+.ops-feedback-banner--error .ops-feedback-banner-icon,
+.ops-feedback-banner--info .ops-feedback-banner-icon {
+  background: var(--panel-bg);
+}
+
 /* Shard C — solid operator overlays (opaque, no blur) */
 .ops-overlay {
   position: fixed;

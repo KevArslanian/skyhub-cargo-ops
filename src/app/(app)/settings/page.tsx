@@ -19,7 +19,7 @@ import { useVisibleTablePageSize } from "@/lib/use-visible-table-page-size";
 import { cn } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { OpsLockedPage } from "@/components/ops-locked-page";
-import { DataCard, OpsPanel, PageHeader, PaginationBar, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
+import { DataCard, OpsFeedbackBanner, OpsPanel, PageHeader, PaginationBar, SectionHeader, SkeletonBlock } from "@/components/ops-ui";
 import { OpsDrawer } from "@/components/ops-drawer";
 import { GlassSelect } from "@/components/glass-select";
 import { useOpsAlert } from "@/components/ops-alert-provider";
@@ -457,6 +457,8 @@ function SidebarToggle({
 export default function SettingsPage() {
   const { showAlert } = useOpsAlert();
   const [data, setData] = useState<SettingsPayload | null>(null);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
   const [draft, setDraft] = useState<SettingsDraft>(() => toDraft(null));
   const [saving, setSaving] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -495,29 +497,30 @@ export default function SettingsPage() {
   const userTableRef = useRef<HTMLTableElement | null>(null);
 
   const reloadSettings = useCallback(async () => {
+    setSettingsLoading(true);
+    setSettingsError(null);
     try {
       const response = await fetch("/api/settings", { cache: "no-store" });
       if (!response.ok) {
-        showAlert({
-          title: "Gagal Memuat",
-          description: await readApiError(response, "Pengaturan belum bisa dimuat."),
-          tone: "error",
-        });
+        const message = await readApiError(response, "Pengaturan belum bisa dimuat.");
+        setSettingsError(message);
+        setData(null);
         return null;
       }
       const payload = (await response.json()) as SettingsPayload;
       setData(payload);
       setDraft(toDraft(payload));
+      setSettingsError(null);
       return payload;
     } catch {
-      showAlert({
-        title: "Koneksi Terputus",
-        description: networkErrorMessage("memuat pengaturan"),
-        tone: "warning",
-      });
+      const message = networkErrorMessage("memuat pengaturan");
+      setSettingsError(message);
+      setData(null);
       return null;
+    } finally {
+      setSettingsLoading(false);
     }
-  }, [showAlert]);
+  }, []);
 
   useEffect(() => {
     void reloadSettings();
@@ -909,7 +912,17 @@ export default function SettingsPage() {
         />
       }
       body={
-      !data ? (
+      settingsError && !data ? (
+        <OpsPanel className="p-5">
+          <OpsFeedbackBanner
+            tone="error"
+            title="Gagal memuat pengaturan"
+            description={settingsError}
+            onRetry={() => void reloadSettings()}
+            retryLabel="Muat ulang"
+          />
+        </OpsPanel>
+      ) : settingsLoading && !data ? (
         canManageUsersAccess ? (
           <div className="settings-single-page flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
             <SkeletonBlock className="h-20 w-full shrink-0 rounded-[22px]" />
