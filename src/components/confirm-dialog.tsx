@@ -58,6 +58,8 @@ export function ConfirmDialog({
       open={open}
       onClose={onCancel}
       variant="alert"
+      theme="ops"
+      backdropClassName="ops-overlay--alert"
       role="alertdialog"
       ariaLabelledby="confirm-dialog-title"
       ariaDescribedby={description ? "confirm-dialog-desc" : undefined}

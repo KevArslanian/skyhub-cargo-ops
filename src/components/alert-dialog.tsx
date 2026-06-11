@@ -86,6 +86,7 @@ export function AlertDialog({
       onClose={handleOk}
       variant="alert"
       theme="ops"
+      backdropClassName="ops-overlay--alert"
       closeOnBackdrop={false}
       bodyLockClass="alert-open"
       role="alertdialog"

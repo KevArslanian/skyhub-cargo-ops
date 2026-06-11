@@ -34,20 +34,12 @@ export function formatDashboardIdr(value: number, compact = false) {
 export function buildKpiCards(input: {
   shipmentsCount: number;
   inFlowCount: number;
-  openAlertsCount: number | string;
-  urgentAlertsCount: number;
+  actionRequiredCount: number | string;
   reviewIssuesCount: number;
   holdsToday: number;
-  alertsLoading: boolean;
 }): KpiCardItem[] {
-  const openTone: DashboardKpiTone =
-    input.alertsLoading
-      ? "info"
-      : input.urgentAlertsCount > 0
-        ? "danger"
-        : typeof input.openAlertsCount === "number" && input.openAlertsCount > 0
-          ? "warning"
-          : "success";
+  const actionTone: DashboardKpiTone =
+    typeof input.actionRequiredCount === "number" && input.actionRequiredCount > 0 ? "warning" : "success";
 
   return [
     {
@@ -60,13 +52,13 @@ export function buildKpiCards(input: {
       tone: "primary",
     },
     {
-      id: "kpi-open-alerts",
-      href: DASHBOARD_ROUTES.kpi.openAlerts,
+      id: "kpi-action-required",
+      href: DASHBOARD_ROUTES.kpi.actionRequired,
       label: "Belum Ditindak",
-      value: input.openAlertsCount,
+      value: input.actionRequiredCount,
       note: "kiriman",
       icon: BellRing,
-      tone: openTone,
+      tone: actionTone,
     },
     {
       id: "kpi-partial-docs",

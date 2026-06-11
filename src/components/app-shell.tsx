@@ -28,6 +28,7 @@ import { OpsAlertProvider, useOpsAlert } from "./ops-alert-provider";
 import { ShellSearchProvider } from "./shell-search-provider";
 import { ShellTopbarControlsContext } from "./shell-topbar-controls";
 import { runThemeTransition, useTheme } from "./theme-provider";
+import { ThemeToggle } from "./theme-toggle";
 
 /** Di atas ops-drawer (z 60) agar simulasi notifikasi terlihat saat pengaturan terbuka. */
 const TOPBAR_OVERLAY_BACKDROP_Z = 64;
@@ -688,9 +689,11 @@ function AppShellFrame({ user, settings, notifications, children }: ShellProps) 
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1 overflow-hidden">
                             <p className="break-words text-sm font-semibold text-[color:var(--text-strong)]">{item.title}</p>
-                            <p className="mt-1 break-words text-sm leading-6 text-[color:var(--muted-fg)] [overflow-wrap:anywhere]">
-                              {displayMessage}
-                            </p>
+                            {displayMessage ? (
+                              <p className="mt-1 break-words text-sm leading-6 text-[color:var(--muted-fg)] [overflow-wrap:anywhere]">
+                                {displayMessage}
+                              </p>
+                            ) : null}
                             <p className="mt-2 text-xs text-[color:var(--muted-2)]">{formatDateTime(item.createdAt)}</p>
                           </div>
                           {!item.read ? (
@@ -973,6 +976,7 @@ function AppShellFrame({ user, settings, notifications, children }: ShellProps) 
               {topbarControls ? <div className="shell-topbar-controls">{topbarControls}</div> : null}
 
               <div className="shell-topbar-actions ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
+                <ThemeToggle />
                 <div
                   className="relative"
                   style={notificationOpen ? { zIndex: TOPBAR_OVERLAY_TRIGGER_Z } : undefined}

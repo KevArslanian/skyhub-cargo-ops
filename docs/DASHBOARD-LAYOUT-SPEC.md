@@ -33,8 +33,19 @@
 
 ## Format panel
 
-- **Kolom kiri (Alur):** `ShipmentFlowTower` — focus count + lane grid 2×3 + pipeline bar; mengisi tinggi panel penuh.
-- **Jadwal tengah bawah:** daftar vertikal padat (`FlightScheduleStrip` stack mode); **dilarang** `overflow-x` / scroll horizontal.
+- **Kolom kiri (Alur):** `ShipmentFlowCompact` — subtitle `X/Y manifest dalam alur` + 3 bar (Diterima, Sortasi, Muat). Tanpa badge metric di header kartu.
+- **Jadwal tengah bawah:** tabel padat (`FlightScheduleTable`); **dilarang** `overflow-x` / scroll horizontal.
+
+## Dedup metrik (satu angka, satu tempat)
+
+| Metrik | Home UI | Sumber |
+|--------|---------|--------|
+| Total kiriman | KPI Pengiriman Aktif | `shipmentsToday.length` |
+| Dalam alur | Subtitle kartu Alur | `metrics.inFlowCount` |
+| Belum ditindak | KPI Belum Ditindak | `metrics.actionRequiredCount` |
+| Peringatan terbuka | Badge kartu Peringatan | `alertSummary.open` |
+| Jumlah jadwal | Subtitle Jadwal Pesawat | `flightScheduleMetric` |
+| Agregat status pesawat | Bar + legend Status Pesawat | `aircraftStatusRows` |
 
 ## Dilarang
 

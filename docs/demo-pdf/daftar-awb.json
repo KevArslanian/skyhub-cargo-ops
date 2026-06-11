@@ -1,0 +1,371 @@
+{
+  "sheet_type": "awb",
+  "title": "Daftar AWB Demo",
+  "subtitle": "36 nomor resi selaras seed",
+  "organization": "SkyHub Cargo Ops",
+  "author": "Tim Presentasi",
+  "date": "11 Jun 2026",
+  "rows": [
+    {
+      "index": 0,
+      "awb": "160-10000001",
+      "status_id": "received",
+      "status_label": "Diterima",
+      "route": "SOQ → CGK",
+      "flight_number": "GA-1000",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 1,
+      "awb": "160-10000012",
+      "status_id": "sortation",
+      "status_label": "Sortasi",
+      "route": "SOQ → SUB",
+      "flight_number": "QG-701",
+      "highlight": true,
+      "note": "Sorotan demo"
+    },
+    {
+      "index": 2,
+      "awb": "160-10000023",
+      "status_id": "loaded_to_aircraft",
+      "status_label": "Muat ke Pesawat",
+      "route": "SOQ → DPS",
+      "flight_number": "ID-702",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 3,
+      "awb": "160-10000034",
+      "status_id": "departed",
+      "status_label": "Berangkat",
+      "route": "SOQ → UPG",
+      "flight_number": "SJ-1003",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 4,
+      "awb": "160-10000045",
+      "status_id": "arrived",
+      "status_label": "Tiba",
+      "route": "SOQ → BPN",
+      "flight_number": "JT-704",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 5,
+      "awb": "160-10000056",
+      "status_id": "hold",
+      "status_label": "Tertahan",
+      "route": "SOQ → KNO",
+      "flight_number": "IW-705",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 6,
+      "awb": "160-10000060",
+      "status_id": "received",
+      "status_label": "Diterima",
+      "route": "SOQ → PLM",
+      "flight_number": "GA-1006",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 7,
+      "awb": "160-10000071",
+      "status_id": "sortation",
+      "status_label": "Sortasi",
+      "route": "SOQ → PNK",
+      "flight_number": "QG-707",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 8,
+      "awb": "160-10000082",
+      "status_id": "loaded_to_aircraft",
+      "status_label": "Muat ke Pesawat",
+      "route": "SOQ → CGK",
+      "flight_number": "ID-708",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 9,
+      "awb": "160-10000093",
+      "status_id": "departed",
+      "status_label": "Berangkat",
+      "route": "SOQ → CGK",
+      "flight_number": "GA-1000",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 10,
+      "awb": "160-10000104",
+      "status_id": "arrived",
+      "status_label": "Tiba",
+      "route": "SOQ → SUB",
+      "flight_number": "QG-701",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 11,
+      "awb": "160-10000115",
+      "status_id": "hold",
+      "status_label": "Tertahan",
+      "route": "SOQ → DPS",
+      "flight_number": "ID-702",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 12,
+      "awb": "160-10000126",
+      "status_id": "received",
+      "status_label": "Diterima",
+      "route": "SOQ → UPG",
+      "flight_number": "SJ-1003",
+      "highlight": true,
+      "note": "Sorotan demo"
+    },
+    {
+      "index": 13,
+      "awb": "160-10000130",
+      "status_id": "sortation",
+      "status_label": "Sortasi",
+      "route": "SOQ → BPN",
+      "flight_number": "JT-704",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 14,
+      "awb": "160-10000141",
+      "status_id": "loaded_to_aircraft",
+      "status_label": "Muat ke Pesawat",
+      "route": "SOQ → KNO",
+      "flight_number": "IW-705",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 15,
+      "awb": "160-10000152",
+      "status_id": "departed",
+      "status_label": "Berangkat",
+      "route": "SOQ → PLM",
+      "flight_number": "GA-1006",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 16,
+      "awb": "160-10000163",
+      "status_id": "arrived",
+      "status_label": "Tiba",
+      "route": "SOQ → PNK",
+      "flight_number": "QG-707",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 17,
+      "awb": "160-10000174",
+      "status_id": "hold",
+      "status_label": "Tertahan",
+      "route": "SOQ → CGK",
+      "flight_number": "ID-708",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 18,
+      "awb": "160-10000185",
+      "status_id": "received",
+      "status_label": "Diterima",
+      "route": "SOQ → CGK",
+      "flight_number": "GA-1000",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 19,
+      "awb": "160-10000196",
+      "status_id": "sortation",
+      "status_label": "Sortasi",
+      "route": "SOQ → SUB",
+      "flight_number": "QG-701",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 20,
+      "awb": "160-10000200",
+      "status_id": "loaded_to_aircraft",
+      "status_label": "Muat ke Pesawat",
+      "route": "SOQ → DPS",
+      "flight_number": "ID-702",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 21,
+      "awb": "160-10000211",
+      "status_id": "departed",
+      "status_label": "Berangkat",
+      "route": "SOQ → UPG",
+      "flight_number": "SJ-1003",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 22,
+      "awb": "160-10000222",
+      "status_id": "arrived",
+      "status_label": "Tiba",
+      "route": "SOQ → BPN",
+      "flight_number": "JT-704",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 23,
+      "awb": "160-10000233",
+      "status_id": "hold",
+      "status_label": "Tertahan",
+      "route": "SOQ → KNO",
+      "flight_number": "IW-705",
+      "highlight": true,
+      "note": "Sorotan demo"
+    },
+    {
+      "index": 24,
+      "awb": "160-10000244",
+      "status_id": "received",
+      "status_label": "Diterima",
+      "route": "SOQ → PLM",
+      "flight_number": "GA-1006",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 25,
+      "awb": "160-10000255",
+      "status_id": "sortation",
+      "status_label": "Sortasi",
+      "route": "SOQ → PNK",
+      "flight_number": "QG-707",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 26,
+      "awb": "160-10000266",
+      "status_id": "loaded_to_aircraft",
+      "status_label": "Muat ke Pesawat",
+      "route": "SOQ → CGK",
+      "flight_number": "ID-708",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 27,
+      "awb": "160-10000270",
+      "status_id": "departed",
+      "status_label": "Berangkat",
+      "route": "SOQ → CGK",
+      "flight_number": "GA-1000",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 28,
+      "awb": "160-10000281",
+      "status_id": "arrived",
+      "status_label": "Tiba",
+      "route": "SOQ → SUB",
+      "flight_number": "QG-701",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 29,
+      "awb": "160-10000292",
+      "status_id": "hold",
+      "status_label": "Tertahan",
+      "route": "SOQ → DPS",
+      "flight_number": "ID-702",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 30,
+      "awb": "160-10000303",
+      "status_id": "received",
+      "status_label": "Diterima",
+      "route": "SOQ → UPG",
+      "flight_number": "SJ-1003",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 31,
+      "awb": "160-10000314",
+      "status_id": "sortation",
+      "status_label": "Sortasi",
+      "route": "SOQ → BPN",
+      "flight_number": "JT-704",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 32,
+      "awb": "160-10000325",
+      "status_id": "loaded_to_aircraft",
+      "status_label": "Muat ke Pesawat",
+      "route": "SOQ → KNO",
+      "flight_number": "IW-705",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 33,
+      "awb": "160-10000336",
+      "status_id": "departed",
+      "status_label": "Berangkat",
+      "route": "SOQ → PLM",
+      "flight_number": "GA-1006",
+      "highlight": false,
+      "note": ""
+    },
+    {
+      "index": 34,
+      "awb": "160-10000340",
+      "status_id": "arrived",
+      "status_label": "Tiba",
+      "route": "SOQ → PNK",
+      "flight_number": "QG-707",
+      "highlight": true,
+      "note": "Sorotan demo"
+    },
+    {
+      "index": 35,
+      "awb": "160-10000351",
+      "status_id": "hold",
+      "status_label": "Tertahan",
+      "route": "SOQ → CGK",
+      "flight_number": "ID-708",
+      "highlight": false,
+      "note": ""
+    }
+  ],
+  "footer_note": "Sorotan demo ditandai untuk presentasi cepat"
+}

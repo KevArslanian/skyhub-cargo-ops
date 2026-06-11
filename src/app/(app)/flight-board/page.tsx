@@ -52,9 +52,15 @@ import { OpsDrawer } from "@/components/ops-drawer";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   scrollToFirstFieldError,
+  validateFilterDateTo,
   validateFlightFormDetailed,
   type FlightFormErrors,
 } from "@/lib/client-validation";
+import {
+  clampIsoDateToToday,
+  DATE_TO_MAX_TODAY_MESSAGE,
+  getOpsTodayIso,
+} from "@/lib/date-input";
 
 function fieldClassName(base: string, error?: string) {
   return cn(base, error && "is-invalid");
@@ -336,8 +342,12 @@ export default function FlightBoardPage() {
   const [status, setStatus] = useState(() => searchParams.get("status") || "all");
   const [query, setQuery] = useState(() => searchParams.get("query") || "");
   const [appliedQuery, setAppliedQuery] = useState(() => searchParams.get("query") || "");
+  const todayIso = useMemo(() => getOpsTodayIso(), []);
   const [dateFrom, setDateFrom] = useState(() => searchParams.get("dateFrom") || searchParams.get("date") || "");
-  const [dateTo, setDateTo] = useState(() => searchParams.get("dateTo") || searchParams.get("date") || "");
+  const [dateTo, setDateTo] = useState(() =>
+    clampIsoDateToToday(searchParams.get("dateTo") || searchParams.get("date") || ""),
+  );
+  const [dateToError, setDateToError] = useState<string | undefined>();
   const [page, setPage] = useState(() => parsePageParam(searchParams.get("page")));
   const [data, setData] = useState<FlightBoardPayload | null>(null);
   const [initialLoadPending, setInitialLoadPending] = useState(true);
@@ -590,6 +600,25 @@ export default function FlightBoardPage() {
     (next: { dateFrom?: string; dateTo?: string }) => {
       const nextDateFrom = next.dateFrom ?? dateFrom;
       const nextDateTo = next.dateTo ?? dateTo;
+
+      if (next.dateTo !== undefined) {
+        const validation = validateFilterDateTo(nextDateTo, { dateFrom: nextDateFrom, todayIso });
+        if (!validation.ok) {
+          setDateToError(validation.message);
+          return;
+        }
+        setDateToError(undefined);
+      } else if (next.dateFrom !== undefined && nextDateTo) {
+        const validation = validateFilterDateTo(nextDateTo, { dateFrom: nextDateFrom, todayIso });
+        if (!validation.ok) {
+          setDateToError(validation.message);
+        } else {
+          setDateToError(undefined);
+        }
+      } else {
+        setDateToError(undefined);
+      }
+
       setPage(1);
       setDateFrom(nextDateFrom);
       setDateTo(nextDateTo);
@@ -601,7 +630,7 @@ export default function FlightBoardPage() {
       setEditDraft(createFlightDraft(nextSelectedFlight));
       replaceFlightBoardUrl({ dateFrom: nextDateFrom, dateTo: nextDateTo, page: 1, id: nextSelectedFlight?.id ?? null });
     },
-    [data?.flights, dateFrom, dateTo, replaceFlightBoardUrl, selectedFlightId],
+    [data?.flights, dateFrom, dateTo, replaceFlightBoardUrl, selectedFlightId, todayIso],
   );
 
   const handleStatusChange = useCallback(
@@ -969,14 +998,18 @@ export default function FlightBoardPage() {
             id="flightboard-date-to"
             aria-label="Tanggal akhir"
             min={dateFrom || undefined}
+            max={todayIso}
+            invalid={Boolean(dateToError)}
             value={dateTo}
+            onRangeReject={() => setDateToError(DATE_TO_MAX_TODAY_MESSAGE)}
             onChange={(nextValue) => handleDateRangeChange({ dateTo: nextValue })}
           />
+          <FormFieldError message={dateToError} />
         </div>
       </FilterFields>
       </FilterBar>
     ),
-    [dateFrom, dateTo, handleDateRangeChange, handleSearchSubmit, handleStatusChange, query, status],
+    [dateFrom, dateTo, dateToError, handleDateRangeChange, handleSearchSubmit, handleStatusChange, query, status, todayIso],
   );
 
   return (

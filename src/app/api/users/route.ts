@@ -38,6 +38,7 @@ export async function POST(request: Request) {
       email: parsed.data.email,
       role: parsed.data.role,
       station: parsed.data.station,
+      phone: parsed.data.phone,
       password: parsed.data.password,
       customerAccountId: parsed.data.customerAccountId,
       invitedById: user.id,

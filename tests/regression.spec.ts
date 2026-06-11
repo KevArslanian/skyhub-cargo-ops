@@ -35,6 +35,13 @@ async function login(request: APIRequestContext, email: string, expectedStatus =
   return response;
 }
 
+async function getViewerShiftOwnerId(request: APIRequestContext) {
+  const response = await request.get(apiUrl("/api/shipments?page=1&pageSize=1"));
+  expect(response.status()).toBe(200);
+  const payload = await response.json();
+  return payload.viewer.id as string;
+}
+
 async function loginPage(page: Page, email = users.staff) {
   await page.request.post(apiUrl("/api/auth/intro"), { maxRedirects: 0 });
   await page.goto(apiUrl("/login"));
@@ -73,22 +80,42 @@ test("@api validation rejects invalid inputs", async ({ request }) => {
   test.setTimeout(120_000);
 
   await login(request, users.staff);
+  const shiftOwnerId = await getViewerShiftOwnerId(request);
 
   const invalidAwb = await request.post(apiUrl("/api/shipments"), {
     data: {
       awb: "bad-awb",
       commodity: "General Cargo",
-      origin: "CGK",
+      origin: "SOQ",
       destination: "DPS",
       pieces: 1,
       weightKg: 10,
       shipper: "QA Shipper",
       consignee: "QA Consignee",
       forwarder: "QA Forwarder",
-      ownerName: "QA Owner",
+      shiftOwnerId,
     },
   });
   expect(invalidAwb.status()).toBe(400);
+
+  const originMismatch = await request.post(apiUrl("/api/shipments"), {
+    data: {
+      awb: validAwb(),
+      commodity: "Mismatch Origin",
+      cargoMode: "Udara",
+      senderPhone: "081234567890",
+      origin: "CGK",
+      destination: "DPS",
+      pieces: 1,
+      weightKg: 8,
+      shipper: "Guard Shipper",
+      consignee: "Guard Consignee",
+      forwarder: "Guard Forwarder",
+      shiftOwnerId,
+    },
+  });
+  expect(originMismatch.status()).toBe(400);
+  expect((await originMismatch.json()).code).toBe("ORIGIN_STATION_MISMATCH");
 
   const invalidStatus = await request.get(apiUrl("/api/flights?status=cancelled"));
   expect(invalidStatus.status()).toBe(400);
@@ -114,14 +141,14 @@ test("@api validation rejects invalid inputs", async ({ request }) => {
       commodity: "Guarded Cargo",
       cargoMode: "Udara",
       senderPhone: "081234567890",
-      origin: "CGK",
+      origin: "SOQ",
       destination: "DPS",
       pieces: 1,
       weightKg: 8,
       shipper: "Guard Shipper",
       consignee: "Guard Consignee",
       forwarder: "Guard Forwarder",
-      ownerName: "Guard Owner",
+      shiftOwnerId,
     },
   });
   expect(guardedShipmentResponse.status()).toBe(200);
@@ -168,7 +195,7 @@ test("@api validation rejects invalid inputs", async ({ request }) => {
       commodity: "Route Guard Cargo",
       cargoMode: "Udara",
       senderPhone: "081234567890",
-      origin: "CGK",
+      origin: "SOQ",
       destination: "SUB",
       pieces: 1,
       weightKg: 8,
@@ -176,7 +203,7 @@ test("@api validation rejects invalid inputs", async ({ request }) => {
       shipper: "Guard Shipper",
       consignee: "Guard Consignee",
       forwarder: "Guard Forwarder",
-      ownerName: "Guard Owner",
+      shiftOwnerId,
     },
   });
   expect(routeMismatchShipment.status()).toBe(400);
@@ -235,6 +262,7 @@ test("@crud shipment CRUD, document upload, notification update, and archive wor
   test.setTimeout(90_000);
 
   await login(request, users.staff);
+  const shiftOwnerId = await getViewerShiftOwnerId(request);
 
   const awb = validAwb();
   const shipmentCreate = await request.post(apiUrl("/api/shipments"), {
@@ -244,7 +272,7 @@ test("@crud shipment CRUD, document upload, notification update, and archive wor
       commodity: "QA Test Cargo",
       cargoMode: "Udara",
       senderPhone: "081234567890",
-      origin: "CGK",
+      origin: "SOQ",
       destination: "DPS",
       pieces: 2,
       weightKg: 12.5,
@@ -260,7 +288,7 @@ test("@crud shipment CRUD, document upload, notification update, and archive wor
       shipper: "QA Shipper",
       consignee: "QA Consignee",
       forwarder: "QA Forwarder",
-      ownerName: "QA Owner",
+      shiftOwnerId,
       notes: "Created by regression suite",
     },
   });
@@ -503,8 +531,7 @@ test("@e2e settings tim akses table fills viewport", async ({ page }) => {
   await loginPage(page, users.admin);
   await page.goto(apiUrl("/settings"), { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(2000);
-  await page.locator("button").filter({ hasText: "Tim & Akses" }).first().click();
-  await page.waitForSelector(".settings-users-table-scroll tbody tr", { timeout: 15_000 });
+  await page.waitForSelector("#tim-akses .settings-users-table-scroll tbody tr", { timeout: 15_000 });
   await page.waitForTimeout(500);
 
   const metrics = await page.evaluate(() => {
@@ -663,19 +690,22 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Terang" })).toBeVisible();
 
   const requestedAwb = validAwb();
+  const ledgerViewer = await page.request.get(apiUrl("/api/shipments?page=1&pageSize=1"));
+  expect(ledgerViewer.status()).toBe(200);
+  const shiftOwnerId = ((await ledgerViewer.json()) as { viewer: { id: string } }).viewer.id;
   const trackingShipment = await page.request.post(apiUrl("/api/shipments"), {
     data: {
       awb: requestedAwb,
       commodity: "QA Tracking Cargo",
       senderPhone: "081234567890",
-      origin: "CGK",
+      origin: "SOQ",
       destination: "DPS",
       pieces: 1,
       weightKg: 8,
       shipper: "QA Shipper",
       consignee: "QA Consignee",
       forwarder: "QA Forwarder",
-      ownerName: "QA Owner",
+      shiftOwnerId,
     },
   });
   expect(trackingShipment.status()).toBe(200);
@@ -711,6 +741,7 @@ test("@e2e notifications menu can mark items read", async ({ page }) => {
 
   await page.getByRole("button", { name: /Pemberitahuan/ }).click();
   await expect(page.getByText("Pemberitahuan").first()).toBeVisible();
+  await expect(page.locator(".notifications-dropdown-list")).not.toContainText(/alert:/i);
   const markAllButton = page.getByRole("button", { name: "Tandai semua" });
 
   if (await markAllButton.isEnabled()) {

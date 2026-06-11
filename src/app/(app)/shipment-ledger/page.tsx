@@ -20,15 +20,18 @@ import {
   AIR_VEHICLE_TYPE,
   COMMODITY_CUSTOM_VALUE,
   computeShippingRate,
+  defaultDestinationForOrigin,
+  destinationSelectOptions,
   FLIGHT_AUTO_SELECT_LABEL,
   FLIGHT_AUTO_SELECT_SHORT_LABEL,
   formatCapacityKgLabel,
   formatFlightSelectLabels,
+  formatStationLabel,
   GOODS_STATUS_OPTIONS,
   SERVICE_TYPE_OPTIONS,
   SHIPMENT_DOC_STATUS_FORM_OPTIONS,
   resolveShipmentDocStatusValue,
-  stationSelectOptions,
+  type StationCode,
 } from "@/lib/constants";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -51,9 +54,15 @@ import {
   scrollToFirstFieldError,
   type ShipmentCreateFormErrors,
   type ShipmentUpdateFormErrors,
+  validateFilterDateTo,
   validateShipmentCreateFormDetailed,
   validateShipmentUpdateFormDetailed,
 } from "@/lib/client-validation";
+import {
+  clampIsoDateToToday,
+  DATE_TO_MAX_TODAY_MESSAGE,
+  getOpsTodayIso,
+} from "@/lib/date-input";
 import {
   parseDecimalValue,
   sanitizeCommodityText,
@@ -66,6 +75,25 @@ import { networkErrorMessage, readApiError } from "@/lib/ops-feedback";
 import { buildShipmentSubmitPayload, SHIPPING_RATE_TOOLTIP } from "@/lib/shipment-payload";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useVisibleTablePageSize } from "@/lib/use-visible-table-page-size";
+
+type ShipmentActor = {
+  id: string;
+  name: string;
+  role: string;
+  roleLabel: string;
+  phone: string;
+  station: string;
+} | null;
+
+type ShiftPicCandidate = {
+  id: string;
+  name: string;
+  role: string;
+  roleLabel: string;
+  phone: string;
+  station: string;
+  label: string;
+};
 
 type ShipmentRow = {
   id: string;
@@ -95,6 +123,9 @@ type ShipmentRow = {
   consignee: string;
   forwarder: string;
   ownerName: string;
+  shiftOwnerPhone: string;
+  createdBy: ShipmentActor;
+  shiftOwner: ShipmentActor;
   notes: string;
   status: string;
   statusLabel: string;
@@ -151,7 +182,12 @@ type FlightOption = {
 
 type LedgerPayload = {
   viewer: {
+    id: string;
+    name: string;
     role: "admin" | "staff" | "customer";
+    roleLabel: string;
+    phone: string;
+    station: string;
     readOnly: boolean;
     customerAccountName: string | null;
   };
@@ -185,10 +221,22 @@ function formatDateInput(value?: string | null) {
   return value ? value.slice(0, 10) : new Date().toISOString().slice(0, 10);
 }
 
+function formatActorLabel(actor: { name: string; roleLabel: string }) {
+  return `${actor.name} — ${actor.roleLabel}`;
+}
+
+function resolveShiftPicPhone(candidate: ShiftPicCandidate | undefined, override: string) {
+  if (candidate?.phone?.trim()) {
+    return candidate.phone.trim();
+  }
+  return override;
+}
+
 function createDrawerDraft(shipment: ShipmentRow | null) {
   return {
     status: shipment?.status ?? "received",
-    ownerName: shipment?.ownerName ?? "",
+    shiftOwnerId: shipment?.shiftOwner?.id ?? "",
+    shiftOwnerPhone: shipment?.shiftOwnerPhone ?? shipment?.shiftOwner?.phone ?? "",
     notes: shipment?.notes ?? "",
     sentAt: formatDateInput(shipment?.sentAt),
     cargoMode: shipment?.cargoMode ?? AIR_CARGO_MODE,
@@ -299,21 +347,38 @@ function CommodityField({
     </div>
   );
 }
-function createBlankForm() {
+function computeDraftShippingRate(
+  draft: { serviceType: string; weightKg: number; origin: string; destination: string },
+  flight?: { aircraftType: string } | null,
+) {
+  return computeShippingRate({
+    serviceType: draft.serviceType,
+    weightKg: Number(draft.weightKg) || 0,
+    origin: draft.origin,
+    destination: draft.destination,
+    aircraftType: flight?.aircraftType ?? null,
+  });
+}
+
+function createBlankForm(station = "SOQ") {
+  const origin = station.toUpperCase() as StationCode;
+  const destination = defaultDestinationForOrigin(origin) as StationCode;
+  const weightKg = 1;
+  const serviceType = "Standard";
   return {
     awb: "",
     sentAt: formatDateInput(),
     commodity: "",
     cargoMode: AIR_CARGO_MODE,
     senderPhone: "",
-    origin: "SOQ",
-    destination: "CGK",
+    origin,
+    destination,
     pieces: 1,
-    weightKg: 1,
+    weightKg,
     volumeM3: 0.5,
     specialHandling: "",
-    serviceType: "Standard",
-    shippingRate: 0,
+    serviceType,
+    shippingRate: computeDraftShippingRate({ serviceType, weightKg, origin, destination }),
     vehicleName: "SkyHub 01",
     vehicleType: AIR_VEHICLE_TYPE,
     vehicleCode: "PK-SHA",
@@ -322,7 +387,8 @@ function createBlankForm() {
     shipper: "",
     consignee: "",
     forwarder: "SkyHub",
-    ownerName: "Operator Shift",
+    shiftOwnerId: "",
+    shiftOwnerPhone: "",
     flightId: "",
     customerAccountId: "",
     notes: "",
@@ -502,8 +568,10 @@ export default function ShipmentLedgerPage() {
   const [status, setStatus] = useState(searchParams.get("status") || "all");
   const [flight, setFlight] = useState(searchParams.get("flight") || "all");
   const [sortBy, setSortBy] = useState(searchParams.get("sortBy") || "updated");
+  const todayIso = useMemo(() => getOpsTodayIso(), []);
   const [dateFrom, setDateFrom] = useState(searchParams.get("dateFrom") || "");
-  const [dateTo, setDateTo] = useState(searchParams.get("dateTo") || "");
+  const [dateTo, setDateTo] = useState(() => clampIsoDateToToday(searchParams.get("dateTo") || ""));
+  const [dateToError, setDateToError] = useState<string | undefined>();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const detailOpenRef = useRef(detailOpen);
@@ -520,6 +588,7 @@ export default function ShipmentLedgerPage() {
   const [drawerDraft, setDrawerDraft] = useState(() => createDrawerDraft(null));
   const [createErrors, setCreateErrors] = useState<ShipmentCreateFormErrors>({});
   const [drawerErrors, setDrawerErrors] = useState<ShipmentUpdateFormErrors>({});
+  const [shiftPicCandidates, setShiftPicCandidates] = useState<ShiftPicCandidate[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const hasLoadedRef = useRef(false);
@@ -702,6 +771,77 @@ export default function ShipmentLedgerPage() {
   }, [dateFrom, dateTo, debouncedQuery, flight, sortBy, status]);
 
   const isReadOnly = data?.viewer.readOnly ?? false;
+  const viewer = data?.viewer;
+  const viewerStation = (viewer?.station ?? "SOQ").toUpperCase();
+  const viewerActorLabel = viewer ? formatActorLabel(viewer) : "";
+
+  useEffect(() => {
+    if (!createOpen && !editOpen) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/users/shift-pic", { cache: "no-store" });
+        if (!response.ok || cancelled) return;
+        const payload = (await response.json()) as { candidates?: ShiftPicCandidate[] };
+        if (!cancelled) {
+          setShiftPicCandidates(payload.candidates ?? []);
+        }
+      } catch {
+        if (!cancelled) {
+          setShiftPicCandidates([]);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [createOpen, editOpen]);
+
+  const shiftPicOptions = useMemo(
+    () => shiftPicCandidates.map((candidate) => ({ value: candidate.id, label: candidate.label })),
+    [shiftPicCandidates],
+  );
+
+  const selectedCreateShiftPic = useMemo(
+    () => shiftPicCandidates.find((candidate) => candidate.id === form.shiftOwnerId),
+    [form.shiftOwnerId, shiftPicCandidates],
+  );
+  const selectedEditShiftPic = useMemo(
+    () => shiftPicCandidates.find((candidate) => candidate.id === drawerDraft.shiftOwnerId),
+    [drawerDraft.shiftOwnerId, shiftPicCandidates],
+  );
+  const createShiftPicHasProfilePhone = Boolean(selectedCreateShiftPic?.phone?.trim());
+  const editShiftPicHasProfilePhone = Boolean(selectedEditShiftPic?.phone?.trim());
+
+  useEffect(() => {
+    if (!createOpen || !shiftPicCandidates.length || !form.shiftOwnerId) return;
+    const candidate = shiftPicCandidates.find((item) => item.id === form.shiftOwnerId);
+    if (!candidate) return;
+    const profilePhone = resolveShiftPicPhone(candidate, "");
+    if (profilePhone && profilePhone !== form.shiftOwnerPhone) {
+      setForm((current) => ({ ...current, shiftOwnerPhone: profilePhone }));
+    }
+  }, [createOpen, form.shiftOwnerId, form.shiftOwnerPhone, shiftPicCandidates]);
+
+  useEffect(() => {
+    if (!editOpen || !shiftPicCandidates.length || !drawerDraft.shiftOwnerId) return;
+    const candidate = shiftPicCandidates.find((item) => item.id === drawerDraft.shiftOwnerId);
+    if (!candidate) return;
+    const profilePhone = resolveShiftPicPhone(candidate, "");
+    if (profilePhone && profilePhone !== drawerDraft.shiftOwnerPhone) {
+      setDrawerDraft((current) => ({ ...current, shiftOwnerPhone: profilePhone }));
+    }
+  }, [drawerDraft.shiftOwnerId, drawerDraft.shiftOwnerPhone, editOpen, shiftPicCandidates]);
+  const createDestinationOptions = useMemo(
+    () => destinationSelectOptions(viewerStation),
+    [viewerStation],
+  );
+  const editDestinationOptions = useMemo(
+    () => destinationSelectOptions(drawerDraft.origin || viewerStation),
+    [drawerDraft.origin, viewerStation],
+  );
 
   const availableFlights = useMemo(() => data?.flights ?? [], [data?.flights]);
   const recommendedCreateFlight = useMemo(
@@ -720,6 +860,29 @@ export default function ShipmentLedgerPage() {
     () => availableFlights.find((item) => item.id === drawerDraft.flightId) ?? recommendedEditFlight,
     [availableFlights, drawerDraft.flightId, recommendedEditFlight],
   );
+
+  useEffect(() => {
+    if (!createOpen) return;
+    setForm((current) => {
+      const shippingRate = computeDraftShippingRate({ ...current, origin: viewerStation }, activeCreateFlight);
+      if (current.origin === viewerStation && current.shippingRate === shippingRate) {
+        return current;
+      }
+      return { ...current, origin: viewerStation as StationCode, shippingRate };
+    });
+  }, [activeCreateFlight, createOpen, viewerStation]);
+
+  useEffect(() => {
+    if (!editOpen) return;
+    setDrawerDraft((current) => {
+      const shippingRate = computeDraftShippingRate(current, activeEditFlight);
+      if (current.shippingRate === shippingRate) {
+        return current;
+      }
+      return { ...current, shippingRate };
+    });
+  }, [activeEditFlight, editOpen]);
+
   const hasFlightChoices = availableFlights.length > 0;
   const flightSelectOptions = useMemo(() => buildFlightSelectOptions(availableFlights), [availableFlights]);
   const commodityOptions = useMemo(() => data?.commodities ?? [], [data?.commodities]);
@@ -821,6 +984,7 @@ export default function ShipmentLedgerPage() {
                 vehicleCode: activeCreateFlight.vehicleCode,
                 vehicleCapacityKg: activeCreateFlight.vehicleCapacityKg,
                 vehicleStatus: activeCreateFlight.vehicleStatus,
+                aircraftType: activeCreateFlight.aircraftType,
               }
             : null,
         }),
@@ -830,7 +994,11 @@ export default function ShipmentLedgerPage() {
     if (response.ok) {
       const payload = (await response.json()) as { shipment?: ShipmentRow | null };
       setCreateOpen(false);
-      setForm(createBlankForm());
+      setForm({
+        ...createBlankForm(viewerStation),
+        shiftOwnerId: viewer?.id ?? "",
+        shiftOwnerPhone: viewer?.phone ?? "",
+      });
       setCreateErrors({});
       if (payload.shipment) {
         setData((current) =>
@@ -903,6 +1071,7 @@ export default function ShipmentLedgerPage() {
                 vehicleCode: activeEditFlight.vehicleCode,
                 vehicleCapacityKg: activeEditFlight.vehicleCapacityKg,
                 vehicleStatus: activeEditFlight.vehicleStatus,
+                aircraftType: activeEditFlight.aircraftType,
               }
             : null,
         }),
@@ -1013,6 +1182,32 @@ export default function ShipmentLedgerPage() {
     setConfirmShipmentDelete(true);
   }, []);
 
+  const handleDateFromChange = useCallback(
+    (nextDateFrom: string) => {
+      setDateFrom(nextDateFrom);
+      if (dateTo) {
+        const validation = validateFilterDateTo(dateTo, { dateFrom: nextDateFrom, todayIso });
+        setDateToError(validation.ok ? undefined : validation.message);
+      } else {
+        setDateToError(undefined);
+      }
+    },
+    [dateTo, todayIso],
+  );
+
+  const handleDateToChange = useCallback(
+    (nextDateTo: string) => {
+      const validation = validateFilterDateTo(nextDateTo, { dateFrom, todayIso });
+      if (!validation.ok) {
+        setDateToError(validation.message);
+        return;
+      }
+      setDateToError(undefined);
+      setDateTo(nextDateTo);
+    },
+    [dateFrom, todayIso],
+  );
+
   const hasActiveFilters =
     Boolean(query.trim()) ||
     status !== "all" ||
@@ -1050,6 +1245,11 @@ export default function ShipmentLedgerPage() {
             aria-label={loading ? "Memuat izin akses" : "Buat pengiriman baru"}
             onClick={() => {
               setCreateErrors({});
+              setForm({
+                ...createBlankForm(viewerStation),
+                shiftOwnerId: viewer?.id ?? "",
+                shiftOwnerPhone: viewer?.phone ?? "",
+              });
               setCreateOpen(true);
             }}
           >
@@ -1138,7 +1338,7 @@ export default function ShipmentLedgerPage() {
               id="ledger-date-from"
               aria-label="Tanggal awal"
               value={dateFrom}
-              onChange={setDateFrom}
+              onChange={handleDateFromChange}
             />
           </div>
           <div className="shell-filter-field shell-filter-field-wide">
@@ -1149,9 +1349,13 @@ export default function ShipmentLedgerPage() {
               id="ledger-date-to"
               aria-label="Tanggal akhir"
               min={dateFrom || undefined}
+              max={todayIso}
+              invalid={Boolean(dateToError)}
               value={dateTo}
-              onChange={setDateTo}
+              onRangeReject={() => setDateToError(DATE_TO_MAX_TODAY_MESSAGE)}
+              onChange={handleDateToChange}
             />
+            <FormFieldError message={dateToError} />
           </div>
           {hasActiveFilters ? (
             <div className="shell-filter-field ledger-filter-action-cell">
@@ -1168,6 +1372,7 @@ export default function ShipmentLedgerPage() {
                   setSortBy("updated");
                   setDateFrom("");
                   setDateTo("");
+                  setDateToError(undefined);
                 }}
               >
                 Reset filter
@@ -1177,7 +1382,20 @@ export default function ShipmentLedgerPage() {
         </FilterFields>
       </FilterBar>
     ),
-    [data?.flights, dateFrom, dateTo, flight, hasActiveFilters, query, sortBy, status],
+    [
+      data?.flights,
+      dateFrom,
+      dateTo,
+      dateToError,
+      flight,
+      handleDateFromChange,
+      handleDateToChange,
+      hasActiveFilters,
+      query,
+      sortBy,
+      status,
+      todayIso,
+    ],
   );
 
   return (
@@ -1361,7 +1579,26 @@ export default function ShipmentLedgerPage() {
               </div>
 
               <dl className="ledger-detail-lines rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
-                <div><dt>Penanggung jawab</dt><dd>{selectedShipment.ownerName || "-"}</dd></div>
+                <div>
+                  <dt>Dibuat oleh</dt>
+                  <dd>
+                    {selectedShipment.createdBy
+                      ? formatActorLabel(selectedShipment.createdBy)
+                      : "-"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Penanggung jawab shift</dt>
+                  <dd>
+                    {selectedShipment.shiftOwner
+                      ? formatActorLabel(selectedShipment.shiftOwner)
+                      : selectedShipment.ownerName || "-"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>No telepon PIC</dt>
+                  <dd>{selectedShipment.shiftOwnerPhone || selectedShipment.shiftOwner?.phone || "-"}</dd>
+                </div>
                 <div><dt>Tarif</dt><dd>Rp {selectedShipment.shippingRate.toLocaleString("id-ID")}</dd></div>
                 <div><dt>Kendaraan</dt><dd>{selectedShipment.vehicleName || selectedShipment.vehicleType}</dd></div>
                 {selectedShipment.notes ? (
@@ -1418,20 +1655,68 @@ export default function ShipmentLedgerPage() {
                             className="select-field"
                           />
                         </div>
-                        <div data-field="ownerName">
-                          <label className="label">Penanggung Jawab</label>
+                        <div>
+                          <label className="label">Dibuat Oleh</label>
                           <input
-                            className={fieldClassName("input-field", drawerErrors.ownerName)}
-                            value={drawerDraft.ownerName}
-                            onChange={(event) => {
-                              clearDrawerFieldError("ownerName");
+                            className="input-field input-readonly"
+                            value={
+                              selectedShipment.createdBy
+                                ? formatActorLabel(selectedShipment.createdBy)
+                                : "-"
+                            }
+                            readOnly
+                            disabled
+                          />
+                        </div>
+                        <div data-field="shiftOwnerId">
+                          <label className="label">Penanggung Jawab Shift</label>
+                          <GlassSelect
+                            aria-label="Penanggung jawab shift"
+                            value={drawerDraft.shiftOwnerId}
+                            onChange={(value) => {
+                              clearDrawerFieldError("shiftOwnerId");
+                              const nextCandidate = shiftPicCandidates.find((candidate) => candidate.id === value);
                               setDrawerDraft((current) => ({
                                 ...current,
-                                ownerName: sanitizePersonName(event.target.value),
+                                shiftOwnerId: value,
+                                shiftOwnerPhone: resolveShiftPicPhone(nextCandidate, ""),
+                              }));
+                            }}
+                            options={shiftPicOptions}
+                            className={fieldClassName("select-field", drawerErrors.shiftOwnerId)}
+                            placeholder="Pilih penanggung jawab shift"
+                          />
+                          <FormFieldError message={drawerErrors.shiftOwnerId} />
+                        </div>
+                        <div data-field="shiftOwnerPhone">
+                          <label className="label">No Telepon PIC</label>
+                          <input
+                            className={cn(
+                              fieldClassName("input-field", drawerErrors.shiftOwnerPhone),
+                              editShiftPicHasProfilePhone && "input-readonly",
+                            )}
+                            type="tel"
+                            inputMode="tel"
+                            autoComplete="tel"
+                            placeholder="Contoh: 08123456789"
+                            value={drawerDraft.shiftOwnerPhone}
+                            readOnly={editShiftPicHasProfilePhone}
+                            disabled={editShiftPicHasProfilePhone}
+                            onChange={(event) => {
+                              if (editShiftPicHasProfilePhone) return;
+                              clearDrawerFieldError("shiftOwnerPhone");
+                              setDrawerDraft((current) => ({
+                                ...current,
+                                shiftOwnerPhone: sanitizePhoneInput(event.target.value),
                               }));
                             }}
                           />
-                          <FormFieldError message={drawerErrors.ownerName} />
+                          {!editShiftPicHasProfilePhone ? (
+                            <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
+                              Nomor belum ada di profil PIC. Isi manual untuk kebutuhan koordinasi shift.
+                            </p>
+                          ) : null}
+                          <FormFieldError message={drawerErrors.shiftOwnerPhone} />
                         </div>
                         <div data-field="sentAt">
                           <label className="label">Tanggal Kirim</label>
@@ -1451,7 +1736,7 @@ export default function ShipmentLedgerPage() {
                           <input className="input-field input-readonly" value="Kargo Udara" readOnly disabled />
                         </div>
                         <div data-field="senderPhone">
-                          <label className="label">No Telepon</label>
+                          <label className="label">No Telepon Pengirim</label>
                           <input
                             className={fieldClassName("input-field", drawerErrors.senderPhone)}
                             type="tel"
@@ -1481,17 +1766,11 @@ export default function ShipmentLedgerPage() {
                         />
                         <div data-field="origin">
                           <label className="label">Bandara Asal</label>
-                          <GlassSelect
+                          <input
+                            className="input-field input-readonly"
+                            value={formatStationLabel(drawerDraft.origin)}
+                            readOnly
                             aria-label="Bandara asal"
-                            value={drawerDraft.origin}
-                            onChange={(value) => {
-                              clearDrawerFieldError("origin");
-                              clearDrawerFieldError("destination");
-                              clearDrawerFieldError("flightId");
-                              setDrawerDraft((current) => ({ ...current, origin: value }));
-                            }}
-                            options={stationSelectOptions()}
-                            className={fieldClassName("select-field", drawerErrors.origin)}
                           />
                           <FormFieldError message={drawerErrors.origin} />
                         </div>
@@ -1505,10 +1784,14 @@ export default function ShipmentLedgerPage() {
                               clearDrawerFieldError("flightId");
                               setDrawerDraft((current) => ({
                                 ...current,
-                                destination: value,
+                                destination: value as StationCode,
+                                shippingRate: computeDraftShippingRate(
+                                  { ...current, destination: value },
+                                  activeEditFlight,
+                                ),
                               }));
                             }}
-                            options={stationSelectOptions()}
+                            options={editDestinationOptions}
                             className={fieldClassName("select-field", drawerErrors.destination)}
                           />
                           <FormFieldError message={drawerErrors.destination} />
@@ -1526,7 +1809,10 @@ export default function ShipmentLedgerPage() {
                               setDrawerDraft((current) => ({
                                 ...current,
                                 weightKg,
-                                shippingRate: computeShippingRate(current.serviceType, weightKg),
+                                shippingRate: computeDraftShippingRate(
+                                  { ...current, weightKg },
+                                  activeEditFlight,
+                                ),
                               }));
                             }}
                           />
@@ -1542,7 +1828,10 @@ export default function ShipmentLedgerPage() {
                               setDrawerDraft((current) => ({
                                 ...current,
                                 serviceType,
-                                shippingRate: computeShippingRate(serviceType, current.weightKg),
+                                shippingRate: computeDraftShippingRate(
+                                  { ...current, serviceType },
+                                  activeEditFlight,
+                                ),
                               }));
                             }}
                             options={SERVICE_TYPE_OPTIONS.map((item) => ({ value: item, label: item }))}
@@ -1621,7 +1910,12 @@ export default function ShipmentLedgerPage() {
                             value={drawerDraft.flightId}
                             onChange={(value) => {
                               clearDrawerFieldError("flightId");
-                              setDrawerDraft((current) => ({ ...current, flightId: value }));
+                              const nextFlight = availableFlights.find((item) => item.id === value) ?? null;
+                              setDrawerDraft((current) => ({
+                                ...current,
+                                flightId: value,
+                                shippingRate: computeDraftShippingRate(current, nextFlight),
+                              }));
                             }}
                             options={flightSelectOptions}
                             className={fieldClassName("select-field", drawerErrors.flightId)}
@@ -1729,34 +2023,64 @@ export default function ShipmentLedgerPage() {
                     <label className="label">Mode Cargo</label>
                     <input className="input-field input-readonly" value="Kargo Udara" readOnly disabled />
                   </div>
-                  <div data-field="ownerName">
-                    <label className="label">Penanggung Jawab</label>
+                  <div>
+                    <label className="label">Dibuat Oleh</label>
                     <input
-                      className={fieldClassName("input-field", createErrors.ownerName)}
-                      placeholder="Nama operator shift"
-                      value={form.ownerName}
-                      onChange={(event) => {
-                        clearCreateFieldError("ownerName");
-                        setForm((current) => ({ ...current, ownerName: sanitizePersonName(event.target.value) }));
-                      }}
+                      className="input-field input-readonly"
+                      value={viewerActorLabel || "-"}
+                      readOnly
+                      disabled
                     />
-                    <FormFieldError message={createErrors.ownerName} />
                   </div>
-                  <div data-field="senderPhone">
-                    <label className="label">No Telepon</label>
+                  <div data-field="shiftOwnerId">
+                    <label className="label">Penanggung Jawab Shift</label>
+                    <GlassSelect
+                      aria-label="Penanggung jawab shift"
+                      value={form.shiftOwnerId}
+                      onChange={(value) => {
+                        clearCreateFieldError("shiftOwnerId");
+                        const nextCandidate = shiftPicCandidates.find((candidate) => candidate.id === value);
+                        setForm((current) => ({
+                          ...current,
+                          shiftOwnerId: value,
+                          shiftOwnerPhone: resolveShiftPicPhone(nextCandidate, ""),
+                        }));
+                      }}
+                      options={shiftPicOptions}
+                      className={fieldClassName("select-field", createErrors.shiftOwnerId)}
+                      placeholder="Pilih penanggung jawab shift"
+                    />
+                    <FormFieldError message={createErrors.shiftOwnerId} />
+                  </div>
+                  <div data-field="shiftOwnerPhone">
+                    <label className="label">No Telepon PIC</label>
                     <input
-                      className={fieldClassName("input-field", createErrors.senderPhone)}
+                      className={cn(
+                        fieldClassName("input-field", createErrors.shiftOwnerPhone),
+                        createShiftPicHasProfilePhone && "input-readonly",
+                      )}
                       type="tel"
                       inputMode="tel"
                       autoComplete="tel"
                       placeholder="Contoh: 08123456789"
-                      value={form.senderPhone}
+                      value={form.shiftOwnerPhone}
+                      readOnly={createShiftPicHasProfilePhone}
+                      disabled={createShiftPicHasProfilePhone}
                       onChange={(event) => {
-                        clearCreateFieldError("senderPhone");
-                        setForm((current) => ({ ...current, senderPhone: sanitizePhoneInput(event.target.value) }));
+                        if (createShiftPicHasProfilePhone) return;
+                        clearCreateFieldError("shiftOwnerPhone");
+                        setForm((current) => ({
+                          ...current,
+                          shiftOwnerPhone: sanitizePhoneInput(event.target.value),
+                        }));
                       }}
                     />
-                    <FormFieldError message={createErrors.senderPhone} />
+                    {!createShiftPicHasProfilePhone ? (
+                      <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
+                        Nomor belum ada di profil PIC. Isi manual untuk kebutuhan koordinasi shift.
+                      </p>
+                    ) : null}
+                    <FormFieldError message={createErrors.shiftOwnerPhone} />
                   </div>
                 </div>
               </div>
@@ -1766,17 +2090,11 @@ export default function ShipmentLedgerPage() {
                 <div className="mt-5 grid gap-4 md:grid-cols-4">
                   <div data-field="origin">
                     <label className="label">Bandara Asal</label>
-                    <GlassSelect
+                    <input
+                      className="input-field input-readonly"
+                      value={formatStationLabel(form.origin)}
+                      readOnly
                       aria-label="Bandara asal"
-                      value={form.origin}
-                      onChange={(value) => {
-                        clearCreateFieldError("origin");
-                        clearCreateFieldError("destination");
-                        clearCreateFieldError("flightId");
-                        setForm((current) => ({ ...current, origin: value }));
-                      }}
-                      options={stationSelectOptions()}
-                      className={fieldClassName("select-field", createErrors.origin)}
                     />
                     <FormFieldError message={createErrors.origin} />
                   </div>
@@ -1788,9 +2106,16 @@ export default function ShipmentLedgerPage() {
                       onChange={(value) => {
                         clearCreateFieldError("destination");
                         clearCreateFieldError("flightId");
-                        setForm((current) => ({ ...current, destination: value }));
+                        setForm((current) => ({
+                          ...current,
+                          destination: value as StationCode,
+                          shippingRate: computeDraftShippingRate(
+                            { ...current, destination: value },
+                            activeCreateFlight,
+                          ),
+                        }));
                       }}
-                      options={stationSelectOptions()}
+                      options={createDestinationOptions}
                       className={fieldClassName("select-field", createErrors.destination)}
                     />
                     <FormFieldError message={createErrors.destination} />
@@ -1809,7 +2134,10 @@ export default function ShipmentLedgerPage() {
                         setForm((current) => ({
                           ...current,
                           weightKg,
-                          shippingRate: computeShippingRate(current.serviceType, weightKg),
+                          shippingRate: computeDraftShippingRate(
+                            { ...current, weightKg },
+                            activeCreateFlight,
+                          ),
                         }));
                       }}
                     />
@@ -1838,7 +2166,10 @@ export default function ShipmentLedgerPage() {
                         setForm((current) => ({
                           ...current,
                           serviceType,
-                          shippingRate: computeShippingRate(serviceType, current.weightKg),
+                          shippingRate: computeDraftShippingRate(
+                            { ...current, serviceType },
+                            activeCreateFlight,
+                          ),
                         }));
                       }}
                       options={SERVICE_TYPE_OPTIONS.map((item) => ({ value: item, label: item }))}
@@ -1932,7 +2263,7 @@ export default function ShipmentLedgerPage() {
               </div>
 
               <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
-                <SectionHeader title="Kontak & Relasi" />
+                <SectionHeader title="Pihak & Akun" />
                 <div className="mt-5 grid gap-4 md:grid-cols-3">
                   <div data-field="shipper">
                     <label className="label">Pengirim</label>
@@ -1973,6 +2304,22 @@ export default function ShipmentLedgerPage() {
                     />
                     <FormFieldError message={createErrors.forwarder} />
                   </div>
+                  <div data-field="senderPhone">
+                    <label className="label">No Telepon Pengirim</label>
+                    <input
+                      className={fieldClassName("input-field", createErrors.senderPhone)}
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="Contoh: 08123456789"
+                      value={form.senderPhone}
+                      onChange={(event) => {
+                        clearCreateFieldError("senderPhone");
+                        setForm((current) => ({ ...current, senderPhone: sanitizePhoneInput(event.target.value) }));
+                      }}
+                    />
+                    <FormFieldError message={createErrors.senderPhone} />
+                  </div>
                   <div data-field="flightId">
                     <label className="label">Penerbangan</label>
                     <GlassSelect
@@ -1980,7 +2327,12 @@ export default function ShipmentLedgerPage() {
                       value={form.flightId}
                       onChange={(value) => {
                         clearCreateFieldError("flightId");
-                        setForm((current) => ({ ...current, flightId: value }));
+                        const nextFlight = availableFlights.find((item) => item.id === value) ?? null;
+                        setForm((current) => ({
+                          ...current,
+                          flightId: value,
+                          shippingRate: computeDraftShippingRate(current, nextFlight),
+                        }));
                       }}
                       options={flightSelectOptions}
                       className={fieldClassName("select-field", createErrors.flightId)}

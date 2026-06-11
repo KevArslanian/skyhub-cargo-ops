@@ -12,7 +12,14 @@ import { FLIGHT_MASTER_RULES } from "@/lib/flight-rules";
 import { cn, formatDateTimeCompact, formatWeight } from "@/lib/format";
 import { networkErrorMessage, readApiError, type OpsAlertInput, type OpsToastInput } from "@/lib/ops-feedback";
 
-const RECOVERY_CARD_LIMIT = 6;
+const RECOVERY_CARD_LIMIT = 1;
+
+function recoveryPriority(flight: DashboardFlightSummary) {
+  if (flight.status === "delayed") return 0;
+  if (flight.status === "at_risk") return 1;
+  if (flight.cutoffAtRisk) return 2;
+  return 3;
+}
 
 const AIRCRAFT_TONE_BAR_CLASS: Record<AircraftStatusRow["tone"], string> = {
   info: "bg-sky-500",
@@ -90,9 +97,18 @@ export function AircraftStatusPanel({
     () =>
       [...flights]
         .filter(isFlightNeedsRecovery)
-        .sort((left, right) => new Date(left.departureTime).getTime() - new Date(right.departureTime).getTime())
+        .sort((left, right) => {
+          const priorityDelta = recoveryPriority(left) - recoveryPriority(right);
+          if (priorityDelta !== 0) return priorityDelta;
+          return new Date(left.departureTime).getTime() - new Date(right.departureTime).getTime();
+        })
         .slice(0, RECOVERY_CARD_LIMIT),
     [flights],
+  );
+
+  const statusLegend = useMemo(
+    () => aircraftStatusRows.map((row) => `${row.label} ${row.count}`).join(" · "),
+    [aircraftStatusRows],
   );
 
   const affectedByFlight = useMemo(() => {
@@ -200,31 +216,17 @@ export function AircraftStatusPanel({
   return (
     <>
       <div className="dashboard-flight-recovery-panel min-h-0 min-w-0 flex-1 overflow-hidden">
-        <div className="dashboard-flight-recovery-header shrink-0 space-y-1.5">
+        <div className="dashboard-flight-recovery-header shrink-0 space-y-1">
           <AircraftStatusStackedBar rows={aircraftStatusRows} />
-
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-            {aircraftStatusRows.map((row) => (
-              <div
-                key={row.id}
-                className="rounded-[10px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)]/70 px-2 py-1.5 text-center"
-              >
-                <p className="line-clamp-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[color:var(--muted-fg)]">
-                  {row.label}
-                </p>
-                <p className="font-[family:var(--font-heading)] text-[1rem] font-black leading-none text-[color:var(--text-strong)]">
-                  {row.count}
-                </p>
-              </div>
-            ))}
-          </div>
+          <p className="truncate text-[10px] font-semibold text-[color:var(--muted-fg)]" title={statusLegend}>
+            {statusLegend}
+          </p>
         </div>
 
         <div className="dashboard-flight-recovery-scroll min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-0.5">
           {problemFlights.length ? (
             problemFlights.map((flight) => {
               const affected = affectedByFlight.get(flight.flightNumber) ?? [];
-              const replacements = findReplacementFlights(flight, flights);
               const totalWeight = affected.reduce((sum, item) => sum + item.weightKg, 0);
               return (
                 <div
@@ -248,29 +250,6 @@ export function AircraftStatusPanel({
                     >
                       Atur jadwal
                     </Link>
-                  </div>
-
-                  <div className="mt-2">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[color:var(--muted-fg)]">Slot pengganti</p>
-                    {replacements.length ? (
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        {replacements.slice(0, 3).map((replacement) => (
-                          <button
-                            key={replacement.id}
-                            type="button"
-                            className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-2 py-1 text-[10px] font-bold text-[color:var(--text-strong)] transition-colors hover:border-[color:var(--brand-primary)]"
-                            onClick={() => openReassignDrawer(flight, replacement.id)}
-                          >
-                            <ArrowRightLeft size={11} />
-                            {replacement.flightNumber} {formatDateTimeCompact(replacement.departureTime)}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-1 text-[10px] font-semibold text-[color:var(--muted-fg)]">
-                        Belum ada penerbangan tujuan {flight.destination} yang masih terbuka. Buat slot baru di Manajemen Pesawat.
-                      </p>
-                    )}
                   </div>
 
                   {affected.length > 0 ? (

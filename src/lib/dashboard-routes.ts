@@ -21,6 +21,7 @@ export const DASHBOARD_ROUTES = {
 
   kpi: {
     activeShipments: "/shipment-ledger",
+    actionRequired: "/shipment-ledger",
     openAlerts: "/alerts?workflow=open",
     partialDocs: "/shipment-ledger?status=review",
     holds: "/shipment-ledger?status=hold",

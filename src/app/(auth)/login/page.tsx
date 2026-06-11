@@ -12,7 +12,6 @@ import {
   type LoginResponse,
 } from "@/lib/auth-login";
 import { cn } from "@/lib/format";
-import { DEMO_LOGIN_ACCOUNTS } from "@/lib/login-showcase";
 
 type FormErrors = {
   email?: string;
@@ -23,20 +22,13 @@ type FormErrors = {
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("staff@skyhub.test");
-  const [password, setPassword] = useState("operator123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
   const loginError = errors.form ? getLoginErrorDetail(errors.formCode, errors.form) : null;
-  const crudAccounts = DEMO_LOGIN_ACCOUNTS.filter((account) => !account.email.startsWith("customer@"));
-
-  function fillAccount(emailValue: string, passwordValue: string) {
-    setEmail(emailValue);
-    setPassword(passwordValue);
-    setErrors({});
-  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -102,28 +94,10 @@ export default function LoginPage() {
             <div>
               <h1 className="font-[family:var(--font-heading)] text-[1.9rem] font-black tracking-[-0.05em]">Masuk</h1>
               <p className="text-sm text-[color:var(--muted-fg)]">Autentikasi akun</p>
+              <p className="mt-1 text-xs leading-5 text-[color:var(--muted-2)]">
+                Kredensial demo disediakan terpisah oleh tim presentasi.
+              </p>
             </div>
-          </div>
-
-          <div className="mb-5 grid max-h-[min(42vh,320px)] gap-3 overflow-y-auto overscroll-contain sm:max-h-none sm:grid-cols-2 sm:overflow-visible">
-            {crudAccounts.map((account) => (
-              <button
-                key={account.email}
-                type="button"
-                className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-3 text-left transition hover:border-[color:var(--brand-primary)]/40 hover:bg-[color:var(--brand-primary-soft)]"
-                onClick={() => fillAccount(account.email, account.password)}
-              >
-                <span className="block text-xs font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
-                  Akun demo {account.label}
-                </span>
-                <span className="mt-1 block truncate font-mono text-sm font-bold text-[color:var(--text-strong)]">
-                  {account.email}
-                </span>
-                <span className="mt-1 block text-xs leading-5 text-[color:var(--muted-fg)]">
-                  Kata sandi: {account.password}
-                </span>
-              </button>
-            ))}
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit} noValidate>
@@ -135,7 +109,7 @@ export default function LoginPage() {
                 className="input-field mt-2"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="staff@skyhub.test"
+                placeholder="nama@perusahaan.test"
               />
               {errors.email ? <p className="mt-2 text-sm text-[color:var(--tone-danger)]">{errors.email}</p> : null}
             </div>

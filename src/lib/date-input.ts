@@ -1,7 +1,29 @@
 import { format, parse } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import { ORG_TIME_ZONE } from "@/lib/constants";
 
 export const DATE_INPUT_PLACEHOLDER = "--/--/----";
+export const DATE_TO_MAX_TODAY_MESSAGE = "Tanggal akhir tidak boleh melewati hari ini.";
+export const DATE_TO_BEFORE_FROM_MESSAGE = "Tanggal akhir tidak boleh lebih awal dari tanggal awal.";
+
+export function getOpsTodayIso(reference = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ORG_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(reference);
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+}
+
+export function clampIsoDateToToday(iso: string, todayIso = getOpsTodayIso()) {
+  if (!iso) return iso;
+  return iso > todayIso ? todayIso : iso;
+}
 
 export function formatIsoDateLabel(iso: string) {
   if (!iso) return "";

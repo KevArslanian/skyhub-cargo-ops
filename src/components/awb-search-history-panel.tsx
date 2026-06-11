@@ -25,9 +25,12 @@ type AwbSearchHistoryPanelProps = {
   recentSearches: AwbRecentSearch[];
   historyDateFrom: string;
   historyDateTo: string;
+  historyDateToError?: string;
+  todayIso: string;
   page: number;
   onDateFromChange: (value: string) => void;
   onDateToChange: (value: string) => void;
+  onDateToRangeReject: () => void;
   onPageChange: (page: number) => void;
   onOpenAwb: (awb: string) => void;
 };
@@ -39,9 +42,12 @@ export function AwbSearchHistoryPanel({
   recentSearches,
   historyDateFrom,
   historyDateTo,
+  historyDateToError,
+  todayIso,
   page,
   onDateFromChange,
   onDateToChange,
+  onDateToRangeReject,
   onPageChange,
   onOpenAwb,
 }: AwbSearchHistoryPanelProps) {
@@ -97,9 +103,13 @@ export function AwbSearchHistoryPanel({
               id="awb-history-to"
               aria-label="Tanggal akhir"
               min={historyDateFrom || undefined}
+              max={todayIso}
+              invalid={Boolean(historyDateToError)}
               value={historyDateTo}
+              onRangeReject={onDateToRangeReject}
               onChange={onDateToChange}
             />
+            {historyDateToError ? <p className="form-field-error">{historyDateToError}</p> : null}
           </div>
         </div>
 

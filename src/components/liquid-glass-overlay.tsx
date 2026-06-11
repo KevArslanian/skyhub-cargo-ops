@@ -73,6 +73,51 @@ function getPanelMotion(
     };
   }
 
+  if (variant === "drawer" && theme === "ops") {
+    return {
+      hidden: { opacity: 0, scale: 0.98, x: "-50%", y: 16 },
+      visible: {
+        opacity: 1,
+        scale: 1,
+        x: "-50%",
+        y: 0,
+        transition: {
+          type: "spring" as const,
+          stiffness: 220,
+          damping: 22,
+          mass: 1.05,
+        },
+      },
+      exit: {
+        opacity: 0,
+        scale: 0.99,
+        x: "-50%",
+        y: 8,
+        transition: { duration: 0.24, ease: DISMISS_EASE },
+      },
+    };
+  }
+
+  if (variant === "sheet" && theme === "ops") {
+    return {
+      hidden: { opacity: 0, scale: 0.98, x: "-50%", y: "calc(-50% + 16px)" },
+      visible: {
+        opacity: 1,
+        scale: 1,
+        x: "-50%",
+        y: "-50%",
+        transition: { duration: 0.2, ease: APPLE_EASE },
+      },
+      exit: {
+        opacity: 0,
+        scale: 0.99,
+        x: "-50%",
+        y: "calc(-50% + 8px)",
+        transition: { duration: 0.16, ease: DISMISS_EASE },
+      },
+    };
+  }
+
   if (variant === "drawer") {
     return {
       hidden: { opacity: 0, scale: 0.96, x: "-50%", y: 24, filter: "blur(10px)" },

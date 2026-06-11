@@ -21,7 +21,8 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { validateAwb } from "@/lib/client-validation";
+import { validateAwb, validateFilterDateTo } from "@/lib/client-validation";
+import { DATE_TO_MAX_TODAY_MESSAGE, getOpsTodayIso } from "@/lib/date-input";
 import { AWB_REGEX, getCargoIqMilestone } from "@/lib/constants";
 import { formatAwbInput } from "@/lib/input-guards";
 import { formatDateTime, formatWeight } from "@/lib/format";
@@ -107,8 +108,36 @@ export default function AwbTrackingPage() {
   const [notFound, setNotFound] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const [recentPage, setRecentPage] = useState(1);
+  const todayIso = useMemo(() => getOpsTodayIso(), []);
   const [historyDateFrom, setHistoryDateFrom] = useState("");
   const [historyDateTo, setHistoryDateTo] = useState("");
+  const [historyDateToError, setHistoryDateToError] = useState<string | undefined>();
+
+  const handleHistoryDateFromChange = useCallback(
+    (nextDateFrom: string) => {
+      setHistoryDateFrom(nextDateFrom);
+      if (historyDateTo) {
+        const validation = validateFilterDateTo(historyDateTo, { dateFrom: nextDateFrom, todayIso });
+        setHistoryDateToError(validation.ok ? undefined : validation.message);
+      } else {
+        setHistoryDateToError(undefined);
+      }
+    },
+    [historyDateTo, todayIso],
+  );
+
+  const handleHistoryDateToChange = useCallback(
+    (nextDateTo: string) => {
+      const validation = validateFilterDateTo(nextDateTo, { dateFrom: historyDateFrom, todayIso });
+      if (!validation.ok) {
+        setHistoryDateToError(validation.message);
+        return;
+      }
+      setHistoryDateToError(undefined);
+      setHistoryDateTo(nextDateTo);
+    },
+    [historyDateFrom, todayIso],
+  );
   const fetchRecentSearches = useCallback(async () => {
     try {
       const params = new URLSearchParams();
@@ -478,9 +507,12 @@ export default function AwbTrackingPage() {
           recentSearches={recentSearches}
           historyDateFrom={historyDateFrom}
           historyDateTo={historyDateTo}
+          historyDateToError={historyDateToError}
+          todayIso={todayIso}
           page={recentPage}
-          onDateFromChange={setHistoryDateFrom}
-          onDateToChange={setHistoryDateTo}
+          onDateFromChange={handleHistoryDateFromChange}
+          onDateToChange={handleHistoryDateToChange}
+          onDateToRangeReject={() => setHistoryDateToError(DATE_TO_MAX_TODAY_MESSAGE)}
           onPageChange={setRecentPage}
           onOpenAwb={openHistoryAwb}
         />

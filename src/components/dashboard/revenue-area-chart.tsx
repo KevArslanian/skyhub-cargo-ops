@@ -89,7 +89,7 @@ export function RevenueAreaChart({ buckets, compact = false }: { buckets: Revenu
         <svg
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="xMidYMid meet"
-          className="dashboard-revenue-chart-svg h-full min-h-[min(180px,28vh)] w-full flex-1"
+          className="dashboard-revenue-chart-svg h-full min-h-[min(120px,20vh)] w-full flex-1"
           role="img"
           aria-label="Grafik pendapatan harian per blok jam"
         >
@@ -173,11 +173,7 @@ export function RevenueAreaChart({ buckets, compact = false }: { buckets: Revenu
             {activePoint.awbCount} AWB · rata-rata {activePoint.awbCount > 0 ? formatDashboardIdr(activePoint.avgPerAwb) : "—"} / AWB
           </p>
         </div>
-      ) : (
-        <p className="dashboard-revenue-chart-hint mt-2 shrink-0 text-center text-[10px] text-[color:var(--muted-fg)]">
-          Arahkan kursor ke grafik untuk detail per blok jam
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }

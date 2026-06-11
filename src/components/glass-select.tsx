@@ -30,12 +30,30 @@ type GlassSelectProps = {
 const SELECT_BACKDROP_Z = 70;
 const SELECT_MENU_Z = 71;
 
-function getMenuMotion(reducedMotion: boolean) {
+function getMenuMotion(reducedMotion: boolean, theme: "default" | "premium" = "default") {
   if (reducedMotion) {
     return {
       hidden: { opacity: 0 },
       visible: { opacity: 1, transition: { duration: 0.18 } },
       exit: { opacity: 0, transition: { duration: 0.14 } },
+    };
+  }
+
+  if (theme !== "premium") {
+    return {
+      hidden: { opacity: 0, scale: 0.96, y: -6 },
+      visible: {
+        opacity: 1,
+        scale: 1,
+        y: 0,
+        transition: { type: "spring" as const, stiffness: 380, damping: 30, mass: 0.85 },
+      },
+      exit: {
+        opacity: 0,
+        scale: 0.98,
+        y: -3,
+        transition: { duration: 0.16 },
+      },
     };
   }
 
@@ -143,7 +161,7 @@ export function GlassSelect({
     };
   }, [closeMenu, open]);
 
-  const menuMotion = getMenuMotion(reducedMotion);
+  const menuMotion = getMenuMotion(reducedMotion, theme);
 
   return (
     <>

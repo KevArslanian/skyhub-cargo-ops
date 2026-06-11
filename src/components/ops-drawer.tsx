@@ -82,6 +82,7 @@ export function OpsDrawer({ open, title, eyebrow, description, children, footer,
       open={open}
       onClose={onClose}
       variant="drawer"
+      backdropClassName="ops-overlay--drawer"
       panelClassName={cn("ops-drawer-panel", className)}
       panelRef={panelRef}
       panelTabIndex={-1}

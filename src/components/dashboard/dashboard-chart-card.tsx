@@ -33,8 +33,8 @@ export function DashboardChartCard({
           <div className="shrink-0 text-right">
             <strong
               className={cn(
-                "inline-block truncate rounded-full px-2.5 py-1 text-[12px] font-bold",
-                metricWide ? "max-w-[min(240px,42vw)]" : "max-w-[180px]",
+                "inline-block truncate rounded-full px-2.5 py-1 font-bold tabular-nums",
+                metricWide ? "max-w-[min(240px,42vw)] text-[12px]" : "max-w-[96px] text-[1.05rem]",
               )}
               style={accent ? { color: accent, backgroundColor: `${accent}18` } : undefined}
               title={metric}

@@ -565,6 +565,8 @@ export default function ComplaintsPage() {
           setResolutionNote("");
         }}
         variant="sheet"
+        theme="ops"
+        backdropClassName="ops-overlay--sheet"
         ariaLabelledby="resolve-complaint-title"
         zIndex={80}
       >
@@ -621,6 +623,8 @@ export default function ComplaintsPage() {
           setEscalationReason("");
         }}
         variant="sheet"
+        theme="ops"
+        backdropClassName="ops-overlay--sheet"
         ariaLabelledby="escalate-complaint-title"
         zIndex={80}
       >

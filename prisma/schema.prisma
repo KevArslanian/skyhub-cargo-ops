@@ -131,6 +131,7 @@ model User {
   id                String            @id @default(cuid())
   name              String
   email             String            @unique
+  phone             String?
   passwordHash      String
   role              UserRole
   station           String
@@ -149,6 +150,7 @@ model User {
   handledComplaints   PublicComplaint[]  @relation("ComplaintHandler")
   escalatedComplaints PublicComplaint[]  @relation("ComplaintEscalator")
   createdShipments  Shipment[]        @relation("ShipmentCreator")
+  shiftOwnedShipments Shipment[]      @relation("ShipmentShiftOwner")
   trackingLogs      TrackingLog[]      @relation("TrackingActor")
   customerAccount   CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
 
@@ -240,6 +242,7 @@ model Shipment {
   consignee       String
   forwarder       String
   ownerName       String
+  shiftOwnerPhone String            @default("")
   notes           String?
   status          ShipmentStatus
   receivedAt      DateTime          @default(now())
@@ -247,9 +250,11 @@ model Shipment {
   updatedAt       DateTime          @updatedAt
   flightId        String?
   createdById     String?
+  shiftOwnerId    String?
   customerAccountId String?
   flight          Flight?           @relation(fields: [flightId], references: [id], onDelete: SetNull)
   createdBy       User?             @relation("ShipmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  shiftOwner      User?             @relation("ShipmentShiftOwner", fields: [shiftOwnerId], references: [id], onDelete: SetNull)
   customerAccount CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
   trackingLogs    TrackingLog[]
   documents       ShipmentDocument[]
@@ -260,6 +265,7 @@ model Shipment {
   @@index([customerAccountId, archivedAt, updatedAt])
   @@index([flightId, archivedAt])
   @@index([createdById])
+  @@index([shiftOwnerId])
 }
 
 model TrackingLog {

@@ -21,13 +21,24 @@ const toneClass: Record<DashboardKpiTone, string> = {
   info: "bg-[color:var(--tone-info-soft)] text-[color:var(--tone-info)]",
 };
 
+const toneSurfaceClass: Record<DashboardKpiTone, string> = {
+  primary: "dashboard-kpi-card--primary",
+  success: "dashboard-kpi-card--success",
+  warning: "dashboard-kpi-card--warning",
+  danger: "dashboard-kpi-card--danger",
+  info: "dashboard-kpi-card--info",
+};
+
 /** KPI utama — angka besar, label line-clamp agar tidak terpotong ekstrem */
 export function KpiCard({ id, href, label, value, note, icon: Icon, tone }: KpiCardProps) {
   return (
     <Link
       id={id}
       href={href}
-      className="dashboard-kpi-card group flex min-h-[72px] min-w-0 flex-col justify-center gap-2 rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-[color:var(--brand-primary)]/35 hover:bg-[color:var(--panel-muted)]"
+      className={cn(
+        "dashboard-kpi-card group flex min-h-[72px] min-w-0 flex-col justify-center gap-2 rounded-[14px] border border-[color:var(--border-soft)] px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-[color:var(--brand-primary)]/35",
+        toneSurfaceClass[tone],
+      )}
     >
       <div className="flex min-w-0 items-center gap-3">
         <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]", toneClass[tone])}>

@@ -1,0 +1,225 @@
+{
+  "sheet_type": "credentials",
+  "title": "Kredensial & Skenario Presentasi",
+  "subtitle": "SkyHub Cargo Ops · SIWEB Kelas C",
+  "organization": "SkyHub Cargo Ops",
+  "author": "Tim Presentasi",
+  "date": "Juni 2026",
+  "password_default": "operator123",
+  "base_url": "http://localhost:3100",
+  "accounts": [
+    {
+      "name": "Mira Putri",
+      "email": "admin@skyhub.test",
+      "role": "admin",
+      "status": "active",
+      "station": "SOQ",
+      "note": "Demo admin, reset password, kelola tim",
+      "password": "operator123",
+      "role_label": "Administrator",
+      "status_label": "Aktif"
+    },
+    {
+      "name": "Raka Pratama",
+      "email": "staff@skyhub.test",
+      "role": "staff",
+      "status": "active",
+      "station": "SOQ",
+      "note": "Akun utama demo operator",
+      "password": "operator123",
+      "role_label": "Staf Operasional",
+      "status_label": "Aktif"
+    },
+    {
+      "name": "Naila Putri",
+      "email": "staff2@skyhub.test",
+      "role": "staff",
+      "status": "active",
+      "station": "SOQ",
+      "note": "Staf kedua, stasiun sama",
+      "password": "operator123",
+      "role_label": "Staf Operasional",
+      "status_label": "Aktif"
+    },
+    {
+      "name": "Aldi Saputra",
+      "email": "staff3@skyhub.test",
+      "role": "staff",
+      "status": "active",
+      "station": "CGK",
+      "note": "Demo stasiun berbeda (CGK)",
+      "password": "operator123",
+      "role_label": "Staf Operasional",
+      "status_label": "Aktif"
+    },
+    {
+      "name": "Laras Wibowo",
+      "email": "staff4@skyhub.test",
+      "role": "staff",
+      "status": "active",
+      "station": "SUB",
+      "note": "Demo stasiun berbeda (SUB)",
+      "password": "operator123",
+      "role_label": "Staf Operasional",
+      "status_label": "Aktif"
+    },
+    {
+      "name": "Staf Operasional 05",
+      "email": "staff-extra-1@skyhub.test",
+      "role": "staff",
+      "status": "active",
+      "station": "SOQ",
+      "note": "Akun tambahan seed",
+      "password": "operator123",
+      "role_label": "Staf Operasional",
+      "status_label": "Aktif"
+    },
+    {
+      "name": "Dian Rahma",
+      "email": "invited-staff@skyhub.test",
+      "role": "staff",
+      "status": "invited",
+      "station": "SOQ",
+      "note": "Demo status belum aktif",
+      "password": "operator123",
+      "role_label": "Staf Operasional",
+      "status_label": "Diundang"
+    },
+    {
+      "name": "Undangan Staf 02",
+      "email": "invited-staff-2@skyhub.test",
+      "role": "staff",
+      "status": "invited",
+      "station": "SOQ",
+      "note": "Demo undangan kedua",
+      "password": "operator123",
+      "role_label": "Staf Operasional",
+      "status_label": "Diundang"
+    },
+    {
+      "name": "Bagas Prasetyo",
+      "email": "disabled-staff@skyhub.test",
+      "role": "staff",
+      "status": "disabled",
+      "station": "SOQ",
+      "note": "Demo akun dinonaktifkan",
+      "password": "operator123",
+      "role_label": "Staf Operasional",
+      "status_label": "Nonaktif"
+    },
+    {
+      "name": "Staf Nonaktif 02",
+      "email": "disabled-staff-2@skyhub.test",
+      "role": "staff",
+      "status": "disabled",
+      "station": "SOQ",
+      "note": "Demo nonaktif kedua",
+      "password": "operator123",
+      "role_label": "Staf Operasional",
+      "status_label": "Nonaktif"
+    },
+    {
+      "name": "Nadia Kusuma",
+      "email": "customer@skyhub.test",
+      "role": "customer",
+      "status": "active",
+      "station": "SOQ",
+      "note": "Akun pelanggan (portal publik)",
+      "password": "operator123",
+      "role_label": "Pelanggan",
+      "status_label": "Aktif"
+    },
+    {
+      "name": "Teguh Santoso",
+      "email": "customer2@skyhub.test",
+      "role": "customer",
+      "status": "active",
+      "station": "CGK",
+      "note": "Pelanggan stasiun CGK",
+      "password": "operator123",
+      "role_label": "Pelanggan",
+      "status_label": "Aktif"
+    },
+    {
+      "name": "Citra Melati",
+      "email": "customer3@skyhub.test",
+      "role": "customer",
+      "status": "active",
+      "station": "DPS",
+      "note": "Pelanggan stasiun DPS",
+      "password": "operator123",
+      "role_label": "Pelanggan",
+      "status_label": "Aktif"
+    }
+  ],
+  "urls": [
+    {
+      "label": "Portal publik",
+      "path": "/about-us"
+    },
+    {
+      "label": "Cek resi publik",
+      "path": "/about-us#tracking"
+    },
+    {
+      "label": "Login operator",
+      "path": "/login"
+    },
+    {
+      "label": "Dashboard",
+      "path": "/dashboard"
+    },
+    {
+      "label": "Pelacakan AWB",
+      "path": "/awb-tracking"
+    },
+    {
+      "label": "Buku pengiriman",
+      "path": "/shipment-ledger"
+    },
+    {
+      "label": "Papan penerbangan",
+      "path": "/flight-board"
+    },
+    {
+      "label": "Pengaturan",
+      "path": "/settings"
+    }
+  ],
+  "quick_blocks": [
+    {
+      "label": "Operator utama",
+      "lines": [
+        "Email: staff@skyhub.test",
+        "Password: operator123"
+      ]
+    },
+    {
+      "label": "Administrator",
+      "lines": [
+        "Email: admin@skyhub.test",
+        "Password: operator123"
+      ]
+    },
+    {
+      "label": "Cek resi publik",
+      "lines": [
+        "AWB: 160-10000012",
+        "URL: http://localhost:3100/about-us#tracking"
+      ]
+    }
+  ],
+  "scenarios": [
+    "Portal publik: buka /about-us#tracking, lacak AWB sorotan dari lembar Daftar AWB.",
+    "Operator: login staff@skyhub.test, buka dashboard, buku pengiriman, pelacakan AWB.",
+    "Admin: login admin@skyhub.test, kelola tim & reset password di Pengaturan.",
+    "Error handling: coba disabled-staff@skyhub.test atau invited-staff@skyhub.test."
+  ],
+  "cheat_sheet": [
+    "Operator: staff@skyhub.test / operator123",
+    "Admin: admin@skyhub.test / operator123",
+    "Publik AWB: http://localhost:3100/about-us#tracking",
+    "Reset password: Admin → Pengaturan → Tim & Akses"
+  ],
+  "footer_note": "Data selaras seed · Login UI tidak menampilkan kredensial"
+}

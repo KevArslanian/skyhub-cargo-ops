@@ -2,16 +2,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BellRing,
-  ChevronRight,
   Eye,
   EyeOff,
   KeyRound,
-  Monitor,
-  MoonStar,
   Plus,
-  SunMedium,
-  UserCircle2,
-  Users2,
 } from "lucide-react";
 import {
   formatStationLabel,
@@ -30,7 +24,7 @@ import { OpsDrawer } from "@/components/ops-drawer";
 import { GlassSelect } from "@/components/glass-select";
 import { useOpsAlert } from "@/components/ops-alert-provider";
 import { validateInviteUserForm } from "@/lib/client-validation";
-import { sanitizePersonName } from "@/lib/input-guards";
+import { sanitizePersonName, sanitizePhoneInput } from "@/lib/input-guards";
 import { generateStaffPassword } from "@/lib/password-utils";
 import { networkErrorMessage, readApiError } from "@/lib/ops-feedback";
 
@@ -79,6 +73,7 @@ type SettingsPayload = {
     id: string;
     name: string;
     email: string;
+    phone: string;
     role: "admin" | "staff";
     station: string;
     status: "active" | "invited" | "disabled";
@@ -124,20 +119,6 @@ function toDraft(data: SettingsPayload | null): SettingsDraft {
     soundAlert: data?.settings?.soundAlert ?? false,
   };
 }
-
-const THEME_LABELS: Record<SettingsDraft["theme"], string> = {
-  light: "Terang",
-  dark: "Gelap",
-  system: "Sistem",
-};
-
-const ACCENT_LABELS: Record<string, string> = {
-  blue: "Biru",
-  teal: "Hijau kebiruan",
-  amber: "Kuning",
-  rose: "Merah muda",
-  violet: "Ungu",
-};
 
 function getInitials(name: string) {
   return name
@@ -262,11 +243,6 @@ function WorkspaceSettingsPanel({
   draft: SettingsDraft;
   onPatch: (patch: Partial<SettingsDraft>) => void;
 }) {
-  const themeOptions = [
-    { value: "light" as const, label: "Terang", icon: SunMedium },
-    { value: "dark" as const, label: "Gelap", icon: MoonStar },
-    { value: "system" as const, label: "Sistem", icon: Monitor },
-  ];
   const accentOptions = [
     { value: "blue", hex: "#003d9b", label: "Biru" },
     { value: "teal", hex: "#0d9488", label: "Hijau kebiruan" },
@@ -282,40 +258,13 @@ function WorkspaceSettingsPanel({
           <p className="ops-eyebrow">Preferensi Ruang Kerja</p>
           <p className="mt-1 text-lg font-bold text-[color:var(--text-strong)]">Pengaturan</p>
           <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">
-            Mode tampilan, susunan data, pemberitahuan operasional, dan ritme kerja.
+            Aksen warna, susunan data, pemberitahuan operasional, dan ritme kerja. Mode tampilan ada di bar atas.
           </p>
         </div>
 
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">Mode Tampilan</p>
-          <div className="grid grid-cols-3 gap-2">
-            {themeOptions.map((option) => {
-              const Icon = option.icon;
-              const active = draft.theme === option.value;
-
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={cn(
-                    "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[14px] border px-2 text-xs font-bold transition-all",
-                    active
-                      ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-white shadow-[0_10px_20px_rgba(0,61,155,0.16)]"
-                      : "border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] text-[color:var(--muted-fg)] hover:text-[color:var(--text-strong)]",
-                  )}
-                  onClick={() => onPatch({ theme: option.value })}
-                >
-                  <Icon size={14} />
-                  <span className="truncate">{option.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         <div className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-4">
           <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">Aksen</p>
           <div className="flex flex-wrap gap-2.5">
@@ -432,6 +381,53 @@ function WorkspaceSettingsPanel({
   );
 }
 
+function ProfileSettingsSection({
+  draft,
+  profile,
+  onPatch,
+}: {
+  draft: SettingsDraft;
+  profile: SettingsPayload["profile"];
+  onPatch: (patch: Partial<SettingsDraft>) => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <label className="label" htmlFor="settings-profile-name">
+          Nama Lengkap
+        </label>
+        <input
+          id="settings-profile-name"
+          className="input-field mt-2"
+          value={draft.name}
+          onChange={(event) => onPatch({ name: event.target.value })}
+        />
+      </div>
+      <div>
+        <label className="label">Surel</label>
+        <input className="input-field input-readonly mt-2" value={profile.email} readOnly />
+      </div>
+      <div>
+        <label className="label">Stasiun Kerja</label>
+        <input
+          className="input-field input-readonly mt-2"
+          value={formatStationLabel(draft.station)}
+          readOnly
+        />
+        <p className="mt-2 text-xs leading-5 text-[color:var(--muted-fg)]">
+          {profile.role === "admin"
+            ? "Ubah stasiun pengguna lewat Tim & Akses, bukan dari profil pribadi."
+            : "Stasiun menentukan cakupan data operasional Anda. Perubahan hanya dilakukan administrator lewat Tim & Akses."}
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <DataCard label="Peran" value={ROLE_LABELS[profile.role]} />
+        <DataCard label="Stasiun aktif" value={formatStationLabel(draft.station)} />
+      </div>
+    </div>
+  );
+}
+
 function SidebarToggle({
   label,
   checked,
@@ -462,17 +458,17 @@ export default function SettingsPage() {
   const { showAlert } = useOpsAlert();
   const [data, setData] = useState<SettingsPayload | null>(null);
   const [draft, setDraft] = useState<SettingsDraft>(() => toDraft(null));
-  const [activeTab, setActiveTab] = useState("Profil");
   const [saving, setSaving] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
-  const [workspaceDrawerOpen, setWorkspaceDrawerOpen] = useState(false);
+  const preferencesSectionRef = useRef<HTMLElement | null>(null);
+  const timAksesSectionRef = useRef<HTMLElement | null>(null);
   const [inviteForm, setInviteForm] = useState<{
     name: string;
     email: string;
     role: "admin" | "staff";
     station: string;
+    phone: string;
     password: string;
     confirmPassword: string;
   }>({
@@ -480,6 +476,7 @@ export default function SettingsPage() {
     email: "",
     role: "staff",
     station: "SOQ",
+    phone: "",
     password: "",
     confirmPassword: "",
   });
@@ -538,52 +535,35 @@ export default function SettingsPage() {
     );
   }, [data]);
 
-  const tabs = useMemo(() => {
-    if (!data) return [];
-
-    return [
-      {
-        label: "Tim & Akses",
-        icon: Users2,
-        note: "Pengguna",
-        enabled: canManageUsersAccess,
-      },
-    ];
-  }, [canManageUsersAccess, data]);
-
   useEffect(() => {
-    if (activeTab === "Preferensi") setActiveTab("Profil");
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (!canManageUsersAccess) return;
+    if (!canManageUsersAccess || !data) return;
     if (typeof window === "undefined") return;
     if (window.location.hash.replace(/^#/, "") === "tim-akses") {
-      setActiveTab("Tim & Akses");
+      timAksesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, [canManageUsersAccess]);
+  }, [canManageUsersAccess, data]);
 
   useEffect(() => {
     function handleContextSearch(event: Event) {
       const detail = (event as CustomEvent<{ pathname?: string; query?: string }>).detail;
       if (detail?.pathname !== "/settings") return;
       const nextQuery = detail.query ?? "";
-      if (activeTab === "Tim & Akses") {
+      const normalized = nextQuery.toLowerCase();
+
+      if (["tim", "pengguna", "akses", "undang"].some((keyword) => normalized.includes(keyword))) {
         setUserSearch(nextQuery);
-      } else {
-        const normalized = nextQuery.toLowerCase();
-        if (["preferensi", "tampilan", "tema", "mode", "pemberitahuan", "notifikasi"].some((keyword) => normalized.includes(keyword))) {
-          setActiveTab("Profil");
-          return;
-        }
-        const matchedTab = tabs.find((tab) => tab.label.toLowerCase().includes(normalized));
-        if (matchedTab) setActiveTab(matchedTab.label);
+        timAksesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+
+      if (["preferensi", "tampilan", "pemberitahuan", "notifikasi", "aksen", "penyegaran"].some((keyword) => normalized.includes(keyword))) {
+        preferencesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     }
 
     window.addEventListener("skyhub:context-search", handleContextSearch as EventListener);
     return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
-  }, [activeTab, tabs]);
+  }, []);
 
 
   const filteredUsers = useMemo(() => {
@@ -600,7 +580,7 @@ export default function SettingsPage() {
   const userPageSize = useVisibleTablePageSize(
     userTableScrollRef,
     userTableRef,
-    activeTab === "Tim & Akses" && filteredUsers.length > 0 && Boolean(data),
+    canManageUsersAccess && filteredUsers.length > 0 && Boolean(data),
     filteredUsers.length,
     {
       fallback: 8,
@@ -628,10 +608,10 @@ export default function SettingsPage() {
   }, [userTotalPages]);
 
   useEffect(() => {
-    if (activeTab === "Tim & Akses") {
+    if (canManageUsersAccess) {
       setUserPage(1);
     }
-  }, [activeTab, effectiveUserPageSize]);
+  }, [canManageUsersAccess, effectiveUserPageSize]);
 
   function emitSettingsPreview(patch: Partial<SettingsDraft>) {
     window.dispatchEvent(new CustomEvent("skyhub:settings-preview", { detail: patch }));
@@ -734,6 +714,7 @@ export default function SettingsPage() {
           email: "",
           role: "staff",
           station: "SOQ",
+          phone: "",
           password: "",
           confirmPassword: "",
         });
@@ -853,6 +834,7 @@ export default function SettingsPage() {
         body: JSON.stringify({
           name: editingUserDraft.name,
           email: editingUserDraft.email,
+          phone: editingUserDraft.phone,
           role: editingUserDraft.role,
           status: editingUserDraft.status,
           station: editingUserDraft.station,
@@ -929,20 +911,13 @@ export default function SettingsPage() {
       body={
       !data ? (
         canManageUsersAccess ? (
-          <div className="grid gap-6 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
-            <OpsPanel className="p-4">
-              <SkeletonBlock className="h-32 w-full rounded-[24px]" />
-              <div className="mt-4 space-y-3">
-                <SkeletonBlock className="h-14 w-full rounded-[20px]" />
-                <SkeletonBlock className="h-14 w-full rounded-[20px]" />
-              </div>
-            </OpsPanel>
-            <div className="space-y-5">
-              <div className="grid gap-5 xl:grid-cols-2">
-                <SkeletonBlock className="h-[280px] w-full rounded-[28px]" />
-                <SkeletonBlock className="h-[280px] w-full rounded-[28px]" />
-              </div>
+          <div className="settings-single-page flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+            <SkeletonBlock className="h-20 w-full shrink-0 rounded-[22px]" />
+            <div className="grid shrink-0 gap-4 lg:grid-cols-2">
+              <SkeletonBlock className="h-[220px] w-full rounded-[28px]" />
+              <SkeletonBlock className="h-[220px] w-full rounded-[28px]" />
             </div>
+            <SkeletonBlock className="min-h-0 flex-1 w-full rounded-[28px]" />
           </div>
         ) : (
           <OpsPanel className="p-5">
@@ -955,342 +930,51 @@ export default function SettingsPage() {
         )
       ) : !canManageUsersAccess ? (
         <div className="page-stack min-h-0 overflow-hidden pt-2">
-          <OpsPanel className="flex min-h-0 flex-col overflow-hidden p-5">
+          <OpsPanel className="settings-single-page flex min-h-0 flex-col overflow-y-auto p-5">
             <SettingsIdentitySummary draft={draft} profile={data.profile} variant="inline" />
 
-            <div className="mt-6 min-h-0 space-y-6 overflow-y-auto">
-              <section>
-                <SectionHeader
-                  contained
-                  title="Profil Pengguna"
-                  subtitle="Ringkasan akun operator Anda."
-                  action={
-                    <button type="button" className="btn btn-secondary h-10 w-full px-4 sm:w-auto" onClick={() => setProfileDrawerOpen(true)}>
-                      Ubah
-                    </button>
-                  }
-                />
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <DataCard label="Nama" value={draft.name || data.profile.name} />
-                  <DataCard label="Surel" value={data.profile.email} />
-                  <DataCard label="Stasiun" value={formatStationLabel(draft.station)} />
-                  <DataCard label="Peran" value={ROLE_LABELS[data.profile.role]} />
-                </div>
-                <p className="mt-4 text-sm leading-6 text-[color:var(--muted-fg)]">
-                  Perbarui nama tampilan lewat drawer. Stasiun kerja ditetapkan administrator dan tidak bisa diubah sendiri.
-                </p>
-              </section>
+            <section className="mt-6">
+              <SectionHeader
+                contained
+                title="Profil Pengguna"
+                subtitle="Perubahan nama disimpan otomatis."
+              />
+              <div className="mt-4">
+                <ProfileSettingsSection draft={draft} profile={data.profile} onPatch={applyDraftPatch} />
+              </div>
+            </section>
 
-              <div className="h-px bg-[color:var(--border-soft)]" />
+            <div className="my-6 h-px bg-[color:var(--border-soft)]" />
 
-              <section>
-                <SectionHeader
-                  title="Preferensi Ruang Kerja"
-                  subtitle="Tampilan, notifikasi, dan ritme penyegaran data."
-                  action={
-                    <button type="button" className="btn btn-secondary h-10 px-4" onClick={() => setWorkspaceDrawerOpen(true)}>
-                      Ubah
-                    </button>
-                  }
-                />
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <DataCard label="Tema" value={THEME_LABELS[draft.theme]} />
-                  <DataCard label="Aksen" value={ACCENT_LABELS[draft.accentColor] ?? draft.accentColor} />
-                  <DataCard label="Kepadatan baris" value={draft.compactRows ? "Ringkas" : "Nyaman"} />
-                  <DataCard
-                    label="Penyegaran"
-                    value={draft.autoRefresh ? `${draft.refreshIntervalSeconds} dtk` : "Manual"}
-                  />
-                </div>
-                <p className="mt-4 text-sm leading-6 text-[color:var(--muted-fg)]">
-                  Suara kritis {draft.soundAlert ? "aktif" : "nonaktif"} • Jam operasional {ORG_TIME_ZONE_LABEL}. Uji lewat
-                  tombol Tes Notifikasi &amp; Suara di drawer preferensi.
-                </p>
-              </section>
-            </div>
+            <section ref={preferencesSectionRef} id="preferensi-ruang-kerja">
+              <WorkspaceSettingsPanel draft={draft} onPatch={applyDraftPatch} />
+            </section>
           </OpsPanel>
-
-          <OpsDrawer
-            open={profileDrawerOpen}
-            title="Ubah Profil"
-            eyebrow="Akun Operator"
-            description="Sesuaikan nama tampilan Anda. Stasiun kerja ditetapkan administrator."
-            onClose={() => setProfileDrawerOpen(false)}
-            footer={
-              <div className="flex w-full items-center justify-end gap-3">
-                <button type="button" className="btn btn-secondary" onClick={() => setProfileDrawerOpen(false)}>
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={saving}
-                  onClick={async () => {
-                    await persistDraft(draft);
-                    setProfileDrawerOpen(false);
-                  }}
-                >
-                  {saving ? "Menyimpan..." : "Simpan"}
-                </button>
-              </div>
-            }
-          >
-            <div className="space-y-5">
-              <div>
-                <label className="label">Nama Lengkap</label>
-                <input
-                  className="input-field mt-2"
-                  value={draft.name}
-                  onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="label">Surel</label>
-                <input className="input-field input-readonly mt-2" value={data.profile.email} readOnly />
-              </div>
-              <div>
-                <label className="label">Stasiun Kerja</label>
-                <input
-                  className="input-field input-readonly mt-2"
-                  value={formatStationLabel(draft.station)}
-                  readOnly
-                />
-                <p className="mt-2 text-xs leading-5 text-[color:var(--muted-fg)]">
-                  Stasiun menentukan cakupan data operasional Anda. Perubahan hanya dilakukan administrator lewat Tim &amp; Akses.
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <DataCard label="Peran" value={ROLE_LABELS[data.profile.role]} />
-                <DataCard label="Stasiun aktif" value={formatStationLabel(draft.station)} />
-              </div>
-            </div>
-          </OpsDrawer>
-
-          <OpsDrawer
-            open={workspaceDrawerOpen}
-            title="Preferensi Ruang Kerja"
-            eyebrow="Tampilan & Notifikasi"
-            description="Perubahan disimpan otomatis setelah Anda mengubah setiap opsi."
-            onClose={() => setWorkspaceDrawerOpen(false)}
-            footer={
-              <div className="flex w-full items-center justify-end">
-                <button type="button" className="btn btn-primary" onClick={() => setWorkspaceDrawerOpen(false)}>
-                  Selesai
-                </button>
-              </div>
-            }
-          >
-            <WorkspaceSettingsPanel draft={draft} onPatch={applyDraftPatch} />
-          </OpsDrawer>
         </div>
       ) : (
-        <div
-          className={cn(
-            "gap-4 split-pane-shell split-pane-shell-settings min-h-0 h-full flex-1 overflow-hidden",
-            canManageUsersAccess ? "settings-users-layout" : null,
-          )}
-        >
-          <OpsPanel className="page-pane split-pane-left p-4">
-            <div className="space-y-3">
-              <SettingsIdentitySummary draft={draft} profile={data.profile} variant="sidebar" />
+        <div className="settings-single-page flex min-h-0 h-full flex-1 flex-col gap-4 overflow-hidden">
+          <div className="settings-single-page-upper shrink-0 space-y-4 overflow-y-auto internal-scrollbar">
+            <SettingsIdentitySummary draft={draft} profile={data.profile} variant="inline" />
 
-              <button
-                type="button"
-                className={cn(
-                  "flex w-full min-w-0 items-center justify-between gap-3 rounded-[22px] border px-4 py-4 text-left transition-colors",
-                  activeTab === "Profil"
-                    ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]"
-                    : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] hover:text-[color:var(--text-strong)]",
-                )}
-                onClick={() => setActiveTab("Profil")}
-              >
-                <span className="flex min-w-0 items-center gap-3">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-[16px] border border-[color:var(--border-soft)] bg-white/70 dark:bg-white/[0.04]">
-                    <UserCircle2 size={18} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold">Profil</span>
-                    <span className="block truncate text-xs text-[color:var(--muted-2)]">Akun dan akses saya</span>
-                  </span>
-                </span>
-                <ChevronRight size={16} />
-              </button>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <OpsPanel className="p-5">
+                <SectionHeader
+                  title="Profil Pengguna"
+                  subtitle="Perubahan nama disimpan otomatis."
+                />
+                <div className="mt-4">
+                  <ProfileSettingsSection draft={draft} profile={data.profile} onPatch={applyDraftPatch} />
+                </div>
+              </OpsPanel>
 
-              <div className="space-y-2">
-                {tabs
-                  .filter((tab) => tab.enabled)
-                  .map((tab) => {
-                  const Icon = tab.icon;
-                  const active = activeTab === tab.label;
-
-                  return (
-                    <button
-                      key={tab.label}
-                      type="button"
-                      className={cn(
-                        "flex w-full min-w-0 items-center justify-between gap-3 rounded-[22px] border px-4 py-4 text-left transition-colors",
-                        active
-                          ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]"
-                          : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] hover:text-[color:var(--text-strong)]",
-                      )}
-                      onClick={() => {
-                        setActiveTab(tab.label);
-                        if (typeof window !== "undefined" && tab.label === "Tim & Akses") {
-                          window.history.replaceState(null, "", `${window.location.pathname}#tim-akses`);
-                        }
-                      }}
-                    >
-                      <span className="flex min-w-0 items-center gap-3">
-                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-[16px] border border-[color:var(--border-soft)] bg-white/70 dark:bg-white/[0.04]">
-                          <Icon size={18} />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate font-semibold">{tab.label}</span>
-                          <span className="block truncate text-xs text-[color:var(--muted-2)]">{tab.note}</span>
-                        </span>
-                      </span>
-                      <ChevronRight size={16} />
-                    </button>
-                  );
-                })}
-              </div>
+              <section ref={preferencesSectionRef} id="preferensi-ruang-kerja">
+                <WorkspaceSettingsPanel draft={draft} onPatch={applyDraftPatch} />
+              </section>
             </div>
+          </div>
 
-          </OpsPanel>
-
-          <div
-            className={cn(
-              "page-stack split-pane-right min-h-0 pt-2",
-              canManageUsersAccess
-                ? "flex min-h-0 flex-1 flex-col overflow-hidden"
-                : "overflow-y-auto",
-            )}
-          >
-            {activeTab === "Profil" ? (
-              <div className="grid min-h-0 gap-4 overflow-y-auto lg:grid-cols-2">
-                <OpsPanel className="flex min-h-0 flex-col overflow-hidden p-5">
-                  <SectionHeader
-                    title="Profil Pengguna"
-                    subtitle="Ringkasan akun operator Anda."
-                    action={
-                      <button type="button" className="btn btn-secondary h-10 px-4" onClick={() => setProfileDrawerOpen(true)}>
-                        Ubah
-                      </button>
-                    }
-                  />
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <DataCard label="Nama" value={draft.name || data.profile.name} />
-                    <DataCard label="Surel" value={data.profile.email} />
-                    <DataCard label="Stasiun" value={formatStationLabel(draft.station)} truncateValue valueTitle={formatStationLabel(draft.station)} />
-                    <DataCard label="Peran" value={ROLE_LABELS[data.profile.role]} />
-                  </div>
-                  <p className="mt-4 text-sm leading-6 text-[color:var(--muted-fg)]">
-                    Perbarui nama tampilan lewat drawer. Ubah stasiun pengguna lewat Tim &amp; Akses.
-                  </p>
-                </OpsPanel>
-
-                <OpsPanel className="flex min-h-0 flex-col overflow-hidden p-5">
-                  <SectionHeader
-                    title="Preferensi Ruang Kerja"
-                    subtitle="Tampilan, notifikasi, dan ritme penyegaran data."
-                    action={
-                      <button type="button" className="btn btn-secondary h-10 px-4" onClick={() => setWorkspaceDrawerOpen(true)}>
-                        Ubah
-                      </button>
-                    }
-                  />
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <DataCard label="Tema" value={THEME_LABELS[draft.theme]} />
-                    <DataCard label="Aksen" value={ACCENT_LABELS[draft.accentColor] ?? draft.accentColor} />
-                    <DataCard label="Kepadatan baris" value={draft.compactRows ? "Ringkas" : "Nyaman"} />
-                    <DataCard
-                      label="Penyegaran"
-                      value={draft.autoRefresh ? `${draft.refreshIntervalSeconds} dtk` : "Manual"}
-                    />
-                  </div>
-                  <p className="mt-4 text-sm leading-6 text-[color:var(--muted-fg)]">
-                    Suara kritis {draft.soundAlert ? "aktif" : "nonaktif"} • Jam operasional {ORG_TIME_ZONE_LABEL}. Uji lewat
-                    tombol Tes Notifikasi &amp; Suara di drawer preferensi.
-                  </p>
-                </OpsPanel>
-
-                <OpsDrawer
-                  open={profileDrawerOpen}
-                  title="Ubah Profil"
-                  eyebrow="Akun Operator"
-                  description="Sesuaikan nama tampilan Anda. Stasiun kerja ditetapkan administrator."
-                  onClose={() => setProfileDrawerOpen(false)}
-                  footer={
-                    <div className="flex w-full items-center justify-end gap-3">
-                      <button type="button" className="btn btn-secondary" onClick={() => setProfileDrawerOpen(false)}>
-                        Batal
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        disabled={saving}
-                        onClick={async () => {
-                          await persistDraft(draft);
-                          setProfileDrawerOpen(false);
-                        }}
-                      >
-                        {saving ? "Menyimpan..." : "Simpan"}
-                      </button>
-                    </div>
-                  }
-                >
-                  <div className="space-y-5">
-                    <div>
-                      <label className="label">Nama Lengkap</label>
-                      <input
-                        className="input-field mt-2"
-                        value={draft.name}
-                        onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Surel</label>
-                      <input className="input-field input-readonly mt-2" value={data.profile.email} readOnly />
-                    </div>
-                    <div>
-                      <label className="label">Stasiun Kerja</label>
-                      <input
-                        className="input-field input-readonly mt-2"
-                        value={formatStationLabel(draft.station)}
-                        readOnly
-                      />
-                      <p className="mt-2 text-xs leading-5 text-[color:var(--muted-fg)]">
-                        Ubah stasiun pengguna lewat Tim &amp; Akses, bukan dari profil pribadi.
-                      </p>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <DataCard label="Peran" value={ROLE_LABELS[data.profile.role]} />
-                      <DataCard label="Stasiun aktif" value={formatStationLabel(draft.station)} />
-                    </div>
-                  </div>
-                </OpsDrawer>
-
-                <OpsDrawer
-                  open={workspaceDrawerOpen}
-                  title="Preferensi Ruang Kerja"
-                  eyebrow="Tampilan & Notifikasi"
-                  description="Perubahan disimpan otomatis setelah Anda mengubah setiap opsi."
-                  onClose={() => setWorkspaceDrawerOpen(false)}
-                  footer={
-                    <div className="flex w-full items-center justify-end">
-                      <button type="button" className="btn btn-primary" onClick={() => setWorkspaceDrawerOpen(false)}>
-                        Selesai
-                      </button>
-                    </div>
-                  }
-                >
-                  <WorkspaceSettingsPanel draft={draft} onPatch={applyDraftPatch} />
-                </OpsDrawer>
-              </div>
-            ) : null}
-
-            {activeTab === "Tim & Akses" && canManageUsersAccess ? (
-              <OpsPanel className="settings-users-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-5">
+          <section ref={timAksesSectionRef} id="tim-akses" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <OpsPanel className="settings-users-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-5">
                 <div ref={userPanelRef} className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <SectionHeader
                   contained
@@ -1483,6 +1167,20 @@ export default function SettingsPage() {
                       onChange={(event) => setInviteForm((current) => ({ ...current, email: event.target.value }))}
                     />
                   </div>
+                  <div>
+                    <label className="label">No Telepon</label>
+                    <input
+                      className="input-field mt-2"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="Contoh: 08123456789"
+                      value={inviteForm.phone}
+                      onChange={(event) =>
+                        setInviteForm((current) => ({ ...current, phone: sanitizePhoneInput(event.target.value) }))
+                      }
+                    />
+                  </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className="label">Peran</label>
@@ -1609,6 +1307,23 @@ export default function SettingsPage() {
                           onChange={(event) =>
                             setEditingUserDraft((current) =>
                               current ? { ...current, email: event.target.value } : current,
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label">No Telepon</label>
+                        <input
+                          className="input-field mt-2"
+                          type="tel"
+                          inputMode="tel"
+                          autoComplete="tel"
+                          placeholder="Contoh: 08123456789"
+                          value={editingUserDraft.phone}
+                          onChange={(event) =>
+                            setEditingUserDraft((current) =>
+                              current ? { ...current, phone: sanitizePhoneInput(event.target.value) } : current,
                             )
                           }
                         />
@@ -1851,8 +1566,7 @@ export default function SettingsPage() {
                   ) : null}
                 </OpsDrawer>
               </OpsPanel>
-            ) : null}
-          </div>
+          </section>
         </div>
       )
       }

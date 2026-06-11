@@ -17,19 +17,19 @@ export function ShipmentFlowCompact({
   const maxCount = Math.max(...visibleStages.map((stage) => stage.count), 1);
 
   return (
-    <div className="dashboard-flow-compact-panel flex min-h-0 flex-1 flex-col justify-between gap-3">
+    <div className="dashboard-flow-compact-panel flex min-h-0 flex-1 flex-col justify-between gap-2">
       <p className="dashboard-flow-meta shrink-0 text-[12px] text-[color:var(--muted-fg)]">
         <strong className="text-[color:var(--text-strong)]">{inFlowCount}</strong> /{" "}
         <strong className="text-[color:var(--text-strong)]">{totalCount}</strong> manifest dalam alur
       </p>
 
-      <ol className="dashboard-flow-compact-bars flex min-h-0 flex-1 flex-col justify-center gap-3">
+      <ol className="dashboard-flow-compact-bars flex min-h-0 flex-1 flex-col justify-center gap-2">
         {visibleStages.map((stage) => (
           <li key={stage.id} className="dashboard-flow-compact-bar-row" title={`${stage.hint}: ${stage.count} AWB`}>
             <div className="dashboard-flow-compact-bar-head">
               <span className="dashboard-flow-compact-bar-label">{stage.label}</span>
               <span className="dashboard-flow-compact-bar-meta tabular-nums">
-                {stage.count} AWB · {stage.percent}%
+                {stage.count} ({stage.percent}%)
               </span>
             </div>
             <div className="dashboard-flow-bar" aria-hidden="true">

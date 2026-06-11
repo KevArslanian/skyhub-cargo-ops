@@ -60,7 +60,8 @@ Referensi:
 - `DEFAULT_PIECES = 1` — koli tidak diinput operator; selalu 1 di payload.
 - `buildShipmentSubmitPayload()` di `src/lib/shipment-payload.ts` menormalkan:
   - `pieces`, `cargoMode`, `vehicleType`
-  - `shippingRate` via `computeShippingRate(serviceType, weightKg)` dari `constants.ts`
+  - `shippingRate` via `computeShippingRate({ serviceType, weightKg, origin, destination, aircraftType })` dari `constants.ts`
+  - Bandara asal readonly = stasiun aktif user; tujuan, berat, layanan, dan pesawat mempengaruhi tarif
   - `awb` kosong (server generate), `flightId` / `customerAccountId` nullable
 - Dipakai di: `validators.ts`, `client-validation.ts`, API `/api/shipments`, form ledger.
 - Field **Tarif Pengiriman** readonly + tooltip `SHIPPING_RATE_TOOLTIP` (label `title` + `form-help`).

@@ -1,4 +1,9 @@
 import { AIR_CARGO_MODE, AIR_VEHICLE_TYPE, AWB_REGEX } from "./constants";
+import {
+  DATE_TO_BEFORE_FROM_MESSAGE,
+  DATE_TO_MAX_TODAY_MESSAGE,
+  getOpsTodayIso,
+} from "./date-input";
 import { buildShipmentSubmitPayload, DEFAULT_PIECES } from "./shipment-payload";
 import {
   inviteUserSchema,
@@ -37,7 +42,8 @@ export type ShipmentCreateFormField =
   | "shipper"
   | "consignee"
   | "forwarder"
-  | "ownerName"
+  | "shiftOwnerId"
+  | "shiftOwnerPhone"
   | "flightId"
   | "notes"
   | "specialHandling"
@@ -45,7 +51,8 @@ export type ShipmentCreateFormField =
 
 export type ShipmentUpdateFormField =
   | "status"
-  | "ownerName"
+  | "shiftOwnerId"
+  | "shiftOwnerPhone"
   | "notes"
   | "sentAt"
   | "cargoMode"
@@ -333,6 +340,7 @@ export function validateInviteUserForm(value: {
   email: string;
   role: "admin" | "staff";
   station: string;
+  phone?: string;
   customerAccountId?: string | null;
   password: string;
   confirmPassword: string;
@@ -350,6 +358,28 @@ export function validateInviteUserForm(value: {
 
 export function hasDigitsInName(value: string) {
   return /\d/.test(value);
+}
+
+export function validateFilterDateTo(
+  dateTo: string,
+  options?: { dateFrom?: string; todayIso?: string },
+): FieldValidationResult {
+  if (!dateTo) {
+    return { ok: true };
+  }
+
+  const todayIso = options?.todayIso ?? getOpsTodayIso();
+  const dateFrom = options?.dateFrom?.trim();
+
+  if (dateFrom && dateTo < dateFrom) {
+    return { ok: false, message: DATE_TO_BEFORE_FROM_MESSAGE };
+  }
+
+  if (dateTo > todayIso) {
+    return { ok: false, message: DATE_TO_MAX_TODAY_MESSAGE };
+  }
+
+  return { ok: true };
 }
 
 export function scrollToFirstFieldError(errors: Record<string, string | undefined>) {

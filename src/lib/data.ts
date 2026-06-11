@@ -1,6 +1,15 @@
 import { hashSync } from "bcryptjs";
-import { FlightStatus, Prisma, ShipmentDocStatus, ShipmentReadiness, ShipmentStatus, ShipmentTransactionStatus } from "@prisma/client";
+import {
+  FlightStatus,
+  Prisma,
+  ShipmentDocStatus,
+  ShipmentReadiness,
+  ShipmentStatus,
+  ShipmentTransactionStatus,
+  type UserRole,
+} from "@prisma/client";
 import { addMinutes, endOfDay, startOfDay } from "date-fns";
+import { formatNotificationMessage } from "@/lib/format";
 import { unstable_cache } from "next/cache";
 import { cache } from "react";
 import {
@@ -75,8 +84,22 @@ import {
 import { db } from "./prisma";
 import { deleteDocumentBlob, getDocumentAccessUrl } from "./storage";
 
+const shipmentActorSelect = {
+  id: true,
+  name: true,
+  role: true,
+  phone: true,
+  station: true,
+} as const;
+
 const shipmentInclude = Prisma.validator<Prisma.ShipmentInclude>()({
   flight: true,
+  createdBy: {
+    select: shipmentActorSelect,
+  },
+  shiftOwner: {
+    select: shipmentActorSelect,
+  },
   trackingLogs: {
     orderBy: { createdAt: "asc" },
   },
@@ -147,6 +170,12 @@ const shipmentListInclude = Prisma.validator<Prisma.ShipmentInclude>()({
       name: true,
       status: true,
     },
+  },
+  createdBy: {
+    select: shipmentActorSelect,
+  },
+  shiftOwner: {
+    select: shipmentActorSelect,
   },
 });
 
@@ -311,6 +340,86 @@ function deriveShipmentGuardFields(input: {
   };
 }
 
+function serializeShipmentActor(
+  user:
+    | {
+        id: string;
+        name: string;
+        role: UserRole;
+        phone: string | null;
+        station: string;
+      }
+    | null
+    | undefined,
+) {
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    roleLabel: ROLE_LABELS[user.role],
+    phone: user.phone?.trim() ?? "",
+    station: user.station,
+  };
+}
+
+async function resolveShiftOwnerForActor(
+  actor: AccessUser & { role: UserRole },
+  shiftOwnerId: string,
+  shiftOwnerPhoneOverride?: string,
+) {
+  if (!isInternalRole(actor.role)) {
+    throw new AccessError("Hanya pengguna internal yang dapat menetapkan penanggung jawab shift.", 403, "FORBIDDEN");
+  }
+
+  const shiftOwner = await db.user.findFirst({
+    where: {
+      id: shiftOwnerId,
+      role: { in: ["admin", "staff"] },
+      status: "active",
+    },
+    select: shipmentActorSelect,
+  });
+
+  if (!shiftOwner) {
+    throw new AccessError("Penanggung jawab shift tidak valid.", 400, "INVALID_SHIFT_OWNER");
+  }
+
+  const profilePhone = shiftOwner.phone?.trim() ?? "";
+  const override = shiftOwnerPhoneOverride?.trim() ?? "";
+  const shiftOwnerPhone = profilePhone || (override && isInternalRole(actor.role) ? override : "");
+
+  return { shiftOwner, shiftOwnerPhone };
+}
+
+export async function listShiftPicCandidates(user: AccessUser) {
+  if (!isInternalRole(user.role)) {
+    throw new AccessError("Daftar PIC shift hanya untuk pengguna internal.", 403, "FORBIDDEN");
+  }
+
+  const candidates = await db.user.findMany({
+    where: {
+      role: { in: ["admin", "staff"] },
+      status: "active",
+    },
+    orderBy: [{ role: "asc" }, { name: "asc" }],
+    select: shipmentActorSelect,
+  });
+
+  return candidates.map((candidate) => ({
+    id: candidate.id,
+    name: candidate.name,
+    role: candidate.role,
+    roleLabel: ROLE_LABELS[candidate.role],
+    phone: candidate.phone?.trim() ?? "",
+    station: candidate.station,
+    label: `${candidate.name} — ${ROLE_LABELS[candidate.role]}`,
+  }));
+}
+
 function serializeShipment(shipment: SerializableShipmentRecord, user: AccessUser) {
   const trackingLogs = "trackingLogs" in shipment && shipment.trackingLogs ? shipment.trackingLogs : [];
   const visibleTrackingLogs =
@@ -366,6 +475,9 @@ function serializeShipment(shipment: SerializableShipmentRecord, user: AccessUse
     consignee: shipment.consignee,
     forwarder: shipment.forwarder,
     ownerName: shipment.ownerName,
+    shiftOwnerPhone: "shiftOwnerPhone" in shipment ? shipment.shiftOwnerPhone ?? "" : "",
+    createdBy: "createdBy" in shipment ? serializeShipmentActor(shipment.createdBy) : null,
+    shiftOwner: "shiftOwner" in shipment ? serializeShipmentActor(shipment.shiftOwner) : null,
     notes: shipment.notes ?? "",
     status: shipment.status,
     statusLabel: SHIPMENT_STATUS_LABELS[shipment.status],
@@ -805,6 +917,34 @@ async function resolveFlightAssignment(flightId: string | null | undefined, assi
   return findBestAvailableFlight(assignment);
 }
 
+function assertShipmentOriginMatchesStation(origin: string, station: string) {
+  const normalizedOrigin = origin.trim().toUpperCase();
+  const normalizedStation = station.trim().toUpperCase();
+  if (normalizedOrigin !== normalizedStation) {
+    throw new AccessError(
+      "Bandara asal harus sama dengan stasiun aktif Anda.",
+      400,
+      "ORIGIN_STATION_MISMATCH",
+    );
+  }
+}
+
+function resolveShipmentShippingRate(input: {
+  serviceType: string;
+  weightKg: number;
+  origin: string;
+  destination: string;
+  flight: { aircraftType: string } | null;
+}) {
+  return computeShippingRate({
+    serviceType: input.serviceType,
+    weightKg: input.weightKg,
+    origin: input.origin,
+    destination: input.destination,
+    aircraftType: input.flight?.aircraftType ?? null,
+  });
+}
+
 function deriveShipmentVehicleFieldsFromFlight(
   flight: ShipmentAssignmentFlightRecord | null,
   fallback: ShipmentVehicleFallback,
@@ -918,6 +1058,7 @@ function serializeManagedUser(user: {
   id: string;
   name: string;
   email: string;
+  phone?: string | null;
   role: AccessUser["role"];
   station: string;
   status: "active" | "invited" | "disabled";
@@ -937,6 +1078,7 @@ function serializeManagedUser(user: {
     id: user.id,
     name: user.name,
     email: user.email,
+    phone: user.phone?.trim() ?? "",
     role: user.role,
     station: user.station,
     status: user.status,
@@ -1066,7 +1208,7 @@ export const getShellData = cache(async (userId: string) => {
     notifications: notifications.map((notification) => ({
       id: notification.id,
       title: notification.title,
-      message: notification.message,
+      message: formatNotificationMessage(notification.message),
       href: notification.href,
       type: notification.type,
       read: notification.read,
@@ -2387,10 +2529,29 @@ function buildDashboardAlertSummary(alertCenter: Awaited<ReturnType<typeof getAl
     : { open: 0, active: 0, critical: 0, warning: 0, info: 0, slaBreached: 0 };
 }
 
+function serializeDashboardAlertPreview(alerts: Awaited<ReturnType<typeof getAlertCenterData>>["alerts"]) {
+  return alerts
+    .filter((alert) => alert.workflowStatus === "open")
+    .slice(0, 4)
+    .map((alert) => ({
+      id: alert.id,
+      title: alert.title,
+      entityLabel: alert.entityLabel,
+      severity: alert.severity,
+      tone: alert.tone,
+      href: alert.href,
+      triggeredAt: alert.triggeredAt,
+      workflowStatus: alert.workflowStatus,
+    }));
+}
+
 const getCachedDashboardAlertSummary = unstable_cache(
   async (userId: string, role: string, station: string, name: string) => {
     if (!isInternalRole(role as AccessUser["role"])) {
-      return buildDashboardAlertSummary(null);
+      return {
+        summary: buildDashboardAlertSummary(null),
+        preview: [] as ReturnType<typeof serializeDashboardAlertPreview>,
+      };
     }
 
     const alertCenter = await getAlertCenterData(
@@ -2405,7 +2566,10 @@ const getCachedDashboardAlertSummary = unstable_cache(
       { summaryOnly: true },
     );
 
-    return buildDashboardAlertSummary(alertCenter);
+    return {
+      summary: buildDashboardAlertSummary(alertCenter),
+      preview: serializeDashboardAlertPreview(alertCenter.alerts),
+    };
   },
   ["skyhub-dashboard-alert-summary"],
   { revalidate: 45 },
@@ -2481,7 +2645,7 @@ export async function getDashboardKpis(user: AccessUser & { name?: string }, dat
 
 export async function getDashboardAlerts(user: AccessUser & { name?: string }) {
   const auditSince = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const [recentActivity, alertSummary, auditIssues24h] = await Promise.all([
+  const [recentActivity, alertBundle, auditIssues24h] = await Promise.all([
     db.activityLog.findMany({
       where: buildExcludedActivityWhere(),
       include: { user: true },
@@ -2499,7 +2663,8 @@ export async function getDashboardAlerts(user: AccessUser & { name?: string }) {
   ]);
 
   return {
-    alertSummary,
+    alertSummary: alertBundle.summary,
+    alertPreview: alertBundle.preview,
     auditIssues24h,
     recentActivity: serializeDashboardRecentActivity(recentActivity),
   };
@@ -2768,9 +2933,16 @@ export async function listShipments(
 
   const serializedShipments = pageResult.shipments.map((shipment) => serializeShipment(shipment, user));
 
+  const viewerUser = user as AccessUser & { name: string; phone?: string | null };
+
   return {
     viewer: {
-      role: user.role,
+      id: viewerUser.id,
+      name: viewerUser.name,
+      role: viewerUser.role,
+      roleLabel: ROLE_LABELS[viewerUser.role],
+      phone: viewerUser.phone?.trim() ?? "",
+      station: (user.station?.trim() || "SOQ").toUpperCase(),
       readOnly: user.role === "customer",
       customerAccountName: user.customerAccount?.name ?? null,
     },
@@ -2832,7 +3004,8 @@ export async function createShipment(input: {
   shipper: string;
   consignee: string;
   forwarder: string;
-  ownerName: string;
+  shiftOwnerId: string;
+  shiftOwnerPhone?: string;
   flightId?: string | null;
   customerAccountId?: string | null;
   notes?: string;
@@ -2847,11 +3020,21 @@ export async function createShipment(input: {
 
   ensureShipmentCapability(actor, "shipment:create");
 
+  const { shiftOwner, shiftOwnerPhone } = await resolveShiftOwnerForActor(
+    actor,
+    input.shiftOwnerId,
+    input.shiftOwnerPhone,
+  );
+
+  const actorStation = (actor.station?.trim() || "SOQ").toUpperCase();
+  assertShipmentOriginMatchesStation(input.origin, actorStation);
+  const resolvedOrigin = actorStation;
+
   const awb = input.awb && AWB_REGEX.test(input.awb) ? input.awb : await generateUniqueAwb();
   const [customerAccount, flight] = await Promise.all([
     validateCustomerAccount(input.customerAccountId ?? null),
     resolveFlightAssignment(input.flightId ?? null, {
-      origin: input.origin,
+      origin: resolvedOrigin,
       destination: input.destination,
       weightKg: input.weightKg,
       status: ShipmentStatus.received,
@@ -2865,7 +3048,13 @@ export async function createShipment(input: {
     vehicleStatus: input.vehicleStatus,
   });
 
-  const resolvedShippingRate = computeShippingRate(input.serviceType, input.weightKg);
+  const resolvedShippingRate = resolveShipmentShippingRate({
+    serviceType: input.serviceType,
+    weightKg: input.weightKg,
+    origin: resolvedOrigin,
+    destination: input.destination,
+    flight,
+  });
   const guardFields = deriveShipmentGuardFields({
     status: "received",
     shippingRate: resolvedShippingRate,
@@ -2879,7 +3068,7 @@ export async function createShipment(input: {
       commodity: input.commodity,
       cargoMode: input.cargoMode,
       senderPhone: input.senderPhone,
-      origin: input.origin.toUpperCase(),
+      origin: resolvedOrigin,
       destination: input.destination.toUpperCase(),
       pieces: input.pieces ?? 1,
       weightKg: input.weightKg,
@@ -2899,7 +3088,9 @@ export async function createShipment(input: {
       shipper: input.shipper,
       consignee: input.consignee,
       forwarder: input.forwarder,
-      ownerName: input.ownerName,
+      ownerName: shiftOwner.name,
+      shiftOwnerId: shiftOwner.id,
+      shiftOwnerPhone,
       notes: input.notes || "",
       status: "received",
       flightId: flight?.id ?? null,
@@ -2943,7 +3134,8 @@ export async function updateShipment(
   input: {
     status?: ShipmentStatus;
     notes?: string;
-    ownerName?: string;
+    shiftOwnerId?: string;
+    shiftOwnerPhone?: string;
     sentAt?: string;
     cargoMode?: string;
     senderPhone?: string;
@@ -2983,14 +3175,19 @@ export async function updateShipment(
   const nextStatus = input.status ?? current.status;
   assertShipmentStatusTransition(current.status, nextStatus);
 
+  if (input.origin !== undefined && input.origin.toUpperCase() !== current.origin) {
+    throw new AccessError("Bandara asal tidak dapat diubah setelah pengiriman dibuat.", 400, "ORIGIN_LOCKED");
+  }
+
   const nextServiceType = input.serviceType ?? current.serviceType;
   const nextWeightKg = input.weightKg ?? current.weightKg;
-  const nextShippingRate =
-    input.serviceType !== undefined || input.weightKg !== undefined
-      ? computeShippingRate(nextServiceType, nextWeightKg)
-      : current.shippingRate;
-  const nextOrigin = input.origin ? input.origin.toUpperCase() : current.origin;
+  const nextOrigin = current.origin;
   const nextDestination = input.destination ? input.destination.toUpperCase() : current.destination;
+  const shouldRecomputeShippingRate =
+    input.serviceType !== undefined ||
+    input.weightKg !== undefined ||
+    input.destination !== undefined ||
+    input.flightId !== undefined;
   const targetFlightId = input.flightId !== undefined ? input.flightId : current.flightId;
   const flightAssignmentExplicit =
     input.flightId !== undefined || input.origin !== undefined || input.destination !== undefined;
@@ -3025,10 +3222,35 @@ export async function updateShipment(
     return resolveFlightAssignment(targetFlightId, assignment);
   }
 
+  const shiftOwnerUpdate =
+    input.shiftOwnerId !== undefined
+      ? await resolveShiftOwnerForActor(actor, input.shiftOwnerId, input.shiftOwnerPhone)
+      : null;
+
   const [customerAccount, flight] = await Promise.all([
     input.customerAccountId !== undefined ? validateCustomerAccount(input.customerAccountId) : Promise.resolve(null),
     resolveFlightForUpdate(),
   ]);
+
+  let aircraftTypeForRate = flight?.aircraftType ?? null;
+  if (!aircraftTypeForRate && current.flightId) {
+    const currentFlight = await db.flight.findUnique({
+      where: { id: current.flightId },
+      select: { aircraftType: true },
+    });
+    aircraftTypeForRate = currentFlight?.aircraftType ?? null;
+  }
+
+  const nextShippingRate = shouldRecomputeShippingRate
+    ? resolveShipmentShippingRate({
+        serviceType: nextServiceType,
+        weightKg: nextWeightKg,
+        origin: nextOrigin,
+        destination: nextDestination,
+        flight: aircraftTypeForRate ? { aircraftType: aircraftTypeForRate } : null,
+      })
+    : current.shippingRate;
+
   const nextDocStatus = input.docStatus ?? current.docStatus;
   const nextGuardFields = deriveShipmentGuardFields({
     status: nextStatus,
@@ -3066,7 +3288,9 @@ export async function updateShipment(
       data: {
         status: nextStatus,
         notes: input.notes ?? current.notes,
-        ownerName: input.ownerName ?? current.ownerName,
+        ownerName: shiftOwnerUpdate ? shiftOwnerUpdate.shiftOwner.name : current.ownerName,
+        shiftOwnerId: shiftOwnerUpdate ? shiftOwnerUpdate.shiftOwner.id : current.shiftOwnerId,
+        shiftOwnerPhone: shiftOwnerUpdate ? shiftOwnerUpdate.shiftOwnerPhone : current.shiftOwnerPhone,
         sentAt: input.sentAt ? parseCargoDate(input.sentAt) : current.sentAt,
         cargoMode: input.cargoMode ?? current.cargoMode,
         senderPhone: input.senderPhone ?? current.senderPhone,
@@ -3637,6 +3861,7 @@ export async function inviteUser(input: {
   email: string;
   role: "admin" | "staff";
   station: string;
+  phone?: string;
   password: string;
   customerAccountId?: string | null;
   invitedById: string;
@@ -3655,6 +3880,7 @@ export async function inviteUser(input: {
       data: {
         name: input.name,
         email: input.email,
+        phone: input.phone?.trim() || null,
         passwordHash,
         role: input.role,
         station: input.station,
@@ -3678,6 +3904,7 @@ export async function inviteUser(input: {
         id: true,
         name: true,
         email: true,
+        phone: true,
         role: true,
         station: true,
         status: true,
@@ -3715,6 +3942,7 @@ export async function updateUserAccess(
   input: {
     name?: string;
     email?: string;
+    phone?: string;
     role?: "admin" | "staff" | "customer";
     status?: "active" | "invited" | "disabled";
     station?: string;
@@ -3789,6 +4017,7 @@ export async function updateUserAccess(
       data: {
         name: input.name,
         email: input.email,
+        phone: input.phone !== undefined ? input.phone.trim() || null : undefined,
         role: nextRole,
         status: nextStatus,
         station: input.station,
@@ -3798,6 +4027,7 @@ export async function updateUserAccess(
         id: true,
         name: true,
         email: true,
+        phone: true,
         role: true,
         station: true,
         status: true,
@@ -4722,6 +4952,7 @@ export async function getSettingsData(userId: string) {
         id: true,
         name: true,
         email: true,
+        phone: true,
         role: true,
         station: true,
         status: true,

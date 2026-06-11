@@ -49,10 +49,20 @@ type InternalDashboardData = {
     userName: string;
     createdAt: string;
   }[];
+  alertPreview: {
+    id: string;
+    title: string;
+    entityLabel: string;
+    severity: "critical" | "warning" | "info";
+    tone: string;
+    href: string;
+    triggeredAt: string;
+    workflowStatus: "open" | "acknowledged" | "snoozed" | "resolved";
+  }[];
 };
 
 type DashboardKpiPayload = Omit<InternalDashboardData, "alertSummary" | "recentActivity">;
-type DashboardAlertsPayload = Pick<InternalDashboardData, "alertSummary" | "auditIssues24h" | "recentActivity">;
+type DashboardAlertsPayload = Pick<InternalDashboardData, "alertSummary" | "alertPreview" | "auditIssues24h" | "recentActivity">;
 
 const EMPTY_ALERT_SUMMARY: InternalDashboardData["alertSummary"] = {
   open: 0,
@@ -293,6 +303,7 @@ export function useDashboardData() {
     return {
       ...kpiData,
       alertSummary: alertsData?.alertSummary ?? EMPTY_ALERT_SUMMARY,
+      alertPreview: alertsData?.alertPreview ?? [],
       auditIssues24h: alertsData?.auditIssues24h ?? 0,
       recentActivity: alertsData?.recentActivity ?? [],
     };
@@ -319,17 +330,15 @@ export function useDashboardData() {
     const kpiCards = buildKpiCards({
       shipmentsCount: shipmentsToday.length,
       inFlowCount: metrics?.inFlowCount ?? inFlowCount,
-      openAlertsCount: alertsLoading ? "…" : alertSummary.open,
-      urgentAlertsCount: alertSummary.critical + alertSummary.warning,
+      actionRequiredCount: kpiLoading && !metrics ? "…" : (metrics?.actionRequiredCount ?? 0),
       reviewIssuesCount: metrics?.docReviewCount ?? 0,
       holdsToday: metrics?.holds ?? 0,
-      alertsLoading,
     });
     const flightScope = metrics?.flightScope ?? "nearest";
     const flightScheduleMetric = flightScope === "window" ? `${flightsToday.length} jadwal` : `${flightsToday.length} terdekat`;
 
     return { flow, revenue, aircraftRows, flightSchedule, kpiCards, flightScheduleMetric };
-  }, [alertSummary, alertsLoading, flightsToday.length, metrics, shipmentsToday, sortedFlights]);
+  }, [alertSummary, flightsToday.length, kpiLoading, metrics, shipmentsToday, sortedFlights]);
 
   const refreshKpis = useCallback(async () => {
     await loadDashboardKpis("refresh", { dateFrom, dateTo }, { failure: "none" });
@@ -347,6 +356,7 @@ export function useDashboardData() {
     sortedFlights,
     metrics,
     alertSummary,
+    alertPreview: internalData?.alertPreview ?? [],
     recentActivity: internalData?.recentActivity ?? [],
     dashboardQuery,
     setDashboardQuery,

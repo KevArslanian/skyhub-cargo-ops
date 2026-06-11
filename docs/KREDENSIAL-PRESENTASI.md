@@ -5,6 +5,22 @@ Semua akun seed memakai kata sandi yang sama kecuali sudah di-reset admin.
 
 **Kata sandi default semua akun demo:** `operator123`
 
+**Login UI:** halaman `/login` tidak lagi menampilkan email/kata sandi demo. Gunakan PDF referensi di bawah saat presentasi.
+
+### PDF referensi demo (terpisah)
+
+| Dokumen | File |
+|---------|------|
+| Kredensial & skenario | [`docs/demo-pdf/skyhub-demo-kredensial.pdf`](demo-pdf/skyhub-demo-kredensial.pdf) |
+| Daftar AWB (36 entri) | [`docs/demo-pdf/skyhub-demo-daftar-awb.pdf`](demo-pdf/skyhub-demo-daftar-awb.pdf) |
+| Daftar penerbangan (9 entri) | [`docs/demo-pdf/skyhub-demo-daftar-penerbangan.pdf`](demo-pdf/skyhub-demo-daftar-penerbangan.pdf) |
+
+Regenerasi PDF:
+
+```bash
+pnpm demo:pdf
+```
+
 ---
 
 ## 1. Jalankan aplikasi (sebelum presentasi)

@@ -37,8 +37,10 @@ type GlassDatePickerProps = {
   onChange: (value: string) => void;
   className?: string;
   disabled?: boolean;
+  invalid?: boolean;
   min?: string;
   max?: string;
+  onRangeReject?: () => void;
   "aria-label"?: string;
   placeholder?: string;
 };
@@ -59,12 +61,30 @@ function toInputValue(date: Date) {
   return format(date, "yyyy-MM-dd");
 }
 
-function getMenuMotion(reducedMotion: boolean) {
+function getMenuMotion(reducedMotion: boolean, premium = false) {
   if (reducedMotion) {
     return {
       hidden: { opacity: 0 },
       visible: { opacity: 1, transition: { duration: 0.18 } },
       exit: { opacity: 0, transition: { duration: 0.14 } },
+    };
+  }
+
+  if (!premium) {
+    return {
+      hidden: { opacity: 0, scale: 0.96, y: -6 },
+      visible: {
+        opacity: 1,
+        scale: 1,
+        y: 0,
+        transition: { type: "spring" as const, stiffness: 380, damping: 30, mass: 0.85 },
+      },
+      exit: {
+        opacity: 0,
+        scale: 0.98,
+        y: -3,
+        transition: { duration: 0.16 },
+      },
     };
   }
 
@@ -93,8 +113,10 @@ export function GlassDatePicker({
   onChange,
   className,
   disabled,
+  invalid,
   min,
   max,
+  onRangeReject,
   "aria-label": ariaLabel,
   placeholder = "Pilih tanggal",
 }: GlassDatePickerProps) {
@@ -201,11 +223,12 @@ export function GlassDatePicker({
     const iso = parseDateInputToIso(draft);
     if (!iso || !isIsoDateInRange(iso, min, max)) {
       setDraft(value ? formatIsoToDateInput(value) : "");
+      onRangeReject?.();
       return;
     }
 
     onChange(iso);
-  }, [draft, max, min, onChange, value]);
+  }, [draft, max, min, onChange, onRangeReject, value]);
 
   const handleInputFocus = () => {
     if (disabled) return;
@@ -251,6 +274,7 @@ export function GlassDatePicker({
           "glass-date-picker-control input-field input-field-trailing",
           open && "glass-date-picker-control-open",
           disabled && "glass-date-picker-control-disabled",
+          invalid && "is-invalid",
           className,
         )}
       >

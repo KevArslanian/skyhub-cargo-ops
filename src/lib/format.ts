@@ -63,8 +63,10 @@ export function formatRelativeShort(value: string | Date) {
 /** Hilangkan kunci internal alert: dari pesan notifikasi (data lama di DB). */
 export function formatNotificationMessage(message: string) {
   return message
-    .replace(/^alert:[^\s]+\s*/i, "")
-    .replace(/^alert:[^\s]+$/i, "")
+    .split("\n")
+    .map((line) => line.replace(/alert:[^\s]+/gi, "").trim())
+    .filter(Boolean)
+    .join("\n")
     .trim();
 }
 

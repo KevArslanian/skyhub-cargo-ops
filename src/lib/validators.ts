@@ -13,6 +13,11 @@ import {
   VEHICLE_TYPE_OPTIONS,
 } from "./constants";
 import { FLIGHT_NUMBER_REGEX } from "./flight-meta";
+import {
+  DATE_TO_BEFORE_FROM_MESSAGE,
+  DATE_TO_MAX_TODAY_MESSAGE,
+  getOpsTodayIso,
+} from "./date-input";
 import { buildShipmentSubmitPayload, DEFAULT_PIECES } from "./shipment-payload";
 
 export const shipmentStatusSchema = z.enum(["received", "sortation", "loaded_to_aircraft", "departed", "arrived", "hold"]);
@@ -103,6 +108,31 @@ const optionalDateRangeSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal filter harus format YYYY-MM-DD.")
   .optional();
 
+function validateFilterDateRangeQuery(
+  value: { dateFrom?: string; dateTo?: string; date?: string },
+  context: z.RefinementCtx,
+) {
+  const start = value.dateFrom ?? value.date;
+  const end = value.dateTo ?? value.dateFrom ?? value.date;
+  const todayIso = getOpsTodayIso();
+
+  if (start && end && end < start) {
+    context.addIssue({
+      code: "custom",
+      path: ["dateTo"],
+      message: DATE_TO_BEFORE_FROM_MESSAGE,
+    });
+  }
+
+  if (end && end > todayIso) {
+    context.addIssue({
+      code: "custom",
+      path: ["dateTo"],
+      message: DATE_TO_MAX_TODAY_MESSAGE,
+    });
+  }
+}
+
 function validateFlightDateOrder<T extends { cargoCutoffTime?: string; departureTime?: string; arrivalTime?: string }>(
   value: T,
   context: z.RefinementCtx,
@@ -168,24 +198,30 @@ export const shipmentCreateSchema = z.object({
   shipper: personNameSchema,
   consignee: personNameSchema,
   forwarder: personNameSchema,
-  ownerName: personNameSchema,
+  shiftOwnerId: z.string().trim().min(1, "Pilih penanggung jawab shift."),
+  shiftOwnerPhone: optionalPhoneSchema,
   flightId: z.string().trim().optional().nullable(),
   customerAccountId: z.string().trim().optional().nullable(),
   notes: z.string().trim().optional().default(""),
   docStatus: shipmentDocStatusSchema.optional().default("Partial"),
-}).transform((value) => buildShipmentSubmitPayload(value));
+})
+  .superRefine((value, context) => {
+    if (value.origin === value.destination) {
+      context.addIssue({
+        code: "custom",
+        path: ["destination"],
+        message: "Kota tujuan harus berbeda dari kota asal.",
+      });
+    }
+  })
+  .transform((value) => buildShipmentSubmitPayload(value));
 
 export const shipmentUpdateSchema = z
   .object({
     status: shipmentStatusSchema.optional(),
     notes: z.string().trim().optional(),
-    ownerName: z
-      .string()
-      .trim()
-      .optional()
-      .refine((value) => !value || (value.length >= 2 && NAME_NO_DIGITS_REGEX.test(value)), {
-        message: "Nama tidak boleh mengandung angka.",
-      }),
+    shiftOwnerId: z.string().trim().min(1, "Pilih penanggung jawab shift.").optional(),
+    shiftOwnerPhone: optionalPhoneSchema,
     sentAt: optionalCargoDateSchema,
     cargoMode: z.literal(AIR_CARGO_MODE).optional(),
     senderPhone: optionalPhoneSchema,
@@ -214,12 +250,29 @@ export const shipmentUpdateSchema = z
     docStatus: shipmentDocStatusSchema.optional(),
   })
   .strict()
+  .superRefine((value, context) => {
+    if (value.origin && value.destination && value.origin === value.destination) {
+      context.addIssue({
+        code: "custom",
+        path: ["destination"],
+        message: "Kota tujuan harus berbeda dari kota asal.",
+      });
+    }
+  })
   .transform((value) => {
+    const shouldRecomputeRate =
+      value.serviceType !== undefined ||
+      value.weightKg !== undefined ||
+      value.origin !== undefined ||
+      value.destination !== undefined;
+
     const next = buildShipmentSubmitPayload({
       ...value,
       cargoMode: value.cargoMode ?? AIR_CARGO_MODE,
       serviceType: value.serviceType,
       weightKg: value.weightKg,
+      origin: value.origin,
+      destination: value.destination,
     });
 
     return {
@@ -227,10 +280,7 @@ export const shipmentUpdateSchema = z
       pieces: DEFAULT_PIECES,
       vehicleType: AIR_VEHICLE_TYPE,
       cargoMode: value.cargoMode ?? AIR_CARGO_MODE,
-      shippingRate:
-        value.serviceType !== undefined || value.weightKg !== undefined
-          ? next.shippingRate
-          : value.shippingRate,
+      shippingRate: shouldRecomputeRate ? next.shippingRate : value.shippingRate,
     };
   });
 
@@ -275,6 +325,7 @@ export const inviteUserSchema = z
     email: z.email(),
     role: z.enum(["admin", "staff"]),
     station: z.enum(STATION_OPTIONS),
+    phone: optionalPhoneSchema,
     customerAccountId: z.string().trim().optional().nullable(),
     password: z.string().min(6, "Kata sandi minimal 6 karakter."),
     confirmPassword: z.string().min(6, "Konfirmasi kata sandi wajib diisi."),
@@ -290,6 +341,7 @@ export const userRoleUpdateSchema = z.object({
   role: z.enum(["admin", "staff", "customer"]).optional(),
   status: z.enum(["active", "invited", "disabled"]).optional(),
   station: z.enum(STATION_OPTIONS).optional(),
+  phone: optionalPhoneSchema,
   customerAccountId: z.string().trim().optional().nullable(),
   capabilities: z
     .array(
@@ -396,15 +448,12 @@ export const shipmentListQuerySchema = z.object({
   dateTo: optionalDateRangeSchema,
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(50).optional(),
-}).superRefine((value, context) => {
-  if (value.dateFrom && value.dateTo && value.dateTo < value.dateFrom) {
-    context.addIssue({
-      code: "custom",
-      path: ["dateTo"],
-      message: "Tanggal akhir tidak boleh lebih awal dari tanggal awal.",
-    });
-  }
-});
+}).superRefine(validateFilterDateRangeQuery);
+
+export const awbRecentQuerySchema = z.object({
+  dateFrom: optionalDateRangeSchema,
+  dateTo: optionalDateRangeSchema,
+}).superRefine(validateFilterDateRangeQuery);
 
 export const flightListQuerySchema = z.object({
   query: z.string().trim().optional(),
@@ -419,18 +468,7 @@ export const flightListQuerySchema = z.object({
   shift: z.enum(["all", "pagi", "siang", "malam"]).optional(),
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(50).optional(),
-}).superRefine((value, context) => {
-  const start = value.dateFrom ?? value.date;
-  const end = value.dateTo ?? value.dateFrom ?? value.date;
-
-  if (start && end && end < start) {
-    context.addIssue({
-      code: "custom",
-      path: ["dateTo"],
-      message: "Tanggal akhir tidak boleh lebih awal dari tanggal awal.",
-    });
-  }
-});
+}).superRefine(validateFilterDateRangeQuery);
 
 export const alertActionSchema = z
   .object({

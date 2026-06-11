@@ -79,10 +79,103 @@ export const SERVICE_LEVEL_RATES: Record<(typeof SERVICE_TYPE_OPTIONS)[number], 
   Economy: 20_000,
 };
 
-export function computeShippingRate(serviceType: string, weightKg: number) {
-  const rate =
-    SERVICE_LEVEL_RATES[serviceType as keyof typeof SERVICE_LEVEL_RATES] ?? SERVICE_LEVEL_RATES.Standard;
-  return Math.round(weightKg * rate);
+/** Pengali tarif per rute (origin-tujuan). Asal biasanya stasiun aktif operator. */
+export const ROUTE_RATE_MULTIPLIERS: Record<string, number> = {
+  "SOQ-CGK": 1.0,
+  "SOQ-DPS": 1.15,
+  "SOQ-SUB": 0.9,
+  "SOQ-UPG": 0.95,
+  "SOQ-BPN": 0.85,
+  "CGK-SOQ": 1.0,
+  "CGK-SUB": 0.88,
+  "CGK-DPS": 0.92,
+  "CGK-UPG": 0.9,
+  "CGK-BPN": 0.82,
+  "SUB-SOQ": 0.9,
+  "SUB-CGK": 0.88,
+  "SUB-DPS": 0.85,
+  "SUB-UPG": 0.87,
+  "SUB-BPN": 0.8,
+  "DPS-SOQ": 1.15,
+  "DPS-CGK": 0.92,
+  "DPS-SUB": 0.85,
+  "DPS-UPG": 0.9,
+  "DPS-BPN": 0.88,
+  "UPG-SOQ": 0.95,
+  "UPG-CGK": 0.9,
+  "UPG-SUB": 0.87,
+  "UPG-DPS": 0.9,
+  "UPG-BPN": 0.83,
+  "BPN-SOQ": 0.85,
+  "BPN-CGK": 0.82,
+  "BPN-SUB": 0.8,
+  "BPN-DPS": 0.88,
+  "BPN-UPG": 0.83,
+};
+
+/** Pengali tarif per tipe armada. */
+export const AIRCRAFT_RATE_MULTIPLIERS: Record<string, number> = {
+  "ATR 72-600": 0.85,
+  "Boeing 737-500F": 0.9,
+  "Boeing 737-800F": 0.95,
+  "Boeing 737-900ER": 1.0,
+  "Airbus A320-200": 1.02,
+  "Airbus A320neo": 1.05,
+  "Airbus A330-300": 1.2,
+};
+
+export const DEFAULT_PRICING_AIRCRAFT_TYPE = "Boeing 737-900ER" as const;
+
+export function getRouteRateMultiplier(origin: string, destination: string) {
+  const key = `${origin.toUpperCase()}-${destination.toUpperCase()}`;
+  return ROUTE_RATE_MULTIPLIERS[key] ?? 1;
+}
+
+export function getAircraftRateMultiplier(aircraftType?: string | null) {
+  if (!aircraftType?.trim()) {
+    return AIRCRAFT_RATE_MULTIPLIERS[DEFAULT_PRICING_AIRCRAFT_TYPE] ?? 1;
+  }
+  return AIRCRAFT_RATE_MULTIPLIERS[aircraftType] ?? 1;
+}
+
+/** Sedikit dibedakan per kelompok berat (di atas faktor linear kg). */
+export function getWeightTierMultiplier(weightKg: number) {
+  if (weightKg <= 25) return 1.15;
+  if (weightKg <= 100) return 1;
+  if (weightKg <= 500) return 0.92;
+  return 0.88;
+}
+
+export type ShippingRateInput = {
+  serviceType: string;
+  weightKg: number;
+  origin: string;
+  destination: string;
+  aircraftType?: string | null;
+};
+
+export function computeShippingRate(input: ShippingRateInput) {
+  const serviceRate =
+    SERVICE_LEVEL_RATES[input.serviceType as keyof typeof SERVICE_LEVEL_RATES] ?? SERVICE_LEVEL_RATES.Standard;
+  const routeFactor = getRouteRateMultiplier(input.origin, input.destination);
+  const aircraftFactor = getAircraftRateMultiplier(input.aircraftType);
+  const weightTierFactor = getWeightTierMultiplier(input.weightKg);
+  return Math.round(
+    input.weightKg * serviceRate * routeFactor * aircraftFactor * weightTierFactor,
+  );
+}
+
+export function destinationSelectOptions(origin: string) {
+  const normalizedOrigin = origin.toUpperCase();
+  return STATION_OPTIONS.filter((code) => code !== normalizedOrigin).map((code) => ({
+    value: code,
+    label: formatStationLabel(code),
+  }));
+}
+
+export function defaultDestinationForOrigin(origin: string) {
+  const options = destinationSelectOptions(origin);
+  return options[0]?.value ?? "CGK";
 }
 export const VEHICLE_TYPE_OPTIONS = ["Truk Box", "Pesawat", "Kapal Cargo"] as const;
 export const VEHICLE_STATUS_OPTIONS = ["Aktif", "Perawatan", "Nonaktif"] as const;

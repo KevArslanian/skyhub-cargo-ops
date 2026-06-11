@@ -429,6 +429,7 @@ async function main() {
       data: {
         name: "Mira Putri",
         email: "admin@skyhub.test",
+        phone: "08111222333",
         passwordHash: PASSWORD_HASH,
         role: UserRole.admin,
         station: "SOQ",
@@ -452,6 +453,7 @@ async function main() {
       data: {
         name: "Raka Pratama",
         email: "staff@skyhub.test",
+        phone: "08222333444",
         passwordHash: PASSWORD_HASH,
         role: UserRole.staff,
         station: "SOQ",
@@ -475,6 +477,7 @@ async function main() {
       data: {
         name: "Naila Putri",
         email: "staff2@skyhub.test",
+        phone: "08333444555",
         passwordHash: PASSWORD_HASH,
         role: UserRole.staff,
         station: "SOQ",
@@ -663,6 +666,11 @@ async function main() {
   ]);
 
   const [admin, staffPrimary, staffSecondary, customer, invitedStaff, disabledStaff] = users;
+  const shiftOwnerPhoneById = new Map<string, string>([
+    [admin.id, "08111222333"],
+    [staffPrimary.id, "08222333444"],
+    [staffSecondary.id, "08333444555"],
+  ]);
 
   for (let index = 0; index < 1; index += 1) {
     await prisma.user.create({
@@ -908,6 +916,8 @@ async function main() {
         consignee: pick(CONSIGNEES, index),
         forwarder: "SkyHub",
         ownerName,
+        shiftOwnerId: createdById,
+        shiftOwnerPhone: shiftOwnerPhoneById.get(createdById) ?? "",
         notes:
           status === ShipmentStatus.hold
             ? "Perlu review dokumen sebelum proses lanjut."

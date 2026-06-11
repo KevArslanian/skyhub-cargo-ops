@@ -267,14 +267,12 @@ test.describe("@error-audit Protected routes — alertdialog on bad input", () =
     await expect(awbInput).toHaveValue("999-88877766");
   });
 
-  test("settings profile drawer keeps focus while typing", async ({ page }) => {
+  test("settings profile input keeps focus while typing", async ({ page }) => {
     test.setTimeout(60_000);
     await page.goto(`${baseURL}/settings`, { waitUntil: "domcontentloaded" });
     await expectShellReady(page);
-    await page.getByRole("button", { name: /^Ubah$/i }).first().click();
-    const dialog = page.getByRole("dialog");
-    await expect(dialog.getByRole("heading", { name: "Ubah Profil" })).toBeVisible();
-    const nameInput = dialog.getByRole("textbox").first();
+    const nameInput = page.locator("#settings-profile-name");
+    await expect(nameInput).toBeVisible({ timeout: 15_000 });
     await nameInput.click();
     for (const char of "XYZ") {
       await nameInput.press(char);
@@ -308,7 +306,11 @@ test.describe("@error-audit Protected routes — alertdialog on bad input", () =
     await expectShellReady(page);
     await page.getByRole("button", { name: /Buat Pengiriman/i }).first().click();
     await expect(page.getByRole("heading", { name: "Tambah manifest baru" })).toBeVisible();
-    await page.locator('form[novalidate]').getByRole("button", { name: /^Buat Pengiriman$/i }).click();
+    const drawer = page.locator('form[novalidate]');
+    await expect(drawer.getByText("Dibuat Oleh", { exact: true })).toBeVisible();
+    await expect(drawer.getByText("Penanggung Jawab Shift", { exact: true })).toBeVisible();
+    await expect(drawer.locator('input[disabled][readonly]').first()).toBeVisible();
+    await drawer.getByRole("button", { name: /^Buat Pengiriman$/i }).click();
     await expect(page.locator(".form-field-error").first()).toBeVisible({ timeout: 5000 });
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
   });
@@ -320,13 +322,11 @@ test.describe("@error-audit Protected routes — alertdialog on bad input", () =
     await page.getByRole("button", { name: /Buat Pengiriman/i }).first().click();
     const drawer = page.locator('form[novalidate]');
     await drawer.locator('input[placeholder="Contoh: Dokumen penting"]').fill("Dokumen penting");
-    await drawer.locator('input[placeholder="Nama operator shift"]').fill("Operator QA");
-    await drawer.locator('input[placeholder="Contoh: 08123456789"]').fill("081234567890");
+    await drawer.locator('input[placeholder="Contoh: 08123456789"]').first().fill("081234567890");
     await drawer.locator('input[placeholder="Nama pengirim"]').fill("Budi Santoso");
     await drawer.locator('input[placeholder="Nama penerima"]').fill("Siti Aminah");
     await drawer.locator('input[placeholder="Nama ekspeditor"]').fill("SkyHub");
     await drawer.locator('select').filter({ has: page.locator('option[value="SOQ"]') }).first().selectOption("SOQ");
-    await drawer.locator('select').filter({ has: page.locator('option[value="CGK"]') }).nth(1).selectOption("SOQ");
     await drawer.getByRole("button", { name: /^Buat Pengiriman$/i }).click();
     await expect(page.getByText(/harus berbeda dari kota asal/i)).toBeVisible();
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
@@ -353,7 +353,6 @@ test.describe("@error-audit Settings admin flows", () => {
     await loginViaApi(page, adminEmail);
     await page.goto(`${baseURL}/settings`, { waitUntil: "domcontentloaded" });
     await expectShellReady(page);
-    await page.getByRole("button", { name: /Tim & Akses/i }).click();
     await page.getByRole("button", { name: "Tambah Pengguna" }).click();
     const inviteDrawer = page.locator(".ops-drawer-panel").filter({ has: page.getByRole("heading", { name: "Tambah Pengguna" }) });
     await inviteDrawer.getByPlaceholder("Nama").fill("QA Audit");
@@ -462,5 +461,105 @@ test.describe("@error-audit Network failure surfaces feedback banner", () => {
     await expectShellReady(page);
     await expect(page.getByText("Pusat Kendali").first()).toBeVisible({ timeout: 30000 });
     await expectFeedbackBanner(page, /Peringatan belum bisa dimuat/i, "warning");
+  });
+});
+
+async function expectOpaqueOverlay(page: Page, selector: string) {
+  const locator = page.locator(selector).first();
+  await expect(locator).toBeAttached({ timeout: 15000 });
+  await expect
+    .poll(
+      async () =>
+        locator.evaluate((node) => {
+          const computed = getComputedStyle(node);
+          const backdrop = computed.backdropFilter || computed.getPropertyValue("-webkit-backdrop-filter");
+          if (backdrop && backdrop !== "none") return false;
+          const bg = computed.backgroundColor;
+          if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") return false;
+          const rgba = bg.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+          if (rgba && Number(rgba[4]) < 1) return false;
+          return Number(computed.opacity) >= 0.99;
+        }),
+      { timeout: 15000 },
+    )
+    .toBe(true);
+}
+
+test.describe("@error-audit Operator overlays opaque + no blur", () => {
+  test.beforeEach(async ({ page }) => {
+    await loginPage(page);
+  });
+
+  test("shipment ledger list failure uses banner not alertdialog", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.route("**/api/shipments**", (route) => route.abort("failed"));
+    await page.goto(`${baseURL}/shipment-ledger`, { waitUntil: "domcontentloaded" });
+    await expectShellReady(page);
+    await expectFeedbackBanner(page, /Gagal memuat daftar/i, "error");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  });
+
+  test("drawer overlay class is opaque without backdrop blur", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.goto(`${baseURL}/dashboard`, { waitUntil: "domcontentloaded" });
+    await expectShellReady(page);
+    await page.waitForFunction(
+      () => {
+        const probe = document.createElement("div");
+        probe.className = "ops-overlay ops-overlay--drawer";
+        probe.style.cssText = "position:fixed;inset:0;pointer-events:none;";
+        document.body.appendChild(probe);
+        const computed = getComputedStyle(probe);
+        const backdrop = computed.backdropFilter || computed.getPropertyValue("-webkit-backdrop-filter");
+        const bg = computed.backgroundColor;
+        const opaque =
+          (!backdrop || backdrop === "none") &&
+          Boolean(bg) &&
+          bg !== "transparent" &&
+          bg !== "rgba(0, 0, 0, 0)";
+        probe.remove();
+        return opaque;
+      },
+      undefined,
+      { timeout: 30000 },
+    );
+    await page.evaluate(() => {
+      document.getElementById("qa-drawer-overlay-probe")?.remove();
+      const node = document.createElement("div");
+      node.id = "qa-drawer-overlay-probe";
+      node.className = "ops-overlay ops-overlay--drawer";
+      node.style.pointerEvents = "none";
+      document.body.appendChild(node);
+    });
+    await expectOpaqueOverlay(page, "#qa-drawer-overlay-probe");
+    await page.evaluate(() => document.getElementById("qa-drawer-overlay-probe")?.remove());
+  });
+
+  test("alertdialog overlay is opaque without backdrop blur", async ({ page }) => {
+    await page.goto(`${baseURL}/awb-tracking`, { waitUntil: "domcontentloaded" });
+    await expectShellReady(page);
+    await page.locator("#awb-tracking-input").fill("BAD");
+    await page.getByRole("button", { name: /lacak/i }).click();
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+    await expectOpaqueOverlay(page, ".ops-overlay--alert");
+    await page.getByRole("button", { name: /^OK$/i }).click();
+  });
+
+  test("dark mode keeps error banner and overlays opaque", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.route("**/api/shipments**", (route) => route.abort("failed"));
+    await page.goto(`${baseURL}/shipment-ledger`, { waitUntil: "domcontentloaded" });
+    await expectShellReady(page);
+    await page.evaluate(() => {
+      document.documentElement.classList.add("dark");
+      document.documentElement.classList.remove("light");
+    });
+    await expectFeedbackBanner(page, /Gagal memuat daftar/i, "error");
+    const bannerBg = await page.locator(".ops-feedback-banner--error").first().evaluate((node) => {
+      const computed = getComputedStyle(node);
+      return { backgroundColor: computed.backgroundColor, backdropFilter: computed.backdropFilter };
+    });
+    expect(bannerBg.backdropFilter).toBe("none");
+    expect(bannerBg.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
   });
 });
