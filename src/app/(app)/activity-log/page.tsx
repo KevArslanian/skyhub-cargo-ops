@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Filter, History, RefreshCw, Search } from "lucide-react";
-import { formatDateTime, formatLogLevel, normalizeOperationalCopy } from "@/lib/format";
+import { formatAwbDisplay, formatDateTime, formatLogLevel, normalizeOperationalCopy } from "@/lib/format";
 import { ACTIVITY_CATEGORY_ALL } from "@/lib/activity-categories";
 import { StatusBadge } from "@/components/status-badge";
 import { GlassSelect } from "@/components/glass-select";
 import { CrudPageScaffold, EmptyState, FilterBar, FilterFields, FilterSearch, OpsPanel, PaginationBar, SectionHeader } from "@/components/ops-ui";
-import { OPS_LIST_PAGE_SIZE } from "@/lib/constants";
+import { useVisibleTablePageSize } from "@/lib/use-visible-table-page-size";
 import { useOpsAlert } from "@/components/ops-alert-provider";
 import { networkErrorMessage, readApiError } from "@/lib/ops-feedback";
 
@@ -51,6 +51,8 @@ export default function ActivityLogPage() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState<ActivityPayload | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const tableRef = useRef<HTMLTableElement | null>(null);
 
   const loadActivityLog = useCallback(async () => {
     const params = new URLSearchParams();
@@ -119,10 +121,21 @@ export default function ActivityLogPage() {
   }, []);
 
   const actions = useMemo(() => Array.from(new Set((data?.logs ?? []).map((log) => log.action))), [data?.logs]);
-  const totalPages = Math.max(1, Math.ceil((data?.logs.length ?? 0) / OPS_LIST_PAGE_SIZE));
+  const logPageSize = useVisibleTablePageSize(
+    tableScrollRef,
+    tableRef,
+    Boolean(data?.logs.length),
+    data?.logs.length ?? 0,
+    { fallback: 3, min: 1, max: 8 },
+  );
+  const totalPages = Math.max(1, Math.ceil((data?.logs.length ?? 0) / logPageSize));
   const currentPage = Math.min(page, totalPages);
-  const pageStart = (currentPage - 1) * OPS_LIST_PAGE_SIZE;
-  const pagedLogs = (data?.logs ?? []).slice(pageStart, pageStart + OPS_LIST_PAGE_SIZE);
+  const pageStart = (currentPage - 1) * logPageSize;
+  const pagedLogs = (data?.logs ?? []).slice(pageStart, pageStart + logPageSize);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [logPageSize, totalPages]);
   const visibleStart = data?.logs.length ? pageStart + 1 : 0;
   const visibleEnd = Math.min(pageStart + pagedLogs.length, data?.logs.length ?? 0);
   const activeFilterCount = [category !== ACTIVITY_CATEGORY_ALL, action !== "all", userId !== "all", Boolean(query.trim())].filter(
@@ -243,8 +256,8 @@ export default function ActivityLogPage() {
       body={
         <OpsPanel className="page-pane activity-log-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5">
         <SectionHeader className="shrink-0" title="Linimasa Aktivitas" />
-        <div className="page-scroll activity-log-scroll mt-4 min-h-0 flex-1 table-shell">
-          <table className="data-table">
+        <div ref={tableScrollRef} className="page-scroll activity-log-scroll mt-4 min-h-0 flex-1 table-shell">
+          <table ref={tableRef} className="data-table">
             <thead>
               <tr>
                 <th>Waktu</th>
@@ -270,13 +283,15 @@ export default function ActivityLogPage() {
                     ) : null}
                     <td>{log.userName}</td>
                     <td className="font-semibold text-[color:var(--text-strong)]">{log.action}</td>
-                    <td className="font-mono text-sm text-[color:var(--brand-primary)]">
+                    <td className="max-w-[180px] font-mono text-sm tabular-nums tracking-tight text-[color:var(--brand-primary)]">
                       {log.targetHref ? (
-                        <Link href={log.targetHref} className="hover:underline">
-                          {log.targetLabel}
+                        <Link href={log.targetHref} className="block truncate hover:underline" title={log.targetLabel}>
+                          {formatAwbDisplay(log.targetLabel)}
                         </Link>
                       ) : (
-                        log.targetLabel
+                        <span className="block truncate" title={log.targetLabel}>
+                          {formatAwbDisplay(log.targetLabel)}
+                        </span>
                       )}
                     </td>
                     <td className="max-w-[460px] text-sm leading-6">{normalizeOperationalCopy(log.description)}</td>

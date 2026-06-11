@@ -42,6 +42,17 @@ export function formatStationLabel(code: string) {
   return STATION_LABELS[code as StationCode] ?? code;
 }
 
+/** Ringkas untuk badge dan sidebar sempit — hindari overflow nama bandara panjang. */
+export function formatStationShortLabel(code: string) {
+  const full = formatStationLabel(code);
+  const match = full.match(/^(.+?)\s*\(([A-Z]{3})\)$/);
+  if (match) {
+    const city = match[1].split(" ")[0];
+    return `${city} (${match[2]})`;
+  }
+  return code;
+}
+
 export function stationSelectOptions() {
   return STATION_OPTIONS.map((code) => ({
     value: code,
@@ -230,6 +241,23 @@ export const CARGO_IQ_MILESTONES: Record<
 
 export function getCargoIqMilestone(status: string) {
   return CARGO_IQ_MILESTONES[status as ShipmentStatus] ?? CARGO_IQ_MILESTONES.received;
+}
+
+/** Urutan tahap normal untuk progress bar pelacakan publik */
+export const PUBLIC_TRACKING_JOURNEY: Array<{
+  status: ShipmentStatus;
+  shortLabel: string;
+}> = [
+  { status: "received", shortLabel: "Diterima" },
+  { status: "sortation", shortLabel: "Sortasi" },
+  { status: "loaded_to_aircraft", shortLabel: "Dimuat" },
+  { status: "departed", shortLabel: "Berangkat" },
+  { status: "arrived", shortLabel: "Tiba" },
+];
+
+export function getPublicTrackingJourneyIndex(status: string) {
+  const index = PUBLIC_TRACKING_JOURNEY.findIndex((step) => step.status === status);
+  return index >= 0 ? index : 0;
 }
 
 /** Kapasitas muatan referensi per tipe armada (kg) untuk petunjuk form penerbangan */

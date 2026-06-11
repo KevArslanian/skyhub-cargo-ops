@@ -34,11 +34,16 @@ export async function POST(request: Request) {
     }
 
     const invited = await inviteUser({
-      ...parsed.data,
+      name: parsed.data.name,
+      email: parsed.data.email,
+      role: parsed.data.role,
+      station: parsed.data.station,
+      password: parsed.data.password,
+      customerAccountId: parsed.data.customerAccountId,
       invitedById: user.id,
     });
 
-    return NextResponse.json({ user: invited });
+    return NextResponse.json({ user: invited, initialPassword: parsed.data.password });
   } catch (error) {
     return routeErrorResponse(error, "Gagal membuat pengguna.");
   }

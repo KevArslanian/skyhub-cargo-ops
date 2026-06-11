@@ -269,13 +269,20 @@ export const settingsUpdateSchema = z.object({
   accentColor: z.enum(["blue", "teal", "amber", "rose", "violet"]).optional(),
 });
 
-export const inviteUserSchema = z.object({
-  name: personNameSchema,
-  email: z.email(),
-  role: z.enum(["admin", "staff"]),
-  station: z.enum(STATION_OPTIONS),
-  customerAccountId: z.string().trim().optional().nullable(),
-});
+export const inviteUserSchema = z
+  .object({
+    name: personNameSchema,
+    email: z.email(),
+    role: z.enum(["admin", "staff"]),
+    station: z.enum(STATION_OPTIONS),
+    customerAccountId: z.string().trim().optional().nullable(),
+    password: z.string().min(6, "Kata sandi minimal 6 karakter."),
+    confirmPassword: z.string().min(6, "Konfirmasi kata sandi wajib diisi."),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Konfirmasi kata sandi tidak cocok.",
+    path: ["confirmPassword"],
+  });
 
 export const userRoleUpdateSchema = z.object({
   name: z.string().trim().min(2).optional(),

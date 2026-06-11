@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, Search } from "lucide-react";
 import { GlassSelect } from "@/components/glass-select";
 import { LiquidGlassOverlay } from "@/components/liquid-glass-overlay";
 import { OpsDrawer } from "@/components/ops-drawer";
 import { CrudPageScaffold, EmptyState, FilterBar, FilterFields, FilterSearch, OpsPanel, PaginationBar, SectionHeader } from "@/components/ops-ui";
-import { OPS_LIST_PAGE_SIZE } from "@/lib/constants";
+import { useVisibleCardPageSize } from "@/lib/use-visible-card-page-size";
 import { useOpsAlert } from "@/components/ops-alert-provider";
 import { StatusBadge } from "@/components/status-badge";
-import { cn, formatDateTime } from "@/lib/format";
-import { networkErrorMessage, readApiError } from "@/lib/ops-feedback";
+import { cn, formatAwbDisplay, formatDateTime } from "@/lib/format";
+import { networkErrorMessage, OPS_TONE_SURFACE_BOX, readApiError } from "@/lib/ops-feedback";
 import { getComplaintResolutionPlaceholder } from "@/lib/ops-resolution";
 
 type ComplaintStatus = "new" | "in_review" | "escalated" | "resolved" | "closed";
@@ -143,10 +143,22 @@ export default function ComplaintsPage() {
     return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil((data?.complaints.length ?? 0) / OPS_LIST_PAGE_SIZE));
+  const complaintsScrollRef = useRef<HTMLDivElement | null>(null);
+  const complaintPageSize = useVisibleCardPageSize(
+    complaintsScrollRef,
+    Boolean(data?.complaints.length),
+    data?.complaints.length ?? 0,
+    "[data-complaint-card]",
+    { fallback: 3, min: 1, max: 6, gapPx: 12 },
+  );
+  const totalPages = Math.max(1, Math.ceil((data?.complaints.length ?? 0) / complaintPageSize));
   const currentPage = Math.min(page, totalPages);
-  const pageStart = (currentPage - 1) * OPS_LIST_PAGE_SIZE;
-  const pagedComplaints = (data?.complaints ?? []).slice(pageStart, pageStart + OPS_LIST_PAGE_SIZE);
+  const pageStart = (currentPage - 1) * complaintPageSize;
+  const pagedComplaints = (data?.complaints ?? []).slice(pageStart, pageStart + complaintPageSize);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [complaintPageSize, totalPages]);
 
   const summaryChips = useMemo(
     () => [
@@ -240,7 +252,7 @@ export default function ComplaintsPage() {
   return (
     <>
     <CrudPageScaffold
-      className="complaints-workspace gap-6"
+      className="complaints-workspace gap-4"
       title="Kotak Keluhan"
       subtitle="Tiket layanan pelanggan dari Tentang Kami. Selesai = respon ke pelanggan tercatat. Berbeda dari Pusat Peringatan yang menangani anomali sistem."
       headerExtra={
@@ -320,7 +332,7 @@ export default function ComplaintsPage() {
       body={
       <OpsPanel className="page-pane complaints-panel flex min-h-0 flex-1 flex-col overflow-hidden p-5">
         <SectionHeader title="Antrian Keluhan" subtitle="Klik baris tiket untuk detail dan ubah status." />
-        <div className="page-scroll complaints-scroll mt-5 table-shell">
+        <div ref={complaintsScrollRef} className="page-scroll complaints-scroll mt-5 min-h-0 flex-1 overflow-hidden table-shell">
           {!pagedComplaints.length ? (
             <EmptyState
               icon={Search}
@@ -335,6 +347,7 @@ export default function ComplaintsPage() {
                 return (
                   <article
                     key={item.id}
+                    data-complaint-card
                     role="button"
                     tabIndex={0}
                     className={cn(
@@ -353,9 +366,13 @@ export default function ComplaintsPage() {
                       <div className="min-w-0 flex-1">
                         <div className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted-fg)]">{item.ticketCode}</div>
                         <h3 className="mt-2 text-xl font-semibold">{item.reporterName}</h3>
-                        <p className="mt-1 text-sm text-[color:var(--muted-fg)]">
+                        <p className="mt-1 truncate text-sm text-[color:var(--muted-fg)]" title={[item.topicLabel, item.referenceNo].filter(Boolean).join(" · ")}>
                           {item.topicLabel}
-                          {item.referenceNo ? ` · ${item.referenceNo}` : ""}
+                          {item.referenceNo ? (
+                            <span className="font-mono tabular-nums tracking-tight">
+                              {` · ${formatAwbDisplay(item.referenceNo)}`}
+                            </span>
+                          ) : null}
                         </p>
                         <p className="mt-3 line-clamp-2 text-sm leading-6 text-[color:var(--foreground)]">{item.message}</p>
                       </div>
@@ -519,7 +536,7 @@ export default function ComplaintsPage() {
             </div>
 
             {selectedTicket.status === "escalated" && selectedTicket.escalationReason ? (
-              <p className="rounded-xl border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm leading-6">
+              <p className={cn("rounded-xl px-4 py-3 text-sm leading-6", OPS_TONE_SURFACE_BOX.warning)}>
                 <span className="font-medium text-[color:var(--foreground)]">Alasan eskalasi: </span>
                 <span className="text-[color:var(--muted-fg)]">{selectedTicket.escalationReason}</span>
                 {selectedTicket.escalatedByName ? (

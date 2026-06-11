@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { LiquidGlassOverlay } from "@/components/liquid-glass-overlay";
 import { cn } from "@/lib/format";
+import { OPS_TONE_SURFACE_ICON } from "@/lib/ops-feedback";
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -67,9 +68,7 @@ export function ConfirmDialog({
         <span
           className={cn(
             "flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border",
-            tone === "danger"
-              ? "border-[color:var(--tone-danger-border)] bg-[color:var(--tone-danger-soft)] text-[color:var(--tone-danger)]"
-              : "border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] text-[color:var(--tone-info)]",
+            tone === "danger" ? OPS_TONE_SURFACE_ICON.danger : OPS_TONE_SURFACE_ICON.info,
           )}
         >
           <AlertTriangle size={20} />

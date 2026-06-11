@@ -48,22 +48,26 @@ export function StatusBadge({
   value,
   label,
   className,
+  compact = false,
 }: {
   value: string;
   label?: string;
   className?: string;
+  compact?: boolean;
 }) {
   return (
     <span
       aria-label={label ?? value}
+      title={compact ? (label ?? value) : undefined}
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[11px] font-semibold uppercase tracking-[0.12em]",
+        "inline-flex h-7 max-w-full items-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold uppercase tracking-[0.12em]",
+        compact ? "min-w-0 truncate" : "whitespace-nowrap",
         toneMap[value.toLowerCase()] || "border-[color:var(--border-strong)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)]",
         className,
       )}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {label ?? value}
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+      <span className={compact ? "min-w-0 truncate" : undefined}>{label ?? value}</span>
     </span>
   );
 }

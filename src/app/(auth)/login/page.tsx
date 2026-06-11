@@ -170,7 +170,7 @@ export default function LoginPage() {
               <div
                 role="alert"
                 aria-live="polite"
-                className={cn("rounded-[22px] border px-4 py-4", "border-[color:var(--tone-danger-border)] bg-[color:var(--tone-danger-soft)]")}
+                className={cn("rounded-[22px] border px-4 py-4", "border-[color:var(--tone-danger-border)] bg-[color:var(--tone-danger-surface)]")}
               >
                 <div className="flex items-start gap-3">
                   <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[color:var(--tone-danger-border)] bg-[color:var(--panel-bg)] text-[color:var(--tone-danger)]">

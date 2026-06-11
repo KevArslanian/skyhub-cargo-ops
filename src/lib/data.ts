@@ -93,6 +93,14 @@ const shipmentInclude = Prisma.validator<Prisma.ShipmentInclude>()({
   },
 });
 
+const alertCenterShipmentInclude = Prisma.validator<Prisma.ShipmentInclude>()({
+  flight: {
+    select: {
+      flightNumber: true,
+    },
+  },
+});
+
 const shipmentDocumentListSelect = {
   id: true,
   fileName: true,
@@ -1527,6 +1535,10 @@ export async function getAlertCenterData(user: AccessUser & { name: string }, op
   const staleBefore = new Date(now.getTime() - 6 * 60 * 60 * 1000);
   const scopedShipments = scopeShipmentWhere(user);
 
+  const summaryOnly = options?.summaryOnly ?? false;
+  const shipmentQueryInclude = summaryOnly ? alertCenterShipmentInclude : shipmentInclude;
+  const reportedIssueTake = summaryOnly ? 24 : ALERT_LOOKBACK_LIMIT;
+
   const [shipments, unassignedShipments, flights, notificationCount, reportedIssueLogs] = await Promise.all([
     db.shipment.findMany({
       where: andShipmentScope(user, {
@@ -1540,7 +1552,7 @@ export async function getAlertCenterData(user: AccessUser & { name: string }, op
           },
         ],
       }),
-      include: shipmentInclude,
+      include: shipmentQueryInclude,
       orderBy: [{ updatedAt: "desc" }],
       take: ALERT_LOOKBACK_LIMIT,
     }),
@@ -1549,7 +1561,7 @@ export async function getAlertCenterData(user: AccessUser & { name: string }, op
         flightId: null,
         status: { in: [ShipmentStatus.received, ShipmentStatus.sortation, ShipmentStatus.loaded_to_aircraft, ShipmentStatus.hold] },
       }),
-      include: shipmentInclude,
+      include: shipmentQueryInclude,
       orderBy: [{ updatedAt: "desc" }],
       take: 30,
     }),
@@ -1577,12 +1589,14 @@ export async function getAlertCenterData(user: AccessUser & { name: string }, op
       orderBy: { cargoCutoffTime: "asc" },
       take: ALERT_LOOKBACK_LIMIT,
     }),
-    db.notification.count({
-      where: {
-        userId: user.id,
-        read: false,
-      },
-    }),
+    summaryOnly
+      ? Promise.resolve(0)
+      : db.notification.count({
+          where: {
+            userId: user.id,
+            read: false,
+          },
+        }),
     db.activityLog.findMany({
       where: {
         action: "Laporkan Isu",
@@ -1591,7 +1605,7 @@ export async function getAlertCenterData(user: AccessUser & { name: string }, op
         createdAt: { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
       },
       orderBy: { createdAt: "desc" },
-      take: ALERT_LOOKBACK_LIMIT,
+      take: reportedIssueTake,
       select: {
         id: true,
         targetId: true,
@@ -1888,8 +1902,6 @@ export async function getAlertCenterData(user: AccessUser & { name: string }, op
   const acknowledgedCount = sortedAlerts.filter((alert) => alert.workflowStatus === "acknowledged").length;
   const assignedCount = sortedAlerts.filter((alert) => alert.assignedToId).length;
   const slaBreachedCount = sortedAlerts.filter((alert) => alert.slaRemainingMinutes < 0).length;
-
-  const summaryOnly = options?.summaryOnly ?? false;
 
   // Distinct staff that can own an alert, surfaced for the assignment picker.
   const assignableUsers = summaryOnly
@@ -2374,6 +2386,28 @@ function buildDashboardAlertSummary(alertCenter: Awaited<ReturnType<typeof getAl
     : { open: 0, active: 0, critical: 0, warning: 0, info: 0, slaBreached: 0 };
 }
 
+const getCachedDashboardAlertSummary = unstable_cache(
+  async (userId: string, role: string, station: string, name: string) => {
+    if (!isInternalRole(role as AccessUser["role"])) {
+      return buildDashboardAlertSummary(null);
+    }
+
+    const alertCenter = await getAlertCenterData(
+      {
+        id: userId,
+        role: role as AccessUser["role"],
+        station: station || null,
+        name: name || "Operator",
+      },
+      { summaryOnly: true },
+    );
+
+    return buildDashboardAlertSummary(alertCenter);
+  },
+  ["skyhub-dashboard-alert-summary"],
+  { revalidate: 45 },
+);
+
 function serializeDashboardRecentActivity(
   recentActivity: Array<{
     id: string;
@@ -2444,16 +2478,14 @@ export async function getDashboardKpis(user: AccessUser & { name?: string }, dat
 
 export async function getDashboardAlerts(user: AccessUser & { name?: string }) {
   const auditSince = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const [recentActivity, alertCenter, auditIssues24h] = await Promise.all([
+  const [recentActivity, alertSummary, auditIssues24h] = await Promise.all([
     db.activityLog.findMany({
       where: buildExcludedActivityWhere(),
       include: { user: true },
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
-    isInternalRole(user.role)
-      ? getAlertCenterData({ ...user, name: user.name ?? "Operator" }, { summaryOnly: true })
-      : Promise.resolve(null),
+    getCachedDashboardAlertSummary(user.id, user.role, user.station ?? "", user.name ?? "Operator"),
     db.activityLog.count({
       where: {
         ...buildExcludedActivityWhere(),
@@ -2464,7 +2496,7 @@ export async function getDashboardAlerts(user: AccessUser & { name?: string }) {
   ]);
 
   return {
-    alertSummary: buildDashboardAlertSummary(alertCenter),
+    alertSummary,
     auditIssues24h,
     recentActivity: serializeDashboardRecentActivity(recentActivity),
   };
@@ -3602,6 +3634,7 @@ export async function inviteUser(input: {
   email: string;
   role: "admin" | "staff";
   station: string;
+  password: string;
   customerAccountId?: string | null;
   invitedById: string;
 }) {
@@ -3612,15 +3645,17 @@ export async function inviteUser(input: {
 
   ensureAdmin(actor);
 
+  const passwordHash = hashSync(input.password, 10);
+
   const user = await db.$transaction(async (tx) => {
     const created = await tx.user.create({
       data: {
         name: input.name,
         email: input.email,
-        passwordHash: "$2b$10$2nDaRkI6SQ7qN4uA.7Z0m.9pO5X2FdtYYG6iwSeNBY0d5hDOGOZaC",
+        passwordHash,
         role: input.role,
         station: input.station,
-        status: "invited",
+        status: "active",
         customerAccountId: input.customerAccountId ?? null,
         settings: {
           create: {
@@ -3661,7 +3696,7 @@ export async function inviteUser(input: {
         targetType: "user",
         targetId: created.id,
         targetLabel: created.email,
-        description: `Pengguna ${created.email} diundang sebagai ${ROLE_LABELS[created.role]}.`,
+        description: `Pengguna ${created.email} dibuat sebagai ${ROLE_LABELS[created.role]} dengan kata sandi awal.`,
         level: "success",
       },
     });
@@ -4525,6 +4560,38 @@ function formatActivityDescription(description: string) {
     });
 }
 
+function dedupeActivityLogRows<
+  T extends {
+    id: string;
+    action: string;
+    targetId: string | null;
+    targetLabel: string;
+    description: string;
+    createdAt: Date;
+    userId: string | null;
+  },
+>(rows: T[]) {
+  const seen = new Set<string>();
+
+  return rows.filter((row) => {
+    const minuteBucket = Math.floor(row.createdAt.getTime() / 60_000);
+    const fingerprint = [
+      row.action,
+      row.targetId ?? row.targetLabel,
+      row.description.trim(),
+      row.userId ?? "system",
+      minuteBucket,
+    ].join("|");
+
+    if (seen.has(fingerprint)) {
+      return false;
+    }
+
+    seen.add(fingerprint);
+    return true;
+  });
+}
+
 export async function listActivityLogs(
   user: AccessUser,
   filters?: { query?: string; action?: string; userId?: string; category?: string },
@@ -4603,6 +4670,8 @@ export async function listActivityLogs(
     );
   }
 
+  const dedupedLogs = dedupeActivityLogRows(logs);
+
   return {
     users,
     categories: ACTIVITY_CATEGORIES.map((item) => ({
@@ -4610,7 +4679,7 @@ export async function listActivityLogs(
       label: item.label,
       count: categoryCounts.get(item.id) ?? 0,
     })),
-    logs: logs.map((log) => {
+    logs: dedupedLogs.map((log) => {
       const categoryId = getActivityCategory({ targetType: log.targetType, action: log.action });
       const targetLabel = formatActivityTargetLabel(log.targetType, log.targetLabel);
 

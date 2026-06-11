@@ -14,7 +14,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { cn, formatDateTime, formatRelativeShort, formatWeight } from "@/lib/format";
+import { cn, formatDateTime, formatWeight } from "@/lib/format";
 import {
   AIR_CARGO_MODE,
   AIR_VEHICLE_TYPE,
@@ -25,7 +25,6 @@ import {
   formatCapacityKgLabel,
   formatFlightSelectLabels,
   GOODS_STATUS_OPTIONS,
-  OPS_LIST_PAGE_SIZE,
   SERVICE_TYPE_OPTIONS,
   SHIPMENT_DOC_STATUS_FORM_OPTIONS,
   resolveShipmentDocStatusValue,
@@ -66,6 +65,7 @@ import { openAwbReceiptPrint } from "@/lib/awb-receipt";
 import { networkErrorMessage, readApiError } from "@/lib/ops-feedback";
 import { buildShipmentSubmitPayload, SHIPPING_RATE_TOOLTIP } from "@/lib/shipment-payload";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { useVisibleTablePageSize } from "@/lib/use-visible-table-page-size";
 
 type ShipmentRow = {
   id: string;
@@ -486,9 +486,8 @@ const LedgerManifestRow = memo(function LedgerManifestRow({
         <time
           className="text-xs font-mono font-semibold tracking-tight text-[color:var(--muted-fg)]"
           dateTime={formatIsoSecond(shipment.updatedAt)}
-          title={formatDateTime(shipment.updatedAt)}
         >
-          {formatRelativeShort(shipment.updatedAt)}
+          {formatDateTime(shipment.updatedAt)}
         </time>
       </td>
     </tr>
@@ -507,6 +506,8 @@ export default function ShipmentLedgerPage() {
   const [dateTo, setDateTo] = useState(searchParams.get("dateTo") || "");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const detailOpenRef = useRef(detailOpen);
+  detailOpenRef.current = detailOpen;
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -523,6 +524,8 @@ export default function ShipmentLedgerPage() {
   const selectedIdRef = useRef<string | null>(null);
   const hasLoadedRef = useRef(false);
   const splitPaneRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const tableRef = useRef<HTMLTableElement | null>(null);
   const pendingDetailQueryRef = useRef<string | null>(null);
 
   const debouncedQuery = useDebouncedValue(query, 300);
@@ -556,7 +559,19 @@ export default function ShipmentLedgerPage() {
     });
   }, []);
 
-  const requestShipments = useCallback(async (page = ledgerPage) => {
+  const ledgerPageSize = useVisibleTablePageSize(
+    tableScrollRef,
+    tableRef,
+    Boolean(data?.shipments.length) && !loading,
+    data?.shipments.length ?? 0,
+    { fallback: 3, min: 1, max: 12 },
+  );
+  const ledgerPageRef = useRef(ledgerPage);
+  ledgerPageRef.current = ledgerPage;
+  const ledgerPageSizeRef = useRef(ledgerPageSize);
+  ledgerPageSizeRef.current = ledgerPageSize;
+
+  const requestShipments = useCallback(async (page = ledgerPageRef.current, pageSize = ledgerPageSizeRef.current) => {
     const params = new URLSearchParams();
     if (debouncedQuery.trim()) params.set("query", debouncedQuery.trim());
     if (status !== "all") params.set("status", status);
@@ -565,7 +580,7 @@ export default function ShipmentLedgerPage() {
     if (dateFrom) params.set("dateFrom", dateFrom);
     if (dateTo) params.set("dateTo", dateTo);
     params.set("page", String(page));
-    params.set("pageSize", String(OPS_LIST_PAGE_SIZE));
+    params.set("pageSize", String(pageSize));
 
     try {
       const response = await fetch(`/api/shipments?${params.toString()}`, { cache: "no-store" });
@@ -580,7 +595,7 @@ export default function ShipmentLedgerPage() {
       setListError(networkErrorMessage("memuat buku pengiriman"));
       return null;
     }
-  }, [dateFrom, dateTo, debouncedQuery, flight, ledgerPage, sortBy, status]);
+  }, [dateFrom, dateTo, debouncedQuery, flight, sortBy, status]);
 
   const refreshPinnedShipment = useCallback(async (shipmentId: string) => {
     try {
@@ -613,14 +628,14 @@ export default function ShipmentLedgerPage() {
           : null;
         if (matched) {
           setPinnedShipment(matched);
-        } else if (preferredShipmentId && detailOpen) {
+        } else if (preferredShipmentId && detailOpenRef.current) {
           void refreshPinnedShipment(preferredShipmentId);
         }
       }
 
       setLoading(false);
     },
-    [applyShipmentPayload, detailOpen, ledgerPage, refreshPinnedShipment, requestShipments],
+    [applyShipmentPayload, ledgerPage, refreshPinnedShipment, requestShipments],
   );
 
   useEffect(() => {
@@ -633,6 +648,15 @@ export default function ShipmentLedgerPage() {
       hasLoadedRef.current = true;
     });
   }, [ledgerPage, loadShipments]);
+
+  const resolvedLedgerPageSizeRef = useRef(ledgerPageSize);
+  useEffect(() => {
+    if (!hasLoadedRef.current || loading) return;
+    if (resolvedLedgerPageSizeRef.current === ledgerPageSize) return;
+    resolvedLedgerPageSizeRef.current = ledgerPageSize;
+    setLedgerPage(1);
+    void loadShipments(selectedIdRef.current, "refresh", 1);
+  }, [ledgerPageSize, loadShipments, loading]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -702,7 +726,7 @@ export default function ShipmentLedgerPage() {
   const shipments = useMemo(() => data?.shipments ?? [], [data?.shipments]);
   const ledgerPagination = data?.pagination ?? {
     page: ledgerPage,
-    pageSize: OPS_LIST_PAGE_SIZE,
+    pageSize: ledgerPageSize,
     totalItems: shipments.length,
     totalPages: 1,
   };
@@ -997,10 +1021,16 @@ export default function ShipmentLedgerPage() {
     Boolean(dateFrom) ||
     Boolean(dateTo);
 
-  const pageActions = useMemo(
-    () => (
+  const pageActions = useMemo(() => {
+    const canExport = !isReadOnly && data?.permissions.canExport;
+    const canCreate = !isReadOnly && (loading || data?.permissions.canCreate);
+    if (!canExport && !canCreate) {
+      return null;
+    }
+
+    return (
       <div className="flex flex-wrap gap-2">
-        {!isReadOnly && data?.permissions.canExport ? (
+        {canExport ? (
           <Link
             href={`/exports/shipments?${exportParams.toString()}`}
             target="_blank"
@@ -1011,7 +1041,7 @@ export default function ShipmentLedgerPage() {
             Cetak Pengiriman
           </Link>
         ) : null}
-        {!isReadOnly && (loading || data?.permissions.canCreate) ? (
+        {canCreate ? (
           <button
             type="button"
             className="btn btn-primary"
@@ -1028,9 +1058,8 @@ export default function ShipmentLedgerPage() {
           </button>
         ) : null}
       </div>
-    ),
-    [data?.permissions.canCreate, data?.permissions.canExport, exportParams, isReadOnly, loading],
-  );
+    );
+  }, [data?.permissions.canCreate, data?.permissions.canExport, exportParams, isReadOnly, loading]);
 
   const filterControls = useMemo(
     () => (
@@ -1158,14 +1187,17 @@ export default function ShipmentLedgerPage() {
       aria-labelledby="shipment-ledger-title"
       eyebrow={isReadOnly ? "Portal Pelanggan" : "Manifest Kargo"}
       title={isReadOnly ? "Pengiriman Saya" : "Buku Pengiriman"}
-      actions={pageActions}
       filters={filterControls}
       body={
       <>
       <div ref={splitPaneRef} className="min-h-0 flex-1 overflow-hidden">
         <OpsPanel className="page-pane flex min-h-0 flex-col overflow-hidden p-0">
           <div className="border-b border-[color:var(--border-soft)] p-5">
-            <SectionHeader title={`Daftar AWB${shipments.length ? ` (${shipments.length})` : ""}`} />
+            <SectionHeader
+              title={`Daftar AWB${ledgerPagination.totalItems ? ` (${ledgerPagination.totalItems})` : ""}`}
+              action={pageActions}
+              className="panel-section-header shrink-0 border-b-0 pb-0"
+            />
           </div>
 
           <OpsListErrorBanner
@@ -1183,9 +1215,9 @@ export default function ShipmentLedgerPage() {
             </div>
           ) : shipments.length ? (
             <>
-              <div className="ledger-manifest-scroll internal-scrollbar table-shell" role="region" aria-label="Daftar manifest pengiriman" tabIndex={0}>
+              <div ref={tableScrollRef} className="ledger-manifest-scroll internal-scrollbar table-shell" role="region" aria-label="Daftar manifest pengiriman" tabIndex={0}>
                 <div className="ledger-manifest-table-wrap">
-                  <table className="ledger-manifest-table">
+                  <table ref={tableRef} className="ledger-manifest-table">
                     <thead>
                       <tr>
                         <th scope="col">AWB</th>
@@ -1218,7 +1250,7 @@ export default function ShipmentLedgerPage() {
                   totalPages={ledgerPageWindow.totalPages}
                   visibleStart={ledgerPageWindow.visibleStart}
                   visibleEnd={ledgerPageWindow.visibleEnd}
-                  totalItems={shipments.length}
+                  totalItems={ledgerPagination.totalItems}
                   onPageChange={(nextPage) => setLedgerPage(nextPage)}
                   label="Manifest"
                 />

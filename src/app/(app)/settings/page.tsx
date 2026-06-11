@@ -15,12 +15,13 @@ import {
 } from "lucide-react";
 import {
   formatStationLabel,
-  OPS_LIST_PAGE_SIZE,
+  formatStationShortLabel,
   ORG_TIME_ZONE_LABEL,
   ROLE_LABELS,
   stationSelectOptions,
   USER_STATUS_LABELS,
 } from "@/lib/constants";
+import { useVisibleTablePageSize } from "@/lib/use-visible-table-page-size";
 import { cn } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { OpsLockedPage } from "@/components/ops-locked-page";
@@ -30,6 +31,7 @@ import { GlassSelect } from "@/components/glass-select";
 import { useOpsAlert } from "@/components/ops-alert-provider";
 import { validateInviteUserForm } from "@/lib/client-validation";
 import { sanitizePersonName } from "@/lib/input-guards";
+import { generateStaffPassword } from "@/lib/password-utils";
 import { networkErrorMessage, readApiError } from "@/lib/ops-feedback";
 
 const CAPABILITY_OPTIONS = [
@@ -167,26 +169,26 @@ function SettingsIdentitySummary({
           <p className="truncate font-semibold text-[color:var(--text-strong)]">{displayName}</p>
           <p className="truncate text-xs text-[color:var(--muted-2)]">{profile.email}</p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          <StatusBadge value="info" label={ROLE_LABELS[profile.role]} />
-          <StatusBadge value="active" label={formatStationLabel(draft.station)} />
+        <div className="flex max-w-full flex-col items-start gap-1.5">
+          <StatusBadge value="info" label={ROLE_LABELS[profile.role]} compact />
+          <StatusBadge value="active" label={formatStationShortLabel(draft.station)} compact />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
+    <div className="settings-identity-card overflow-hidden rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
       <div className="flex items-start gap-3.5">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[color:var(--brand-primary)] font-[family:var(--font-heading)] text-[1.05rem] font-black tracking-[-0.04em] text-white">
           {getInitials(displayName || "Sky Hub")}
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate font-semibold text-[color:var(--text-strong)]">{displayName}</p>
           <p className="truncate text-xs text-[color:var(--muted-2)]">{profile.email}</p>
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            <StatusBadge value="info" label={ROLE_LABELS[profile.role]} />
-            <StatusBadge value="active" label={formatStationLabel(draft.station)} />
+          <div className="mt-2.5 flex max-w-full flex-col items-start gap-1.5">
+            <StatusBadge value="info" label={ROLE_LABELS[profile.role]} compact />
+            <StatusBadge value="active" label={formatStationShortLabel(draft.station)} compact />
           </div>
         </div>
       </div>
@@ -471,12 +473,17 @@ export default function SettingsPage() {
     email: string;
     role: "admin" | "staff";
     station: string;
+    password: string;
+    confirmPassword: string;
   }>({
     name: "",
     email: "",
     role: "staff",
     station: "SOQ",
+    password: "",
+    confirmPassword: "",
   });
+  const [showInvitePassword, setShowInvitePassword] = useState(true);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingUserDraft, setEditingUserDraft] = useState<SettingsPayload["users"][number] | null>(null);
   const [resetPasswordDraft, setResetPasswordDraft] = useState("");
@@ -486,6 +493,9 @@ export default function SettingsPage() {
   const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState("");
   const [userPage, setUserPage] = useState(1);
+  const userPanelRef = useRef<HTMLDivElement | null>(null);
+  const userTableScrollRef = useRef<HTMLDivElement | null>(null);
+  const userTableRef = useRef<HTMLTableElement | null>(null);
 
   const reloadSettings = useCallback(async () => {
     try {
@@ -546,6 +556,14 @@ export default function SettingsPage() {
   }, [activeTab]);
 
   useEffect(() => {
+    if (!canManageUsersAccess) return;
+    if (typeof window === "undefined") return;
+    if (window.location.hash.replace(/^#/, "") === "tim-akses") {
+      setActiveTab("Tim & Akses");
+    }
+  }, [canManageUsersAccess]);
+
+  useEffect(() => {
     function handleContextSearch(event: Event) {
       const detail = (event as CustomEvent<{ pathname?: string; query?: string }>).detail;
       if (detail?.pathname !== "/settings") return;
@@ -579,10 +597,25 @@ export default function SettingsPage() {
     );
   }, [data?.users, userSearch]);
 
-  const userTotalPages = Math.max(1, Math.ceil(filteredUsers.length / OPS_LIST_PAGE_SIZE));
+  const userPageSize = useVisibleTablePageSize(
+    userTableScrollRef,
+    userTableRef,
+    activeTab === "Tim & Akses" && filteredUsers.length > 0 && Boolean(data),
+    filteredUsers.length,
+    {
+      fallback: 8,
+      min: 6,
+      max: 25,
+      footerPx: 88,
+      chromePx: 220,
+      measureContainerRef: userPanelRef,
+    },
+  );
+  const effectiveUserPageSize = Math.min(filteredUsers.length, userPageSize);
+  const userTotalPages = Math.max(1, Math.ceil(filteredUsers.length / effectiveUserPageSize));
   const currentUserPage = Math.min(userPage, userTotalPages);
-  const userPageStart = (currentUserPage - 1) * OPS_LIST_PAGE_SIZE;
-  const pagedUsers = filteredUsers.slice(userPageStart, userPageStart + OPS_LIST_PAGE_SIZE);
+  const userPageStart = (currentUserPage - 1) * effectiveUserPageSize;
+  const pagedUsers = filteredUsers.slice(userPageStart, userPageStart + effectiveUserPageSize);
   const userVisibleStart = filteredUsers.length ? userPageStart + 1 : 0;
   const userVisibleEnd = Math.min(userPageStart + pagedUsers.length, filteredUsers.length);
 
@@ -593,6 +626,12 @@ export default function SettingsPage() {
   useEffect(() => {
     setUserPage((current) => Math.min(current, userTotalPages));
   }, [userTotalPages]);
+
+  useEffect(() => {
+    if (activeTab === "Tim & Akses") {
+      setUserPage(1);
+    }
+  }, [activeTab, effectiveUserPageSize]);
 
   function emitSettingsPreview(patch: Partial<SettingsDraft>) {
     window.dispatchEvent(new CustomEvent("skyhub:settings-preview", { detail: patch }));
@@ -643,6 +682,31 @@ export default function SettingsPage() {
     emitSettingsPreview(patch);
   }
 
+  function buildInvitePasswordFields() {
+    const password = generateStaffPassword();
+    return { password, confirmPassword: password };
+  }
+
+  function openInviteDrawer() {
+    const passwordFields = buildInvitePasswordFields();
+    setInviteForm((current) => ({ ...current, ...passwordFields }));
+    setShowInvitePassword(true);
+    setInviteOpen(true);
+  }
+
+  function regenerateInvitePassword() {
+    const passwordFields = buildInvitePasswordFields();
+    setInviteForm((current) => ({ ...current, ...passwordFields }));
+    setShowInvitePassword(true);
+  }
+
+  function regenerateResetPasswordDraft() {
+    const password = generateStaffPassword();
+    setResetPasswordDraft(password);
+    setResetPasswordConfirm(password);
+    setShowResetPassword(true);
+  }
+
   async function createUser() {
     const validation = validateInviteUserForm(inviteForm);
     if (!validation.ok) {
@@ -660,11 +724,27 @@ export default function SettingsPage() {
       });
 
       if (response.ok) {
-        const payload = (await response.json()) as { user: SettingsPayload["users"][number] };
+        const payload = (await response.json()) as {
+          user: SettingsPayload["users"][number];
+          initialPassword?: string;
+        };
         setData((current) => (current ? { ...current, users: [...current.users, payload.user] } : current));
-        setInviteForm({ name: "", email: "", role: "staff", station: "SOQ" });
+        setInviteForm({
+          name: "",
+          email: "",
+          role: "staff",
+          station: "SOQ",
+          password: "",
+          confirmPassword: "",
+        });
         setInviteOpen(false);
-        showAlert({ title: "Pemberitahuan", description: "Pengguna berhasil dibuat dengan status diundang.", tone: "info" });
+        showAlert({
+          title: "Pengguna Dibuat",
+          description: payload.initialPassword
+            ? `${payload.user.email} aktif. Kata sandi awal: ${payload.initialPassword}`
+            : `${payload.user.email} berhasil dibuat dan siap digunakan.`,
+          tone: "success",
+        });
       } else {
         showAlert({ title: "Gagal", description: await readApiError(response, "Gagal membuat pengguna."), tone: "error" });
       }
@@ -834,6 +914,7 @@ export default function SettingsPage() {
 
   return (
     <OpsLockedPage
+      className={canManageUsersAccess ? "settings-viewport" : undefined}
       header={
         <PageHeader
           eyebrow="Sistem"
@@ -880,10 +961,11 @@ export default function SettingsPage() {
             <div className="mt-6 min-h-0 space-y-6 overflow-y-auto">
               <section>
                 <SectionHeader
+                  contained
                   title="Profil Pengguna"
                   subtitle="Ringkasan akun operator Anda."
                   action={
-                    <button type="button" className="btn btn-secondary h-10 px-4" onClick={() => setProfileDrawerOpen(true)}>
+                    <button type="button" className="btn btn-secondary h-10 w-full px-4 sm:w-auto" onClick={() => setProfileDrawerOpen(true)}>
                       Ubah
                     </button>
                   }
@@ -1002,7 +1084,12 @@ export default function SettingsPage() {
           </OpsDrawer>
         </div>
       ) : (
-        <div className="gap-4 split-pane-shell split-pane-shell-settings">
+        <div
+          className={cn(
+            "gap-4 split-pane-shell split-pane-shell-settings min-h-0 h-full flex-1 overflow-hidden",
+            canManageUsersAccess ? "settings-users-layout" : null,
+          )}
+        >
           <OpsPanel className="page-pane split-pane-left p-4">
             <div className="space-y-3">
               <SettingsIdentitySummary draft={draft} profile={data.profile} variant="sidebar" />
@@ -1046,7 +1133,12 @@ export default function SettingsPage() {
                           ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)]"
                           : "border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] text-[color:var(--muted-fg)] hover:text-[color:var(--text-strong)]",
                       )}
-                      onClick={() => setActiveTab(tab.label)}
+                      onClick={() => {
+                        setActiveTab(tab.label);
+                        if (typeof window !== "undefined" && tab.label === "Tim & Akses") {
+                          window.history.replaceState(null, "", `${window.location.pathname}#tim-akses`);
+                        }
+                      }}
                     >
                       <span className="flex min-w-0 items-center gap-3">
                         <span className="inline-flex h-10 w-10 items-center justify-center rounded-[16px] border border-[color:var(--border-soft)] bg-white/70 dark:bg-white/[0.04]">
@@ -1066,9 +1158,16 @@ export default function SettingsPage() {
 
           </OpsPanel>
 
-          <div className="page-stack split-pane-right min-h-0 overflow-hidden pt-2">
+          <div
+            className={cn(
+              "page-stack split-pane-right min-h-0 pt-2",
+              canManageUsersAccess
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                : "overflow-y-auto",
+            )}
+          >
             {activeTab === "Profil" ? (
-              <div className="grid min-h-0 gap-4 lg:grid-cols-2">
+              <div className="grid min-h-0 gap-4 overflow-y-auto lg:grid-cols-2">
                 <OpsPanel className="flex min-h-0 flex-col overflow-hidden p-5">
                   <SectionHeader
                     title="Profil Pengguna"
@@ -1082,7 +1181,7 @@ export default function SettingsPage() {
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <DataCard label="Nama" value={draft.name || data.profile.name} />
                     <DataCard label="Surel" value={data.profile.email} />
-                    <DataCard label="Stasiun" value={formatStationLabel(draft.station)} />
+                    <DataCard label="Stasiun" value={formatStationLabel(draft.station)} truncateValue valueTitle={formatStationLabel(draft.station)} />
                     <DataCard label="Peran" value={ROLE_LABELS[data.profile.role]} />
                   </div>
                   <p className="mt-4 text-sm leading-6 text-[color:var(--muted-fg)]">
@@ -1191,19 +1290,22 @@ export default function SettingsPage() {
             ) : null}
 
             {activeTab === "Tim & Akses" && canManageUsersAccess ? (
-              <OpsPanel className="flex min-h-0 flex-col overflow-hidden p-5">
+              <OpsPanel className="settings-users-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-5">
+                <div ref={userPanelRef} className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <SectionHeader
+                  contained
                   title="Tim & Akses"
                   subtitle="Pengguna, peran, dan izin."
                   action={
-                    <button type="button" className="btn btn-primary" onClick={() => setInviteOpen(true)}>
+                    <button type="button" className="btn btn-primary w-full sm:w-auto" onClick={openInviteDrawer}>
                       <Plus size={16} />
                       Tambah Pengguna
                     </button>
                   }
                 />
 
-                <div className="mt-5 grid gap-4 xl:grid-cols-3">
+                <div className="settings-users-body mt-5 min-h-0 flex-1">
+                <div className="grid shrink-0 gap-4 xl:grid-cols-3">
                   <DataCard label="Total pengguna" value={data.users.length} tone="primary" />
                   <DataCard
                     label="Pengguna aktif"
@@ -1217,7 +1319,7 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div className="settings-table-toolbar">
+                <div className="settings-table-toolbar shrink-0">
                   <span>{filteredUsers.length} pengguna{userSearch ? ` cocok "${userSearch}"` : ""}</span>
                   <input
                     type="text"
@@ -1231,8 +1333,11 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div className="table-shell mt-5 overflow-hidden rounded-[24px] border border-[color:var(--border-soft)]">
-                  <table className="data-table">
+                <div
+                  ref={userTableScrollRef}
+                  className="settings-users-table-scroll internal-scrollbar table-shell mt-5 min-h-0 min-w-0 flex-1 overflow-hidden rounded-[24px] border border-[color:var(--border-soft)]"
+                >
+                  <table ref={userTableRef} className="data-table">
                     <thead>
                       <tr>
                         <th>Nama</th>
@@ -1323,23 +1428,27 @@ export default function SettingsPage() {
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-5 shrink-0">
-                  <PaginationBar
-                    page={currentUserPage}
-                    totalPages={userTotalPages}
-                    visibleStart={userVisibleStart}
-                    visibleEnd={userVisibleEnd}
-                    totalItems={filteredUsers.length}
-                    onPageChange={setUserPage}
-                    label="Pengguna"
-                  />
+                {filteredUsers.length > 0 ? (
+                  <div className="settings-users-pagination">
+                    <PaginationBar
+                      page={currentUserPage}
+                      totalPages={userTotalPages}
+                      visibleStart={userVisibleStart}
+                      visibleEnd={userVisibleEnd}
+                      totalItems={filteredUsers.length}
+                      onPageChange={setUserPage}
+                      label="Pengguna"
+                    />
+                  </div>
+                ) : null}
+                </div>
                 </div>
 
               <OpsDrawer
                 open={inviteOpen}
                 title="Tambah Pengguna"
                 eyebrow="Tim & Akses"
-                description="Buat akun internal baru dengan status diundang."
+                description="Buat akun internal baru dengan kata sandi awal yang bisa langsung dipakai login."
                 onClose={() => setInviteOpen(false)}
                 footer={
                   <div className="flex w-full items-center justify-end gap-3">
@@ -1397,6 +1506,59 @@ export default function SettingsPage() {
                         onChange={(value) => setInviteForm((current) => ({ ...current, station: value }))}
                         options={stationSelectOptions()}
                       />
+                    </div>
+                  </div>
+
+                  <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[color:var(--text-strong)]">Kata sandi awal</p>
+                        <p className="mt-1 text-xs leading-5 text-[color:var(--muted-fg)]">
+                          Kata sandi dibuat otomatis dan bisa diubah sebelum disimpan.
+                        </p>
+                      </div>
+                      <button type="button" className="btn btn-secondary h-9 px-3 text-xs" onClick={regenerateInvitePassword}>
+                        Buat ulang
+                      </button>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="label">Kata sandi</label>
+                        <div className="relative mt-2">
+                          <input
+                            className="input-field input-field-trailing"
+                            type={showInvitePassword ? "text" : "password"}
+                            autoComplete="new-password"
+                            value={inviteForm.password}
+                            onChange={(event) =>
+                              setInviteForm((current) => ({ ...current, password: event.target.value }))
+                            }
+                            placeholder="Minimal 6 karakter"
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-3 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-[color:var(--muted-fg)] transition hover:bg-[color:var(--panel-bg)]"
+                            onClick={() => setShowInvitePassword((value) => !value)}
+                            aria-label={showInvitePassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                          >
+                            {showInvitePassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="label">Konfirmasi kata sandi</label>
+                        <input
+                          className="input-field mt-2"
+                          type={showInvitePassword ? "text" : "password"}
+                          autoComplete="new-password"
+                          value={inviteForm.confirmPassword}
+                          onChange={(event) =>
+                            setInviteForm((current) => ({ ...current, confirmPassword: event.target.value }))
+                          }
+                          placeholder="Ulangi kata sandi"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1566,15 +1728,25 @@ export default function SettingsPage() {
                             </div>
                           </div>
 
-                          <button
-                            type="button"
-                            className="btn btn-secondary mt-4"
-                            onClick={resetUserPassword}
-                            disabled={resettingPassword || saving || !resetPasswordDraft || !resetPasswordConfirm}
-                          >
-                            <KeyRound size={16} />
-                            {resettingPassword ? "Mengatur ulang..." : "Terapkan reset kata sandi"}
-                          </button>
+                          <div className="mt-4 flex flex-wrap items-center gap-3">
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={regenerateResetPasswordDraft}
+                              disabled={resettingPassword || saving}
+                            >
+                              Buat ulang kata sandi
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={resetUserPassword}
+                              disabled={resettingPassword || saving || !resetPasswordDraft || !resetPasswordConfirm}
+                            >
+                              <KeyRound size={16} />
+                              {resettingPassword ? "Mengatur ulang..." : "Terapkan reset kata sandi"}
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="rounded-[18px] border border-dashed border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-3 text-xs leading-5 text-[color:var(--muted-fg)]">

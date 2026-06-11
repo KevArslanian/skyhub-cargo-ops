@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Info, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
 import { cn } from "@/lib/format";
 import type { OpsToastTone } from "@/lib/ops-feedback";
 
@@ -20,11 +20,13 @@ export const CLOSED_OPS_TOAST: OpsToastState = {
 const toneIcon = {
   success: CheckCircle2,
   info: Info,
+  warning: AlertTriangle,
 } as const;
 
 const toneClass = {
   success: "ops-toast-success",
   info: "ops-toast-info",
+  warning: "ops-toast-warning",
 } as const;
 
 export function OpsToast({

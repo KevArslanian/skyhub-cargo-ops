@@ -467,14 +467,19 @@ test("@crud admin can manage users and customer accounts", async ({ request }) =
 
   const invite = await request.post(apiUrl("/api/users"), {
     data: {
-      name: `QA User ${code}`,
+      name: "QA User Satu",
       email: `qa-user-${code.toLowerCase()}@example.test`,
       role: "staff",
       station: "CGK",
+      password: "qaPass123",
+      confirmPassword: "qaPass123",
     },
   });
   expect(invite.status()).toBe(200);
-  const invited = (await invite.json()).user;
+  const invitedPayload = await invite.json();
+  const invited = invitedPayload.user;
+  expect(invitedPayload.initialPassword).toBe("qaPass123");
+  expect(invited.status).toBe("active");
 
   const forbiddenCustomerCapability = await request.patch(apiUrl(`/api/users/${invited.id}`), {
     data: {
@@ -491,6 +496,37 @@ test("@crud admin can manage users and customer accounts", async ({ request }) =
     data: { status: "disabled", station: "DPS" },
   });
   expect(userUpdate.status()).toBe(200);
+});
+
+test("@e2e settings tim akses table fills viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginPage(page, users.admin);
+  await page.goto(apiUrl("/settings"), { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(2000);
+  await page.locator("button").filter({ hasText: "Tim & Akses" }).first().click();
+  await page.waitForSelector(".settings-users-table-scroll tbody tr", { timeout: 15_000 });
+  await page.waitForTimeout(500);
+
+  const metrics = await page.evaluate(() => {
+    const rows = document.querySelectorAll(".settings-users-table-scroll tbody tr");
+    const panel = document.querySelector(".settings-users-panel");
+    const pagination = document.querySelector(".settings-users-pagination .table-pagination-footer");
+    const lastRow = rows[rows.length - 1];
+    const panelRect = panel?.getBoundingClientRect();
+    const lastRowRect = lastRow?.getBoundingClientRect();
+    const deadSpacePx =
+      panelRect && lastRowRect ? Math.max(0, Math.round(panelRect.bottom - lastRowRect.bottom)) : 999;
+
+    return {
+      rowCount: rows.length,
+      deadSpacePx,
+      paginationVisible: Boolean(pagination),
+    };
+  });
+
+  expect(metrics.rowCount).toBeGreaterThanOrEqual(6);
+  expect(metrics.deadSpacePx).toBeLessThanOrEqual(140);
+  expect(metrics.paginationVisible).toBe(true);
 });
 
 test("@api staff and customer role boundaries are enforced", async ({ request }) => {
@@ -518,6 +554,8 @@ test("@api staff and customer role boundaries are enforced", async ({ request })
       email: `qa-blocked-staff-${uniqueSuffix()}@example.test`,
       role: "staff",
       station: "CGK",
+      password: "qaPass123",
+      confirmPassword: "qaPass123",
     },
   });
   expect(blockedStaffCreateUser.status()).toBe(403);

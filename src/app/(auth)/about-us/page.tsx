@@ -16,10 +16,9 @@ import {
   PlaneTakeoff,
   Radar,
   Satellite,
-  Search,
   Shield,
 } from "lucide-react";
-import { getCargoIqMilestone } from "@/lib/constants";
+import { getCargoIqMilestone, getPublicTrackingJourneyIndex, PUBLIC_TRACKING_JOURNEY } from "@/lib/constants";
 import {
   COMPANY_ABOUT_COPY,
   COMPANY_CONTACT_ITEMS,
@@ -164,6 +163,7 @@ export default function AboutUsPage() {
 
   const scrollLockRef = useRef(false);
   const activeSectionRef = useRef<AboutSectionId>("overview");
+  const trackingResultRef = useRef<HTMLDivElement | null>(null);
 
   const [navSolid, setNavSolid] = useState(false);
   const [activeSection, setActiveSection] = useState<AboutSectionId>("overview");
@@ -429,7 +429,7 @@ export default function AboutUsPage() {
   }, []);
 
   useEffect(() => {
-    if (!complaintNotice) return undefined;
+    if (!complaintNotice || complaintNotice.tone === "error") return undefined;
     const timer = window.setTimeout(() => setComplaintNotice(null), 3000);
     return () => window.clearTimeout(timer);
   }, [complaintNotice]);
@@ -456,6 +456,13 @@ export default function AboutUsPage() {
     });
   }
 
+  function keepComplaintSubmitReachable() {
+    window.requestAnimationFrame(() => {
+      const submitButton = document.getElementById("complaint-submit-btn");
+      submitButton?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+  }
+
   async function handleComplaintSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -467,6 +474,7 @@ export default function AboutUsPage() {
         tone: "error",
         message: "Periksa kembali field yang ditandai merah.",
       });
+      keepComplaintSubmitReachable();
       return;
     }
 
@@ -557,6 +565,13 @@ export default function AboutUsPage() {
         setTrackingResult(payload.shipment);
         void refreshTrackingChallenge();
 
+        window.requestAnimationFrame(() => {
+          scrollToSection("tracking", false);
+          window.setTimeout(() => {
+            trackingResultRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }, 120);
+        });
+
         setRecentPublicSearches((prev) => {
           const next = [normalizedAwb, ...prev.filter((item) => item !== normalizedAwb)].slice(0, 5);
           try {
@@ -571,7 +586,7 @@ export default function AboutUsPage() {
         setTrackingLoading(false);
       }
     },
-    [refreshTrackingChallenge],
+    [refreshTrackingChallenge, scrollToSection],
   );
 
   async function handleTrackingSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -720,7 +735,15 @@ export default function AboutUsPage() {
         </div>
       </ScrollScene>
 
-      <ScrollScene variant="left" id="tracking" data-video-clip="1" className="about-section overflow-x-clip overflow-y-clip">
+      <ScrollScene
+        variant="left"
+        id="tracking"
+        data-video-clip="1"
+        className={cn(
+          "about-section about-tracking-section overflow-x-clip overflow-y-visible",
+          trackingResult && "about-tracking-has-result",
+        )}
+      >
         <div className="premium-fluid-shell">
           <header className="premium-section-header premium-reveal mb-8 max-w-4xl">
             <div className="premium-kicker text-xs tracking-[4px]">CEK RESI LANGSUNG</div>
@@ -732,51 +755,46 @@ export default function AboutUsPage() {
             </p>
           </header>
 
-          <div className="about-equal-columns premium-reveal">
-            <div className="premium-content-panel premium-content-panel-lg about-equal-panel">
-            <div className="about-equal-panel-body justify-center">
-            <form onSubmit={handleTrackingSubmit} className="flex flex-1 flex-col justify-center space-y-4">
+          <div className="about-equal-columns about-tracking-columns premium-reveal">
+            <div className="premium-content-panel premium-content-panel-lg about-equal-panel about-tracking-panel about-tracking-form-panel">
+            <div className="about-equal-panel-body about-tracking-panel-body">
+            <form onSubmit={handleTrackingSubmit} className="flex flex-1 flex-col justify-start gap-4">
               <label htmlFor="public-awb-suffix" className="text-xs font-semibold tracking-[0.26em] text-white/58">
                 NOMOR RESI / AWB
               </label>
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_190px] md:items-start">
-                <div className="min-w-0">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-5 top-1/2 z-[1] size-5 -translate-y-1/2 text-white/42" />
-                    <PublicAwbPrefixInput value={trackingAwbSuffix} onChange={setTrackingAwbSuffix} disabled={trackingLoading} />
-                  </div>
-                  {trackingError ? <p className="mt-2 text-sm font-medium text-[#ff4d4f]">{trackingError}</p> : null}
-                  <p className="mt-3 text-sm text-white/48">
-                    Prefix {PUBLIC_AWB_PREFIX}- sudah terisi. Masukkan 8 digit sisanya, contoh: 10000001.
-                  </p>
-                  {recentPublicSearches.length > 0 && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-white/40">Pencarian terakhir:</span>
-                      {recentPublicSearches.map((awb) => (
-                        <button
-                          key={awb}
-                          type="button"
-                          onClick={() => {
-                            setTrackingAwbSuffix(extractPublicAwbSuffix(awb));
-                            setTrackingError(null);
-                          }}
-                          className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-[#9fd1ff] transition hover:border-[#0f7bff] hover:bg-[#0f7bff]/10"
-                        >
-                          {awb}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              <div className="about-tracking-action-row">
+                <PublicAwbPrefixInput value={trackingAwbSuffix} onChange={setTrackingAwbSuffix} disabled={trackingLoading} />
                 <button
                   type="submit"
-                  className="flex h-[62px] w-full items-center justify-center gap-3 rounded-[24px] bg-[#0f7bff] px-6 text-lg font-semibold text-white transition hover:bg-[#2c92ff] disabled:cursor-not-allowed disabled:opacity-70"
+                  className="about-tracking-submit-btn flex h-[62px] w-full shrink-0 items-center justify-center gap-3 self-stretch rounded-[24px] bg-[#0f7bff] px-6 text-lg font-semibold text-white transition hover:bg-[#2c92ff] disabled:cursor-not-allowed disabled:opacity-70"
                   disabled={trackingSubmitDisabled}
                 >
                   {trackingLoading ? <LoaderCircle size={18} className="animate-spin" /> : <Radar size={18} />}
                   Cek Resi
                 </button>
               </div>
+              {trackingError ? <p className="text-sm font-medium text-[#ff4d4f]">{trackingError}</p> : null}
+              <p className="text-sm text-white/48">
+                Prefix {PUBLIC_AWB_PREFIX}- sudah terisi. Masukkan 8 digit sisanya, contoh: 10000001.
+              </p>
+              {recentPublicSearches.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-white/40">Pencarian terakhir:</span>
+                  {recentPublicSearches.map((awb) => (
+                    <button
+                      key={awb}
+                      type="button"
+                      onClick={() => {
+                        setTrackingAwbSuffix(extractPublicAwbSuffix(awb));
+                        setTrackingError(null);
+                      }}
+                      className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-[#9fd1ff] transition hover:border-[#0f7bff] hover:bg-[#0f7bff]/10"
+                    >
+                      {awb}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <PublicTrackingCaptcha
                 challenge={trackingChallenge}
@@ -790,10 +808,10 @@ export default function AboutUsPage() {
             </div>
           </div>
 
-          <div className="premium-content-panel premium-content-panel-lg about-equal-panel">
-            <div className="about-equal-panel-body">
+          <div ref={trackingResultRef} className="premium-content-panel premium-content-panel-lg about-equal-panel about-tracking-result-panel">
+            <div className="about-equal-panel-body about-tracking-result-body">
             {trackingResult ? (
-              <div className="about-tracking-result flex flex-1 flex-col space-y-6">
+              <div className="about-tracking-result flex min-h-0 flex-1 flex-col space-y-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-semibold tracking-[0.24em] text-white/48">STATUS RESI</p>
@@ -821,6 +839,66 @@ export default function AboutUsPage() {
                     {getCargoIqMilestone(trackingResult.status).code} · {trackingResult.statusLabel}
                   </span>
                 </div>
+
+                {(() => {
+                  const currentMilestone = getCargoIqMilestone(trackingResult.status);
+                  const isHold = trackingResult.status === "hold";
+                  const journeyIndex = isHold
+                    ? trackingResult.trackingLogs.reduce(
+                        (max, log) => Math.max(max, getPublicTrackingJourneyIndex(log.status)),
+                        0,
+                      )
+                    : getPublicTrackingJourneyIndex(trackingResult.status);
+                  return (
+                    <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+                      <p className="text-xs font-semibold tracking-[0.24em] text-white/48">TAHAP PENGIRIMAN</p>
+                      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-lg font-semibold text-white">
+                            {isHold ? "Pengiriman tertahan" : currentMilestone.title}
+                          </p>
+                          <p className="mt-1 text-sm text-white/58">
+                            {isHold
+                              ? "Kiriman sedang ditinjau petugas cargo. Status operasional: " + trackingResult.statusLabel + "."
+                              : currentMilestone.description}
+                          </p>
+                          <p className="mt-2 text-xs text-white/45">
+                            Tahap operasional saat ini: <strong className="text-white/72">{trackingResult.statusLabel}</strong>
+                            {" · "}Cargo iQ <strong className="font-mono text-[#9fd1ff]">{currentMilestone.code}</strong>
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-[#0f7bff44] bg-[#0f7bff14] px-3 py-1 font-mono text-xs font-bold text-[#9fd1ff]">
+                          {currentMilestone.code}
+                        </span>
+                      </div>
+                      <div className="about-tracking-journey mt-5" aria-label="Progres tahap pengiriman">
+                        <div className="about-tracking-journey-track">
+                          {PUBLIC_TRACKING_JOURNEY.map((step, index) => {
+                            const stepMilestone = getCargoIqMilestone(step.status);
+                            const isComplete = index < journeyIndex;
+                            const isCurrent = !isHold && index === journeyIndex;
+                            const isHoldStep = isHold && index === journeyIndex;
+                            return (
+                              <div
+                                key={step.status}
+                                className={cn(
+                                  "about-tracking-journey-step",
+                                  isComplete && "is-complete",
+                                  isCurrent && "is-current",
+                                  isHoldStep && "is-hold",
+                                )}
+                              >
+                                <span className="about-tracking-journey-dot" aria-hidden="true" />
+                                <span className="about-tracking-journey-code">{stepMilestone.code}</span>
+                                <span className="about-tracking-journey-label">{step.shortLabel}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
@@ -862,7 +940,7 @@ export default function AboutUsPage() {
                   <p className="mt-1 text-xs text-white/42">Milestone standar IATA Cargo iQ ditampilkan berdampingan status operasional.</p>
                   <div className="mt-4 space-y-3">
                     {trackingResult.trackingLogs.length ? (
-                      trackingResult.trackingLogs.slice(-3).reverse().map((log) => {
+                      [...trackingResult.trackingLogs].reverse().map((log) => {
                         const milestone = getCargoIqMilestone(log.status);
                         return (
                         <div key={log.id} className="rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-4">
@@ -1039,7 +1117,7 @@ export default function AboutUsPage() {
         </div>
       </ScrollScene>
 
-      <ScrollScene revealOnce variant="left" id="complaints" data-video-clip="3" className="about-section overflow-x-clip overflow-y-clip">
+      <ScrollScene revealOnce variant="left" id="complaints" data-video-clip="3" className="about-section about-complaints-section overflow-x-clip overflow-y-visible">
         <div className="premium-fluid-shell">
           <header className="premium-section-header premium-reveal mb-8 max-w-4xl">
             <div className="premium-kicker text-xs tracking-[4px]">KOTAK KELUHAN</div>
@@ -1079,8 +1157,8 @@ export default function AboutUsPage() {
 
           <div className="premium-content-panel premium-content-panel-md about-equal-panel premium-contact-form-card">
             <div className="about-equal-panel-body">
-            <form className="space-y-5" onSubmit={handleComplaintSubmit}>
-              <div>
+            <form className="premium-complaint-form space-y-5" onSubmit={handleComplaintSubmit} noValidate>
+              <div data-field="name">
                 <label className="text-xs tracking-widest text-white/60">NAMA ANDA</label>
                 <input
                   type="text"
@@ -1095,7 +1173,7 @@ export default function AboutUsPage() {
                 />
                 {complaintErrors.name ? <p className="mt-2 text-sm text-[#ff6b6d]">{complaintErrors.name}</p> : null}
               </div>
-              <div>
+              <div data-field="contact">
                 <label className="text-xs tracking-widest text-white/60">EMAIL ATAU NOMOR TELEPON</label>
                 <input
                   type="text"
@@ -1111,7 +1189,7 @@ export default function AboutUsPage() {
                 />
                 {complaintErrors.contact ? <p className="mt-2 text-sm text-[#ff6b6d]">{complaintErrors.contact}</p> : null}
               </div>
-              <div>
+              <div data-field="topic">
                 <label className="text-xs tracking-widest text-white/60">TOPIK KELUHAN</label>
                 <GlassSelect
                   theme="premium"
@@ -1143,7 +1221,7 @@ export default function AboutUsPage() {
                   placeholder="Contoh: CGK-12345678"
                 />
               </div>
-              <div>
+              <div data-field="message">
                 <label className="text-xs tracking-widest text-white/60">URAIAN KELUHAN</label>
                 <textarea
                   rows={4}
@@ -1158,26 +1236,30 @@ export default function AboutUsPage() {
                 />
                 {complaintErrors.message ? <p className="mt-2 text-sm text-[#ff6b6d]">{complaintErrors.message}</p> : null}
               </div>
-              <button
-                type="submit"
-                className="w-full rounded-2xl bg-white py-4 font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white"
-              >
-                KIRIM KELUHAN
-              </button>
-              {complaintNotice ? (
-                <p
-                  className={cn(
-                    "text-center text-sm",
-                    complaintNotice.tone === "error"
-                      ? "text-[#ff6b6d]"
-                      : complaintNotice.tone === "success"
-                        ? "text-[#8dd0ff]"
-                        : "text-[#66a8ff]",
-                  )}
+              <div className="premium-complaint-form-footer">
+                {complaintNotice ? (
+                  <p
+                    role="alert"
+                    className={cn(
+                      "mb-3 text-center text-sm",
+                      complaintNotice.tone === "error"
+                        ? "text-[#ff6b6d]"
+                        : complaintNotice.tone === "success"
+                          ? "text-[#8dd0ff]"
+                          : "text-[#66a8ff]",
+                    )}
+                  >
+                    {complaintNotice.message}
+                  </p>
+                ) : null}
+                <button
+                  id="complaint-submit-btn"
+                  type="submit"
+                  className="w-full rounded-2xl bg-white py-4 font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white"
                 >
-                  {complaintNotice.message}
-                </p>
-              ) : null}
+                  KIRIM KELUHAN
+                </button>
+              </div>
             </form>
             </div>
           </div>
@@ -1194,6 +1276,7 @@ export default function AboutUsPage() {
           overflow-x: clip;
           overflow-y: auto;
           scroll-padding-top: var(--about-nav-height, 6.5rem);
+          scroll-padding-bottom: clamp(3rem, 10vh, 6rem);
           scroll-snap-type: y proximity;
           scrollbar-gutter: auto;
           background: #050505 !important;
@@ -1238,6 +1321,14 @@ export default function AboutUsPage() {
           flex-direction: column;
           justify-content: flex-start;
           padding-block: clamp(3rem, 8vh, 5rem);
+        }
+
+        .premium-landing .about-section.about-complaints-section {
+          min-height: auto;
+          overflow-y: visible;
+          padding-bottom: clamp(5rem, 14vh, 8rem);
+          scroll-snap-align: none;
+          scroll-snap-stop: normal;
         }
 
         .premium-landing .about-section:not(.about-hero) > * {
@@ -1369,6 +1460,200 @@ export default function AboutUsPage() {
           min-height: 0;
         }
 
+        .about-tracking-section {
+          overflow-y: visible;
+          min-height: auto;
+        }
+
+        @media (max-width: 1023px) {
+          .about-tracking-section .premium-section-header h2 {
+            font-size: clamp(2rem, 7vw, 2.75rem);
+            line-height: 1.08;
+          }
+        }
+
+        .about-tracking-panel {
+          min-height: auto;
+          overflow: visible;
+        }
+
+        .about-tracking-panel-body {
+          justify-content: flex-start;
+          overflow: visible;
+        }
+
+        .about-tracking-section .about-tracking-columns {
+          align-items: stretch;
+        }
+
+        .about-tracking-section:not(.about-tracking-has-result) .about-tracking-columns .about-equal-panel {
+          min-height: clamp(22rem, 42vh, 28rem);
+        }
+
+        .about-tracking-section:not(.about-tracking-has-result) .about-tracking-result-body {
+          max-height: none;
+        }
+
+        @media (min-width: 1024px) {
+          .about-tracking-has-result .about-tracking-columns {
+            align-items: flex-end;
+          }
+
+          .about-tracking-has-result .about-tracking-form-panel {
+            min-height: clamp(22rem, 42vh, 28rem);
+            align-self: flex-end;
+          }
+
+          .about-tracking-has-result .about-tracking-result-panel {
+            --tracking-header-overlap: clamp(11rem, 24vh, 17rem);
+            align-self: flex-end;
+            margin-top: calc(-1 * var(--tracking-header-overlap));
+            min-height: calc(clamp(22rem, 42vh, 28rem) + var(--tracking-header-overlap));
+            height: calc(clamp(22rem, 42vh, 28rem) + var(--tracking-header-overlap));
+            transition:
+              min-height 0.35s ease,
+              height 0.35s ease,
+              margin-top 0.35s ease;
+          }
+
+          .about-tracking-has-result .about-tracking-result-body {
+            max-height: 100%;
+          }
+        }
+
+        @media (max-width: 1023px) {
+          .about-tracking-has-result .about-tracking-result-panel {
+            min-height: calc(clamp(22rem, 42vh, 28rem) + clamp(4rem, 10vh, 8rem));
+          }
+        }
+
+        .about-tracking-action-row {
+          display: grid;
+          gap: 1rem;
+          align-items: stretch;
+        }
+
+        @media (min-width: 1024px) {
+          .about-tracking-action-row {
+            grid-template-columns: minmax(0, 1fr) minmax(160px, 200px);
+          }
+        }
+
+        .about-tracking-form-panel {
+          height: 100%;
+        }
+
+        .about-tracking-result-panel {
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+          height: 100%;
+          overflow: hidden;
+        }
+
+        .about-tracking-result-body {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+          max-height: calc(100dvh - var(--about-nav-height, 6.5rem) - clamp(14rem, 28vh, 22rem));
+          overflow-x: hidden;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+        }
+
+        .about-tracking-result-body::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .about-tracking-result-body::-webkit-scrollbar-thumb {
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.18);
+        }
+
+        @media (max-width: 1023px) {
+          .about-tracking-result-body {
+            max-height: calc(100dvh - var(--about-nav-height, 6.5rem) - clamp(18rem, 34vh, 26rem));
+          }
+        }
+
+        .about-tracking-result {
+          min-height: 0;
+        }
+
+        .about-tracking-journey-track {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 0.35rem;
+        }
+
+        .about-tracking-journey-step {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.35rem;
+          text-align: center;
+        }
+
+        .about-tracking-journey-dot {
+          display: block;
+          width: 100%;
+          height: 0.35rem;
+          border-radius: 999px;
+          background: rgb(255 255 255 / 0.12);
+        }
+
+        .about-tracking-journey-step.is-complete .about-tracking-journey-dot,
+        .about-tracking-journey-step.is-current .about-tracking-journey-dot {
+          background: #0f7bff;
+        }
+
+        .about-tracking-journey-step.is-current .about-tracking-journey-dot {
+          box-shadow: 0 0 0 2px rgb(15 123 255 / 0.28);
+        }
+
+        .about-tracking-journey-step.is-hold .about-tracking-journey-dot {
+          background: hsl(38 92% 50%);
+          box-shadow: 0 0 0 2px hsl(38 92% 50% / 0.28);
+        }
+
+        .about-tracking-journey-step.is-hold .about-tracking-journey-code,
+        .about-tracking-journey-step.is-hold .about-tracking-journey-label {
+          color: hsl(38 92% 62%);
+        }
+
+        .about-tracking-journey-code {
+          font-family: ui-monospace, monospace;
+          font-size: 0.625rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          color: rgb(255 255 255 / 0.42);
+        }
+
+        .about-tracking-journey-step.is-complete .about-tracking-journey-code,
+        .about-tracking-journey-step.is-current .about-tracking-journey-code {
+          color: #9fd1ff;
+        }
+
+        .about-tracking-journey-label {
+          font-size: 0.625rem;
+          font-weight: 600;
+          color: rgb(255 255 255 / 0.38);
+        }
+
+        .about-tracking-journey-step.is-complete .about-tracking-journey-label,
+        .about-tracking-journey-step.is-current .about-tracking-journey-label {
+          color: rgb(255 255 255 / 0.72);
+        }
+
+        @media (max-width: 639px) {
+          .about-tracking-journey-label {
+            display: none;
+          }
+        }
+
         .premium-complaint-title {
           margin-bottom: clamp(1.25rem, 2.5vw, 1.75rem);
           max-width: 14ch;
@@ -1467,15 +1752,44 @@ export default function AboutUsPage() {
           padding-top: clamp(2rem, 5vh, 3.5rem);
         }
 
+        .about-complaints-section {
+          overflow-y: visible;
+          min-height: auto;
+          scroll-snap-align: none;
+          scroll-snap-stop: normal;
+        }
+
+        .premium-complaint-form-footer {
+          position: sticky;
+          bottom: 0;
+          z-index: 3;
+          margin-top: 0.25rem;
+          padding-top: 0.75rem;
+          padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+          background: linear-gradient(180deg, rgba(8, 9, 12, 0) 0%, rgba(8, 9, 12, 0.92) 28%, rgba(8, 9, 12, 0.98) 100%);
+        }
+
+        .premium-contact-form-card,
+        .premium-complaint-form {
+          overflow: visible;
+        }
+
         .about-scroll-end-spacer {
-          height: calc(var(--about-nav-height, 6.5rem) + 4rem);
+          height: calc(var(--about-nav-height, 6.5rem) + clamp(6rem, 16vh, 10rem));
           pointer-events: none;
         }
 
         .premium-contact-form-card {
+          height: auto;
+          min-height: auto;
           align-self: start;
           position: relative;
           z-index: 2;
+        }
+
+        .premium-contact-form-card .about-equal-panel-body {
+          min-height: auto;
+          padding-bottom: clamp(1.5rem, 4vh, 2.5rem);
         }
 
         .premium-auto-grid {
@@ -1692,6 +2006,16 @@ export default function AboutUsPage() {
         @media (max-width: 640px) {
           .premium-fluid-shell {
             width: min(100% - 1.75rem, 100%);
+          }
+
+          .premium-complaint-form-footer {
+            position: relative;
+            bottom: auto;
+            padding-bottom: calc(2.25rem + env(safe-area-inset-bottom, 0px));
+          }
+
+          .premium-contact-form-card .about-equal-panel-body {
+            padding-bottom: clamp(2rem, 6vh, 3rem);
           }
 
           .premium-landing .about-hero {

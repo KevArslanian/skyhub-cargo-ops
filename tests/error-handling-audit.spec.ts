@@ -40,6 +40,46 @@ async function expectAlertDialog(page: Page, titlePattern: RegExp | string) {
   await expect(dialog).toBeHidden({ timeout: 5000 });
 }
 
+async function expectLoginFieldError(page: Page, message: RegExp | string) {
+  await expect(page.getByText(message)).toBeVisible({ timeout: 5000 });
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+}
+
+async function expectLoginFormAlert(page: Page, titlePattern: RegExp | string) {
+  const alert = page.locator("form").getByRole("alert");
+  await expect(alert).toBeVisible({ timeout: 10000 });
+  await expect(alert).toContainText(titlePattern);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+}
+
+async function expectFeedbackBanner(page: Page, titlePattern: RegExp | string, tone?: "warning" | "error" | "info") {
+  const banner = page
+    .locator(tone ? `.ops-feedback-banner--${tone}` : ".ops-feedback-banner")
+    .filter({ hasText: titlePattern })
+    .first();
+  await expect(banner).toBeVisible({ timeout: 35000 });
+  await expect(banner.locator(".ops-feedback-banner-title")).toContainText(titlePattern);
+}
+
+async function abortDashboardAlertsOnly(route: { request: () => { url: () => string }; abort: (error?: string) => Promise<void>; continue: () => Promise<void> }) {
+  if (route.request().url().includes("alertsOnly=1")) {
+    await route.abort("failed");
+    return;
+  }
+  await route.continue();
+}
+
+async function solvePublicTrackingCaptcha(page: Page) {
+  const prompt = page.locator("#tracking .font-mono.text-2xl").first();
+  await expect(prompt).not.toHaveText("...", { timeout: 10_000 });
+  const text = (await prompt.textContent())?.trim() ?? "";
+  const match = text.match(/(\d+)\s*\+\s*(\d+)/);
+  if (!match) {
+    throw new Error(`Unexpected captcha prompt: ${text}`);
+  }
+  return String(Number(match[1]) + Number(match[2]));
+}
+
 test.describe("@error-audit Login validation matrix", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -48,7 +88,7 @@ test.describe("@error-audit Login validation matrix", () => {
     await page.locator('input[type="email"]').fill("");
     await page.locator('input[type="password"], input[type="text"]').fill(password);
     await page.locator('form button[type="submit"]').click();
-    await expectAlertDialog(page, /Input Tidak Valid/i);
+    await expectLoginFieldError(page, /Surel wajib diisi/i);
   });
 
   test("empty password only", async ({ page }) => {
@@ -56,7 +96,7 @@ test.describe("@error-audit Login validation matrix", () => {
     await page.locator('input[type="email"]').fill(staffEmail);
     await page.locator('input[type="password"], input[type="text"]').fill("");
     await page.locator('form button[type="submit"]').click();
-    await expectAlertDialog(page, /Input Tidak Valid/i);
+    await expectLoginFieldError(page, /Kata sandi wajib diisi/i);
   });
 
   test("invalid credentials", async ({ page }) => {
@@ -64,7 +104,7 @@ test.describe("@error-audit Login validation matrix", () => {
     await page.locator('input[type="email"]').fill(staffEmail);
     await page.locator('input[type="password"], input[type="text"]').fill("wrong-password-qa");
     await page.locator('form button[type="submit"]').click();
-    await expectAlertDialog(page, /.+/);
+    await expectLoginFormAlert(page, /Kredensial tidak cocok/i);
   });
 });
 
@@ -74,25 +114,135 @@ test.describe("@error-audit Landing input guards", () => {
   test("AWB field keeps 160- prefix and accepts 8 digit suffix only", async ({ page }) => {
     await page.goto(`${baseURL}/about-us#tracking`, { waitUntil: "domcontentloaded" });
     const awbInput = page.locator("#public-awb-suffix");
-    await awbInput.pressSequentially("abc10000001xyz");
+    await awbInput.scrollIntoViewIfNeeded();
+    await awbInput.click();
+    await awbInput.pressSequentially("abc10000001xyz", { delay: 15 });
     await expect(awbInput).toHaveValue("10000001");
-    await expect(page.locator("#tracking")).toContainText("160-");
+    await expect(page.getByTestId("public-awb-prefix-chip")).toContainText("160-");
+  });
+
+  test("tracking form shows captcha and prefix chip without overlap", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${baseURL}/about-us#tracking`, { waitUntil: "domcontentloaded" });
+
+    const prefixChip = page.getByTestId("public-awb-prefix-chip");
+    const awbInput = page.locator("#public-awb-suffix");
+    const captchaAnswer = page.locator("#public-tracking-captcha-answer");
+
+    await awbInput.scrollIntoViewIfNeeded();
+    await expect(prefixChip).toBeVisible();
+    await expect(awbInput).toBeVisible();
+
+    await captchaAnswer.scrollIntoViewIfNeeded();
+    await expect(captchaAnswer).toBeVisible();
+
+    const overlap = await page.evaluate(() => {
+      const prefix = document.querySelector("[data-testid='public-awb-prefix-chip']");
+      const input = document.getElementById("public-awb-suffix");
+      if (!prefix || !input) return true;
+      const prefixRect = prefix.getBoundingClientRect();
+      const inputRect = input.getBoundingClientRect();
+      const horizontalOverlap = prefixRect.right > inputRect.left + 1;
+      const verticalOverlap =
+        prefixRect.bottom > inputRect.top + 1 && prefixRect.top < inputRect.bottom - 1;
+      return horizontalOverlap && verticalOverlap;
+    });
+
+    expect(overlap).toBe(false);
+
+    const captchaClipped = await page.evaluate(() => {
+      const captcha = document.getElementById("public-tracking-captcha-answer");
+      if (!captcha) return true;
+      let node: Element | null = captcha.parentElement;
+      while (node && node !== document.body) {
+        const style = window.getComputedStyle(node);
+        if (/(hidden|clip)/.test(style.overflowY) || /(hidden|clip)/.test(style.overflow)) {
+          const parentRect = node.getBoundingClientRect();
+          const captchaRect = captcha.getBoundingClientRect();
+          const clippedVertically =
+            captchaRect.bottom > parentRect.bottom + 1 || captchaRect.top < parentRect.top - 1;
+          if (clippedVertically) return true;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    });
+
+    expect(captchaClipped).toBe(false);
   });
 
   test("complaint name strips digits while typing", async ({ page }) => {
     await page.goto(`${baseURL}/about-us#complaints`, { waitUntil: "domcontentloaded" });
     const nameInput = page.locator("#complaints").locator("label", { hasText: "NAMA ANDA" }).locator("..").locator("input");
-    await nameInput.pressSequentially("Budi123");
+    await nameInput.scrollIntoViewIfNeeded();
+    await nameInput.click();
+    await nameInput.pressSequentially("Budi123", { delay: 15 });
     await expect(nameInput).toHaveValue("Budi");
+  });
+
+  test("empty complaint submit keeps Kirim Keluhan button reachable", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${baseURL}/about-us#complaints`, { waitUntil: "domcontentloaded" });
+
+    const submitButton = page.locator("#complaint-submit-btn");
+    await submitButton.scrollIntoViewIfNeeded();
+    await expect(submitButton).toBeVisible();
+    await page.waitForFunction(() => {
+      const form = document.querySelector("#complaints form.premium-complaint-form");
+      return Boolean(form);
+    });
+    await submitButton.click();
+
+    const complaintAlert = page.locator("#complaints [role='alert']").first();
+    await expect(complaintAlert).toContainText("Periksa kembali field yang ditandai merah");
+    await expect(submitButton).toBeVisible();
+    await expect(submitButton).toBeEnabled();
+
+    const viewportHeight = await page.evaluate(() => window.innerHeight);
+    const buttonBox = await submitButton.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom, height: rect.height };
+    });
+    expect(buttonBox.top).toBeGreaterThan(72);
+    expect(buttonBox.bottom).toBeLessThan(viewportHeight - 16);
+    expect(buttonBox.height).toBeGreaterThan(40);
+
+    const buttonClipped = await submitButton.evaluate((node) => {
+      const buttonRect = node.getBoundingClientRect();
+      let ancestor = node.parentElement;
+      while (ancestor) {
+        const style = window.getComputedStyle(ancestor);
+        const clipsY = style.overflowY === "hidden" || style.overflow === "hidden";
+        if (clipsY) {
+          const ancestorRect = ancestor.getBoundingClientRect();
+          if (ancestorRect.bottom < buttonRect.bottom - 1) {
+            return true;
+          }
+        }
+        ancestor = ancestor.parentElement;
+      }
+      return false;
+    });
+    expect(buttonClipped).toBe(false);
+
+    await submitButton.click();
+    await expect(complaintAlert).toContainText("Periksa kembali field yang ditandai merah");
   });
 
   test("AWB search requires robot verification answer", async ({ page }) => {
     await page.goto(`${baseURL}/about-us#tracking`, { waitUntil: "domcontentloaded" });
     const awbInput = page.locator("#public-awb-suffix");
+    const captchaAnswer = page.locator("#public-tracking-captcha-answer");
+    const submitButton = page.locator("#tracking").getByRole("button", { name: "Cek Resi" });
+
+    await awbInput.scrollIntoViewIfNeeded();
     await awbInput.fill("10000001");
-    await expect(page.locator("#tracking").getByRole("button", { name: "Cek Resi" })).toBeDisabled();
-    await page.locator("#public-tracking-captcha-answer").fill("99");
-    await expect(page.locator("#tracking").getByRole("button", { name: "Cek Resi" })).toBeEnabled();
+    await expect(submitButton).toBeDisabled();
+    await captchaAnswer.scrollIntoViewIfNeeded();
+    await expect(captchaAnswer).toBeEnabled({ timeout: 10_000 });
+    const solvedAnswer = await solvePublicTrackingCaptcha(page);
+    await captchaAnswer.fill(solvedAnswer);
+    await expect(submitButton).toBeEnabled();
   });
 });
 
@@ -143,19 +293,20 @@ test.describe("@error-audit Protected routes — alertdialog on bad input", () =
     await expect(searchInput).toHaveValue("abc");
   });
 
-  test("AWB tracking — checksum invalid", async ({ page }) => {
+  test("AWB tracking — lookup accepts format without checksum gate", async ({ page }) => {
     await page.goto(`${baseURL}/awb-tracking`, { waitUntil: "domcontentloaded" });
     await expectShellReady(page);
     await page.locator("#awb-tracking-input").pressSequentially("12345678901");
     await page.getByRole("button", { name: /lacak/i }).click();
-    await expectAlertDialog(page, /Checksum AWB tidak valid|Input Tidak Valid/i);
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(page).toHaveURL(/awb=123-45678901/);
   });
 
   test("Shipment ledger create — inline errors without browser tooltip", async ({ page }) => {
     test.setTimeout(90_000);
     await page.goto(`${baseURL}/shipment-ledger`, { waitUntil: "domcontentloaded" });
     await expectShellReady(page);
-    await page.getByRole("button", { name: /^Buat$/i }).first().click();
+    await page.getByRole("button", { name: /Buat Pengiriman/i }).first().click();
     await expect(page.getByRole("heading", { name: "Tambah manifest baru" })).toBeVisible();
     await page.locator('form[novalidate]').getByRole("button", { name: /^Buat Pengiriman$/i }).click();
     await expect(page.locator(".form-field-error").first()).toBeVisible({ timeout: 5000 });
@@ -166,7 +317,7 @@ test.describe("@error-audit Protected routes — alertdialog on bad input", () =
     test.setTimeout(90_000);
     await page.goto(`${baseURL}/shipment-ledger`, { waitUntil: "domcontentloaded" });
     await expectShellReady(page);
-    await page.getByRole("button", { name: /^Buat$/i }).first().click();
+    await page.getByRole("button", { name: /Buat Pengiriman/i }).first().click();
     const drawer = page.locator('form[novalidate]');
     await drawer.locator('input[placeholder="Contoh: Dokumen penting"]').fill("Dokumen penting");
     await drawer.locator('input[placeholder="Nama operator shift"]').fill("Operator QA");
@@ -189,7 +340,8 @@ test.describe("@error-audit Protected routes — alertdialog on bad input", () =
     const createBtn = page.getByRole("button", { name: /buat penerbangan/i }).first();
     await expect(createBtn).toBeVisible({ timeout: 15000 });
     await createBtn.click();
-    await page.locator("#create-flight-form").getByRole("button", { name: /Buat Penerbangan/i }).click();
+    await expect(page.getByRole("heading", { name: "Tambah penerbangan baru" })).toBeVisible();
+    await page.getByRole("button", { name: /Buat Penerbangan/i }).click();
     await expect(page.locator(".form-field-error").first()).toBeVisible({ timeout: 5000 });
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
   });
@@ -203,10 +355,10 @@ test.describe("@error-audit Settings admin flows", () => {
     await expectShellReady(page);
     await page.getByRole("button", { name: /Tim & Akses/i }).click();
     await page.getByRole("button", { name: "Tambah Pengguna" }).click();
-    const invitePanel = page.locator(".rounded-\\[24px\\]").filter({ has: page.getByPlaceholder("Surel") });
-    await invitePanel.getByPlaceholder("Nama").fill("QA Audit");
-    await invitePanel.getByPlaceholder("Surel").fill("not-an-email");
-    await invitePanel.getByRole("button", { name: "Simpan" }).click();
+    const inviteDrawer = page.locator(".ops-drawer-panel").filter({ has: page.getByRole("heading", { name: "Tambah Pengguna" }) });
+    await inviteDrawer.getByPlaceholder("Nama").fill("QA Audit");
+    await inviteDrawer.getByPlaceholder("Surel").fill("not-an-email");
+    await inviteDrawer.getByRole("button", { name: "Simpan" }).click();
     await expectAlertDialog(page, /Input Tidak Valid/i);
   });
 });
@@ -249,7 +401,8 @@ test.describe("@error-audit Route coverage manifest", () => {
   test("sidebar does not include Laporan link", async ({ page }) => {
     await page.goto(`${baseURL}/dashboard`, { waitUntil: "domcontentloaded" });
     await expectShellReady(page);
-    await expect(page.getByRole("link", { name: "Laporan" })).toHaveCount(0);
+    await expect(page.locator('.sidebar-nav a[href="/reports"]')).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Laporan", exact: true })).toHaveCount(0);
   });
 });
 
@@ -289,11 +442,25 @@ test.describe("@error-audit Auth API (/api/auth/*)", () => {
   });
 });
 
-test.describe("@error-audit Network failure surfaces modal", () => {
+test.describe("@error-audit Network failure surfaces feedback banner", () => {
   test("dashboard load failure", async ({ page }) => {
-    await loginPage(page);
-    await page.route("**/api/dashboard", (route) => route.abort("failed"));
+    test.setTimeout(90_000);
+    await page.request.post(`${baseURL}/api/auth/intro`, { maxRedirects: 0 }).catch(() => undefined);
+    await loginViaApi(page);
+    await page.route("**/api/dashboard**", (route) => route.abort("failed"));
     await page.goto(`${baseURL}/dashboard`, { waitUntil: "domcontentloaded" });
-    await expectAlertDialog(page, /Gagal Memuat|Koneksi Terputus/i);
+    await expectFeedbackBanner(page, /Gagal memuat dasbor/i, "error");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  });
+
+  test("dashboard alerts failure keeps KPI visible with warning banner", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.request.post(`${baseURL}/api/auth/intro`, { maxRedirects: 0 }).catch(() => undefined);
+    await loginViaApi(page);
+    await page.route("**/api/dashboard**", abortDashboardAlertsOnly);
+    await page.goto(`${baseURL}/dashboard`, { waitUntil: "domcontentloaded" });
+    await expectShellReady(page);
+    await expect(page.getByText("Pusat Kendali").first()).toBeVisible({ timeout: 30000 });
+    await expectFeedbackBanner(page, /Peringatan belum bisa dimuat/i, "warning");
   });
 });

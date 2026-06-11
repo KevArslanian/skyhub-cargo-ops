@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { getNavigationForRole } from "@/lib/access";
 import { APP_NAME, APP_SUBTITLE, ROLE_LABELS } from "@/lib/constants";
-import { cn, formatNotificationMessage, formatRelativeShort } from "@/lib/format";
+import { cn, formatDateTime, formatNotificationMessage } from "@/lib/format";
 import { BrandMark } from "./brand-mark";
 import { OpsAlertProvider, useOpsAlert } from "./ops-alert-provider";
 import { ShellSearchProvider } from "./shell-search-provider";
@@ -211,7 +211,10 @@ function AppShellFrame({ user, settings, notifications, children }: ShellProps) 
 
   const activeNav =
     navigation.items.find(
-      (item) => pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href)),
+      (item) =>
+        pathname === item.href ||
+        (item.href === "/dashboard" && pathname.startsWith("/dashboard")) ||
+        (item.href !== "/dashboard" && pathname.startsWith(item.href)),
     ) ??
     navigation.items[0] ?? {
       href: "/awb-tracking" as const,
@@ -473,7 +476,7 @@ function AppShellFrame({ user, settings, notifications, children }: ShellProps) 
       return;
     }
 
-    if (pathname === "/alerts" || pathname === "/activity-log" || pathname === "/complaints" || pathname === "/dashboard" || pathname === "/settings") {
+    if (pathname === "/alerts" || pathname === "/activity-log" || pathname === "/complaints" || pathname.startsWith("/dashboard") || pathname === "/settings") {
       return;
     }
 
@@ -603,7 +606,7 @@ function AppShellFrame({ user, settings, notifications, children }: ShellProps) 
   }
 
   const searchPlaceholder = useMemo(() => {
-    if (pathname === "/dashboard") return "Cari dasbor";
+    if (pathname.startsWith("/dashboard")) return "Cari dasbor";
     if (pathname === "/shipment-ledger") return "Cari pengiriman";
     if (pathname === "/flight-board") return "Cari pesawat atau penerbangan";
     if (pathname === "/alerts") return "Cari peringatan";
@@ -688,7 +691,7 @@ function AppShellFrame({ user, settings, notifications, children }: ShellProps) 
                             <p className="mt-1 break-words text-sm leading-6 text-[color:var(--muted-fg)] [overflow-wrap:anywhere]">
                               {displayMessage}
                             </p>
-                            <p className="mt-2 text-xs text-[color:var(--muted-2)]">{formatRelativeShort(item.createdAt)}</p>
+                            <p className="mt-2 text-xs text-[color:var(--muted-2)]">{formatDateTime(item.createdAt)}</p>
                           </div>
                           {!item.read ? (
                             <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[color:var(--brand-primary)]" aria-hidden="true" />
@@ -774,7 +777,10 @@ function AppShellFrame({ user, settings, notifications, children }: ShellProps) 
               {collapsed
                 ? displayedNavigationItems.map((item) => {
                     const Icon = navIconMap[item.href] ?? navIconFallback;
-                    const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                    const isActive =
+                      pathname === item.href ||
+                      (item.href === "/dashboard" && pathname.startsWith("/dashboard")) ||
+                      (item.href !== "/dashboard" && pathname.startsWith(item.href));
                     return (
                       <Link
                         key={item.href}
@@ -800,14 +806,16 @@ function AppShellFrame({ user, settings, notifications, children }: ShellProps) 
                         {group.items.map((item) => {
                           const Icon = navIconMap[item.href] ?? navIconFallback;
                           const isActive =
-                            pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                            pathname === item.href ||
+                            (item.href === "/dashboard" && pathname.startsWith("/dashboard")) ||
+                            (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
                           return (
                             <Link
                               key={item.href}
                               href={item.href}
                               scroll={false}
-                              title={item.hint}
+                              aria-label={`${item.label}. ${item.hint}`}
                               className={cn("sidebar-link sidebar-link-compact", isActive && "sidebar-link-active")}
                               onClick={() => setMobileOpen(false)}
                             >

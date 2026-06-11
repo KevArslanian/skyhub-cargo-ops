@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { RotateCcw, ServerCrash } from "lucide-react";
+import { OPS_TONE_SURFACE_ICON } from "@/lib/ops-feedback";
+import { cn } from "@/lib/format";
 
 export default function GlobalError({
   error,
@@ -18,7 +20,12 @@ export default function GlobalError({
   return (
     <div className="flex min-h-svh items-center justify-center bg-[color:var(--app-bg)] px-4 py-10 text-[color:var(--app-fg)]">
       <div className="w-full max-w-md rounded-[28px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] p-8 text-center shadow-[var(--shadow-soft)]">
-        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-[20px] border border-[color:var(--tone-danger-border)] bg-[color:var(--tone-danger-soft)] text-[color:var(--tone-danger)]">
+        <span
+          className={cn(
+            "mx-auto flex h-14 w-14 items-center justify-center rounded-[20px] border",
+            OPS_TONE_SURFACE_ICON.danger,
+          )}
+        >
           <ServerCrash size={26} />
         </span>
         <h1 className="mt-5 font-[family:var(--font-heading)] text-2xl font-black tracking-[-0.04em] text-[color:var(--text-strong)]">

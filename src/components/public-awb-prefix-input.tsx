@@ -22,10 +22,17 @@ export function PublicAwbPrefixInput({
   disabled = false,
 }: PublicAwbPrefixInputProps) {
   return (
-    <div className={cn("relative min-w-0", className)}>
+    <div
+      className={cn(
+        "public-awb-prefix-input flex h-[62px] min-w-0 items-stretch overflow-hidden rounded-[24px] border border-white/14 bg-white/[0.05] transition focus-within:border-[#0f7bff] focus-within:bg-white/[0.07]",
+        disabled && "cursor-not-allowed opacity-70",
+        className,
+      )}
+    >
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute left-14 top-1/2 -translate-y-1/2 font-mono text-lg font-semibold tracking-[0.08em] text-white/28"
+        data-testid="public-awb-prefix-chip"
+        className="public-awb-prefix-chip flex shrink-0 items-center border-r border-white/10 px-4 font-mono text-lg font-semibold tracking-[0.08em] text-white/28"
       >
         {PUBLIC_AWB_PREFIX}-
       </span>
@@ -41,7 +48,7 @@ export function PublicAwbPrefixInput({
         placeholder="10000001"
         aria-label={`Digit resi setelah ${PUBLIC_AWB_PREFIX}-`}
         className={cn(
-          "h-[62px] w-full rounded-[24px] border border-white/14 bg-white/[0.05] pl-[5.75rem] pr-5 font-mono text-lg font-semibold tracking-[0.06em] text-white outline-none transition focus:border-[#0f7bff] focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-70",
+          "min-w-0 flex-1 bg-transparent px-4 font-mono text-lg font-semibold tracking-[0.06em] text-white outline-none disabled:cursor-not-allowed",
           inputClassName,
         )}
         onChange={(event) => onChange(formatPublicAwbSuffixInput(event.target.value))}

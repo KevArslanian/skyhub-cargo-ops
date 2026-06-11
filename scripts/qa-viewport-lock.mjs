@@ -112,6 +112,65 @@ async function checkViewport(page, route, strict) {
   );
 }
 
+async function auditSettingsTimAkses(page, outputDir, viewportId) {
+  const route = "/settings";
+  const url = new URL(route, baseUrl).toString();
+  const started = Date.now();
+
+  await withThrottle(async () => {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+  });
+  await page.waitForTimeout(2000);
+  try {
+    await page.waitForSelector(".settings-users-panel, button:has-text('Tim & Akses')", { timeout: 12000 });
+  } catch {
+    // Fall through; metrics will record missing panel/rows.
+  }
+
+  const timTab = page.locator("button").filter({ hasText: "Tim & Akses" });
+  if (await timTab.count()) {
+    await timTab.first().click();
+    await page.waitForTimeout(1500);
+    await page.waitForSelector(".settings-users-table-scroll tbody tr", { timeout: 12000 }).catch(() => null);
+  }
+
+  const metrics = await page.evaluate(() => {
+    const rows = document.querySelectorAll(".settings-users-table-scroll tbody tr");
+    const panel = document.querySelector(".settings-users-panel");
+    const pagination = document.querySelector(".settings-users-pagination .table-pagination-footer");
+    const lastRow = rows[rows.length - 1];
+    const panelRect = panel?.getBoundingClientRect();
+    const lastRowRect = lastRow?.getBoundingClientRect();
+    const deadSpacePx =
+      panelRect && lastRowRect ? Math.max(0, Math.round(panelRect.bottom - lastRowRect.bottom)) : 999;
+
+    return {
+      rowCount: rows.length,
+      deadSpacePx,
+      paginationVisible: Boolean(pagination),
+    };
+  });
+
+  const slug = `${viewportId}__settings_tim_akses`;
+  const screenshot = path.join(outputDir, `${slug}.png`);
+  await page.screenshot({ path: screenshot, fullPage: false });
+
+  const failures = [];
+  if (metrics.rowCount < 6) failures.push(`too-few-rows:${metrics.rowCount}`);
+  if (metrics.deadSpacePx > 140) failures.push(`dead-space:${metrics.deadSpacePx}px`);
+  if (!metrics.paginationVisible) failures.push("pagination-missing");
+
+  return {
+    route: `${route}#tim-akses`,
+    viewport: viewportId,
+    status: failures.length ? "fail" : "pass",
+    durationMs: Date.now() - started,
+    metrics,
+    failures,
+    screenshot,
+  };
+}
+
 async function auditRoute(page, route, outputDir, viewportId) {
   const url = new URL(route, baseUrl).toString();
   const started = Date.now();
@@ -213,6 +272,12 @@ async function run() {
         console.log(`${result.status === "pass" ? "PASS" : "FAIL"} [${vp.id}] ${route} ${result.failures.join(", ") || ""}`);
         await sleep(800);
       }
+
+      const timAksesResult = await auditSettingsTimAkses(page, outputDir, vp.id);
+      results.push(timAksesResult);
+      console.log(
+        `${timAksesResult.status === "pass" ? "PASS" : "FAIL"} [${vp.id}] ${timAksesResult.route} ${timAksesResult.failures.join(", ") || ""}`,
+      );
       await context.close();
     }
   }

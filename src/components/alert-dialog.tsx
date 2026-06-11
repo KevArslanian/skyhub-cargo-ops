@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import { LiquidGlassOverlay } from "@/components/liquid-glass-overlay";
 import { cn } from "@/lib/format";
+import { OPS_TONE_SURFACE_ICON } from "@/lib/ops-feedback";
 
 type AlertDialogProps = {
   open: boolean;
@@ -23,19 +24,19 @@ const TONE_ICON = {
 
 const TONE_CLASSES = {
   error: {
-    icon: "border-[color:var(--tone-danger-border)] bg-[color:var(--tone-danger-soft)] text-[color:var(--tone-danger)]",
+    icon: OPS_TONE_SURFACE_ICON.danger,
     button: "btn btn-danger",
   },
   warning: {
-    icon: "border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]",
+    icon: OPS_TONE_SURFACE_ICON.warning,
     button: "btn btn-secondary",
   },
   success: {
-    icon: "border-emerald-200 bg-emerald-50 text-emerald-600",
+    icon: OPS_TONE_SURFACE_ICON.success,
     button: "btn btn-primary",
   },
   info: {
-    icon: "border-[color:var(--tone-info-border)] bg-[color:var(--tone-info-soft)] text-[color:var(--tone-info)]",
+    icon: OPS_TONE_SURFACE_ICON.info,
     button: "btn btn-primary",
   },
 } as const;

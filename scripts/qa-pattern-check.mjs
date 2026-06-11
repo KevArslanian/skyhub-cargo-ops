@@ -9,9 +9,9 @@ const email = process.env.QA_LOGIN_EMAIL ?? "staff@skyhub.test";
 const viewport = { width: 1440, height: 900 };
 
 const ROUTES = [
-  { route: "/shipment-ledger", needsCreate: true, needsToolbar: true },
+  { route: "/shipment-ledger", needsCreate: true, needsToolbar: false, createInPanel: true },
   { route: "/awb-tracking", needsCreate: false, needsToolbar: false },
-  { route: "/flight-board", needsCreate: true, needsToolbar: true, waitFor: ".page-action-toolbar, .btn-primary" },
+  { route: "/flight-board", needsCreate: true, needsToolbar: false, createInPanel: true, waitFor: ".section-header-actions .btn-primary" },
   { route: "/alerts", needsCreate: false, needsToolbar: false },
   { route: "/activity-log", needsCreate: false, needsToolbar: false },
   { route: "/complaints", needsCreate: false, needsToolbar: false },
@@ -55,7 +55,13 @@ async function checkPattern(page, route, config) {
         /buat/i.test(b.textContent ?? ""),
       );
       if (!createBtn) failures.push("missing-create-button");
-      else if (toolbar && !toolbar.contains(createBtn)) failures.push("create-not-in-toolbar");
+      else if (cfg.createInPanel) {
+        const panelActions = document.querySelector(".ops-locked-page__body .section-header-actions");
+        if (!panelActions) failures.push("missing-panel-section-actions");
+        else if (!panelActions.contains(createBtn)) failures.push("create-not-in-panel-header");
+      } else if (toolbar && !toolbar.contains(createBtn)) {
+        failures.push("create-not-in-toolbar");
+      }
     }
 
     return failures;
@@ -91,6 +97,7 @@ async function run() {
     },
   };
 
+  await mkdir(outputDir, { recursive: true });
   await writeFile(path.join(outputDir, "pattern-check-report.json"), JSON.stringify(report, null, 2));
 
   if (report.summary.fail > 0) {

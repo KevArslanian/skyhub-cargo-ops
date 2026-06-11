@@ -334,6 +334,8 @@ export function validateInviteUserForm(value: {
   role: "admin" | "staff";
   station: string;
   customerAccountId?: string | null;
+  password: string;
+  confirmPassword: string;
 }) {
   const parsed = inviteUserSchema.safeParse(value);
   if (parsed.success) {

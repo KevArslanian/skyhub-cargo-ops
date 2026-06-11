@@ -3,32 +3,41 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Banknote,
+  Boxes,
+  ClipboardCheck,
   Clock3,
+  FileCheck2,
   History,
   LoaderCircle,
   MapPinned,
+  Package2,
+  PlaneTakeoff,
+  Receipt,
   ScanBarcode,
   Search,
   TriangleAlert,
+  Truck,
+  UserRound,
+  Users,
 } from "lucide-react";
 import { validateAwb } from "@/lib/client-validation";
-import { AWB_REGEX, getCargoIqMilestone, OPS_LIST_PAGE_SIZE } from "@/lib/constants";
+import { AWB_REGEX, getCargoIqMilestone } from "@/lib/constants";
 import { formatAwbInput } from "@/lib/input-guards";
-import { formatDateTime, formatRelativeShort } from "@/lib/format";
+import { formatDateTime, formatWeight } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 
-import { GlassDatePicker } from "@/components/glass-date-picker";
+import { AwbSearchHistoryPanel } from "@/components/awb-search-history-panel";
 import {
   CrudPageScaffold,
+  DataCard,
   EmptyState,
   FilterBar,
   FilterSearch,
   OpsPanel,
-  PaginationBar,
   SectionHeader,
   SkeletonBlock,
 } from "@/components/ops-ui";
-import { OpsDrawer } from "@/components/ops-drawer";
 import { useOpsAlert } from "@/components/ops-alert-provider";
 import { networkErrorMessage } from "@/lib/ops-feedback";
 
@@ -100,8 +109,6 @@ export default function AwbTrackingPage() {
   const [recentPage, setRecentPage] = useState(1);
   const [historyDateFrom, setHistoryDateFrom] = useState("");
   const [historyDateTo, setHistoryDateTo] = useState("");
-  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
-
   const fetchRecentSearches = useCallback(async () => {
     try {
       const params = new URLSearchParams();
@@ -181,14 +188,7 @@ export default function AwbTrackingPage() {
     void lookupAwb(normalizedAwb);
   }, [awbFromQuery, lookupAwb]);
 
-  const compactTimelineLogs = useMemo(() => shipment?.trackingLogs.slice(-3) ?? [], [shipment?.trackingLogs]);
-  const hiddenTimelineCount = Math.max(0, (shipment?.trackingLogs.length ?? 0) - compactTimelineLogs.length);
-  const totalRecentPages = Math.max(1, Math.ceil(recentSearches.length / OPS_LIST_PAGE_SIZE));
-  const currentRecentPage = Math.min(recentPage, totalRecentPages);
-  const recentPageStart = (currentRecentPage - 1) * OPS_LIST_PAGE_SIZE;
-  const pagedRecentSearches = recentSearches.slice(recentPageStart, recentPageStart + OPS_LIST_PAGE_SIZE);
-  const recentVisibleStart = recentSearches.length ? recentPageStart + 1 : 0;
-  const recentVisibleEnd = Math.min(recentPageStart + pagedRecentSearches.length, recentSearches.length);
+  const activeLog = useMemo(() => shipment?.trackingLogs.at(-1) ?? null, [shipment?.trackingLogs]);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -212,7 +212,6 @@ export default function AwbTrackingPage() {
   }
 
   function openHistoryAwb(nextAwb: string) {
-    setHistoryDrawerOpen(false);
     setAwb(nextAwb);
     shouldScrollToResultRef.current = true;
     const nextPath = `/awb-tracking?awb=${encodeURIComponent(nextAwb)}`;
@@ -253,12 +252,6 @@ export default function AwbTrackingPage() {
       eyebrow="Pelacakan"
       title="Pelacakan AWB"
       subtitle="Cari nomor AWB untuk membuka status kiriman, rute, dan linimasa event operasional."
-      actions={
-        <button type="button" className="btn btn-secondary" onClick={() => setHistoryDrawerOpen(true)}>
-          <History size={16} />
-          Riwayat Lacakan
-        </button>
-      }
       filters={
         <FilterBar ariaLabel="Filter pelacakan AWB">
           <FilterSearch>
@@ -290,31 +283,32 @@ export default function AwbTrackingPage() {
       }
       body={
       <>
-      <div className="awb-tracking-layout flex min-h-0 flex-1 flex-col gap-5">
+      <div className="awb-tracking-layout page-grid-2 min-h-0 flex-1 gap-5">
         <div className="page-stack min-h-0">
           <OpsPanel className="page-pane awb-tracking-panel flex h-full min-h-0 flex-col overflow-hidden p-0">
             <div className="shrink-0 border-b border-[color:var(--border-soft)] p-4 sm:p-5">
               <SectionHeader
                 title="Hasil Pelacakan"
-                subtitle="Gunakan filter di atas untuk mencari AWB. Riwayat pencarian tersedia lewat tombol Riwayat Lacakan."
+                subtitle="Rute, status, dan linimasa event kiriman yang sedang dilacak."
               />
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="btn btn-warning"
-                  onClick={handleReportIssue}
-                  disabled={!shipment || reportingIssue}
-                  title={!shipment ? "Laporkan isu tersedia setelah hasil pelacakan muncul" : undefined}
-                >
-                  {reportingIssue ? <LoaderCircle size={16} className="animate-spin" /> : <TriangleAlert size={16} />}
-                  {reportingIssue ? "Mencatat..." : "Laporkan Isu"}
-                </button>
-              </div>
+              {shipment ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-warning"
+                    onClick={handleReportIssue}
+                    disabled={reportingIssue}
+                  >
+                    {reportingIssue ? <LoaderCircle size={16} className="animate-spin" /> : <TriangleAlert size={16} />}
+                    {reportingIssue ? "Mencatat..." : "Laporkan Isu"}
+                  </button>
+                </div>
+              ) : null}
 
 
             </div>
 
-            <div ref={resultsRef} className="awb-tracking-results min-h-0 flex-1 overflow-hidden p-4 sm:p-5">
+            <div ref={resultsRef} className="awb-tracking-results min-h-0 flex-1 p-4 sm:p-5">
               {loading ? (
                 <div className="space-y-4">
                   <SkeletonBlock className="h-24 w-full rounded-[24px]" />
@@ -327,7 +321,7 @@ export default function AwbTrackingPage() {
               <EmptyState
                 icon={ScanBarcode}
                 title="Pelacakan siap digunakan"
-                copy="Masukkan nomor resi lalu tekan Lacak untuk menampilkan status, rute pengiriman, dan kronologi event."
+                copy="Masukkan nomor AWB lalu tekan Lacak untuk menampilkan status, rute pengiriman, dan kronologi event."
                 className="awb-tracking-empty py-10"
               />
             ) : null}
@@ -346,14 +340,23 @@ export default function AwbTrackingPage() {
                 <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="label">Ringkasan Pelacakan</p>
-                      <h2 className="mt-2 font-mono text-2xl font-black text-[color:var(--brand-primary)]">{shipment.awb}</h2>
-                      <p className="mt-2 inline-flex flex-wrap items-center gap-2 text-sm text-[color:var(--muted-fg)]">
-                        <MapPinned size={14} className="shrink-0 text-[color:var(--brand-primary)]" />
-                        <span className="font-semibold text-[color:var(--text-strong)]">{shipment.origin}</span>
+                      <p className="label">Rute Pengiriman</p>
+                      <p className="mt-2 inline-flex flex-wrap items-center gap-2 text-base text-[color:var(--muted-fg)]">
+                        <MapPinned size={16} className="shrink-0 text-[color:var(--brand-primary)]" />
+                        <span className="font-bold text-[color:var(--text-strong)]">{shipment.origin}</span>
                         <span aria-hidden="true">→</span>
-                        <span className="font-semibold text-[color:var(--text-strong)]">{shipment.destination}</span>
+                        <span className="font-bold text-[color:var(--text-strong)]">{shipment.destination}</span>
                       </p>
+                      <p className="mt-2 text-sm text-[color:var(--muted-fg)]">
+                        {shipment.commodity} · {shipment.pieces} koli · {formatWeight(shipment.weightKg)}
+                      </p>
+                      {shipment.flightNumber || shipment.vehicleName ? (
+                        <p className="mt-1 text-xs text-[color:var(--muted-2)]">
+                          {shipment.flightNumber ? `Penerbangan ${shipment.flightNumber}` : null}
+                          {shipment.flightNumber && shipment.vehicleName ? " · " : null}
+                          {shipment.vehicleName ? `Kendaraan ${shipment.vehicleName}` : null}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <StatusBadge value={shipment.status} label={shipment.statusLabel} />
@@ -362,29 +365,86 @@ export default function AwbTrackingPage() {
                       </p>
                     </div>
                   </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <DataCard label="Penerbangan" value={shipment.flightNumber || "-"} icon={PlaneTakeoff} />
+                    <DataCard label="Dokumen" value={shipment.docStatus} icon={FileCheck2} />
+                    <DataCard
+                      label="Kargo"
+                      value={`${shipment.pieces} koli`}
+                      note={formatWeight(shipment.weightKg)}
+                      icon={Package2}
+                    />
+                    <DataCard label="Kesiapan" value={shipment.readiness} icon={ClipboardCheck} />
+                    <DataCard label="Layanan" value={shipment.serviceType} icon={Truck} />
+                    <DataCard
+                      label="Tarif"
+                      value={`Rp ${shipment.shippingRate.toLocaleString("id-ID")}`}
+                      icon={Banknote}
+                    />
+                    <DataCard label="Status Barang" value={shipment.goodsStatus} icon={Boxes} />
+                    <DataCard label="Status Transaksi" value={shipment.transactionStatus} icon={Receipt} />
+                    <DataCard
+                      label="Update Terakhir"
+                      value={formatDateTime(activeLog?.createdAt || shipment.updatedAt)}
+                      icon={Clock3}
+                    />
+                  </div>
                 </div>
 
                 <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
-                  <p className="label">Event Terbaru</p>
+                  <p className="label">Pihak Kiriman</p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <DataCard label="Pengirim" value={shipment.shipper} icon={UserRound} truncateValue />
+                    <DataCard label="Penerima" value={shipment.consignee} icon={Users} truncateValue />
+                    <DataCard label="Forwarder" value={shipment.forwarder} icon={Truck} truncateValue />
+                    <DataCard
+                      label="Pemilik / Akun"
+                      value={shipment.customerAccountName || shipment.ownerName}
+                      icon={UserRound}
+                      truncateValue
+                    />
+                  </div>
+                  {shipment.receivedAt || shipment.sentAt ? (
+                    <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-[color:var(--muted-fg)]">
+                      {shipment.receivedAt ? (
+                        <span>
+                          Diterima: <strong className="text-[color:var(--text-strong)]">{formatDateTime(shipment.receivedAt)}</strong>
+                        </span>
+                      ) : null}
+                      {shipment.sentAt ? (
+                        <span>
+                          Dikirim: <strong className="text-[color:var(--text-strong)]">{formatDateTime(shipment.sentAt)}</strong>
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-5">
+                  <p className="label">Linimasa Pelacakan</p>
                   <div className="mt-4 space-y-3">
-                    {compactTimelineLogs.length ? (
-                      compactTimelineLogs.map((log) => {
+                    {shipment.trackingLogs.length ? (
+                      shipment.trackingLogs.map((log) => {
                         const milestone = getCargoIqMilestone(log.status);
                         return (
                           <div
                             key={log.id}
-                            className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-4 py-3"
+                            className="rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] px-4 py-4"
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <p className="font-semibold text-[color:var(--text-strong)]">{log.label}</p>
+                                {log.message ? (
+                                  <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{log.message}</p>
+                                ) : null}
                                 <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--brand-primary)]">
                                   Cargo iQ {milestone.code} · {milestone.title}
                                 </p>
                               </div>
                               <StatusBadge value={log.status} label={log.label} />
                             </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[color:var(--muted-2)]">
+                            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[color:var(--muted-2)]">
                               <span className="inline-flex items-center gap-1.5">
                                 <Clock3 size={13} />
                                 {formatDateTime(log.createdAt)}
@@ -393,6 +453,10 @@ export default function AwbTrackingPage() {
                                 <MapPinned size={13} />
                                 {log.location}
                               </span>
+                              <span className="inline-flex items-center gap-1.5">
+                                <History size={13} />
+                                {log.actorName || "Sistem"}
+                              </span>
                             </div>
                           </div>
                         );
@@ -400,11 +464,6 @@ export default function AwbTrackingPage() {
                     ) : (
                       <p className="text-sm text-[color:var(--muted-fg)]">Belum ada event pelacakan.</p>
                     )}
-                    {hiddenTimelineCount > 0 ? (
-                      <p className="text-xs font-semibold text-[color:var(--muted-fg)]">
-                        +{hiddenTimelineCount} event lainnya tidak ditampilkan di ringkasan.
-                      </p>
-                    ) : null}
                   </div>
                 </div>
               </div>
@@ -412,94 +471,20 @@ export default function AwbTrackingPage() {
             </div>
           </OpsPanel>
         </div>
+
+        <AwbSearchHistoryPanel
+          activeAwb={trackedAwb}
+          activeStatusLabel={shipment?.statusLabel}
+          recentSearches={recentSearches}
+          historyDateFrom={historyDateFrom}
+          historyDateTo={historyDateTo}
+          page={recentPage}
+          onDateFromChange={setHistoryDateFrom}
+          onDateToChange={setHistoryDateTo}
+          onPageChange={setRecentPage}
+          onOpenAwb={openHistoryAwb}
+        />
       </div>
-
-      <OpsDrawer
-        open={historyDrawerOpen}
-        eyebrow="Pelacakan"
-        title="Riwayat Lacakan"
-        description="Riwayat pencarian AWB terakhir. Pilih entri untuk memuat ulang hasil pelacakan."
-        onClose={() => setHistoryDrawerOpen(false)}
-      >
-        <div className="flex min-h-0 flex-1 flex-col gap-5">
-          <div className="awb-history-date-filters grid shrink-0 gap-4 sm:grid-cols-2">
-            <div className="awb-history-date-field">
-              <label className="label" htmlFor="awb-history-from">
-                Tanggal Awal
-              </label>
-              <GlassDatePicker id="awb-history-from" aria-label="Tanggal awal" value={historyDateFrom} onChange={setHistoryDateFrom} />
-            </div>
-            <div className="awb-history-date-field">
-              <label className="label" htmlFor="awb-history-to">
-                Tanggal Akhir
-              </label>
-              <GlassDatePicker
-                id="awb-history-to"
-                aria-label="Tanggal akhir"
-                min={historyDateFrom || undefined}
-                value={historyDateTo}
-                onChange={setHistoryDateTo}
-              />
-            </div>
-          </div>
-
-          <p className="shrink-0 text-xs font-semibold text-[color:var(--muted-fg)]" aria-live="polite">
-            {recentSearches.length} riwayat pelacakan
-          </p>
-
-          <div
-            className="awb-history-list internal-scrollbar min-h-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto overscroll-y-contain"
-            role="list"
-            aria-label="Riwayat pelacakan AWB"
-          >
-            {recentSearches.length ? (
-              pagedRecentSearches.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="listitem"
-                  className="w-full rounded-[20px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4 text-left hover:bg-[color:var(--brand-primary-soft)]"
-                  onClick={() => openHistoryAwb(item.awb)}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{item.awb}</p>
-                      <p className="mt-1 text-xs text-[color:var(--muted-fg)]">
-                        {item.origin && item.destination ? `${item.origin} -> ${item.destination}` : "Riwayat pelacakan"}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-xs text-[color:var(--muted-fg)]">{formatRelativeShort(item.createdAt)}</span>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    {item.status && item.statusLabel ? (
-                      <StatusBadge value={item.status} label={item.statusLabel} />
-                    ) : (
-                      <StatusBadge value="pending" label="Belum aktif" />
-                    )}
-                    <span className="shrink-0 text-xs text-[color:var(--muted-fg)]">{item.flightNumber || "-"}</span>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <EmptyState icon={History} variant="neutral" title="Belum ada riwayat" copy="Riwayat pencarian AWB akan muncul di sini setelah kamu melakukan pelacakan." />
-            )}
-          </div>
-
-          {recentSearches.length > OPS_LIST_PAGE_SIZE ? (
-            <div className="awb-history-pagination shrink-0 border-t border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] pt-3">
-              <PaginationBar
-                page={currentRecentPage}
-                totalPages={totalRecentPages}
-                visibleStart={recentVisibleStart}
-                visibleEnd={recentVisibleEnd}
-                totalItems={recentSearches.length}
-                onPageChange={(nextPage) => setRecentPage(nextPage)}
-                label="Riwayat"
-              />
-            </div>
-          ) : null}
-        </div>
-      </OpsDrawer>
       </>
       }
     />

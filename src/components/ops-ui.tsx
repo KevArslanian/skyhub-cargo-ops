@@ -1,5 +1,5 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
-import { ChevronLeft, ChevronRight, RefreshCw, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Info, RefreshCw, X, type LucideIcon } from "lucide-react";
 import { OpsDrawer } from "@/components/ops-drawer";
 import { OpsLockedPage } from "@/components/ops-locked-page";
 import { cn, formatNumber } from "@/lib/format";
@@ -51,21 +51,39 @@ export function SectionHeader({
   subtitle,
   action,
   className,
+  contained = false,
 }: {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
   className?: string;
+  /** Stack action below title on narrow panels so buttons stay inside the panel border. */
+  contained?: boolean;
 }) {
   return (
-    <div className={cn("flex min-w-0 max-w-full flex-col gap-3 border-b border-[color:var(--border-soft)] pb-4 xl:flex-row xl:items-end xl:justify-between", className)}>
+    <div
+      className={cn(
+        "flex min-w-0 max-w-full flex-col gap-3 border-b border-[color:var(--border-soft)] pb-4",
+        contained ? "settings-section-header--contained" : "xl:flex-row xl:items-end xl:justify-between",
+        className,
+      )}
+    >
       <div className="min-w-0">
         <h2 className="text-[1.25rem] font-[family:var(--font-heading)] font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
           {title}
         </h2>
         {subtitle ? <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">{subtitle}</p> : null}
       </div>
-      {action ? <div className="flex max-w-full shrink-0 flex-wrap items-center gap-3 xl:justify-end">{action}</div> : null}
+      {action ? (
+        <div
+          className={cn(
+            "section-header-actions flex max-w-full flex-wrap items-center gap-3",
+            contained ? "w-full shrink-0" : "shrink-0 xl:justify-end",
+          )}
+        >
+          {action}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -138,6 +156,8 @@ export function DataCard({
   className,
   valueClassName,
   footer,
+  truncateValue = false,
+  valueTitle,
 }: {
   label: string;
   value: React.ReactNode;
@@ -148,7 +168,12 @@ export function DataCard({
   className?: string;
   valueClassName?: string;
   footer?: React.ReactNode;
+  truncateValue?: boolean;
+  valueTitle?: string;
 }) {
+  const resolvedValueTitle =
+    valueTitle ?? (truncateValue && typeof value === "string" ? value : undefined);
+
   return (
     <article
       className={cn(
@@ -161,8 +186,10 @@ export function DataCard({
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">{label}</p>
           <div
+            title={resolvedValueTitle}
             className={cn(
-              "mt-3 break-words font-[family:var(--font-heading)] text-[1.45rem] font-black tracking-[-0.04em] text-[color:var(--text-strong)]",
+              "mt-3 font-[family:var(--font-heading)] text-[1.45rem] font-black tracking-[-0.04em] text-[color:var(--text-strong)]",
+              truncateValue ? "truncate" : "break-words",
               valueClassName,
             )}
           >
@@ -376,6 +403,76 @@ export function EmptyState({
   );
 }
 
+type OpsFeedbackTone = "warning" | "error" | "info";
+
+const FEEDBACK_TONE_ICON = {
+  warning: AlertTriangle,
+  error: AlertTriangle,
+  info: Info,
+} as const;
+
+export function OpsFeedbackBanner({
+  tone,
+  title,
+  description,
+  onRetry,
+  retryLabel = "Coba lagi",
+  onDismiss,
+  compact = false,
+  className,
+}: {
+  tone: OpsFeedbackTone;
+  title: string;
+  description?: string;
+  onRetry?: () => void;
+  retryLabel?: string;
+  onDismiss?: () => void;
+  compact?: boolean;
+  className?: string;
+}) {
+  const Icon = FEEDBACK_TONE_ICON[tone];
+
+  return (
+    <div
+      className={cn(
+        "ops-feedback-banner",
+        `ops-feedback-banner--${tone}`,
+        compact && "ops-feedback-banner--compact",
+        className,
+      )}
+      role="alert"
+    >
+      <span className="ops-feedback-banner-icon" aria-hidden="true">
+        <Icon size={18} />
+      </span>
+      <div className="ops-feedback-banner-copy">
+        <p className="ops-feedback-banner-title">{title}</p>
+        {description ? <p className="ops-feedback-banner-description">{description}</p> : null}
+      </div>
+      {onRetry || onDismiss ? (
+        <div className="ops-feedback-banner-actions">
+          {onRetry ? (
+            <button type="button" className="btn btn-secondary ops-feedback-banner-retry" onClick={onRetry}>
+              <RefreshCw size={14} />
+              {retryLabel}
+            </button>
+          ) : null}
+          {onDismiss ? (
+            <button
+              type="button"
+              className="ops-feedback-banner-dismiss"
+              onClick={onDismiss}
+              aria-label="Tutup pesan"
+            >
+              <X size={14} />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function OpsListErrorBanner({
   message,
   onRetry,
@@ -392,27 +489,14 @@ export function OpsListErrorBanner({
   }
 
   return (
-    <div className={cn("ops-list-error-banner", className)} role="alert">
-      <p className="ops-list-error-banner-copy">{message}</p>
-      <div className="ops-list-error-banner-actions">
-        {onRetry ? (
-          <button type="button" className="btn btn-secondary h-8 min-h-8 px-3 text-xs" onClick={onRetry}>
-            <RefreshCw size={14} />
-            Coba lagi
-          </button>
-        ) : null}
-        {onDismiss ? (
-          <button
-            type="button"
-            className="ops-list-error-banner-dismiss"
-            onClick={onDismiss}
-            aria-label="Tutup pesan error"
-          >
-            <X size={14} />
-          </button>
-        ) : null}
-      </div>
-    </div>
+    <OpsFeedbackBanner
+      tone="error"
+      title="Gagal memuat daftar"
+      description={message}
+      onRetry={onRetry}
+      onDismiss={onDismiss}
+      className={cn("ops-list-error-banner", className)}
+    />
   );
 }
 

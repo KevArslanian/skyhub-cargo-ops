@@ -17,7 +17,8 @@ import { cn, formatDateTime } from "@/lib/format";
 import { useOpsAlert } from "@/components/ops-alert-provider";
 import { openAwbReceiptPrint } from "@/lib/awb-receipt";
 import { networkErrorMessage, readApiError } from "@/lib/ops-feedback";
-import { AIRCRAFT_CAPACITY_KG, AIRCRAFT_TYPE_OPTIONS, OPS_LIST_PAGE_SIZE, stationSelectOptions } from "@/lib/constants";
+import { AIRCRAFT_CAPACITY_KG, AIRCRAFT_TYPE_OPTIONS, stationSelectOptions } from "@/lib/constants";
+import { useVisibleTablePageSize } from "@/lib/use-visible-table-page-size";
 import {
   getCargoCutoffTime,
   getDefaultAircraftType,
@@ -39,6 +40,7 @@ import {
   FilterBar,
   FilterFields,
   FilterSearch,
+  OpsFeedbackBanner,
   OpsListErrorBanner,
   OpsPanel,
   PaginationBar,
@@ -350,6 +352,10 @@ export default function FlightBoardPage() {
   const [createErrors, setCreateErrors] = useState<FlightFormErrors>({});
   const [editErrors, setEditErrors] = useState<FlightFormErrors>({});
   const [listError, setListError] = useState<string | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const tableRef = useRef<HTMLTableElement | null>(null);
+  const selectedFlightIdRef = useRef(selectedFlightId);
+  selectedFlightIdRef.current = selectedFlightId;
   const initialDateResolvedRef = useRef(
     Boolean(searchParams.get("date") || searchParams.get("dateFrom") || searchParams.get("dateTo")),
   );
@@ -415,21 +421,32 @@ export default function FlightBoardPage() {
     replaceFlightBoardUrl({ query: query.trim(), page: 1 });
   }, [query, replaceFlightBoardUrl]);
 
-  const applyFlightBoardPayload = useCallback(
-    (payload: FlightBoardPayload, preferredFlightId = selectedFlightId) => {
-      const nextSelectedFlight = preferredFlightId
-        ? payload.flights.find((flight) => flight.id === preferredFlightId) ?? null
-        : null;
-
-      setData(payload);
-      setPage(payload.pagination.page);
-      setSelectedFlightId(nextSelectedFlight?.id ?? null);
-      setEditDraft(createFlightDraft(nextSelectedFlight));
-    },
-    [selectedFlightId],
+  const flightPageSize = useVisibleTablePageSize(
+    tableScrollRef,
+    tableRef,
+    Boolean(data?.flights.length) && !initialLoadPending,
+    data?.flights.length ?? 0,
+    { fallback: 3, min: 1, max: 8 },
   );
+  const pageRef = useRef(page);
+  pageRef.current = page;
+  const flightPageSizeRef = useRef(flightPageSize);
+  flightPageSizeRef.current = flightPageSize;
 
-  const requestFlightBoard = useCallback(async (options?: { includeDate?: boolean; page?: number }) => {
+  const applyFlightBoardPayload = useCallback((payload: FlightBoardPayload, preferredFlightId?: string | null) => {
+    const resolvedPreferredId =
+      preferredFlightId !== undefined ? preferredFlightId : selectedFlightIdRef.current;
+    const nextSelectedFlight = resolvedPreferredId
+      ? payload.flights.find((flight) => flight.id === resolvedPreferredId) ?? null
+      : null;
+
+    setData(payload);
+    setPage(payload.pagination.page);
+    setSelectedFlightId(nextSelectedFlight?.id ?? null);
+    setEditDraft(createFlightDraft(nextSelectedFlight));
+  }, []);
+
+  const requestFlightBoard = useCallback(async (options?: { includeDate?: boolean; page?: number; pageSize?: number }) => {
     const params = new URLSearchParams();
     if (status !== "all") params.set("status", status);
     if (appliedQuery.trim()) params.set("query", appliedQuery.trim());
@@ -437,8 +454,8 @@ export default function FlightBoardPage() {
       if (dateFrom) params.set("dateFrom", dateFrom);
       if (dateTo) params.set("dateTo", dateTo);
     }
-    params.set("page", String(options?.page ?? page));
-    params.set("pageSize", String(OPS_LIST_PAGE_SIZE));
+    params.set("page", String(options?.page ?? pageRef.current));
+    params.set("pageSize", String(options?.pageSize ?? flightPageSizeRef.current));
     try {
       const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
       if (!response.ok) {
@@ -452,16 +469,16 @@ export default function FlightBoardPage() {
       setListError(networkErrorMessage("memuat papan penerbangan"));
       return null;
     }
-  }, [appliedQuery, dateFrom, dateTo, page, status]);
+  }, [appliedQuery, dateFrom, dateTo, status]);
 
   const loadFlightBoard = useCallback(
     async (options?: { preferredFlightId?: string | null }) => {
       const payload = await requestFlightBoard({ includeDate: true });
       if (!payload) return;
 
-      applyFlightBoardPayload(payload, options?.preferredFlightId ?? selectedFlightId);
+      applyFlightBoardPayload(payload, options?.preferredFlightId);
     },
-    [applyFlightBoardPayload, requestFlightBoard, selectedFlightId],
+    [applyFlightBoardPayload, requestFlightBoard],
   );
 
   useEffect(() => {
@@ -487,6 +504,25 @@ export default function FlightBoardPage() {
       cancelled = true;
     };
   }, [applyFlightBoardPayload, dateFrom, dateTo, replaceFlightBoardUrl, requestFlightBoard]);
+
+  const resolvedFlightPageSizeRef = useRef(flightPageSize);
+  useEffect(() => {
+    if (initialLoadPending || !initialDateResolvedRef.current) return;
+    if (resolvedFlightPageSizeRef.current === flightPageSize) return;
+    resolvedFlightPageSizeRef.current = flightPageSize;
+    void requestFlightBoard({ includeDate: true, page: 1, pageSize: flightPageSize }).then((payload) => {
+      if (!payload) return;
+      setPage(1);
+      replaceFlightBoardUrl({ page: 1, id: null });
+      applyFlightBoardPayload(payload, null);
+    });
+  }, [
+    applyFlightBoardPayload,
+    flightPageSize,
+    initialLoadPending,
+    replaceFlightBoardUrl,
+    requestFlightBoard,
+  ]);
 
   useEffect(() => {
     if (!initialLoadPending) {
@@ -748,7 +784,7 @@ export default function FlightBoardPage() {
     if (input.dateFrom) params.set("dateFrom", input.dateFrom);
     if (input.dateTo) params.set("dateTo", input.dateTo);
     params.set("page", "1");
-    params.set("pageSize", String(OPS_LIST_PAGE_SIZE));
+    params.set("pageSize", String(flightPageSize));
 
     try {
       const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
@@ -812,8 +848,9 @@ export default function FlightBoardPage() {
   const selectedFlight = visibleFlights.find((flight) => flight.id === selectedFlightId) ?? null;
   const totalFlightPages = data?.pagination.totalPages ?? 1;
   const totalFlightItems = data?.pagination.totalItems ?? 0;
-  const visibleFlightStart = totalFlightItems ? (page - 1) * 10 + 1 : 0;
-  const visibleFlightEnd = Math.min((page - 1) * 10 + visibleFlights.length, totalFlightItems);
+  const listPageSize = data?.pagination.pageSize ?? flightPageSize;
+  const visibleFlightStart = totalFlightItems ? (page - 1) * listPageSize + 1 : 0;
+  const visibleFlightEnd = Math.min((page - 1) * listPageSize + visibleFlights.length, totalFlightItems);
   const flightExportQuery = useMemo(() => {
     const params = new URLSearchParams();
     if (status !== "all") params.set("status", status);
@@ -840,16 +877,22 @@ export default function FlightBoardPage() {
     [applyFlightBoardPayload, replaceFlightBoardUrl, requestFlightBoard, totalFlightPages],
   );
 
-  const pageActions = useMemo(
-    () => (
+  const pageActions = useMemo(() => {
+    const canExport = data?.permissions.canExport;
+    const canCreate = data?.permissions.canManageFlights;
+    if (!canExport && !canCreate) {
+      return null;
+    }
+
+    return (
       <div className="flex flex-wrap gap-2">
-        {data?.permissions.canExport ? (
+        {canExport ? (
           <Link href={`/exports/flights?${flightExportQuery}`} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
             <FileText size={16} />
             Cetak Penerbangan
           </Link>
         ) : null}
-        {data?.permissions.canManageFlights ? (
+        {canCreate ? (
           <button
             type="button"
             className="btn btn-primary"
@@ -863,9 +906,8 @@ export default function FlightBoardPage() {
           </button>
         ) : null}
       </div>
-    ),
-    [data?.permissions.canExport, data?.permissions.canManageFlights, flightExportQuery],
-  );
+    );
+  }, [data?.permissions.canExport, data?.permissions.canManageFlights, flightExportQuery]);
 
   const filterControls = useMemo(
     () => (
@@ -943,7 +985,6 @@ export default function FlightBoardPage() {
       eyebrow="Manajemen Pesawat"
       title="Manajemen Pesawat"
       subtitle={`Kelola jadwal, assignment pesawat, kapasitas, dan arsip keberangkatan. Semua jam operasional memakai ${OPS_TIME_ZONE_LABEL}.`}
-      actions={pageActions}
       filters={filterControls}
       footer={
         <PaginationBar
@@ -963,15 +1004,23 @@ export default function FlightBoardPage() {
           className="page-pane flightboard-pane flightboard-manifest-panel flight-manifest-panel-space flex min-h-0 flex-col overflow-hidden"
         >
           <div className="shrink-0 border-b border-[color:var(--border-soft)] p-4 sm:p-5">
-            <SectionHeader title="Daftar Pesawat Aktif" subtitle="Klik baris untuk detail penerbangan." />
+            <SectionHeader
+              title="Daftar Pesawat Aktif"
+              subtitle="Klik baris untuk detail penerbangan."
+              action={pageActions}
+              className="panel-section-header shrink-0 border-b-0 pb-0"
+            />
           </div>
           <OpsListErrorBanner
             message={listError}
             onRetry={() => void loadFlightBoard()}
             onDismiss={() => setListError(null)}
           />
-          <div className="flightboard-manifest-scroll flight-manifest-table-space internal-scrollbar table-shell">
-            <table className="data-table">
+          <div
+            ref={tableScrollRef}
+            className="flightboard-manifest-scroll flight-manifest-table-space internal-scrollbar table-shell"
+          >
+            <table ref={tableRef} className="data-table">
               <thead>
                 <tr>
                   <th>Penerbangan</th>
@@ -1198,11 +1247,12 @@ export default function FlightBoardPage() {
                 <p className="mt-1 text-sm text-[color:var(--muted-fg)]">Semua jam memakai {OPS_TIME_ZONE_LABEL}. Batas kargo otomatis T-70 menit sebelum berangkat; estimasi tiba dan gate dihitung dari master rute.</p>
               </div>
               {createScheduleIssues.length ? (
-                <div className="rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-semibold text-[color:var(--tone-warning)]">
-                  {createScheduleIssues.map((issue) => (
-                    <p key={issue.message}>{issue.message}</p>
-                  ))}
-                </div>
+                <OpsFeedbackBanner
+                  tone="warning"
+                  title="Periksa jadwal penerbangan"
+                  description={createScheduleIssues.map((issue) => issue.message).join(" ")}
+                  compact
+                />
               ) : null}
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
@@ -1351,11 +1401,12 @@ export default function FlightBoardPage() {
                 <p className="mt-1 text-sm text-[color:var(--muted-fg)]">Semua jam memakai {OPS_TIME_ZONE_LABEL}. Batas kargo T-70, estimasi tiba, dan gate mengikuti waktu berangkat serta rute penerbangan.</p>
               </div>
               {editScheduleIssues.length ? (
-                <div className="rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-sm font-semibold text-[color:var(--tone-warning)]">
-                  {editScheduleIssues.map((issue) => (
-                    <p key={issue.message}>{issue.message}</p>
-                  ))}
-                </div>
+                <OpsFeedbackBanner
+                  tone="warning"
+                  title="Periksa jadwal penerbangan"
+                  description={editScheduleIssues.map((issue) => issue.message).join(" ")}
+                  compact
+                />
               ) : null}
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
