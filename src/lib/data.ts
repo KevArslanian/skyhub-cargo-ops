@@ -222,6 +222,7 @@ const shipmentAssignmentFlightSelect = Prisma.validator<Prisma.FlightSelect>()({
 });
 
 type ShipmentRecord = Prisma.ShipmentGetPayload<{ include: typeof shipmentInclude }>;
+type AlertShipmentRecord = Prisma.ShipmentGetPayload<{ include: typeof alertCenterShipmentInclude }>;
 type ShipmentListRecord = Prisma.ShipmentGetPayload<{ include: typeof shipmentListInclude }>;
 type ShipmentDashboardRecord = Prisma.ShipmentGetPayload<{ include: typeof shipmentDashboardInclude }>;
 type SerializableShipmentRecord = ShipmentRecord | ShipmentListRecord | ShipmentDashboardRecord;
@@ -1274,7 +1275,7 @@ function getAlertResolutionMeta(kind: string) {
 }
 
 function createShipmentAlert(input: {
-  shipment: ShipmentRecord;
+  shipment: AlertShipmentRecord;
   now: Date;
   kind: string;
   title: string;
@@ -2396,7 +2397,9 @@ const getCachedDashboardAlertSummary = unstable_cache(
       {
         id: userId,
         role: role as AccessUser["role"],
-        station: station || null,
+        status: "active",
+        station: station || "SOQ",
+        customerAccountId: null,
         name: name || "Operator",
       },
       { summaryOnly: true },
