@@ -62,21 +62,23 @@ export default function LoginPage() {
 
       const payload = (await response.json()) as LoginResponse;
       if (!response.ok) {
+        const detail = getLoginErrorDetail(payload.code, payload.error || "Masuk gagal.");
         setErrors({
-          form: payload.error || "Masuk gagal.",
+          form: payload.error || detail.message,
           formCode: payload.code,
         });
+        setSubmitting(false);
         return;
       }
 
-      router.push("/dashboard");
+      router.push(payload.role === "customer" ? "/about-us#tracking" : "/dashboard");
       router.refresh();
     } catch {
+      const detail = getLoginErrorDetail(LOGIN_ERROR_CODES.AUTH_UNAVAILABLE, "Tidak dapat menjangkau layanan masuk saat ini.");
       setErrors({
-        form: "Tidak dapat menjangkau layanan masuk saat ini.",
+        form: detail.message,
         formCode: LOGIN_ERROR_CODES.AUTH_UNAVAILABLE,
       });
-    } finally {
       setSubmitting(false);
     }
   }
@@ -103,7 +105,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="mb-5 grid gap-3 sm:grid-cols-2">
+          <div className="mb-5 grid max-h-[min(42vh,320px)] gap-3 overflow-y-auto overscroll-contain sm:max-h-none sm:grid-cols-2 sm:overflow-visible">
             {crudAccounts.map((account) => (
               <button
                 key={account.email}
@@ -112,7 +114,7 @@ export default function LoginPage() {
                 onClick={() => fillAccount(account.email, account.password)}
               >
                 <span className="block text-xs font-bold uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
-                  Akun CRUD {account.label}
+                  Akun demo {account.label}
                 </span>
                 <span className="mt-1 block truncate font-mono text-sm font-bold text-[color:var(--text-strong)]">
                   {account.email}
@@ -124,7 +126,7 @@ export default function LoginPage() {
             ))}
           </div>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
             <div>
               <label className="label">Surel</label>
               <input
@@ -135,7 +137,7 @@ export default function LoginPage() {
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="staff@skyhub.test"
               />
-              {errors.email ? <p className="mt-2 text-sm text-[color:var(--tone-warning)]">{errors.email}</p> : null}
+              {errors.email ? <p className="mt-2 text-sm text-[color:var(--tone-danger)]">{errors.email}</p> : null}
             </div>
 
             <div>
@@ -158,17 +160,20 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              {errors.password ? <p className="mt-2 text-sm text-[color:var(--tone-warning)]">{errors.password}</p> : null}
+              {errors.password ? <p className="mt-2 text-sm text-[color:var(--tone-danger)]">{errors.password}</p> : null}
+              <p className="mt-3 text-xs leading-5 text-[color:var(--muted-fg)]">
+                Lupa kata sandi? Hubungi administrator operasional. Reset hanya dilakukan lewat menu Pengaturan → Tim &amp; Akses.
+              </p>
             </div>
 
             {loginError ? (
               <div
                 role="alert"
                 aria-live="polite"
-                className={cn("rounded-[22px] border px-4 py-4", "border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)]")}
+                className={cn("rounded-[22px] border px-4 py-4", "border-[color:var(--tone-danger-border)] bg-[color:var(--tone-danger-soft)]")}
               >
                 <div className="flex items-start gap-3">
-                  <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[color:var(--tone-warning-border)] bg-[color:var(--panel-bg)] text-[color:var(--tone-warning)]">
+                  <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[color:var(--tone-danger-border)] bg-[color:var(--panel-bg)] text-[color:var(--tone-danger)]">
                     <CircleAlert size={18} />
                   </span>
                   <div>

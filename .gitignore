@@ -4,6 +4,7 @@ node_modules
 .next
 *.log
 *.tsbuildinfo
+.DS_Store
 
 # dev scratch / context-bloat artifacts (see: pnpm compact)
 audit-shot*.png
@@ -12,3 +13,15 @@ audit-shot.mjs
 debug-login.mjs
 shot.mjs
 /_scratch_backup
+.playwright-cli/
+.qa/
+test-results/
+*.backup
+output/
+siweb-audit/
+AUDIT-*.md
+audit-*.md
+audit-path-manifest.md
+long-task-brief.md
+SKYHUB-FIX-MASTER-PLAN.md
+MODULE-SYNC-REPORT.md

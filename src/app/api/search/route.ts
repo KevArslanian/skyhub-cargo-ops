@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
 import { routeErrorResponse } from "@/lib/api";
 import { searchScoped, type SearchScope } from "@/lib/data";
 
@@ -11,7 +11,6 @@ const SEARCH_SCOPES: SearchScope[] = [
   "flight",
   "alerts",
   "activity-log",
-  "reports",
   "settings",
 ];
 
@@ -21,7 +20,7 @@ function parseScope(value: string | null): SearchScope {
 
 export async function GET(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("query");
     const scope = parseScope(searchParams.get("scope"));

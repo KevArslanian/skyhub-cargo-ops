@@ -10,6 +10,7 @@ const toneMap: Record<string, string> = {
   on_hold: "border-[color:var(--status-on-hold-border)] bg-[color:var(--status-on-hold-soft)] text-[color:var(--status-on-hold)]",
   hold: "border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]",
   on_time: "border-[color:var(--tone-success-border)] bg-[color:var(--tone-success-soft)] text-[color:var(--tone-success)]",
+  at_risk: "border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]",
   delayed: "border-[color:var(--status-delayed-border)] bg-[color:var(--status-delayed-soft)] text-[color:var(--status-delayed)]",
   complete: "border-[color:var(--tone-success-border)] bg-[color:var(--tone-success-soft)] text-[color:var(--tone-success)]",
   warning: "border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] text-[color:var(--tone-warning)]",

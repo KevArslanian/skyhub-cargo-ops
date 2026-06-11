@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AccessError } from "./access";
+import { withDbRetry } from "./db-retry";
 import { db } from "./prisma";
 import { AUTH_BYPASS_ENABLED } from "./runtime-flags";
 import { assertRequiredServerEnv, readRequiredServerEnv } from "./server-env";
@@ -253,25 +254,27 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     return null;
   }
 
-  const user = await db.user.findUnique({
-    where: { id: session.userId },
-    include: {
-      settings: true,
-      capabilityOverrides: {
-        select: {
-          capability: true,
-          enabled: true,
+  const user = await withDbRetry(() =>
+    db.user.findUnique({
+      where: { id: session.userId },
+      include: {
+        settings: true,
+        capabilityOverrides: {
+          select: {
+            capability: true,
+            enabled: true,
+          },
+        },
+        customerAccount: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+          },
         },
       },
-      customerAccount: {
-        select: {
-          id: true,
-          name: true,
-          status: true,
-        },
-      },
-    },
-  });
+    }),
+  );
 
   if (!user || user.status !== "active") {
     if (AUTH_BYPASS_ENABLED) {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
 import { routeErrorResponse } from "@/lib/api";
 import { AccessError, canManageUsers } from "@/lib/access";
 import { getSettingsData, inviteUser } from "@/lib/data";
@@ -7,7 +7,7 @@ import { inviteUserSchema } from "@/lib/validators";
 
 export async function GET() {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     if (!canManageUsers(user)) {
       throw new AccessError("Akses API pengguna hanya untuk admin.", 403, "ADMIN_ONLY");
     }
@@ -21,7 +21,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     if (!canManageUsers(user)) {
       throw new AccessError("Akses API pengguna hanya untuk admin.", 403, "ADMIN_ONLY");
     }

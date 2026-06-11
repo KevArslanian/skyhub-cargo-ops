@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
+import { OpsLockedPage } from "@/components/ops-locked-page";
+import { OpsPanel, PageHeader, SectionHeader, StatCard } from "@/components/ops-ui";
 import { requireRole } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { getQueryDiagnostics } from "@/lib/query-diagnostics";
@@ -13,97 +14,51 @@ export default async function SeedPage() {
   const diagnostics = await getQueryDiagnostics();
 
   return (
-    <div className="page-workspace">
-      <PageHeader
-        eyebrow="Seed Database"
-        title="Utilitas Seed"
-        subtitle="Halaman utilitas untuk cek status hasil seed dan perintah resmi yang dipakai pada Neon."
-      />
-
-      <OpsPanel className="page-pane p-5">
-        <SectionHeader title="Perintah Seed" subtitle="Jalankan perintah ini dari terminal workspace project." />
-        <div className="mt-4 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Perintah Seed</p>
-          <code className="mt-2 block text-sm text-[color:var(--text-strong)]">pnpm db:seed</code>
-        </div>
-        <div className="mt-3 rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Cek Migrasi</p>
-          <code className="mt-2 block text-sm text-[color:var(--text-strong)]">pnpm prisma migrate status</code>
-        </div>
-        <p className="mt-4 text-sm text-[color:var(--muted-fg)]">
-          Untuk hasil query setelah seed, buka{" "}
-          <Link href="/query" className="text-[color:var(--brand-primary)] hover:underline">
-            /query
-          </Link>
-          .
-        </p>
-      </OpsPanel>
-
-      <OpsPanel className="page-pane p-5">
-        <SectionHeader title="Snapshot Setelah Seed" subtitle="Ringkasan jumlah data saat ini di Neon." />
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Pengguna</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.user}</p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Penerbangan</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.flight}</p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Pengiriman</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.shipment}</p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Log Pelacakan</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">
-              {diagnostics.counts.trackingLog}
+    <OpsLockedPage
+      className="seed-viewport"
+      header={
+        <PageHeader
+          eyebrow="Seed Database"
+          title="Utilitas Seed"
+          subtitle="Halaman utilitas untuk cek status hasil seed dan perintah resmi yang dipakai pada Neon."
+        />
+      }
+      body={
+        <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
+          <OpsPanel className="shrink-0 p-5">
+            <SectionHeader title="Perintah Seed" subtitle="Jalankan perintah ini dari terminal workspace project." />
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Perintah Seed</p>
+                <code className="mt-2 block text-sm text-[color:var(--text-strong)]">pnpm db:seed</code>
+              </div>
+              <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted-2)]">Cek Migrasi</p>
+                <code className="mt-2 block text-sm text-[color:var(--text-strong)]">pnpm prisma migrate status</code>
+              </div>
+            </div>
+            <p className="mt-4 text-sm text-[color:var(--muted-fg)]">
+              Untuk hasil query setelah seed, buka{" "}
+              <Link href="/query" className="text-[color:var(--brand-primary)] hover:underline">
+                /query
+              </Link>
+              .
             </p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Catatan Aktivitas</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">
-              {diagnostics.counts.activityLog}
-            </p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">KPI Sistem</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.systemKpi}</p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Kota</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.city}</p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Bandara</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.airport}</p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Pesawat</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.aircraft}</p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Komoditas</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.commodity}</p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Tarif</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.tariff}</p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Item Kargo</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.cargoItem}</p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Detail Pengiriman</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.shipmentDetail}</p>
-          </div>
-          <div className="rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4 text-sm">
-            <p className="text-[color:var(--muted-fg)]">Item Pengiriman</p>
-            <p className="mt-1 text-lg font-semibold text-[color:var(--text-strong)]">{diagnostics.counts.shipmentItem}</p>
-          </div>
+          </OpsPanel>
+
+          <OpsPanel className="min-h-0 flex-1 overflow-hidden p-5">
+            <SectionHeader title="Snapshot Setelah Seed" subtitle="Ringkasan jumlah data utama di Neon." />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <StatCard label="Pengguna" value={diagnostics.counts.user} note="Akun operator & admin." tone="primary" />
+              <StatCard label="Penerbangan" value={diagnostics.counts.flight} note="Jadwal aktif di papan." tone="info" />
+              <StatCard label="Pengiriman" value={diagnostics.counts.shipment} note="Manifest aktif tersimpan." tone="success" />
+              <StatCard label="Log Pelacakan" value={diagnostics.counts.trackingLog} note="Riwayat pergerakan AWB." tone="warning" />
+              <StatCard label="Catatan Aktivitas" value={diagnostics.counts.activityLog} note="Jejak audit operator." tone="info" />
+              <StatCard label="KPI Sistem" value={diagnostics.counts.systemKpi} note="Agregat metrik global." tone="primary" />
+            </div>
+          </OpsPanel>
         </div>
-      </OpsPanel>
-    </div>
+      }
+    />
   );
 }

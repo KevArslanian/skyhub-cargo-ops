@@ -1,8 +1,11 @@
 import { formatDistanceToNowStrict } from "date-fns";
 import { id } from "date-fns/locale";
 import { clsx, type ClassValue } from "clsx";
+import { ORG_TIME_ZONE } from "@/lib/constants";
 
-const OPS_TIME_ZONE = "Asia/Makassar";
+function getOpsTimeZone() {
+  return ORG_TIME_ZONE;
+}
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
@@ -10,7 +13,7 @@ export function cn(...inputs: ClassValue[]) {
 
 function getOpsDateParts(value: string | Date) {
   const parts = new Intl.DateTimeFormat("id-ID", {
-    timeZone: OPS_TIME_ZONE,
+    timeZone: getOpsTimeZone(),
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -48,6 +51,14 @@ export function formatRelativeShort(value: string | Date) {
   return formatDistanceToNowStrict(new Date(value), { addSuffix: true, locale: id });
 }
 
+/** Hilangkan kunci internal alert: dari pesan notifikasi (data lama di DB). */
+export function formatNotificationMessage(message: string) {
+  return message
+    .replace(/^alert:[^\s]+\s*/i, "")
+    .replace(/^alert:[^\s]+$/i, "")
+    .trim();
+}
+
 export function formatNumber(value: number) {
   return new Intl.NumberFormat("id-ID").format(value);
 }
@@ -61,4 +72,16 @@ export function normalizeOperationalCopy(value: string) {
     .replace(/\bfile\b/gi, "berkas")
     .replace(/\bcleanup\b/gi, "pembersihan")
     .replace(/\bblob\b/gi, "penyimpanan");
+}
+
+const LOG_LEVEL_LABELS: Record<string, string> = {
+  success: "Sukses",
+  info: "Info",
+  warning: "Peringatan",
+  error: "Galat",
+};
+
+export function formatLogLevel(level: string) {
+  const key = level.toLowerCase();
+  return LOG_LEVEL_LABELS[key] ?? level;
 }

@@ -1,6 +1,8 @@
 import { hashSync } from "bcryptjs";
-import { addDays, addHours, addMinutes, set, subHours, subMinutes } from "date-fns";
+import { addDays, addHours, addMinutes, set, subDays, subHours, subMinutes } from "date-fns";
 import {
+  ComplaintStatus,
+  ComplaintTopic,
   FlightStatus,
   PrismaClient,
   ShipmentDocStatus,
@@ -15,6 +17,7 @@ import {
   getFlightVisualMeta,
   SUPPORTED_AIRLINE_CODES,
 } from "../src/lib/flight-meta";
+import { buildAwbFromSerial, isValidAwbChecksum } from "../src/lib/validators";
 
 const prisma = new PrismaClient();
 const PASSWORD_HASH = hashSync("operator123", 10);
@@ -28,32 +31,6 @@ const ROUTES = [
   { origin: "SOQ", destination: "KNO" },
   { origin: "SOQ", destination: "PLM" },
   { origin: "SOQ", destination: "PNK" },
-] as const;
-
-const CITY_SPECS = [
-  { code: "SOQ", name: "Sorong", province: "Papua Barat Daya" },
-  { code: "CGK", name: "Tangerang", province: "Banten" },
-  { code: "SUB", name: "Surabaya", province: "Jawa Timur" },
-  { code: "DPS", name: "Denpasar", province: "Bali" },
-  { code: "UPG", name: "Makassar", province: "Sulawesi Selatan" },
-  { code: "BPN", name: "Balikpapan", province: "Kalimantan Timur" },
-  { code: "KNO", name: "Deli Serdang", province: "Sumatera Utara" },
-  { code: "PLM", name: "Palembang", province: "Sumatera Selatan" },
-  { code: "PNK", name: "Pontianak", province: "Kalimantan Barat" },
-  { code: "BDO", name: "Bandung", province: "Jawa Barat" },
-] as const;
-
-const AIRPORT_SPECS = [
-  { code: "SOQ", name: "Domine Eduard Osok" },
-  { code: "CGK", name: "Soekarno-Hatta" },
-  { code: "SUB", name: "Juanda" },
-  { code: "DPS", name: "I Gusti Ngurah Rai" },
-  { code: "UPG", name: "Sultan Hasanuddin" },
-  { code: "BPN", name: "Sultan Aji Muhammad Sulaiman Sepinggan" },
-  { code: "KNO", name: "Kualanamu" },
-  { code: "PLM", name: "Sultan Mahmud Badaruddin II" },
-  { code: "PNK", name: "Supadio" },
-  { code: "BDO", name: "Husein Sastranegara" },
 ] as const;
 
 const AIRCRAFT_SPECS = [
@@ -90,21 +67,6 @@ const COMMODITY_SPECS = COMMODITIES.map((name, index) => ({
   category: index % 3 === 0 ? "High Value" : index % 3 === 1 ? "Temperature Control" : "General Cargo",
 }));
 
-const CARGO_ITEM_SPECS = [
-  "Smartphone Retail Pack",
-  "Vaksin Klinik",
-  "Lobster Chilled Box",
-  "Router BTS",
-  "Bearing Mesin",
-  "Dokumen Tender",
-  "Tas Fashion",
-  "Brosur Promosi",
-  "Monitor Pasien",
-  "Sample Laboratorium",
-  "Kopi Kemasan",
-  "Display Acrylic",
-] as const;
-
 const SHIPPERS = [
   "PT Sinar Digital",
   "PT Medika Timur",
@@ -139,7 +101,7 @@ const OWNER_NAMES = ["Raka Pratama", "Naila Putri", "Dimas Rafi", "Mira Putri"] 
 
 const SPECIAL_HANDLING = ["", "ELI", "COL", "PER", "DGR", "HEA"] as const;
 const CARGO_MODES = ["Darat", "Udara", "Laut"] as const;
-const SERVICE_TYPES = ["Biasa", "Cepat", "VVIP"] as const;
+const SERVICE_TYPES = ["Economy", "Standard", "Express Priority"] as const;
 const VEHICLE_TYPES = {
   Darat: "Truk Box",
   Udara: "Pesawat",
@@ -166,12 +128,26 @@ const SEEDED_FLIGHT_DAYS = 3;
 const SEEDED_FLIGHTS_PER_DAY = FLIGHT_STATUS_CYCLE.length * MIN_SEEDED_ROWS_PER_STATE;
 const SEEDED_SHIPMENT_COUNT = STATUS_CYCLE.length * MIN_SEEDED_ROWS_PER_STATE * 6;
 
+const DASHBOARD_CHART_STATUS_CYCLE: ShipmentStatus[] = [
+  ShipmentStatus.received,
+  ShipmentStatus.sortation,
+  ShipmentStatus.loaded_to_aircraft,
+  ShipmentStatus.departed,
+  ShipmentStatus.arrived,
+];
+const DASHBOARD_CHART_HOURS = [2, 6, 10, 14, 18, 22] as const;
+const DASHBOARD_CHART_RATES = [560_000, 820_000, 1_260_000, 940_000, 680_000, 1_580_000] as const;
+
 function pick<T>(items: readonly T[], index: number): T {
   return items[index % items.length]!;
 }
 
 function buildAwb(index: number) {
-  return `160-${String(10000000 + index).padStart(8, "0")}`;
+  const awb = buildAwbFromSerial("160", 1_000_000 + index);
+  if (!isValidAwbChecksum(awb)) {
+    throw new Error(`Seed AWB gagal checksum IATA Modulo 7: ${awb}`);
+  }
+  return awb;
 }
 
 function buildDocument(filePrefix: string, awb: string, index: number) {
@@ -264,7 +240,7 @@ function buildTrackingLogs(status: ShipmentStatus, receivedAt: Date, ownerName: 
 }
 
 function determineDocumentStatus(index: number, status: ShipmentStatus) {
-  if (status === ShipmentStatus.hold) return ShipmentDocStatus.Review;
+  if (status === ShipmentStatus.hold) return ShipmentDocStatus.Partial;
   if (index % 6 === 0) return ShipmentDocStatus.Partial;
   return ShipmentDocStatus.Complete;
 }
@@ -278,7 +254,6 @@ function determineReadiness(docStatus: ShipmentDocStatus, status: ShipmentStatus
 function determineTransactionStatus(index: number, shippingRate: number) {
   if (shippingRate <= 0) return ShipmentTransactionStatus.Tidak_Ditagih;
   if (index % 6 === 0) return ShipmentTransactionStatus.Lunas;
-  if (index % 4 === 0) return ShipmentTransactionStatus.Menunggu_Verifikasi;
   return ShipmentTransactionStatus.Belum_Lunas;
 }
 
@@ -307,24 +282,20 @@ function assertMinimumSeededRows(label: string, counts: Record<string, number>, 
 }
 
 async function main() {
+  await prisma.alertState.deleteMany();
+  await prisma.publicComplaint.deleteMany();
   await prisma.recentAwbSearch.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.activityLog.deleteMany();
   await prisma.shipmentDocument.deleteMany();
   await prisma.trackingLog.deleteMany();
-  await prisma.shipmentItem.deleteMany();
-  await prisma.shipmentDetail.deleteMany();
   await prisma.shipment.deleteMany();
   await prisma.flight.deleteMany();
   await prisma.userSetting.deleteMany();
   await prisma.user.deleteMany();
   await prisma.customerAccount.deleteMany();
-  await prisma.cargoItem.deleteMany();
-  await prisma.tariff.deleteMany();
   await prisma.commodity.deleteMany();
   await prisma.aircraft.deleteMany();
-  await prisma.airport.deleteMany();
-  await prisma.city.deleteMany();
   await prisma.systemKpi.deleteMany();
 
   const now = new Date();
@@ -337,28 +308,6 @@ async function main() {
     });
   }
 
-  const cities = [] as Awaited<ReturnType<typeof prisma.city.create>>[];
-  for (const spec of CITY_SPECS) {
-    cities.push(await prisma.city.create({ data: spec }));
-  }
-
-  const cityByCode = new Map(cities.map((city) => [city.code, city]));
-  const airports = [] as Awaited<ReturnType<typeof prisma.airport.create>>[];
-  for (const spec of AIRPORT_SPECS) {
-    const city = cityByCode.get(spec.code);
-    if (!city) throw new Error(`Missing city for airport ${spec.code}`);
-    airports.push(
-      await prisma.airport.create({
-        data: {
-          ...spec,
-          cityId: city.id,
-        },
-      }),
-    );
-  }
-
-  const airportByCode = new Map(airports.map((airport) => [airport.code, airport]));
-
   const aircraft = [] as Awaited<ReturnType<typeof prisma.aircraft.create>>[];
   for (const spec of AIRCRAFT_SPECS) {
     aircraft.push(await prisma.aircraft.create({ data: spec }));
@@ -367,42 +316,6 @@ async function main() {
   const commodities = [] as Awaited<ReturnType<typeof prisma.commodity.create>>[];
   for (const spec of COMMODITY_SPECS) {
     commodities.push(await prisma.commodity.create({ data: spec }));
-  }
-
-  const cargoItems = [] as Awaited<ReturnType<typeof prisma.cargoItem.create>>[];
-  for (let index = 0; index < 8; index += 1) {
-    cargoItems.push(
-      await prisma.cargoItem.create({
-        data: {
-          sku: `ITEM-${String(index + 1).padStart(3, "0")}`,
-          name: CARGO_ITEM_SPECS[index]!,
-          commodityId: pick(commodities, index).id,
-          unit: index % 4 === 0 ? "box" : "pcs",
-        },
-      }),
-    );
-  }
-
-  const tariffs = [] as Awaited<ReturnType<typeof prisma.tariff.create>>[];
-  for (let index = 0; index < 6; index += 1) {
-    const route = pick([...ROUTES, { origin: "SOQ", destination: "BDO" }, { origin: "CGK", destination: "SOQ" }], index);
-    const originAirport = airportByCode.get(route.origin);
-    const destinationAirport = airportByCode.get(route.destination);
-    if (!originAirport || !destinationAirport) {
-      throw new Error(`Missing tariff airport for ${route.origin}-${route.destination}`);
-    }
-    tariffs.push(
-      await prisma.tariff.create({
-        data: {
-          code: `TRF-${route.origin}-${route.destination}`,
-          originAirportId: originAirport.id,
-          destinationAirportId: destinationAirport.id,
-          serviceType: index % 2 === 0 ? "Regular" : "Priority",
-          pricePerKg: 18000 + index * 1250,
-          minimumCharge: 250000 + index * 15000,
-        },
-      }),
-    );
   }
 
   const accountSpecs = [
@@ -552,7 +465,7 @@ async function main() {
             soundAlert: false,
             emailDigest: false,
             autoRefresh: true,
-            refreshIntervalSeconds: 5,
+            refreshIntervalSeconds: 15,
             timezone: "Asia/Makassar",
           },
         },
@@ -838,12 +751,7 @@ async function main() {
     const numberPart = String(index % 3 === 0 ? 1000 + index : 700 + index);
     const flightNumber = buildFlightNumber(airlineCode, numberPart);
     const route = pick(ROUTES, index);
-    const routeOriginAirport = airportByCode.get(route.origin);
-    const routeDestinationAirport = airportByCode.get(route.destination);
     const routeAircraft = pick(aircraft, index);
-    if (!routeOriginAirport || !routeDestinationAirport) {
-      throw new Error(`Missing flight airport for ${route.origin}-${route.destination}`);
-    }
 
     const dayOffset = Math.floor(index / SEEDED_FLIGHTS_PER_DAY) - 1;
     const baseDay = addDays(now, dayOffset);
@@ -884,8 +792,6 @@ async function main() {
           remarks,
           imageUrl: meta.aircraftImageUrl,
           aircraftId: routeAircraft.id,
-          originAirportId: routeOriginAirport.id,
-          destinationAirportId: routeDestinationAirport.id,
         },
       }),
     );
@@ -915,14 +821,12 @@ async function main() {
   for (let index = 0; index < SEEDED_SHIPMENT_COUNT; index += 1) {
     const flight = pick(flights, index);
     const awb = buildAwb(index);
-    const status = pick(STATUS_CYCLE, index);
+    const isDashboardChartSample = index < DASHBOARD_CHART_STATUS_CYCLE.length;
+    const status = isDashboardChartSample ? DASHBOARD_CHART_STATUS_CYCLE[index]! : pick(STATUS_CYCLE, index);
     const ownerName = pick(OWNER_NAMES, index);
     const createdById = index % 9 === 0 ? admin.id : index % 2 === 0 ? staffPrimary.id : staffSecondary.id;
     const customerAccount = pick(activeCustomerAccounts, Math.floor(index / STATUS_CYCLE.length));
     const commodityMaster = pick(commodities, index);
-    const tariff = pick(tariffs, index);
-    const firstCargoItem = pick(cargoItems, index);
-    const secondCargoItem = pick(cargoItems, index + 3);
     const cargoMode = pick(CARGO_MODES, index);
     const vehicleType = VEHICLE_TYPES[cargoMode];
     const serviceType = pick(SERVICE_TYPES, index);
@@ -935,12 +839,34 @@ async function main() {
             ? "Dalam Pengiriman"
             : "Diproses";
 
-    const receivedAt = subHours(now, (index % 72) + Math.floor(index / 100) * 8);
-    const weightKg = 60 + (index % 40) * 12;
-    const shippingRate = Math.max(tariff.minimumCharge, Math.round(weightKg * tariff.pricePerKg));
+    const receivedAt = isDashboardChartSample
+      ? set(now, {
+          hours: DASHBOARD_CHART_HOURS[index],
+          minutes: (index + 1) * 7,
+          seconds: 0,
+          milliseconds: 0,
+        })
+      : index === 5
+        ? set(now, {
+            hours: DASHBOARD_CHART_HOURS[5],
+            minutes: 20,
+            seconds: 0,
+            milliseconds: 0,
+          })
+        : subHours(now, (index % 72) + Math.floor(index / 100) * 8);
+    const weightKg = isDashboardChartSample ? 48 + index * 14 : 60 + (index % 40) * 12;
+    const serviceRate =
+      serviceType === "Express Priority" ? 50_000 : serviceType === "Standard" ? 30_000 : 20_000;
+    const shippingRate = isDashboardChartSample
+      ? DASHBOARD_CHART_RATES[index]
+      : index === 5
+        ? DASHBOARD_CHART_RATES[5]
+        : Math.round(weightKg * serviceRate);
     const transactionStatus = determineTransactionStatus(index, shippingRate);
-    const docStatus = determineDocumentStatus(index, status);
-    const readiness = transactionStatus === ShipmentTransactionStatus.Belum_Lunas || transactionStatus === ShipmentTransactionStatus.Menunggu_Verifikasi
+    const docStatus = isDashboardChartSample && index === 0
+      ? ShipmentDocStatus.Partial
+      : determineDocumentStatus(index, status);
+    const readiness = transactionStatus === ShipmentTransactionStatus.Belum_Lunas
       ? ShipmentReadiness.Pending
       : determineReadiness(docStatus, status);
 
@@ -963,7 +889,7 @@ async function main() {
         senderPhone: `08${String(1200000000 + index).slice(0, 10)}`,
         origin: flight.origin,
         destination: flight.destination,
-        pieces: 2 + (index % 23),
+        pieces: 1,
         weightKg,
         volumeM3: Number((0.3 + (index % 8) * 0.25).toFixed(2)),
         specialHandling: pick(SPECIAL_HANDLING, index),
@@ -992,33 +918,7 @@ async function main() {
         flightId: flight.id,
         createdById,
         customerAccountId: customerAccount.id,
-        commodityId: commodityMaster.id,
-        originAirportId: flight.originAirportId,
-        destinationAirportId: flight.destinationAirportId,
-        tariffId: tariff.id,
         receivedAt,
-        detail: {
-          create: {
-            serviceLevel: index % 2 === 0 ? "Regular" : "Priority",
-            packagingType: index % 3 === 0 ? "Thermal Box" : index % 3 === 1 ? "Carton" : "Pallet",
-            insuranceValue: 500000 + index * 7500,
-            declaredValue: 1000000 + index * 12500,
-          },
-        },
-        shipmentItems: {
-          create: [
-            {
-              cargoItemId: firstCargoItem.id,
-              quantity: 1 + (index % 6),
-              declaredValue: 250000 + index * 5000,
-            },
-            {
-              cargoItemId: secondCargoItem.id,
-              quantity: 2 + (index % 4),
-              declaredValue: 175000 + index * 3500,
-            },
-          ],
-        },
         trackingLogs: {
           create: trackingLogs,
         },
@@ -1038,57 +938,199 @@ async function main() {
       receivedAt,
     });
 
-    activityRows.push(
-      {
-        userId: createdById,
-        action: "Buat Shipment",
-        targetType: "shipment",
-        targetId: shipment.id,
-        targetLabel: awb,
-        description: `Shipment ${awb} dibuat untuk rute ${shipment.origin} -> ${shipment.destination}.`,
-        level: "success",
-        createdAt: addMinutes(receivedAt, 4),
-      },
-      {
-        userId: createdById,
-        action: "Ubah Status",
-        targetType: "tracking",
-        targetId: shipment.id,
-        targetLabel: awb,
-        description: `Status terbaru ${awb}: ${SHIPMENT_STATUS_LABELS[status]}.`,
-        level: status === ShipmentStatus.hold ? "warning" : "info",
-        createdAt: addMinutes(receivedAt, 16),
-      },
-    );
   }
+
+  const practiceStaleAt = subHours(now, 8);
+  const practiceShipments = createdShipments.filter(
+    (shipment) => shipment.customerAccountId !== customerPrimaryAccount.id,
+  );
+  const receivedShipments = practiceShipments.filter((shipment) => shipment.status === ShipmentStatus.received);
+  const sortationShipments = practiceShipments.filter((shipment) => shipment.status === ShipmentStatus.sortation);
+  const holdShipmentsForPractice = practiceShipments.filter((shipment) => shipment.status === ShipmentStatus.hold);
+  const delayedFlights = flights.filter((flight) => flight.status === FlightStatus.delayed);
+  const onTimeFlights = flights.filter((flight) => flight.status === FlightStatus.on_time);
+
+  const unassignedTargets = receivedShipments.slice(0, 2);
+  for (const shipment of unassignedTargets) {
+    await prisma.shipment.update({
+      where: { id: shipment.id },
+      data: {
+        flightId: null,
+        status: ShipmentStatus.received,
+        updatedAt: subHours(now, 1),
+        notes: "Belum dipasangkan ke penerbangan, menunggu slot manifest berikutnya.",
+      },
+    });
+  }
+
+  const staleTargets = sortationShipments.slice(0, 1);
+  for (const shipment of staleTargets) {
+    await prisma.shipment.update({
+      where: { id: shipment.id },
+      data: {
+        status: ShipmentStatus.sortation,
+        updatedAt: practiceStaleAt,
+        notes: "Status sortation belum bergerak lebih dari 6 jam, perlu scan ulang.",
+      },
+    });
+  }
+
+  const cutoffFlight = onTimeFlights[0] ?? flights[0];
+  if (cutoffFlight) {
+    const cutoffTime = addMinutes(now, 45);
+    await prisma.flight.update({
+      where: { id: cutoffFlight.id },
+      data: {
+        cargoCutoffTime: cutoffTime,
+        departureTime: addHours(cutoffTime, 2),
+        remarks: "Batas terima kargo mendekat, masih ada manifest pending untuk diprioritaskan.",
+      },
+    });
+
+    const cutoffShipmentTargets = sortationShipments.slice(1, 3);
+    for (const shipment of cutoffShipmentTargets) {
+      await prisma.shipment.update({
+        where: { id: shipment.id },
+        data: {
+          flightId: cutoffFlight.id,
+          readiness: ShipmentReadiness.Pending,
+          docStatus: ShipmentDocStatus.Partial,
+          status: ShipmentStatus.sortation,
+          updatedAt: subMinutes(now, 25),
+        },
+      });
+    }
+  }
+
+  const capacityFlight =
+    flights.find((flight) => {
+      const linkedAircraft = aircraft.find((item) => item.id === flight.aircraftId);
+      return linkedAircraft && linkedAircraft.capacityKg <= 8000;
+    }) ?? flights[0];
+  if (capacityFlight) {
+    const capacityTargets = sortationShipments.slice(3, 5);
+    let totalWeight = 0;
+    for (const [index, shipment] of capacityTargets.entries()) {
+      const weightKg = 3600 + index * 400;
+      totalWeight += weightKg;
+      await prisma.shipment.update({
+        where: { id: shipment.id },
+        data: {
+          flightId: capacityFlight.id,
+          weightKg,
+          status: ShipmentStatus.sortation,
+          readiness: ShipmentReadiness.Ready,
+          docStatus: ShipmentDocStatus.Complete,
+          updatedAt: subMinutes(now, 12 + index),
+        },
+      });
+    }
+
+    await prisma.flight.update({
+      where: { id: capacityFlight.id },
+      data: {
+        remarks: `Muatan manifest ${totalWeight} kg mendekati batas kapasitas, siapkan rencana limpahan.`,
+      },
+    });
+  }
+
+  const reportedIssueTargets = holdShipmentsForPractice.slice(0, 2).length
+    ? holdShipmentsForPractice.slice(0, 2)
+    : practiceShipments.slice(0, 2);
+
+  const demoShipment = reportedIssueTargets[0] ?? practiceShipments[0];
+  const demoHoldShipment = holdShipmentsForPractice[0] ?? practiceShipments[1];
+  const demoSortationShipment = sortationShipments[0] ?? practiceShipments[2];
+  const demoFlight = cutoffFlight ?? flights[0];
+  const demoCapacityFlight = capacityFlight ?? flights[1] ?? flights[0];
 
   activityRows.push(
     {
+      userId: staffPrimary.id,
+      action: "Buat Pengiriman",
+      targetType: "shipment",
+      targetId: demoShipment?.id,
+      targetLabel: demoShipment?.awb ?? "SKH-DEMO-AWB",
+      description: `Pengiriman baru ${demoShipment?.awb ?? "SKH-DEMO-AWB"} dibuat untuk rute ${demoFlight?.origin ?? "CGK"} -> ${demoFlight?.destination ?? "DPS"} (240 kg, Express).`,
+      level: "success",
+      createdAt: subMinutes(now, 88),
+    },
+    {
+      userId: staffSecondary.id,
+      action: "Ubah Status",
+      targetType: "shipment",
+      targetId: demoHoldShipment?.id,
+      targetLabel: demoHoldShipment?.awb ?? "SKH-DEMO-HOLD",
+      description: `Status ${demoHoldShipment?.awb ?? "SKH-DEMO-HOLD"} berubah dari Sortasi ke Tertahan: dokumen partial, menunggu review staf.`,
+      level: "warning",
+      createdAt: subMinutes(now, 72),
+    },
+    {
       userId: customer.id,
-      action: "Login",
-      targetType: "session",
-      targetLabel: "Portal Pelanggan",
-      description: "Pelanggan login untuk memantau shipment akun perusahaan.",
-      level: "info",
-      createdAt: subMinutes(now, 24),
+      action: "Laporkan Isu",
+      targetType: "tracking",
+      targetId: reportedIssueTargets[0]?.id,
+      targetLabel: reportedIssueTargets[0]?.awb ?? "SKH-DEMO-ISSUE",
+      description: `Pelanggan melaporkan AWB ${reportedIssueTargets[0]?.awb ?? "SKH-DEMO-ISSUE"} belum bergerak sesuai estimasi.`,
+      level: "warning",
+      createdAt: subMinutes(now, 35),
     },
     {
       userId: staffPrimary.id,
-      action: "Login",
-      targetType: "session",
-      targetLabel: "Konsol Operasional",
-      description: "Staf login ke sistem untuk memantau alur kerja harian.",
+      action: "Tangani Peringatan",
+      targetType: "alert",
+      targetLabel: "shipment-hold:demo",
+      description: "Staf menandai peringatan pengiriman tertahan sedang ditangani di meja sortasi.",
       level: "info",
-      createdAt: subMinutes(now, 20),
+      createdAt: subMinutes(now, 42),
     },
     {
-      userId: admin.id,
-      action: "Perbarui Pengaturan",
-      targetType: "settings",
-      targetLabel: "Preferensi Tampilan",
-      description: "Admin memperbarui preferensi workspace lintas tim.",
+      userId: staffSecondary.id,
+      action: "Keluhan Publik Masuk",
+      targetType: "complaint",
+      targetLabel: "SKH-DEMO-0001",
+      description: "Keluhan pengiriman masuk dari halaman Tentang Kami dan menunggu tinjauan.",
+      level: "warning",
+      createdAt: subMinutes(now, 55),
+    },
+    {
+      userId: staffPrimary.id,
+      action: "Perbarui Status Keluhan",
+      targetType: "complaint",
+      targetLabel: "SKH-DEMO-0002",
+      description: "Staf memindahkan keluhan penerbangan ke status ditinjau.",
       level: "info",
-      createdAt: subHours(now, 2),
+      createdAt: subMinutes(now, 48),
+    },
+    {
+      userId: staffPrimary.id,
+      action: "Perbarui Penerbangan",
+      targetType: "flight",
+      targetId: demoFlight?.id,
+      targetLabel: demoFlight?.flightNumber ?? "GA-402",
+      description: `Batas terima kargo ${demoFlight?.flightNumber ?? "GA-402"} diperketat; manifest pending diprioritaskan sebelum keberangkatan.`,
+      level: "warning",
+      createdAt: subMinutes(now, 30),
+    },
+    {
+      userId: staffSecondary.id,
+      action: "Perbarui Penerbangan",
+      targetType: "flight",
+      targetId: demoCapacityFlight?.id,
+      targetLabel: demoCapacityFlight?.flightNumber ?? "GA-118",
+      description: `Muatan manifest ${demoCapacityFlight?.flightNumber ?? "GA-118"} mendekati batas kapasitas, rencana limpahan disiapkan.`,
+      level: "warning",
+      createdAt: subMinutes(now, 18),
+    },
+    {
+      userId: staffPrimary.id,
+      action: "Unggah Dokumen",
+      targetType: "document",
+      targetId: demoSortationShipment?.id,
+      targetLabel: `manifest-${demoSortationShipment?.awb ?? "demo"}.pdf`,
+      description: `manifest-${demoSortationShipment?.awb ?? "demo"}.pdf diunggah untuk pengiriman ${demoSortationShipment?.awb ?? "SKH-DEMO-DOC"}.`,
+      level: "success",
+      createdAt: subMinutes(now, 64),
     },
     {
       userId: admin.id,
@@ -1108,20 +1150,125 @@ async function main() {
       level: "warning",
       createdAt: subHours(now, 10),
     },
-  );
-
-  for (let index = 0; index < MIN_SEEDED_ROWS_PER_STATE; index += 1) {
-    const shipment = pick(createdShipments, index * 11);
-    activityRows.push({
+    {
       userId: admin.id,
+      action: "Buat Akun Pelanggan",
+      targetType: "customer-account",
+      targetLabel: customerPrimaryAccount.name,
+      description: `Akun pelanggan ${customerPrimaryAccount.name} dibuat untuk portal pelacakan B2B.`,
+      level: "success",
+      createdAt: subHours(now, 14),
+    },
+    {
+      userId: staffSecondary.id,
       action: "Validasi Gagal",
       targetType: "shipment",
-      targetId: shipment.id,
-      targetLabel: shipment.awb,
-      description: `Simulasi error validasi untuk AWB ${shipment.awb} agar state galat audit tetap terisi.`,
+      targetId: demoSortationShipment?.id,
+      targetLabel: demoSortationShipment?.awb ?? "SKH-DEMO-ERR",
+      description: `Validasi gagal ${demoSortationShipment?.awb ?? "SKH-DEMO-ERR"}: berat manifest melebihi slot tersisa pada ${demoCapacityFlight?.flightNumber ?? "GA-118"}.`,
       level: "error",
-      createdAt: subMinutes(now, 90 + index * 9),
-    });
+      createdAt: subMinutes(now, 95),
+    },
+  );
+
+  const complaintSpecs: Array<{
+    ticketCode: string;
+    reporterName: string;
+    contact: string;
+    topic: ComplaintTopic;
+    referenceNo: string | null;
+    message: string;
+    status: ComplaintStatus;
+    handledById: string | null;
+    handledByName: string | null;
+    handledAt: Date | null;
+    resolutionNote: string | null;
+    escalationDesk?: string | null;
+    escalationReason?: string | null;
+    escalatedAt?: Date | null;
+    escalatedById?: string | null;
+    escalatedByName?: string | null;
+    createdAt: Date;
+  }> = [
+    {
+      ticketCode: "SKH-DEMO-0001",
+      reporterName: "Andi Wijaya",
+      contact: "andi.wijaya@email.test",
+      topic: ComplaintTopic.shipment,
+      referenceNo: reportedIssueTargets[0]?.awb ?? practiceShipments[0]?.awb ?? null,
+      message: "AWB saya sudah 2 hari tidak ada update status di portal pelacakan.",
+      status: ComplaintStatus.new,
+      handledById: null,
+      handledByName: null,
+      handledAt: null,
+      resolutionNote: null,
+      createdAt: subHours(now, 5),
+    },
+    {
+      ticketCode: "SKH-DEMO-0002",
+      reporterName: "Siti Rahmawati",
+      contact: "+62-812-4400-221",
+      topic: ComplaintTopic.flight,
+      referenceNo: delayedFlights[0]?.flightNumber ?? flights[0]?.flightNumber ?? null,
+      message: "Penerbangan tertunda tanpa pemberitahuan resmi ke shipper kami.",
+      status: ComplaintStatus.in_review,
+      handledById: staffPrimary.id,
+      handledByName: staffPrimary.name,
+      handledAt: subMinutes(now, 40),
+      resolutionNote: null,
+      createdAt: subHours(now, 8),
+    },
+    {
+      ticketCode: "SKH-DEMO-0003",
+      reporterName: "Budi Santoso",
+      contact: "budi.santoso@logistik.test",
+      topic: ComplaintTopic.document,
+      referenceNo: holdShipmentsForPractice[0]?.awb ?? practiceShipments[1]?.awb ?? null,
+      message: "Invoice dan manifest tidak cocok untuk satu AWB yang sama.",
+      status: ComplaintStatus.resolved,
+      handledById: staffSecondary.id,
+      handledByName: staffSecondary.name,
+      handledAt: subHours(now, 2),
+      resolutionNote: "Dokumen sudah diselaraskan dan dikirim ulang ke pelanggan.",
+      createdAt: subHours(now, 20),
+    },
+    {
+      ticketCode: "SKH-DEMO-0004",
+      reporterName: "Rina Melati",
+      contact: "+62-813-5500-884",
+      topic: ComplaintTopic.service,
+      referenceNo: null,
+      message: "Respon tim customer service di luar jam operasional terlalu lambat.",
+      status: ComplaintStatus.closed,
+      handledById: admin.id,
+      handledByName: admin.name,
+      handledAt: subHours(now, 12),
+      resolutionNote: "SLA respon dijelaskan ulang dan nomor darurat operasional dibagikan.",
+      createdAt: subDays(now, 2),
+    },
+    {
+      ticketCode: "SKH-DEMO-0005",
+      reporterName: "Hendra Kusuma",
+      contact: "hendra.k@partner.test",
+      topic: ComplaintTopic.other,
+      referenceNo: null,
+      message: "Permintaan kunjungan gudang untuk audit internal belum ditindaklanjuti.",
+      status: ComplaintStatus.escalated,
+      handledById: staffPrimary.id,
+      handledByName: staffPrimary.name,
+      handledAt: subHours(now, 2),
+      resolutionNote: null,
+      escalationDesk: "Duty Manager Bandara",
+      escalationReason: "Perlu persetujuan akses area gudang dan penjadwalan pendamping keamanan.",
+      escalatedAt: subHours(now, 1),
+      escalatedById: staffPrimary.id,
+      escalatedByName: staffPrimary.name,
+      createdAt: subHours(now, 3),
+    },
+  ];
+
+  for (const spec of complaintSpecs) {
+    await prisma.publicComplaint.create({ data: spec });
   }
 
   await createManyInChunks(activityRows, 500, async (chunk) => {
@@ -1302,6 +1449,26 @@ async function main() {
     "Activity log",
     Object.fromEntries(activityLevelCounts.map((item) => [item.level, item._count._all])),
     ["success", "info", "warning", "error"],
+  );
+
+  const complaintStatusCounts = await prisma.publicComplaint.groupBy({
+    by: ["status"],
+    _count: { _all: true },
+  });
+  assertMinimumSeededRows(
+    "Public complaint",
+    Object.fromEntries(complaintStatusCounts.map((item) => [item.status, item._count._all])),
+    ["new", "in_review", "escalated", "resolved", "closed"],
+  );
+
+  const complaintTopicCounts = await prisma.publicComplaint.groupBy({
+    by: ["topic"],
+    _count: { _all: true },
+  });
+  assertMinimumSeededRows(
+    "Public complaint topic",
+    Object.fromEntries(complaintTopicCounts.map((item) => [item.topic, item._count._all])),
+    ["shipment", "flight", "document", "service", "other"],
   );
 }
 

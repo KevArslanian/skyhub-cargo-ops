@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { requireUser } from "@/lib/auth";
 import { requireInternalUser } from "@/lib/access";
@@ -7,11 +8,15 @@ export const dynamic = "force-dynamic";
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  requireInternalUser(user);
+
+  if (user.role !== "customer") {
+    requireInternalUser(user);
+  }
+
   const shellData = await getShellData(user.id);
 
   if (!shellData) {
-    return null;
+    redirect("/login");
   }
 
   return (

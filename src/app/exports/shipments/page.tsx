@@ -25,7 +25,7 @@ export default async function ShipmentsPrintPage({
   requireInternalUser(user);
   if (!canExportReports(user)) redirect("/dashboard");
   const params = await searchParams;
-  const data = await listShipments(user, params);
+  const data = await listShipments(user, { ...params, page: 1, pageSize: 50 });
   const printedAt = new Date();
 
   const filterSummary = [

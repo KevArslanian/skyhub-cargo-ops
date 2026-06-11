@@ -1,20 +1,21 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
 import { routeErrorResponse, validationErrorResponse } from "@/lib/api";
 import { createShipment, getShipmentByAwb, listShipments, rememberAwbSearch } from "@/lib/data";
-import { awbSearchSchema, shipmentCreateSchema, shipmentListQuerySchema } from "@/lib/validators";
+import { buildShipmentSubmitPayload } from "@/lib/shipment-payload";
+import { awbLookupSchema, shipmentCreateSchema, shipmentListQuerySchema } from "@/lib/validators";
 
 export async function GET(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const { searchParams } = new URL(request.url);
     const awb = searchParams.get("awb");
 
     if (awb !== null) {
-      const parsedAwb = awbSearchSchema.safeParse({ awb });
+      const parsedAwb = awbLookupSchema.safeParse({ awb });
 
       if (!parsedAwb.success) {
-        return validationErrorResponse(parsedAwb.error, "AWB tidak valid.");
+        return validationErrorResponse(parsedAwb.error, "Format nomor resi tidak valid.");
       }
 
       const shipment = await getShipmentByAwb(user, parsedAwb.data.awb);
@@ -40,9 +41,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const payload = await request.json();
-    const parsed = shipmentCreateSchema.safeParse(payload);
+    const parsed = shipmentCreateSchema.safeParse(buildShipmentSubmitPayload(payload));
 
     if (!parsed.success) {
       return validationErrorResponse(parsed.error, "Input pengiriman tidak valid.");
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
       volumeM3: parsed.data.volumeM3 ?? null,
       flightId: parsed.data.flightId ?? null,
       customerAccountId: parsed.data.customerAccountId ?? null,
+      docStatus: parsed.data.docStatus,
       userId: user.id,
       actorName: user.name,
     });

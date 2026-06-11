@@ -305,6 +305,29 @@ const PRINT_CENTER_STYLES = `
     padding: 12px 34px;
   }
 
+  @media (max-width: 640px) {
+    .print-toolbar {
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .print-toolbar-brand {
+      font-size: 0.92rem;
+      white-space: nowrap;
+    }
+
+    .print-table th {
+      white-space: nowrap;
+      font-size: 0.58rem;
+      letter-spacing: 0.06em;
+      padding: 10px 10px;
+    }
+
+    .print-table-wrap {
+      max-height: none;
+    }
+  }
+
   @media print {
     body {
       background: #ffffff !important;
@@ -378,7 +401,7 @@ export function PrintCenterLayout({
       return;
     }
 
-    window.location.href = "/reports";
+    window.location.href = "/dashboard";
   }
 
   return (

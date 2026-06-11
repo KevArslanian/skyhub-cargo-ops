@@ -49,5 +49,9 @@ try {
 } catch (error) {
   console.log("[migrate] migrate deploy failed; falling back to prisma db push for an existing production database.");
   console.log(`[migrate] ${error instanceof Error ? error.message : String(error)}`);
-  await run(["exec", "prisma", "db", "push", "--skip-generate"]);
+  const pushArgs = ["exec", "prisma", "db", "push", "--skip-generate"];
+  if (process.env.VERCEL === "1") {
+    pushArgs.push("--accept-data-loss");
+  }
+  await run(pushArgs);
 }

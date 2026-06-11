@@ -1,4 +1,7 @@
-import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { ChevronLeft, ChevronRight, RefreshCw, X, type LucideIcon } from "lucide-react";
+import { OpsDrawer } from "@/components/ops-drawer";
+import { OpsLockedPage } from "@/components/ops-locked-page";
 import { cn, formatNumber } from "@/lib/format";
 
 export function PageHeader({
@@ -179,12 +182,160 @@ export function DataCard({
   );
 }
 
-export function FilterBar({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("ops-filter-bar", className)}>{children}</div>;
+export function FilterBar({
+  children,
+  className,
+  ariaLabel,
+  stacked = false,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  ariaLabel: string;
+  stacked?: boolean;
+}) {
+  return (
+    <section
+      className={cn("ops-filter-strip", stacked && "ops-filter-strip-stacked", className)}
+      aria-label={ariaLabel}
+    >
+      {children}
+    </section>
+  );
+}
+
+export function FilterSearch({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn("ops-filter-search", className)}>{children}</div>;
+}
+
+export function FilterFields({
+  children,
+  className,
+  "aria-label": ariaLabel = "Filter lanjutan",
+}: {
+  children: React.ReactNode;
+  className?: string;
+  "aria-label"?: string;
+}) {
+  return (
+    <div className={cn("shell-inline-filters", className)} aria-label={ariaLabel}>
+      {children}
+    </div>
+  );
+}
+
+type CrudPageScaffoldProps = Omit<
+  ComponentPropsWithoutRef<typeof OpsLockedPage>,
+  "header" | "filters" | "body" | "footer" | "children"
+> & {
+  eyebrow?: string;
+  title: string;
+  subtitle?: string;
+  headerExtra?: ReactNode;
+  actions?: ReactNode;
+  filters?: ReactNode;
+  body?: ReactNode;
+  footer?: ReactNode;
+  children?: ReactNode;
+  viewportClassName?: string;
+};
+
+export function CrudPageScaffold({
+  eyebrow,
+  title,
+  subtitle,
+  headerExtra,
+  actions,
+  filters,
+  body,
+  footer,
+  children,
+  className,
+  viewportClassName,
+  as,
+  ...rest
+}: CrudPageScaffoldProps) {
+  return (
+    <OpsLockedPage
+      as={as}
+      className={viewportClassName ?? className}
+      header={
+        <>
+          <PageHeader eyebrow={eyebrow} title={title} subtitle={subtitle} actions={actions} />
+          {headerExtra}
+        </>
+      }
+      filters={filters}
+      body={body ?? children}
+      footer={footer}
+      {...rest}
+    />
+  );
 }
 
 export function SkeletonBlock({ className }: { className?: string }) {
   return <div aria-hidden="true" className={cn("ops-skeleton rounded-[20px]", className)} />;
+}
+
+type OpsDetailDrawerProps = {
+  open: boolean;
+  title: string;
+  eyebrow?: string;
+  description?: string;
+  onClose: () => void;
+  children: ReactNode;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  editLabel?: string;
+  deleteLabel?: string;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  className?: string;
+};
+
+export function OpsDetailDrawer({
+  open,
+  title,
+  eyebrow,
+  description,
+  onClose,
+  children,
+  onEdit,
+  onDelete,
+  editLabel = "Ubah",
+  deleteLabel = "Hapus",
+  canEdit = false,
+  canDelete = false,
+  className,
+}: OpsDetailDrawerProps) {
+  return (
+    <OpsDrawer
+      open={open}
+      title={title}
+      eyebrow={eyebrow}
+      description={description}
+      onClose={onClose}
+      className={className}
+      footer={
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Tutup
+          </button>
+          {canEdit && onEdit ? (
+            <button type="button" className="btn btn-primary" onClick={onEdit}>
+              {editLabel}
+            </button>
+          ) : null}
+          {canDelete && onDelete ? (
+            <button type="button" className="btn btn-danger" onClick={onDelete}>
+              {deleteLabel}
+            </button>
+          ) : null}
+        </div>
+      }
+    >
+      <div className="ledger-drawer-scroll space-y-4">{children}</div>
+    </OpsDrawer>
+  );
 }
 
 const emptyVariantIconClasses: Record<string, string> = {
@@ -204,7 +355,7 @@ export function EmptyState({
 }: {
   icon: LucideIcon;
   title: string;
-  copy: string;
+  copy?: string;
   action?: React.ReactNode;
   variant?: "neutral" | "filtered" | "success" | "warning";
   className?: string;
@@ -217,8 +368,50 @@ export function EmptyState({
       <h3 className="mt-5 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
         {title}
       </h3>
-      <p className="mx-auto mt-3 max-w-xl text-center text-sm leading-7 text-[color:var(--muted-fg)]">{copy}</p>
+      {copy ? (
+        <p className="mx-auto mt-3 max-w-xl text-center text-sm leading-7 text-[color:var(--muted-fg)]">{copy}</p>
+      ) : null}
       {action ? <div className="mt-5">{action}</div> : null}
+    </div>
+  );
+}
+
+export function OpsListErrorBanner({
+  message,
+  onRetry,
+  onDismiss,
+  className,
+}: {
+  message: string | null;
+  onRetry?: () => void;
+  onDismiss?: () => void;
+  className?: string;
+}) {
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <div className={cn("ops-list-error-banner", className)} role="alert">
+      <p className="ops-list-error-banner-copy">{message}</p>
+      <div className="ops-list-error-banner-actions">
+        {onRetry ? (
+          <button type="button" className="btn btn-secondary h-8 min-h-8 px-3 text-xs" onClick={onRetry}>
+            <RefreshCw size={14} />
+            Coba lagi
+          </button>
+        ) : null}
+        {onDismiss ? (
+          <button
+            type="button"
+            className="ops-list-error-banner-dismiss"
+            onClick={onDismiss}
+            aria-label="Tutup pesan error"
+          >
+            <X size={14} />
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -244,7 +437,7 @@ export function PaginationBar({
     <div className="table-pagination-footer">
       <button
         type="button"
-        className="topbar-button"
+        className="topbar-button min-h-[44px] min-w-[44px]"
         onClick={() => onPageChange(Math.max(1, page - 1))}
         disabled={page <= 1}
       >
@@ -256,7 +449,7 @@ export function PaginationBar({
       </p>
       <button
         type="button"
-        className="topbar-button"
+        className="topbar-button min-h-[44px] min-w-[44px]"
         onClick={() => onPageChange(Math.min(totalPages, page + 1))}
         disabled={page >= totalPages}
       >

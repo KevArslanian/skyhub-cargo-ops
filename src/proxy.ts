@@ -3,6 +3,7 @@ import type { UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth";
+import { isCustomerAllowedPath, isProtectedPath } from "@/lib/access";
 import { AUTH_BYPASS_ENABLED } from "@/lib/runtime-flags";
 
 const sessionSecret = process.env.SESSION_SECRET;
@@ -25,6 +26,7 @@ const PUBLIC_API_PATHS = new Set([
   "/api/auth/logout",
   "/api/public/landing-metrics",
   "/api/public/awb",
+  "/api/public/tracking-challenge",
   "/api/public/complaints",
 ]);
 
@@ -33,7 +35,7 @@ function isApiPath(pathname: string) {
 }
 
 function isPublicApiPath(pathname: string) {
-  return PUBLIC_API_PATHS.has(pathname);
+  return PUBLIC_API_PATHS.has(pathname) || pathname.startsWith("/api/public/");
 }
 
 function isMutatingMethod(method: string) {
@@ -124,7 +126,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const session = await getSession(request);
-  const authenticatedHome = "/dashboard";
+  const authenticatedHome = session?.role === "customer" ? "/about-us#tracking" : "/dashboard";
 
   if (isApiPath(pathname)) {
     if (isPublicApiPath(pathname)) {
@@ -149,10 +151,6 @@ export async function proxy(request: NextRequest) {
   }
 
   if (pathname === "/about-us") {
-    if (session) {
-      return NextResponse.redirect(new URL(authenticatedHome, request.url));
-    }
-
     return NextResponse.next();
   }
 
@@ -166,6 +164,14 @@ export async function proxy(request: NextRequest) {
 
   if (!session) {
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  if (pathname === "/reports" || pathname.startsWith("/reports/")) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  if (session.role === "customer" && isProtectedPath(pathname) && !isCustomerAllowedPath(pathname)) {
+    return NextResponse.redirect(new URL("/about-us#tracking", request.url));
   }
 
   return NextResponse.next();
@@ -184,6 +190,7 @@ export const config = {
     "/alerts/:path*",
     "/activity-log/:path*",
     "/complaints/:path*",
+    "/reports",
     "/reports/:path*",
     "/settings/:path*",
     "/seed/:path*",

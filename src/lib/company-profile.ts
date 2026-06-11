@@ -1,6 +1,5 @@
 import {
   AtSign,
-  BellRing,
   BriefcaseBusiness,
   Building2,
   ChartNoAxesCombined,
@@ -70,10 +69,10 @@ export type CompanyTimelineItem = {
 };
 
 export const COMPANY_HERO_HEADLINE =
-  "Pusat kendali kargo udara yang cepat dipindai, elegan dibaca, dan stabil untuk shift operasional panjang.";
+  "Portal resmi kargo udara untuk pelacakan resi publik dan kendali operasional bandara.";
 
 export const COMPANY_HERO_COPY =
-  "SkyHub menyatukan pelacakan AWB, papan manifest, pengelolaan pengiriman, audit, peringatan, dan preferensi staf operasional dalam satu sistem operasional yang formal, tenang, dan siap dipakai sepanjang hari.";
+  "Halaman ini adalah pintu masuk publik SkyHub: pelanggan dapat cek AWB tanpa login, sementara staf operasional masuk ke Pusat Kendali untuk manifest, penerbangan, peringatan, dan audit.";
 
 export const COMPANY_ABOUT_COPY =
   "Dirancang untuk staf operasional, admin, dan pelanggan yang hanya perlu cek resi, SkyHub menjaga hierarki data tetap tegas: status lebih cepat terbaca, masalah lebih cepat terlihat, dan aksi kerja tetap dekat ke konteks pengiriman.";
@@ -240,18 +239,18 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
   {
     id: "fokus",
     label: "Fokus Platform",
-    title: "Lima kapabilitas utama dipusatkan untuk mempercepat pemindaian dan keputusan staf.",
+    title: "Tiga kapabilitas utama dipusatkan untuk mempercepat pemindaian dan keputusan staf.",
     description:
       "Alih-alih daftar fitur panjang, kapabilitas platform dipresentasikan sebagai blok kerja yang langsung menjawab aktivitas shift dan pemantauan kiriman.",
     artworkSrc: "/auth/about-stage-operations.svg",
     artworkAlt: "Adegan kapabilitas operasional dengan lapisan pelacakan kargo dan bingkai seperti runway.",
     stageEyebrow: "Panggung Kapabilitas",
     stageLabel: "Blok fungsi yang terbaca seperti ruang kendali",
-    stageNote: "Panggung visual diarahkan ke kapabilitas kerja: pelacakan, manifest, penugasan penerbangan, audit, dan pemberitahuan tersusun sebagai jalur informasi.",
+    stageNote: "Panggung visual diarahkan ke tiga kapabilitas kerja: pelacakan, manifest, dan penugasan penerbangan tersusun sebagai jalur informasi.",
     sceneFacts: [
       { label: "Pelacakan", value: "Linimasa AWB, status aktif, masalah, update terakhir" },
       { label: "Manifest", value: "Papan, filter cepat, tinjauan status, panel detail" },
-      { label: "Audit", value: "Peringatan, kronologi, dan jalur eskalasi" },
+      { label: "Penugasan", value: "Penerbangan aktif, kesiapan muatan, dan urgensinya" },
     ],
     highlights: [
       {
@@ -266,13 +265,8 @@ export const COMPANY_SWIPE_CARDS: CompanySwipeCard[] = [
       },
       {
         icon: PlaneTakeoff,
-        title: "Assignment penerbangan",
+        title: "Penugasan penerbangan",
         description: "Pengiriman yang terhubung ke penerbangan aktif tetap terlihat bersama kesiapan dan urgensinya.",
-      },
-      {
-        icon: BellRing,
-        title: "Audit & peringatan",
-        description: "Catatan kronologis, peringatan masalah, dan jalur eskalasi dibangun untuk tindakan cepat.",
       },
     ],
     note: "Highlight kapabilitas harus terasa seperti blok kerja staf, bukan copy pemasaran generik.",
@@ -411,7 +405,7 @@ export const COMPANY_SUPPORT_TIMELINE: CompanyTimelineItem[] = [
   {
     label: "02",
     title: "Manifest & penugasan",
-    description: "Operator mengaitkan pengiriman ke penerbangan, memeriksa kesiapan, dan menandai isu dokumen bila perlu.",
+    description: "Operator mengaitkan pengiriman ke penerbangan, memantau kesiapan, dan mengelola dokumen pendukung bila diperlukan.",
   },
   {
     label: "03",

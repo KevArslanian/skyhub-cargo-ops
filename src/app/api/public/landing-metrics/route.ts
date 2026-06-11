@@ -5,7 +5,11 @@ import { getLandingMetricsData } from "@/lib/data";
 export async function GET() {
   try {
     const data = await getLandingMetricsData();
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+      },
+    });
   } catch (error) {
     return routeErrorResponse(error, "Gagal memuat metrik landing.");
   }

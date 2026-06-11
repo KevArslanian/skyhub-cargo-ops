@@ -77,6 +77,7 @@ enum AlertWorkflowStatus {
 enum ComplaintStatus {
   new
   in_review
+  escalated
   resolved
   closed
 }
@@ -103,34 +104,6 @@ model CustomerAccount {
   shipments    Shipment[]
 }
 
-model City {
-  id        String    @id @default(cuid())
-  code      String    @unique
-  name      String
-  province  String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  airports  Airport[]
-}
-
-model Airport {
-  id                         String     @id @default(cuid())
-  code                       String     @unique
-  name                       String
-  cityId                     String
-  createdAt                  DateTime   @default(now())
-  updatedAt                  DateTime   @updatedAt
-  city                       City       @relation(fields: [cityId], references: [id], onDelete: Cascade)
-  originFlights              Flight[]   @relation("FlightOriginAirport")
-  destinationFlights         Flight[]   @relation("FlightDestinationAirport")
-  originShipments            Shipment[] @relation("ShipmentOriginAirport")
-  destinationShipments       Shipment[] @relation("ShipmentDestinationAirport")
-  originTariffs              Tariff[]   @relation("TariffOriginAirport")
-  destinationTariffs         Tariff[]   @relation("TariffDestinationAirport")
-
-  @@index([cityId])
-}
-
 model Aircraft {
   id           String   @id @default(cuid())
   name         String   @default("Pesawat Operasional")
@@ -144,46 +117,14 @@ model Aircraft {
   flights      Flight[]
 }
 
+/// Master komoditas untuk dropdown Buku Pengiriman (kode IATA rute tetap di field string Shipment/Flight).
 model Commodity {
-  id        String      @id @default(cuid())
-  code      String      @unique
+  id        String   @id @default(cuid())
+  code      String   @unique
   name      String
   category  String
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  shipments Shipment[]
-  cargoItems CargoItem[]
-}
-
-model Tariff {
-  id                   String     @id @default(cuid())
-  code                 String     @unique
-  originAirportId      String
-  destinationAirportId String
-  serviceType          String
-  pricePerKg           Int
-  minimumCharge        Int
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
-  originAirport        Airport    @relation("TariffOriginAirport", fields: [originAirportId], references: [id], onDelete: Restrict)
-  destinationAirport   Airport    @relation("TariffDestinationAirport", fields: [destinationAirportId], references: [id], onDelete: Restrict)
-  shipments            Shipment[]
-
-  @@index([originAirportId, destinationAirportId])
-}
-
-model CargoItem {
-  id          String         @id @default(cuid())
-  sku         String         @unique
-  name        String
-  commodityId String
-  unit        String         @default("pcs")
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  commodity   Commodity      @relation(fields: [commodityId], references: [id], onDelete: Restrict)
-  shipments   ShipmentItem[]
-
-  @@index([commodityId])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model User {
@@ -206,6 +147,7 @@ model User {
   acknowledgedAlerts  AlertState[]       @relation("AlertAcknowledger")
   resolvedAlerts      AlertState[]       @relation("AlertResolver")
   handledComplaints   PublicComplaint[]  @relation("ComplaintHandler")
+  escalatedComplaints PublicComplaint[]  @relation("ComplaintEscalator")
   createdShipments  Shipment[]        @relation("ShipmentCreator")
   trackingLogs      TrackingLog[]      @relation("TrackingActor")
   customerAccount   CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
@@ -239,6 +181,7 @@ model UserSetting {
   autoRefresh            Boolean  @default(true)
   refreshIntervalSeconds Int      @default(5)
   timezone               String   @default("Asia/Makassar")
+  accentColor            String   @default("blue")
   updatedAt              DateTime @updatedAt
   user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -260,19 +203,13 @@ model Flight {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   aircraftId      String?
-  originAirportId String?
-  destinationAirportId String?
   aircraft        Aircraft?    @relation(fields: [aircraftId], references: [id], onDelete: SetNull)
-  originAirport   Airport?     @relation("FlightOriginAirport", fields: [originAirportId], references: [id], onDelete: SetNull)
-  destinationAirport Airport?  @relation("FlightDestinationAirport", fields: [destinationAirportId], references: [id], onDelete: SetNull)
   shipments       Shipment[]
 
   @@index([archivedAt, status])
   @@index([departureTime])
   @@index([cargoCutoffTime])
   @@index([aircraftId])
-  @@index([originAirportId])
-  @@index([destinationAirportId])
 }
 
 model Shipment {
@@ -311,21 +248,11 @@ model Shipment {
   flightId        String?
   createdById     String?
   customerAccountId String?
-  commodityId     String?
-  originAirportId String?
-  destinationAirportId String?
-  tariffId        String?
   flight          Flight?           @relation(fields: [flightId], references: [id], onDelete: SetNull)
   createdBy       User?             @relation("ShipmentCreator", fields: [createdById], references: [id], onDelete: SetNull)
   customerAccount CustomerAccount?  @relation(fields: [customerAccountId], references: [id], onDelete: SetNull)
-  commodityMaster Commodity?        @relation(fields: [commodityId], references: [id], onDelete: SetNull)
-  originAirport   Airport?          @relation("ShipmentOriginAirport", fields: [originAirportId], references: [id], onDelete: SetNull)
-  destinationAirport Airport?       @relation("ShipmentDestinationAirport", fields: [destinationAirportId], references: [id], onDelete: SetNull)
-  tariff          Tariff?           @relation(fields: [tariffId], references: [id], onDelete: SetNull)
-  detail          ShipmentDetail?
   trackingLogs    TrackingLog[]
   documents       ShipmentDocument[]
-  shipmentItems   ShipmentItem[]
 
   @@index([archivedAt, updatedAt])
   @@index([archivedAt, receivedAt])
@@ -333,35 +260,6 @@ model Shipment {
   @@index([customerAccountId, archivedAt, updatedAt])
   @@index([flightId, archivedAt])
   @@index([createdById])
-  @@index([commodityId])
-  @@index([originAirportId])
-  @@index([destinationAirportId])
-  @@index([tariffId])
-}
-
-model ShipmentDetail {
-  id             String   @id @default(cuid())
-  shipmentId     String   @unique
-  serviceLevel   String
-  packagingType  String
-  insuranceValue Int
-  declaredValue  Int
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  shipment       Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-}
-
-model ShipmentItem {
-  shipmentId    String
-  cargoItemId   String
-  quantity      Int
-  declaredValue Int
-  createdAt     DateTime  @default(now())
-  shipment      Shipment  @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  cargoItem     CargoItem @relation(fields: [cargoItemId], references: [id], onDelete: Restrict)
-
-  @@id([shipmentId, cargoItemId])
-  @@index([cargoItemId])
 }
 
 model TrackingLog {
@@ -492,10 +390,16 @@ model PublicComplaint {
   handledById    String?
   handledByName  String?
   handledAt      DateTime?
-  resolutionNote String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  handledBy      User?            @relation("ComplaintHandler", fields: [handledById], references: [id], onDelete: SetNull)
+  resolutionNote   String?
+  escalationDesk   String?
+  escalationReason String?
+  escalatedAt      DateTime?
+  escalatedById    String?
+  escalatedByName  String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  handledBy        User?            @relation("ComplaintHandler", fields: [handledById], references: [id], onDelete: SetNull)
+  escalatedBy      User?            @relation("ComplaintEscalator", fields: [escalatedById], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([topic, createdAt])

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { LoginProviders } from "./login-providers";
 
 export const metadata: Metadata = {
   title: "Masuk",
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function LoginLayout({ children }: { children: ReactNode }) {
-  return children;
+  return <LoginProviders>{children}</LoginProviders>;
 }

@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { AboutMediaCacheStatus } from "@/lib/about-media-cache";
+import {
+  ABOUT_SCROLL_SEGMENTS,
+  ABOUT_SMOOTH_SCRUB_THROTTLE_MS,
+  type VideoPerfTier,
+} from "@/lib/video-performance";
 
 export type AboutClip = {
   src: string;
@@ -11,17 +17,26 @@ export type AboutClip = {
 type AboutScrollVideoProps = {
   clips: AboutClip[];
   scrubVideo?: {
-    src: string;
     poster: string;
+    mp4: string;
+    webm?: string;
   };
+  tier: VideoPerfTier;
+  cacheStatus: AboutMediaCacheStatus;
+  videoSources?: { mp4: string; webm?: string } | null;
 };
 
-export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
+export function AboutScrollVideo({ clips, scrubVideo, tier, cacheStatus, videoSources }: AboutScrollVideoProps) {
   const [active, setActive] = useState(0);
   const activeRef = useRef(0);
   const ratiosRef = useRef<Map<number, number>>(new Map());
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const durationRef = useRef(0);
+  const lastSegmentRef = useRef(-1);
+  const lastSyncAtRef = useRef(0);
+
+  const showVideo = tier !== "lite" && cacheStatus === "ready" && Boolean(videoSources);
+  const poster = scrubVideo?.poster;
 
   useEffect(() => {
     activeRef.current = active;
@@ -72,7 +87,7 @@ export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
   }, [clips.length]);
 
   useEffect(() => {
-    if (!scrubVideo) {
+    if (!showVideo) {
       return undefined;
     }
 
@@ -83,10 +98,48 @@ export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
 
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frame = 0;
-    let targetTime = 0;
 
     const syncDuration = () => {
       durationRef.current = Number.isFinite(video.duration) ? video.duration : 0;
+    };
+
+    const getScrollProgress = () => {
+      const scrollTop = Math.max(window.scrollY, document.documentElement.scrollTop, document.body.scrollTop);
+      const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+      const scrollable = Math.max(scrollHeight - window.innerHeight, 1);
+      return Math.min(Math.max(scrollTop / scrollable, 0), 1);
+    };
+
+    const seekToTime = (targetTime: number) => {
+      if (!durationRef.current) {
+        return;
+      }
+
+      const clamped = Math.max(0, Math.min(durationRef.current - 0.04, targetTime));
+      try {
+        if (tier === "standard") {
+          const segment = Math.round(getScrollProgress() * (ABOUT_SCROLL_SEGMENTS - 1));
+          if (segment === lastSegmentRef.current) {
+            return;
+          }
+          lastSegmentRef.current = segment;
+          video.currentTime = (segment / (ABOUT_SCROLL_SEGMENTS - 1)) * (durationRef.current - 0.04);
+          return;
+        }
+
+        const now = performance.now();
+        if (now - lastSyncAtRef.current < ABOUT_SMOOTH_SCRUB_THROTTLE_MS) {
+          return;
+        }
+        lastSyncAtRef.current = now;
+
+        const delta = clamped - video.currentTime;
+        if (Math.abs(delta) > 0.12) {
+          video.currentTime = video.currentTime + delta * 0.26;
+        }
+      } catch {
+        // Browser may reject a seek before metadata is fully ready.
+      }
     };
 
     const syncVideoTime = () => {
@@ -96,20 +149,7 @@ export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
         return;
       }
 
-      const scrollTop = Math.max(window.scrollY, document.documentElement.scrollTop, document.body.scrollTop);
-      const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
-      const scrollable = Math.max(scrollHeight - window.innerHeight, 1);
-      const progress = Math.min(Math.max(scrollTop / scrollable, 0), 1);
-      targetTime = Math.max(0, Math.min(durationRef.current - 0.04, durationRef.current * progress));
-
-      const delta = targetTime - video.currentTime;
-      if (Math.abs(delta) > 0.055) {
-        try {
-          video.currentTime = video.currentTime + delta * 0.26;
-        } catch {
-          // Browser may reject a seek before metadata is fully ready.
-        }
-      }
+      seekToTime(durationRef.current * getScrollProgress());
     };
 
     const requestSync = () => {
@@ -123,11 +163,18 @@ export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
       requestSync();
     };
 
+    const handleVisibility = () => {
+      if (document.hidden) {
+        video.pause();
+      }
+    };
+
     syncDuration();
     requestSync();
     video.addEventListener("loadedmetadata", handleMetadata);
     window.addEventListener("scroll", requestSync, { passive: true });
     window.addEventListener("resize", requestSync);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       if (frame) {
@@ -136,11 +183,12 @@ export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
       video.removeEventListener("loadedmetadata", handleMetadata);
       window.removeEventListener("scroll", requestSync);
       window.removeEventListener("resize", requestSync);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [scrubVideo]);
+  }, [showVideo, tier]);
 
   return (
-    <div className="about-video-backdrop" aria-hidden="true">
+    <div className={`about-video-backdrop ${tier === "lite" ? "about-video-backdrop-lite" : ""}`} aria-hidden="true">
       <div className="about-video-stage">
         {clips.map((clip, index) => (
           <div
@@ -156,17 +204,24 @@ export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
           </div>
         ))}
 
-        {scrubVideo ? (
+        {poster ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={poster} alt="" className="about-scroll-poster" decoding="async" fetchPriority="high" />
+        ) : null}
+
+        {showVideo && videoSources ? (
           <video
             ref={videoRef}
             className="about-scroll-video"
-            src={scrubVideo.src}
-          poster={scrubVideo.poster}
-          muted
-          playsInline
-          preload="auto"
-          tabIndex={-1}
-        />
+            muted
+            playsInline
+            preload="none"
+            tabIndex={-1}
+            poster={poster}
+          >
+            {videoSources.webm ? <source src={videoSources.webm} type="video/webm" /> : null}
+            <source src={videoSources.mp4} type="video/mp4" />
+          </video>
         ) : null}
       </div>
 
@@ -193,6 +248,10 @@ export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
           background: #040405;
         }
 
+        .about-video-backdrop-lite .about-art-layer.is-active {
+          opacity: 1;
+        }
+
         .about-video-stage {
           position: absolute;
           inset: 0;
@@ -216,15 +275,44 @@ export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
           transform: scale(1);
         }
 
+        .about-scroll-poster,
         .about-scroll-video {
           position: absolute;
           inset: 0;
           width: 100%;
           height: 100%;
           object-fit: cover;
-          opacity: 0.94;
-          filter: saturate(1.24) contrast(1.36) brightness(1.08);
+          object-position: center 38%;
           transform: translateZ(0);
+        }
+
+        .about-scroll-poster {
+          opacity: 0.4;
+          filter: saturate(0.92) contrast(1.04) brightness(0.9);
+        }
+
+        .about-scroll-video {
+          opacity: 0.42;
+          filter: saturate(0.95) contrast(1.08) brightness(0.88);
+        }
+
+        .about-video-backdrop-lite .about-scroll-poster {
+          opacity: 0.44;
+        }
+
+        @media (max-width: 900px) {
+          .about-scroll-poster,
+          .about-scroll-video {
+            object-position: center 42%;
+          }
+
+          .about-scroll-poster {
+            opacity: 0.36;
+          }
+
+          .about-scroll-video {
+            opacity: 0.36;
+          }
         }
 
         .about-art-1 {
@@ -325,8 +413,8 @@ export function AboutScrollVideo({ clips, scrubVideo }: AboutScrollVideoProps) {
           position: absolute;
           inset: 0;
           background:
-            linear-gradient(180deg, rgba(4, 4, 6, 0.28) 0%, rgba(4, 4, 6, 0.34) 55%, rgba(4, 4, 6, 0.58) 100%),
-            linear-gradient(90deg, rgba(4, 4, 6, 0.58) 0%, rgba(4, 4, 6, 0.06) 48%, rgba(4, 4, 6, 0.22) 100%);
+            linear-gradient(180deg, rgba(4, 6, 12, 0.42) 0%, rgba(4, 6, 12, 0.56) 62%, rgba(4, 6, 12, 0.7) 100%),
+            linear-gradient(90deg, rgba(4, 6, 12, 0.82) 0%, rgba(4, 6, 12, 0.38) 44%, rgba(4, 6, 12, 0.16) 100%);
         }
 
         .about-video-grain {

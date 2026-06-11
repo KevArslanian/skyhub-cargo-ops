@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
 import { routeErrorResponse } from "@/lib/api";
 import { updateUserAccess } from "@/lib/data";
 import { userRoleUpdateSchema } from "@/lib/validators";
@@ -10,7 +10,7 @@ type RouteContext = {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const actor = await requireUser();
+    const actor = await requireApiUser();
     const { id } = await context.params;
     const json = await request.json();
     const parsed = userRoleUpdateSchema.safeParse(json);

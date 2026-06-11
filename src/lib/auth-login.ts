@@ -3,6 +3,7 @@ export const LOGIN_ERROR_CODES = {
   INVALID_CREDENTIALS: "invalid_credentials",
   ACCOUNT_INACTIVE: "account_inactive",
   CUSTOMER_ACCOUNT_INACTIVE: "customer_account_inactive",
+  CUSTOMER_LOGIN_DISABLED: "customer_login_disabled",
   DATABASE_NOT_READY: "database_not_ready",
   AUTH_UNAVAILABLE: "auth_unavailable",
 } as const;
@@ -11,6 +12,7 @@ export type LoginErrorCode = (typeof LOGIN_ERROR_CODES)[keyof typeof LOGIN_ERROR
 
 export type LoginResponse = {
   success?: boolean;
+  role?: "admin" | "staff" | "customer";
   error?: string;
   code?: LoginErrorCode;
 };
@@ -45,6 +47,12 @@ const LOGIN_ERROR_DETAILS: Record<LoginErrorCode, LoginErrorDetail> = {
     title: "Akun pelanggan belum aktif",
     message: "Akun pelanggan ini belum bisa mengakses portal.",
     note: "Aktivasi akun pelanggan diperlukan sebelum akses masuk dapat digunakan.",
+    tone: "warning",
+  },
+  [LOGIN_ERROR_CODES.CUSTOMER_LOGIN_DISABLED]: {
+    title: "Pelanggan tidak memiliki akun masuk",
+    message: "Pelacakan AWB tersedia tanpa login di halaman Tentang Kami.",
+    note: "Gunakan portal publik /about-us#tracking untuk mengecek status pengiriman.",
     tone: "warning",
   },
   [LOGIN_ERROR_CODES.DATABASE_NOT_READY]: {

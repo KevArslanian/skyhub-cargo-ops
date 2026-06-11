@@ -56,13 +56,6 @@ export async function POST(request: Request) {
     const user = await retryTransientDatabase(() =>
       db.user.findUnique({
         where: { email: parsed.data.email },
-        include: {
-          customerAccount: {
-            select: {
-              status: true,
-            },
-          },
-        },
       }),
     );
 
@@ -74,28 +67,17 @@ export async function POST(request: Request) {
       return respondWithError(403, LOGIN_ERROR_CODES.ACCOUNT_INACTIVE, "Akun ini belum aktif atau sudah dinonaktifkan.");
     }
 
-    if (user.role === "customer" && user.customerAccount?.status !== "active") {
-      return respondWithError(403, LOGIN_ERROR_CODES.CUSTOMER_ACCOUNT_INACTIVE, "Akun pelanggan ini belum aktif.");
+    if (user.role === "customer") {
+      return respondWithError(
+        403,
+        LOGIN_ERROR_CODES.CUSTOMER_LOGIN_DISABLED,
+        "Pelanggan tidak memiliki akun masuk. Gunakan pelacakan AWB publik di halaman Tentang Kami.",
+      );
     }
 
     await createSession(user.id, user.role, parsed.data.remember);
 
-    try {
-      await db.activityLog.create({
-        data: {
-          userId: user.id,
-          action: "Login",
-          targetType: "session",
-          targetLabel: "Konsol Operasional",
-          description: `${user.name} berhasil login ke sistem.`,
-          level: "success",
-        },
-      });
-    } catch (error) {
-      console.error("[login-activity-log]", error);
-    }
-
-    return NextResponse.json<LoginResponse>({ success: true });
+    return NextResponse.json<LoginResponse>({ success: true, role: user.role });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&

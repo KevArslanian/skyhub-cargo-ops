@@ -2,16 +2,16 @@ import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { routeErrorResponse, validationErrorResponse } from "@/lib/api";
 import { reportAwbIssue } from "@/lib/data";
-import { awbSearchSchema } from "@/lib/validators";
+import { awbLookupSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
   try {
     const user = await requireApiUser();
     const json = await request.json();
-    const parsed = awbSearchSchema.safeParse(json);
+    const parsed = awbLookupSchema.safeParse(json);
 
     if (!parsed.success) {
-      return validationErrorResponse(parsed.error, "AWB tidak valid.");
+      return validationErrorResponse(parsed.error, "Format nomor resi tidak valid.");
     }
 
     await reportAwbIssue(user, parsed.data.awb);

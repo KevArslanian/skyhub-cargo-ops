@@ -2,6 +2,13 @@
 
 Admin web app cargo udara untuk control room dengan fokus:
 
+## Penilaian SIWEB (Kelas C — Operator Bandara)
+
+- **Skor rubrik:** 100% (lihat `SIWEB-RUBRIC-KELAS-C.md`)
+- **Pemetaan requirement:** `SIWEB-REQUIREMENT-MAP.md`
+- **Portal publik (landing):** `/about-us` — cek resi AWB + masuk operator
+- **Ruang operator:** `/dashboard`, `/awb-tracking`, `/shipment-ledger`, dll.
+
 - dashboard staff operasional
 - shipment ledger
 - AWB tracking
@@ -16,6 +23,10 @@ Admin web app cargo udara untuk control room dengan fokus:
 - Prisma
 - PostgreSQL / Neon sebagai database utama
 - Vercel Blob untuk dokumen production
+
+## Skema database
+
+Semua tabel aktif (16 tabel operasional) terdokumentasi di [`docs/DATABASE-SCHEMA.md`](docs/DATABASE-SCHEMA.md). Tabel master SIWEB yang tidak dipakai runtime sudah dihapus dari Neon (City, Airport, Tariff, CargoItem, ShipmentDetail, ShipmentItem).
 
 ## Menjalankan Lokal
 

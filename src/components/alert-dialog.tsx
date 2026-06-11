@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
+import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
+import { LiquidGlassOverlay } from "@/components/liquid-glass-overlay";
 import { cn } from "@/lib/format";
 
 type AlertDialogProps = {
@@ -48,6 +49,9 @@ export function AlertDialog({
   onOk,
 }: AlertDialogProps) {
   const okRef = useRef<HTMLButtonElement | null>(null);
+  const handleOk = useCallback(() => {
+    onOk();
+  }, [onOk]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -60,81 +64,71 @@ export function AlertDialog({
       if (event.key === "Escape" || event.key === "Enter") {
         event.preventDefault();
         event.stopImmediatePropagation();
-        onOk();
+        handleOk();
       }
     }
 
     document.addEventListener("keydown", handleKeyDown, true);
-    document.body.classList.add("confirm-open");
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true);
-      document.body.classList.remove("confirm-open");
       previouslyFocused?.focus();
     };
-  }, [open, onOk]);
-
-  if (!open) return null;
+  }, [handleOk, open]);
 
   const Icon = TONE_ICON[tone];
   const toneClass = TONE_CLASSES[tone];
 
   return (
-    <div className="confirm-backdrop" onMouseDown={onOk}>
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="alert-dialog-title"
-        aria-describedby={description ? "alert-dialog-desc" : undefined}
-        className="confirm-panel"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start gap-4">
-          <span
-            className={cn(
-              "flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border",
-              toneClass.icon,
-            )}
+    <LiquidGlassOverlay
+      open={open}
+      onClose={handleOk}
+      variant="alert"
+      theme="ops"
+      closeOnBackdrop={false}
+      bodyLockClass="alert-open"
+      role="alertdialog"
+      ariaLabelledby="alert-dialog-title"
+      ariaDescribedby={description ? "alert-dialog-desc" : undefined}
+      zIndex={80}
+    >
+      <div className="flex items-start gap-4">
+        <span
+          className={cn(
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border",
+            toneClass.icon,
+          )}
+        >
+          <Icon size={20} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2
+            id="alert-dialog-title"
+            className="font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]"
           >
-            <Icon size={20} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h2
-              id="alert-dialog-title"
-              className="font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]"
+            {title}
+          </h2>
+          {description ? (
+            <p
+              id="alert-dialog-desc"
+              className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]"
             >
-              {title}
-            </h2>
-            {description ? (
-              <p
-                id="alert-dialog-desc"
-                className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]"
-              >
-                {description}
-              </p>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            className="topbar-button min-h-[34px] px-3"
-            onClick={onOk}
-            aria-label="Tutup"
-          >
-            <X size={15} />
-          </button>
-        </div>
-
-        <div className="mt-6 flex justify-end">
-          <button
-            ref={okRef}
-            type="button"
-            className={toneClass.button}
-            onClick={onOk}
-          >
-            {okLabel}
-          </button>
+              {description}
+            </p>
+          ) : null}
         </div>
       </div>
-    </div>
+
+      <div className="mt-6 flex justify-end">
+        <button
+          ref={okRef}
+          type="button"
+          className={cn(toneClass.button, "min-w-[96px]")}
+          onClick={handleOk}
+        >
+          {okLabel}
+        </button>
+      </div>
+    </LiquidGlassOverlay>
   );
 }

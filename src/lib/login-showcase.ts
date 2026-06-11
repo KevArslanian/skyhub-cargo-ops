@@ -126,7 +126,7 @@ export const LOGIN_SHOWCASE_SCENES: LoginShowcaseScene[] = [
     ],
     stats: [
       { label: "Jalur bantuan", value: "Isi akun demo dan panduan langsung" },
-      { label: "Error autentikasi", value: "Spesifik dan terbaca sistem" },
+      { label: "Galat autentikasi", value: "Spesifik dan terbaca sistem" },
       { label: "Tujuan adegan", value: "Kemitraan tanpa mencampur hierarki" },
     ],
     pulses: ["Akses sadar peran", "Pratinjau siap produksi", "Terbaca di tablet"],

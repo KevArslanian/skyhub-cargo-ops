@@ -1,16 +1,32 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
 import { routeErrorResponse, validationErrorResponse } from "@/lib/api";
-import { deleteShipment, updateShipment } from "@/lib/data";
+import { deleteShipment, getShipmentById, updateShipment } from "@/lib/data";
 import { shipmentUpdateSchema } from "@/lib/validators";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
+export async function GET(_: Request, context: RouteContext) {
+  try {
+    const user = await requireApiUser();
+    const { id } = await context.params;
+    const shipment = await getShipmentById(user, id);
+
+    if (!shipment) {
+      return NextResponse.json({ error: "Pengiriman tidak ditemukan." }, { status: 404 });
+    }
+
+    return NextResponse.json({ shipment });
+  } catch (error) {
+    return routeErrorResponse(error, "Gagal memuat pengiriman.");
+  }
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const { id } = await context.params;
     const json = await request.json();
     const parsed = shipmentUpdateSchema.safeParse(json);
@@ -33,7 +49,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
 export async function DELETE(_: Request, context: RouteContext) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const { id } = await context.params;
 
     await deleteShipment(id, user.id);

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Cetak Management Pesawat",
+  title: "Cetak Manajemen Pesawat",
   description: "Penampil cetak jadwal dan assignment pesawat SkyHub.",
 };
 

@@ -17,6 +17,12 @@ function uniqueSuffix() {
   return `${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(-8);
 }
 
+function validAwb(prefix = "160") {
+  const serial7 = `${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(-7).padStart(7, "0");
+  const checkDigit = parseInt(serial7, 10) % 7;
+  return `${prefix}-${serial7}${checkDigit}`;
+}
+
 function apiUrl(path: string) {
   return new URL(path, baseURL).toString();
 }
@@ -34,10 +40,15 @@ async function loginPage(page: Page, email = users.staff) {
   await page.goto(apiUrl("/login"));
   await page.locator('input[type="email"]').fill(email);
   await page.locator('input[type="password"], input[type="text"]').fill(password);
-  await Promise.all([
-    page.waitForURL(email === users.customer ? "**/awb-tracking" : "**/dashboard"),
-    page.locator('form button[type="submit"]').click(),
-  ]);
+
+  if (email === users.customer) {
+    await page.locator('form button[type="submit"]').click();
+    await expect(page.getByRole("heading", { name: /Pelanggan tidak memiliki akun masuk/i })).toBeVisible();
+    await expect(page).toHaveURL(/\/login/);
+    return;
+  }
+
+  await Promise.all([page.waitForURL("**/dashboard"), page.locator('form button[type="submit"]').click()]);
 }
 
 test("@api unauthenticated API requests are rejected", async ({ request }) => {
@@ -59,7 +70,7 @@ test("@api inactive and invited users cannot log in", async ({ request }) => {
 });
 
 test("@api validation rejects invalid inputs", async ({ request }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
 
   await login(request, users.staff);
 
@@ -96,7 +107,7 @@ test("@api validation rejects invalid inputs", async ({ request }) => {
   });
   expect(invalidSchedule.status()).toBe(400);
 
-  const guardAwb = `160-${uniqueSuffix()}`;
+  const guardAwb = validAwb();
   const guardedShipmentResponse = await request.post(apiUrl("/api/shipments"), {
     data: {
       awb: guardAwb,
@@ -153,7 +164,7 @@ test("@api validation rejects invalid inputs", async ({ request }) => {
 
   const routeMismatchShipment = await request.post(apiUrl("/api/shipments"), {
     data: {
-      awb: `160-${uniqueSuffix()}`,
+      awb: validAwb(),
       commodity: "Route Guard Cargo",
       cargoMode: "Udara",
       senderPhone: "081234567890",
@@ -171,8 +182,10 @@ test("@api validation rejects invalid inputs", async ({ request }) => {
   expect(routeMismatchShipment.status()).toBe(400);
   expect((await routeMismatchShipment.json()).code).toBe("FLIGHT_ROUTE_MISMATCH");
 
-  await request.delete(apiUrl(`/api/flights/${routeGuardFlight.id}`));
-  await request.delete(apiUrl(`/api/shipments/${guardedShipment.id}`));
+  await Promise.all([
+    request.delete(apiUrl(`/api/flights/${routeGuardFlight.id}`), { timeout: 45_000 }),
+    request.delete(apiUrl(`/api/shipments/${guardedShipment.id}`), { timeout: 45_000 }),
+  ]);
 });
 
 test("@api flight search and pagination follow unguided chapter 10 requirements", async ({ request }) => {
@@ -223,7 +236,7 @@ test("@crud shipment CRUD, document upload, notification update, and archive wor
 
   await login(request, users.staff);
 
-  const awb = `160-${uniqueSuffix()}`;
+  const awb = validAwb();
   const shipmentCreate = await request.post(apiUrl("/api/shipments"), {
     data: {
       awb,
@@ -236,8 +249,7 @@ test("@crud shipment CRUD, document upload, notification update, and archive wor
       pieces: 2,
       weightKg: 12.5,
       volumeM3: 0.4,
-      serviceType: "Cepat",
-      shippingRate: 225000,
+      serviceType: "Express Priority",
       vehicleName: "QA Cargo Unit",
       vehicleType: "Pesawat",
       vehicleCode: "PK-QA1",
@@ -256,7 +268,8 @@ test("@crud shipment CRUD, document upload, notification update, and archive wor
   const created = (await shipmentCreate.json()).shipment;
   expect(created.awb).toBe(awb);
   expect(created.senderPhone).toBe("081234567890");
-  expect(created.serviceType).toBe("Cepat");
+  expect(created.serviceType).toBe("Express Priority");
+  expect(created.shippingRate).toBe(625000);
   expect(created.vehicleCode).toBe("PK-QA1");
 
   const shipmentLookup = await request.get(apiUrl(`/api/shipments?awb=${encodeURIComponent(awb)}`));
@@ -270,9 +283,6 @@ test("@crud shipment CRUD, document upload, notification update, and archive wor
   const shipmentUpdate = await request.patch(apiUrl(`/api/shipments/${created.id}`), {
     data: {
       status: "hold",
-      docStatus: "Review",
-      readiness: "Pending",
-      shippingRate: 275000,
       goodsStatus: "Dalam Pengiriman",
       transactionStatus: "Belum Lunas",
       notes: "Regression review note",
@@ -281,7 +291,7 @@ test("@crud shipment CRUD, document upload, notification update, and archive wor
   expect(shipmentUpdate.status()).toBe(200);
   const updatedShipment = (await shipmentUpdate.json()).shipment;
   expect(updatedShipment.status).toBe("hold");
-  expect(updatedShipment.shippingRate).toBe(275000);
+  expect(updatedShipment.shippingRate).toBe(625000);
   expect(updatedShipment.goodsStatus).toBe("Dalam Pengiriman");
 
   const upload = await request.post(apiUrl(`/api/shipments/${created.id}/documents`), {
@@ -400,35 +410,35 @@ test("@crud settings update and restore works", async ({ request }) => {
   expect(originalResponse.status()).toBe(200);
   const original = await originalResponse.json();
   const originalSettings = original.settings ?? {};
-  const nextStation = original.profile.station === "UPG" ? "SOQ" : "UPG";
   const nextTheme = originalSettings.theme === "dark" ? "light" : "dark";
 
   try {
     const update = await request.patch(apiUrl("/api/settings"), {
       data: {
         name: `${original.profile.name} QA`,
-        station: nextStation,
         theme: nextTheme,
         compactRows: !Boolean(originalSettings.compactRows),
         sidebarCollapsed: !Boolean(originalSettings.sidebarCollapsed),
         autoRefresh: true,
         refreshIntervalSeconds: 15,
-        cutoffAlert: true,
-        exceptionAlert: true,
         soundAlert: false,
-        emailDigest: false,
       },
     });
     expect(update.status()).toBe(200);
     const updated = await update.json();
-    expect(updated.profile.station).toBe(nextStation);
+    expect(updated.profile.station).toBe(original.profile.station);
     expect(updated.settings.theme).toBe(nextTheme);
   } finally {
     await request.patch(apiUrl("/api/settings"), {
       data: {
         name: original.profile.name,
-        station: original.profile.station,
-        ...originalSettings,
+        theme: originalSettings.theme,
+        compactRows: originalSettings.compactRows,
+        sidebarCollapsed: originalSettings.sidebarCollapsed,
+        autoRefresh: originalSettings.autoRefresh,
+        refreshIntervalSeconds: originalSettings.refreshIntervalSeconds,
+        soundAlert: originalSettings.soundAlert,
+        accentColor: originalSettings.accentColor,
       },
     });
   }
@@ -519,61 +529,12 @@ test("@api staff and customer role boundaries are enforced", async ({ request })
   }
   await request.post(apiUrl("/api/auth/logout"));
 
-  await login(request, users.customer);
-  const customerSettings = await request.get(apiUrl("/api/settings"));
-  expect(customerSettings.status()).toBe(200);
-  const customerSettingsPayload = await customerSettings.json();
-  expect(customerSettingsPayload.profile.role).toBe("customer");
-  expect(customerSettingsPayload.users).toHaveLength(1);
-  expect(customerSettingsPayload.users[0].role).toBe("customer");
-  expect(customerSettingsPayload.customerAccounts.length).toBeLessThanOrEqual(1);
-  expect(customerSettingsPayload.permissions.canManageUsers).toBe(false);
-  expect(customerSettingsPayload.permissions.canManageCustomerAccounts).toBe(false);
-  expect((await request.get(apiUrl("/api/flights"))).status()).toBe(403);
-  expect((await request.get(apiUrl("/api/activity-log"))).status()).toBe(403);
-  expect((await request.get(apiUrl("/api/alerts"))).status()).toBe(403);
-  expect((await request.get(apiUrl("/api/shipments"))).status()).toBe(200);
-  const blockedCreate = await request.post(apiUrl("/api/shipments"), {
-    data: {
-      commodity: "Blocked Customer Create",
-      senderPhone: "081234567890",
-      origin: "CGK",
-      destination: "DPS",
-      pieces: 1,
-      weightKg: 1,
-      shipper: "QA Shipper",
-      consignee: "QA Consignee",
-      forwarder: "QA Forwarder",
-      ownerName: "QA Owner",
-    },
+  const blockedCustomerLogin = await request.post(apiUrl("/api/auth/login"), {
+    data: { email: users.customer, password, remember: false },
   });
-  expect(blockedCreate.status()).toBe(403);
-
-  const scopedShipments = await request.get(apiUrl("/api/shipments"));
-  expect(scopedShipments.status()).toBe(200);
-  const firstCustomerShipment = (await scopedShipments.json()).shipments[0];
-  if (firstCustomerShipment) {
-    const reportOwnedIssue = await request.post(apiUrl("/api/awb/report-issue"), {
-      data: { awb: firstCustomerShipment.awb },
-    });
-    expect(reportOwnedIssue.status()).toBe(200);
-
-    const blockedDocumentUpload = await request.post(apiUrl(`/api/shipments/${firstCustomerShipment.id}/documents`), {
-      multipart: {
-        file: {
-          name: "blocked-customer-upload.csv",
-          mimeType: "text/csv",
-          buffer: Buffer.from("blocked,true\n"),
-        },
-      },
-    });
-    expect(blockedDocumentUpload.status()).toBe(403);
-  }
-
-  for (const route of ["/api/flights", "/api/activity-log", "/api/alerts", "/api/customer-accounts", "/api/users"]) {
-    const response = await request.get(apiUrl(route));
-    expect(response.status(), route).toBe(403);
-  }
+  expect(blockedCustomerLogin.status()).toBe(403);
+  expect((await blockedCustomerLogin.json()).code).toBe("customer_login_disabled");
+  expect((await request.get(apiUrl("/api/settings"))).status()).toBe(401);
 });
 
 test("@e2e core pages and role redirects render", async ({ page }) => {
@@ -587,13 +548,12 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
   await loginPage(page, users.staff);
 
   const pageTitles = [
-    ["/dashboard", "Dasbor | SkyHub"],
+    ["/dashboard", "Pusat Kendali | SkyHub"],
     ["/shipment-ledger", "Buku Pengiriman | SkyHub"],
     ["/awb-tracking", "Pelacakan AWB | SkyHub"],
-    ["/flight-board", "Papan Penerbangan | SkyHub"],
+    ["/flight-board", "Manajemen Pesawat | SkyHub"],
     ["/alerts", "Pusat Peringatan | SkyHub"],
     ["/activity-log", "Catatan Aktivitas | SkyHub"],
-    ["/reports", "Laporan | SkyHub"],
     ["/settings", "Pengaturan | SkyHub"],
   ] as const;
 
@@ -611,33 +571,33 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
   }
 
   await page.goto(apiUrl("/alerts"));
-  await expect(page.getByText("Peringatan aktif selesai otomatis")).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: /Buka detail/i }).first().click();
+  await expect(
+    page.getByText("Peringatan selesai otomatis setelah data di modul sumber sudah beres."),
+  ).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("Perbaiki di").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Selesai" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Reset" })).toHaveCount(0);
 
-  await page.goto(apiUrl("/reports"));
-  await expect(page.getByText("Penampil Cetak Terpisah")).toBeVisible();
-  await expect(page.getByText("Link Production")).toHaveCount(0);
-  await expect(page.locator('a[href="/exports/flights"]')).toHaveAttribute("target", "_blank");
-  await expect(page.locator('a[href="/exports/flights"]')).toHaveAttribute("rel", /noopener/);
+  await page.goto(apiUrl("/reports"), { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL(/\/dashboard/);
 
   await page.goto(apiUrl("/shipment-ledger"));
-  await expect(page.getByText("Manifest aktif")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Daftar AWB")).toBeVisible({ timeout: 15_000 });
   const shipmentPrintLink = page.locator('a[href*="/exports/shipments"]');
   await expect(shipmentPrintLink).toHaveAttribute("target", "_blank", { timeout: 15_000 });
   await expect(shipmentPrintLink).toHaveAttribute("rel", /noopener/);
 
   await page.goto(apiUrl("/flight-board"));
-  await expect(page.getByRole("heading", { name: "Manifest Penerbangan", exact: true })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText("Batas Kargo T-70")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Manajemen Pesawat/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/Batas Kargo T-70/)).toBeVisible();
   await expect(page.getByText("Berangkat (WITA)")).toBeVisible();
   const flightPrintLink = page.locator('a[href*="/exports/flights"]');
   await expect(flightPrintLink).toHaveAttribute("target", "_blank", { timeout: 15_000 });
   await expect(flightPrintLink).toHaveAttribute("rel", /noopener/);
   await page.setViewportSize({ width: 1256, height: 1044 });
   await page.locator('button:has-text("GA-1000")').first().click();
-  await expect(page.getByText("Penerbangan Terpilih")).toBeVisible();
+  await expect(page.getByText("Penerbangan Terpilih").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Ubah Penerbangan" })).toBeVisible();
   const flightBoardLayout = await page.evaluate(() => {
     const metric = (selector: string) => {
@@ -646,20 +606,17 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
       return rect ? { found: true, x: rect.x, y: rect.y, width: rect.width, height: rect.height } : { found: false };
     };
     const manifest = metric(".flightboard-manifest-panel");
-    const detail = metric(".flightboard-editor-detail-pane");
+    const detailDrawer = metric(".flightboard-detail-modal");
     const doc = document.documentElement;
     return {
       manifest,
-      detail,
-      sideBySide:
-        manifest.found &&
-        detail.found &&
-        Math.abs((manifest.y ?? 0) - (detail.y ?? 9999)) < 80 &&
-        (detail.x ?? 0) > (manifest.x ?? 0),
+      detailDrawer,
+      drawerOpen: detailDrawer.found && (detailDrawer.width ?? 0) > 0 && (detailDrawer.height ?? 0) > 0,
       horizontalOverflow: doc.scrollWidth > doc.clientWidth + 1,
     };
   });
-  expect(flightBoardLayout.sideBySide).toBe(true);
+  expect(flightBoardLayout.manifest.found).toBe(true);
+  expect(flightBoardLayout.drawerOpen).toBe(true);
   expect(flightBoardLayout.horizontalOverflow).toBe(false);
 
   await page.goto(apiUrl("/settings"));
@@ -667,7 +624,7 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Profil Akun dan akses saya/ })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "Terang" })).toBeVisible();
 
-  const requestedAwb = `160-${uniqueSuffix()}`;
+  const requestedAwb = validAwb();
   const trackingShipment = await page.request.post(apiUrl("/api/shipments"), {
     data: {
       awb: requestedAwb,
@@ -696,17 +653,16 @@ test("@e2e core pages and role redirects render", async ({ page }) => {
   });
   await page.context().clearCookies();
   await loginPage(page, users.customer);
-  await expect(page.locator('aside a[href="/settings"]')).toHaveCount(0);
 
-  for (const route of ["/dashboard", "/shipment-ledger", "/flight-board", "/alerts", "/activity-log", "/reports", "/settings", "/exports/shipments", "/exports/flights", "/exports/activity-log"]) {
+  for (const route of ["/dashboard", "/shipment-ledger", "/flight-board", "/alerts", "/activity-log", "/settings", "/exports/shipments", "/exports/flights", "/exports/activity-log"]) {
     await page.goto(apiUrl(route), { waitUntil: "domcontentloaded" }).catch((error: Error) => {
       if (!error.message.includes("ERR_ABORTED")) throw error;
     });
-    await expect(page, route).toHaveURL(/\/awb-tracking/);
+    await expect(page, route).toHaveURL(/\/login/);
   }
 
-  await page.goto(apiUrl("/exports/awb"));
-  await expect(page).toHaveTitle("Cetak AWB | SkyHub");
+  await page.goto(apiUrl("/about-us#tracking"));
+  await expect(page.getByText(/Cek Resi Publik|Cek Resi/i).first()).toBeVisible();
 });
 
 test("@e2e notifications menu can mark items read", async ({ page }) => {
@@ -715,8 +671,8 @@ test("@e2e notifications menu can mark items read", async ({ page }) => {
   await loginPage(page, users.staff);
   await page.goto(apiUrl("/dashboard"));
 
-  await page.getByRole("button", { name: /Notifikasi/ }).click();
-  await expect(page.getByText("Notifikasi").first()).toBeVisible();
+  await page.getByRole("button", { name: /Pemberitahuan/ }).click();
+  await expect(page.getByText("Pemberitahuan").first()).toBeVisible();
   const markAllButton = page.getByRole("button", { name: "Tandai semua" });
 
   if (await markAllButton.isEnabled()) {

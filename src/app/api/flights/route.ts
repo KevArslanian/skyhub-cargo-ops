@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
 import { routeErrorResponse, validationErrorResponse } from "@/lib/api";
 import { createFlight, getFlightBoardData } from "@/lib/data";
 import { flightCreateSchema, flightListQuerySchema } from "@/lib/validators";
 
 export async function GET(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const { searchParams } = new URL(request.url);
     const parsedQuery = flightListQuerySchema.safeParse(Object.fromEntries(searchParams));
 
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const json = await request.json();
     const parsed = flightCreateSchema.safeParse(json);
 

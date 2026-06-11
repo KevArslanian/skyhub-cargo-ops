@@ -1,23 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
-  ChevronLeft,
-  ChevronRight,
   FileText,
   Pencil,
   PlaneTakeoff,
   Plus,
   Save,
   Search,
-  TowerControl,
   X,
 } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/format";
-import { AlertDialog } from "@/components/alert-dialog";
-import { AIRCRAFT_TYPE_OPTIONS, STATION_OPTIONS } from "@/lib/constants";
+import { useOpsAlert } from "@/components/ops-alert-provider";
+import { openAwbReceiptPrint } from "@/lib/awb-receipt";
+import { networkErrorMessage, readApiError } from "@/lib/ops-feedback";
+import { AIRCRAFT_CAPACITY_KG, AIRCRAFT_TYPE_OPTIONS, OPS_LIST_PAGE_SIZE, stationSelectOptions } from "@/lib/constants";
 import {
   getCargoCutoffTime,
   getDefaultAircraftType,
@@ -32,9 +32,36 @@ import {
   type SupportedAirlineCode,
 } from "@/lib/flight-meta";
 import { StatusBadge } from "@/components/status-badge";
-import { EmptyState, OpsPanel, PageHeader, SectionHeader } from "@/components/ops-ui";
+
+import {
+  CrudPageScaffold,
+  EmptyState,
+  FilterBar,
+  FilterFields,
+  FilterSearch,
+  OpsListErrorBanner,
+  OpsPanel,
+  PaginationBar,
+  SectionHeader,
+} from "@/components/ops-ui";
+import { GlassDatePicker } from "@/components/glass-date-picker";
+import { GlassSelect } from "@/components/glass-select";
 import { OpsDrawer } from "@/components/ops-drawer";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import {
+  scrollToFirstFieldError,
+  validateFlightFormDetailed,
+  type FlightFormErrors,
+} from "@/lib/client-validation";
+
+function fieldClassName(base: string, error?: string) {
+  return cn(base, error && "is-invalid");
+}
+
+function FormFieldError({ message }: { message?: string }) {
+  return message ? <p className="form-field-error">{message}</p> : null;
+}
+
 
 type FlightBoardPayload = {
   permissions: {
@@ -43,6 +70,7 @@ type FlightBoardPayload = {
   };
   summary: {
     onTime: number;
+    atRisk: number;
     delayed: number;
     departed: number;
   };
@@ -105,6 +133,7 @@ type FlightMutationRow = {
 
 const FLIGHT_STATUS_LABELS: Record<string, string> = {
   on_time: "Terjadwal",
+  at_risk: "Perlu konfirmasi",
   delayed: "Terlambat",
   departed: "Berangkat",
 };
@@ -137,10 +166,6 @@ type FlightFormState = ReturnType<typeof createBlankFlightForm>;
 
 function normalizeFlightNumberSuffix(value: string) {
   return value.replace(/\D/g, "").slice(0, 4);
-}
-
-function isFlightNumberSuffixValid(value: string) {
-  return /^\d{3,4}$/.test(value);
 }
 
 function toDateInputValue(value: string | Date = new Date()) {
@@ -304,30 +329,31 @@ function readFlightBoardSearchParams() {
 }
 
 export default function FlightBoardPage() {
-  const [status, setStatus] = useState(() => readFlightBoardSearchParams().get("status") || "all");
-  const [query, setQuery] = useState(() => readFlightBoardSearchParams().get("query") || "");
-  const [appliedQuery, setAppliedQuery] = useState(() => readFlightBoardSearchParams().get("query") || "");
-  const [dateFrom, setDateFrom] = useState(() => readFlightBoardSearchParams().get("dateFrom") || readFlightBoardSearchParams().get("date") || "");
-  const [dateTo, setDateTo] = useState(() => readFlightBoardSearchParams().get("dateTo") || readFlightBoardSearchParams().get("date") || "");
-  const [page, setPage] = useState(() => parsePageParam(readFlightBoardSearchParams().get("page")));
+  const { showAlert, showToast } = useOpsAlert();
+  const searchParams = useSearchParams();
+  const [status, setStatus] = useState(() => searchParams.get("status") || "all");
+  const [query, setQuery] = useState(() => searchParams.get("query") || "");
+  const [appliedQuery, setAppliedQuery] = useState(() => searchParams.get("query") || "");
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get("dateFrom") || searchParams.get("date") || "");
+  const [dateTo, setDateTo] = useState(() => searchParams.get("dateTo") || searchParams.get("date") || "");
+  const [page, setPage] = useState(() => parsePageParam(searchParams.get("page")));
   const [data, setData] = useState<FlightBoardPayload | null>(null);
   const [initialLoadPending, setInitialLoadPending] = useState(true);
-  const [selectedFlightId, setSelectedFlightId] = useState<string | null>(() => readFlightBoardSearchParams().get("id"));
+  const [initialLoadTimedOut, setInitialLoadTimedOut] = useState(false);
+  const [selectedFlightId, setSelectedFlightId] = useState<string | null>(() => searchParams.get("id"));
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [createForm, setCreateForm] = useState(() => createBlankFlightForm());
   const [editDraft, setEditDraft] = useState(() => createBlankFlightForm());
-  const [alertDialog, setAlertDialog] = useState<{ open: boolean; title: string; description?: string; tone: "error" | "success" | "info" | "warning" }>({ open: false, title: "", tone: "error" });
   const [confirmFlightDelete, setConfirmFlightDelete] = useState(false);
+  const [createErrors, setCreateErrors] = useState<FlightFormErrors>({});
+  const [editErrors, setEditErrors] = useState<FlightFormErrors>({});
+  const [listError, setListError] = useState<string | null>(null);
   const initialDateResolvedRef = useRef(
-    Boolean(
-      readFlightBoardSearchParams().get("date") ||
-        readFlightBoardSearchParams().get("dateFrom") ||
-        readFlightBoardSearchParams().get("dateTo"),
-    ),
+    Boolean(searchParams.get("date") || searchParams.get("dateFrom") || searchParams.get("dateTo")),
   );
-  const latestUrlParamsRef = useRef(readFlightBoardSearchParams().toString());
+  const latestUrlParamsRef = useRef(searchParams.toString());
 
   const replaceFlightBoardUrl = useCallback(
     (next: { status?: string; query?: string; dateFrom?: string; dateTo?: string; page?: number; id?: string | null }) => {
@@ -383,19 +409,11 @@ export default function FlightBoardPage() {
     return () => window.removeEventListener("skyhub:context-search", handleContextSearch as EventListener);
   }, [replaceFlightBoardUrl]);
 
-  useEffect(() => {
-    if (query === appliedQuery) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setAppliedQuery(query);
-      setPage(1);
-      replaceFlightBoardUrl({ query, page: 1 });
-    }, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [appliedQuery, query, replaceFlightBoardUrl]);
+  const handleSearchSubmit = useCallback(() => {
+    setAppliedQuery(query.trim());
+    setPage(1);
+    replaceFlightBoardUrl({ query: query.trim(), page: 1 });
+  }, [query, replaceFlightBoardUrl]);
 
   const applyFlightBoardPayload = useCallback(
     (payload: FlightBoardPayload, preferredFlightId = selectedFlightId) => {
@@ -420,11 +438,20 @@ export default function FlightBoardPage() {
       if (dateTo) params.set("dateTo", dateTo);
     }
     params.set("page", String(options?.page ?? page));
-    params.set("pageSize", "10");
-    const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
-    if (!response.ok) return null;
+    params.set("pageSize", String(OPS_LIST_PAGE_SIZE));
+    try {
+      const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) {
+        setListError(await readApiError(response, "Data Manajemen Pesawat belum bisa dimuat."));
+        return null;
+      }
 
-    return (await response.json()) as FlightBoardPayload;
+      setListError(null);
+      return (await response.json()) as FlightBoardPayload;
+    } catch {
+      setListError(networkErrorMessage("memuat papan penerbangan"));
+      return null;
+    }
   }, [appliedQuery, dateFrom, dateTo, page, status]);
 
   const loadFlightBoard = useCallback(
@@ -462,6 +489,19 @@ export default function FlightBoardPage() {
   }, [applyFlightBoardPayload, dateFrom, dateTo, replaceFlightBoardUrl, requestFlightBoard]);
 
   useEffect(() => {
+    if (!initialLoadPending) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setInitialLoadPending(false);
+      setInitialLoadTimedOut(true);
+    }, 10_000);
+
+    return () => window.clearTimeout(timer);
+  }, [initialLoadPending]);
+
+  useEffect(() => {
     function syncStateFromLocation() {
       const params = readFlightBoardSearchParams();
       const nextParams = params.toString();
@@ -489,7 +529,7 @@ export default function FlightBoardPage() {
     const timer = window.setInterval(() => {
       if (document.visibilityState !== "visible" || createOpen || editOpen || saving) return;
       void loadFlightBoard();
-    }, 10000);
+    }, 20000);
 
     return () => window.clearInterval(timer);
   }, [createOpen, editOpen, loadFlightBoard, saving]);
@@ -542,42 +582,39 @@ export default function FlightBoardPage() {
     return fromOpsDateTimeInput(value).toISOString();
   }
 
-  async function resolveErrorMessage(response: Response, fallback: string) {
-    try {
-      const payload = (await response.json()) as { error?: string };
-      return payload.error || fallback;
-    } catch {
-      return fallback;
-    }
-  }
 
   function composeFlightNumber(form: FlightFormState) {
     return buildFlightNumber(form.airlineCode, form.flightNumberSuffix);
   }
 
+  function clearCreateFieldError(field: keyof FlightFormErrors) {
+    setCreateErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function clearEditFieldError(field: keyof FlightFormErrors) {
+    setEditErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
   async function handleCreateFlight(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    // Validate origin != destination
-    if (createForm.origin === createForm.destination) {
-      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Asal dan tujuan tidak boleh sama.", tone: "warning" });
+    const validation = validateFlightFormDetailed(createForm, createScheduleIssues);
+    if (!validation.ok) {
+      setCreateErrors(validation.errors);
+      scrollToFirstFieldError(validation.errors);
       return;
     }
-    if (!createForm.departureTime) {
-      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Waktu berangkat wajib diisi.", tone: "warning" });
-      return;
-    }
-
-    if (!isFlightNumberSuffixValid(createForm.flightNumberSuffix)) {
-      setAlertDialog({ open: true, title: "Peringatan", description: "Nomor penerbangan harus terdiri dari 3-4 digit.", tone: "warning" });
-      return;
-    }
-
-    const createBlockingIssue = createScheduleIssues.find((issue) => issue.tone === "error");
-    if (createBlockingIssue) {
-      setAlertDialog({ open: true, title: "Peringatan", description: createBlockingIssue.message, tone: "warning" });
-      return;
-    }
+    setCreateErrors({});
 
     setSaving(true);
 
@@ -602,6 +639,7 @@ export default function FlightBoardPage() {
         const nextQuery = payload.flight.flightNumber;
         setCreateOpen(false);
         setCreateForm(createBlankFlightForm());
+        setCreateErrors({});
         setDateFrom(nextDate);
         setDateTo(nextDate);
         setQuery(nextQuery);
@@ -619,7 +657,7 @@ export default function FlightBoardPage() {
         );
         setSelectedFlightId(nextFlight.id);
         setEditDraft(createFlightDraft(nextFlight));
-        setAlertDialog({ open: true, title: "Berhasil", description: "Penerbangan berhasil dibuat.", tone: "success" });
+        showToast({ title: "Berhasil", description: "Penerbangan berhasil dibuat." });
         void loadFlightBoardWithParams({
           dateFrom: nextDate,
           dateTo: nextDate,
@@ -627,11 +665,11 @@ export default function FlightBoardPage() {
           preferredFlightId: payload.flight.id,
         });
       } else {
-        const errorMessage = await resolveErrorMessage(response, "Gagal membuat penerbangan.");
-        setAlertDialog({ open: true, title: "Peringatan", description: errorMessage, tone: "warning" });
+        const errorMessage = await readApiError(response, "Gagal membuat penerbangan.");
+        showAlert({ title: "Peringatan", description: errorMessage, tone: "warning" });
       }
     } catch {
-      setAlertDialog({ open: true, title: "Peringatan", description: "Koneksi terputus saat membuat penerbangan.", tone: "warning" });
+      showAlert({ title: "Peringatan", description: "Koneksi terputus saat membuat penerbangan.", tone: "warning" });
     } finally {
       setSaving(false);
     }
@@ -640,26 +678,13 @@ export default function FlightBoardPage() {
   async function handleSaveFlight() {
     if (!selectedFlight) return;
 
-    // Validate origin != destination
-    if (editDraft.origin === editDraft.destination) {
-      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Asal dan tujuan tidak boleh sama.", tone: "warning" });
+    const validation = validateFlightFormDetailed(editDraft, editScheduleIssues);
+    if (!validation.ok) {
+      setEditErrors(validation.errors);
+      scrollToFirstFieldError(validation.errors);
       return;
     }
-    if (!editDraft.departureTime) {
-      setAlertDialog({ open: true, title: "Input Tidak Valid", description: "Waktu berangkat wajib diisi.", tone: "warning" });
-      return;
-    }
-
-    if (!isFlightNumberSuffixValid(editDraft.flightNumberSuffix)) {
-      setAlertDialog({ open: true, title: "Peringatan", description: "Nomor penerbangan harus terdiri dari 3-4 digit.", tone: "warning" });
-      return;
-    }
-
-    const editBlockingIssue = editScheduleIssues.find((issue) => issue.tone === "error");
-    if (editBlockingIssue) {
-      setAlertDialog({ open: true, title: "Peringatan", description: editBlockingIssue.message, tone: "warning" });
-      return;
-    }
+    setEditErrors({});
 
     setSaving(true);
 
@@ -697,7 +722,8 @@ export default function FlightBoardPage() {
         setSelectedFlightId(nextFlight.id);
         setEditDraft(createFlightDraft(nextFlight));
         setEditOpen(false);
-        setAlertDialog({ open: true, title: "Berhasil", description: "Perubahan penerbangan berhasil disimpan.", tone: "success" });
+        setEditErrors({});
+        showToast({ title: "Berhasil", description: "Perubahan penerbangan berhasil disimpan." });
         void loadFlightBoardWithParams({
           dateFrom: nextDate,
           dateTo: nextDate,
@@ -705,11 +731,11 @@ export default function FlightBoardPage() {
           preferredFlightId: payload.flight.id,
         });
       } else {
-        const errorMessage = await resolveErrorMessage(response, "Gagal memperbarui penerbangan.");
-        setAlertDialog({ open: true, title: "Peringatan", description: errorMessage, tone: "warning" });
+        const errorMessage = await readApiError(response, "Gagal memperbarui penerbangan.");
+        showAlert({ title: "Peringatan", description: errorMessage, tone: "warning" });
       }
     } catch {
-      setAlertDialog({ open: true, title: "Peringatan", description: "Koneksi terputus saat memperbarui penerbangan.", tone: "warning" });
+      showAlert({ title: "Peringatan", description: "Koneksi terputus saat memperbarui penerbangan.", tone: "warning" });
     } finally {
       setSaving(false);
     }
@@ -722,13 +748,21 @@ export default function FlightBoardPage() {
     if (input.dateFrom) params.set("dateFrom", input.dateFrom);
     if (input.dateTo) params.set("dateTo", input.dateTo);
     params.set("page", "1");
-    params.set("pageSize", "10");
+    params.set("pageSize", String(OPS_LIST_PAGE_SIZE));
 
-    const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
-    if (!response.ok) return;
+    try {
+      const response = await fetch(`/api/flights?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) {
+        setListError(await readApiError(response, "Data Manajemen Pesawat belum bisa dimuat."));
+        return;
+      }
 
-    const payload = (await response.json()) as FlightBoardPayload;
-    applyFlightBoardPayload(payload, input.preferredFlightId ?? null);
+      setListError(null);
+      const payload = (await response.json()) as FlightBoardPayload;
+      applyFlightBoardPayload(payload, input.preferredFlightId ?? null);
+    } catch {
+      setListError(networkErrorMessage("memuat papan penerbangan"));
+    }
   }
 
   async function handleDeleteFlight() {
@@ -757,14 +791,17 @@ export default function FlightBoardPage() {
         setSelectedFlightId(null);
         setEditDraft(createFlightDraft(null));
         setConfirmFlightDelete(false);
-        setAlertDialog({ open: true, title: "Berhasil", description: `Penerbangan ${selectedFlight.flightNumber} berhasil diarsipkan dari papan aktif.`, tone: "success" });
+        showToast({
+          title: "Berhasil",
+          description: `Penerbangan ${selectedFlight.flightNumber} berhasil diarsipkan dari papan aktif.`,
+        });
         void loadFlightBoard();
       } else {
-        const errorMessage = await resolveErrorMessage(response, "Gagal mengarsipkan penerbangan.");
-        setAlertDialog({ open: true, title: "Peringatan", description: errorMessage, tone: "warning" });
+        const errorMessage = await readApiError(response, "Gagal mengarsipkan penerbangan.");
+        showAlert({ title: "Peringatan", description: errorMessage, tone: "warning" });
       }
     } catch {
-      setAlertDialog({ open: true, title: "Peringatan", description: "Koneksi terputus saat mengarsipkan penerbangan.", tone: "warning" });
+      showAlert({ title: "Peringatan", description: "Koneksi terputus saat mengarsipkan penerbangan.", tone: "warning" });
     } finally {
       setSaving(false);
     }
@@ -773,14 +810,10 @@ export default function FlightBoardPage() {
   const visibleFlights = useMemo(() => data?.flights ?? [], [data]);
 
   const selectedFlight = visibleFlights.find((flight) => flight.id === selectedFlightId) ?? null;
-  const activeFlights = visibleFlights.filter((flight) => flight.status !== "departed");
-  const highlightedFlights = (activeFlights.length ? activeFlights : visibleFlights).slice(0, 3);
   const totalFlightPages = data?.pagination.totalPages ?? 1;
   const totalFlightItems = data?.pagination.totalItems ?? 0;
   const visibleFlightStart = totalFlightItems ? (page - 1) * 10 + 1 : 0;
   const visibleFlightEnd = Math.min((page - 1) * 10 + visibleFlights.length, totalFlightItems);
-  const canGoPrevious = page > 1;
-  const canGoNext = page < totalFlightPages;
   const flightExportQuery = useMemo(() => {
     const params = new URLSearchParams();
     if (status !== "all") params.set("status", status);
@@ -807,159 +840,136 @@ export default function FlightBoardPage() {
     [applyFlightBoardPayload, replaceFlightBoardUrl, requestFlightBoard, totalFlightPages],
   );
 
+  const pageActions = useMemo(
+    () => (
+      <div className="flex flex-wrap gap-2">
+        {data?.permissions.canExport ? (
+          <Link href={`/exports/flights?${flightExportQuery}`} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
+            <FileText size={16} />
+            Cetak Penerbangan
+          </Link>
+        ) : null}
+        {data?.permissions.canManageFlights ? (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              setCreateErrors({});
+              setCreateOpen(true);
+            }}
+          >
+            <Plus size={16} />
+            Buat Penerbangan
+          </button>
+        ) : null}
+      </div>
+    ),
+    [data?.permissions.canExport, data?.permissions.canManageFlights, flightExportQuery],
+  );
+
   const filterControls = useMemo(
     () => (
-      <section className="ops-filter-strip" aria-label="Pencarian dan filter Management Pesawat">
-        <div className="ops-filter-search">
+      <FilterBar ariaLabel="Pencarian dan filter Manajemen Pesawat" stacked>
+        <FilterSearch>
           <label className="label" htmlFor="flightboard-query">Cari Penerbangan</label>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
-            <input
-              id="flightboard-query"
-              className="input-field input-field-leading"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari nomor penerbangan, angka kode, rute, atau stasiun"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[color:var(--muted-fg)]" />
+              <input
+                id="flightboard-query"
+                className="input-field input-field-leading"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    handleSearchSubmit();
+                  }
+                }}
+                placeholder="Cari penerbangan, rute, atau status"
+              />
+            </div>
+            <button type="button" className="btn btn-primary h-[48px] shrink-0 px-5" onClick={handleSearchSubmit} aria-label="Cari penerbangan">
+              <Search size={16} />
+              Cari
+            </button>
           </div>
-        </div>
-      <div className="shell-inline-filters" aria-label="Filter Management Pesawat">
+        </FilterSearch>
+      <FilterFields aria-label="Filter Manajemen Pesawat">
         <div className="shell-filter-field">
           <label className="label" htmlFor="flightboard-status">Status</label>
-          <select id="flightboard-status" className="select-field" value={status} onChange={(event) => handleStatusChange(event.target.value)}>
-            <option value="all">Semua</option>
-            <option value="on_time">Terjadwal</option>
-            <option value="delayed">Terlambat</option>
-            <option value="departed">Berangkat</option>
-          </select>
+          <GlassSelect
+            id="flightboard-status"
+            aria-label="Filter status penerbangan"
+            value={status}
+            onChange={handleStatusChange}
+            options={[
+              { value: "all", label: "Semua" },
+              { value: "on_time", label: "Terjadwal" },
+              { value: "at_risk", label: "Perlu konfirmasi" },
+              { value: "delayed", label: "Terlambat" },
+              { value: "departed", label: "Berangkat" },
+            ]}
+          />
         </div>
         <div className="shell-filter-field shell-filter-field-wide">
           <label className="label" htmlFor="flightboard-date-from">Tanggal Awal</label>
-          <input
+          <GlassDatePicker
             id="flightboard-date-from"
-            type="date"
-            className="input-field"
+            aria-label="Tanggal awal"
             value={dateFrom}
-            onChange={(event) => handleDateRangeChange({ dateFrom: event.target.value })}
+            onChange={(nextValue) => handleDateRangeChange({ dateFrom: nextValue })}
           />
         </div>
         <div className="shell-filter-field shell-filter-field-wide">
           <label className="label" htmlFor="flightboard-date-to">Tanggal Akhir</label>
-          <input
+          <GlassDatePicker
             id="flightboard-date-to"
-            type="date"
+            aria-label="Tanggal akhir"
             min={dateFrom || undefined}
-            className="input-field"
             value={dateTo}
-            onChange={(event) => handleDateRangeChange({ dateTo: event.target.value })}
+            onChange={(nextValue) => handleDateRangeChange({ dateTo: nextValue })}
           />
         </div>
-      </div>
-      </section>
+      </FilterFields>
+      </FilterBar>
     ),
-    [dateFrom, dateTo, handleDateRangeChange, handleStatusChange, query, status],
+    [dateFrom, dateTo, handleDateRangeChange, handleSearchSubmit, handleStatusChange, query, status],
   );
 
   return (
-    <div className="page-workspace flightboard-viewport">
-      <PageHeader
-        eyebrow="Management Pesawat"
-        title="Management Pesawat"
-        subtitle={`Kelola jadwal, assignment pesawat, kapasitas, dan arsip keberangkatan. Semua jam operasional memakai ${OPS_TIME_ZONE_LABEL}.`}
-      />
-
-      {filterControls}
-
-      <AlertDialog
-        open={alertDialog.open}
-        title={alertDialog.title}
-        description={alertDialog.description}
-        tone={alertDialog.tone}
-        onOk={() => setAlertDialog((current) => ({ ...current, open: false }))}
-      />
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        {highlightedFlights.length ? (
-          highlightedFlights.map((flight) => (
-            <button
-              key={flight.id}
-              type="button"
-              className={cn(
-                "ops-panel overflow-hidden text-left transition duration-150 hover:-translate-y-[1px]",
-                selectedFlight?.id === flight.id ? "flight-card-active" : null,
-              )}
-              aria-pressed={selectedFlight?.id === flight.id}
-              aria-label={`Pilih penerbangan ${flight.flightNumber}`}
-              onClick={() => handleSelectFlight(flight.id)}
-            >
-              <div className="border-b border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
-                      {flight.airlineName} | {flight.aircraftType}
-                    </p>
-                    <p className="mt-2 font-[family:var(--font-heading)] text-2xl font-black tracking-[-0.05em] text-[color:var(--text-strong)]">{flight.flightNumber}</p>
-                    <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{flight.route}</p>
-                  </div>
-                  <StatusBadge value={flight.status} label={flight.statusLabel} />
-                </div>
-              </div>
-              <div className="grid gap-3 px-4 py-4 text-sm">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="label">Batas Kargo T-70 ({OPS_TIME_ZONE_LABEL})</p>
-                    <p className="font-semibold text-[color:var(--text-strong)]">{formatDateTime(flight.cargoCutoffTime)}</p>
-                  </div>
-                  <div>
-                    <p className="label">Berangkat ({OPS_TIME_ZONE_LABEL})</p>
-                    <p className="font-semibold text-[color:var(--text-strong)]">{formatDateTime(flight.departureTime)}</p>
-                  </div>
-                </div>
-              </div>
-            </button>
-          ))
-        ) : (
-          <div className="lg:col-span-3">
-            <EmptyState
-              icon={TowerControl}
-              title={initialLoadPending ? "Memuat data penerbangan" : "Tidak ada penerbangan pada filter ini"}
-              copy={
-                initialLoadPending
-                  ? "Manifest penerbangan sedang diambil dari basis data."
-                  : "Ubah kata kunci, status, atau tanggal untuk melihat penerbangan yang tersedia."
-              }
-              className="flightboard-empty-state"
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="flightboard-main flightboard-editor-layout">
+    <CrudPageScaffold
+      className="flightboard-viewport"
+      eyebrow="Manajemen Pesawat"
+      title="Manajemen Pesawat"
+      subtitle={`Kelola jadwal, assignment pesawat, kapasitas, dan arsip keberangkatan. Semua jam operasional memakai ${OPS_TIME_ZONE_LABEL}.`}
+      actions={pageActions}
+      filters={filterControls}
+      footer={
+        <PaginationBar
+          page={page}
+          totalPages={totalFlightPages}
+          visibleStart={visibleFlightStart}
+          visibleEnd={visibleFlightEnd}
+          totalItems={totalFlightItems}
+          onPageChange={(nextPage) => void handleManifestPageChange(nextPage)}
+          label="Penerbangan"
+        />
+      }
+      body={
+      <>
+      <div className="flightboard-main flightboard-editor-layout min-h-0 flex-1 overflow-hidden">
         <OpsPanel
-          className="page-pane flightboard-pane flightboard-manifest-panel flight-manifest-panel-space"
+          className="page-pane flightboard-pane flightboard-manifest-panel flight-manifest-panel-space flex min-h-0 flex-col overflow-hidden"
         >
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[color:var(--border-soft)] p-5">
-            <SectionHeader title="Daftar Pesawat Aktif" subtitle="Jadwal flight dan assignment pesawat yang sudah difilter siap dipilih untuk detail lebih lanjut." />
-            <div className="flex flex-wrap gap-2">
-              {data?.permissions.canExport ? (
-                <Link
-                  href={`/exports/flights?${flightExportQuery}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-secondary"
-                >
-                  <FileText size={16} />
-                  Cetak Penerbangan
-                </Link>
-              ) : null}
-              {data?.permissions.canManageFlights ? (
-                <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
-                  <Plus size={16} />
-                  Buat Penerbangan
-                </button>
-              ) : null}
-            </div>
+          <div className="shrink-0 border-b border-[color:var(--border-soft)] p-4 sm:p-5">
+            <SectionHeader title="Daftar Pesawat Aktif" subtitle="Klik baris untuk detail penerbangan." />
           </div>
+          <OpsListErrorBanner
+            message={listError}
+            onRetry={() => void loadFlightBoard()}
+            onDismiss={() => setListError(null)}
+          />
           <div className="flightboard-manifest-scroll flight-manifest-table-space internal-scrollbar table-shell">
             <table className="data-table">
               <thead>
@@ -1021,33 +1031,21 @@ export default function FlightBoardPage() {
                 ) : (
                   <tr>
                     <td colSpan={7}>
-                      <EmptyState icon={PlaneTakeoff} title="Tidak ada data manifest" copy="Belum ada penerbangan yang sesuai dengan tanggal dan filter yang dipilih." className="m-4" />
+                      <EmptyState
+                        icon={PlaneTakeoff}
+                        title={initialLoadTimedOut && !data ? "Gagal memuat manifest" : "Tidak ada data manifest"}
+                        copy={
+                          initialLoadTimedOut && !data
+                            ? "Data penerbangan belum tersedia setelah 10 detik. Periksa koneksi lalu muat ulang halaman atau ubah filter tanggal."
+                            : "Belum ada penerbangan yang sesuai dengan tanggal dan filter yang dipilih."
+                        }
+                        className="m-4"
+                      />
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
-          </div>
-          <div className="flightboard-pagination-footer table-pagination-footer">
-            <button
-              type="button"
-              className="topbar-button"
-              onClick={() => void handleManifestPageChange(page - 1)}
-              disabled={initialLoadPending || !canGoPrevious}
-            >
-              <ChevronLeft size={16} />
-              Sebelumnya
-            </button>
-            <p>{initialLoadPending ? "Memuat data penerbangan" : `${visibleFlightStart}-${visibleFlightEnd} dari ${totalFlightItems} • Halaman ${page}/${totalFlightPages}`}</p>
-            <button
-              type="button"
-              className="topbar-button"
-              onClick={() => void handleManifestPageChange(page + 1)}
-              disabled={initialLoadPending || !canGoNext}
-            >
-              Berikutnya
-              <ChevronRight size={16} />
-            </button>
           </div>
         </OpsPanel>
 
@@ -1084,6 +1082,17 @@ export default function FlightBoardPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
+                {selectedFlight.shipments.length ? (
+                  <div className="ops-panel-muted col-span-2 p-4">
+                    <p className="label">Muatan Manifest</p>
+                    <p className="mt-2 font-mono font-semibold text-[color:var(--text-strong)]">
+                      {selectedFlight.shipments.reduce((sum, item) => sum + item.weightKg, 0).toLocaleString("id-ID")} kg
+                      {AIRCRAFT_CAPACITY_KG[selectedFlight.aircraftType]
+                        ? ` / ${AIRCRAFT_CAPACITY_KG[selectedFlight.aircraftType].toLocaleString("id-ID")} kg kapasitas`
+                        : ""}
+                    </p>
+                  </div>
+                ) : null}
                 <div className="ops-panel-muted p-4">
                   <p className="label">Batas Kargo T-70 ({OPS_TIME_ZONE_LABEL})</p>
                   <p className="font-semibold text-[color:var(--text-strong)]">{formatDateTime(selectedFlight.cargoCutoffTime)}</p>
@@ -1109,6 +1118,7 @@ export default function FlightBoardPage() {
                     className="btn btn-primary flex-1"
                     onClick={() => {
                       setEditDraft(createFlightDraft(selectedFlight));
+                      setEditErrors({});
                       setEditOpen(true);
                     }}
                   >
@@ -1129,12 +1139,23 @@ export default function FlightBoardPage() {
                     selectedFlight.shipments.map((shipment) => (
                       <div key={shipment.id} className="rounded-[22px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-4">
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          <div className="min-w-0">
                             <p className="font-mono text-sm font-semibold text-[color:var(--brand-primary)]">{shipment.awb}</p>
                             <p className="mt-1 font-semibold text-[color:var(--text-strong)]">{shipment.commodity}</p>
                             <p className="mt-1 text-xs text-[color:var(--muted-fg)]">{shipment.weightKg} kg</p>
                           </div>
-                          <StatusBadge value={shipment.status} label={shipment.statusLabel} />
+                          <div className="flex shrink-0 flex-col items-end gap-2">
+                            <StatusBadge value={shipment.status} label={shipment.statusLabel} />
+                            <button
+                              type="button"
+                              className="topbar-button"
+                              onClick={() => openAwbReceiptPrint(shipment.awb)}
+                              aria-label={`Cetak resi AWB ${shipment.awb}`}
+                            >
+                              <FileText size={16} />
+                              Cetak Resi
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))
@@ -1160,8 +1181,18 @@ export default function FlightBoardPage() {
         title="Tambah penerbangan baru"
         description="Jadwal, pesawat, gate, batas terima kargo, dan estimasi tiba disusun dalam jendela kerja agar manifest tetap lapang."
         onClose={() => setCreateOpen(false)}
+        footer={
+          <div className="flex w-full justify-end gap-3">
+            <button type="button" className="btn btn-secondary" onClick={() => setCreateOpen(false)}>
+              Batal
+            </button>
+            <button type="submit" form="create-flight-form" className="btn btn-primary" disabled={saving}>
+              {saving ? "Menyimpan..." : "Buat Penerbangan"}
+            </button>
+          </div>
+        }
       >
-            <form className="space-y-5" onSubmit={handleCreateFlight}>
+            <form id="create-flight-form" className="space-y-5" noValidate onSubmit={handleCreateFlight}>
               <div className="flight-time-note">
                 <p className="font-semibold text-[color:var(--text-strong)]">Aturan master otomatis</p>
                 <p className="mt-1 text-sm text-[color:var(--muted-fg)]">Semua jam memakai {OPS_TIME_ZONE_LABEL}. Batas kargo otomatis T-70 menit sebelum berangkat; estimasi tiba dan gate dihitung dari master rute.</p>
@@ -1176,94 +1207,98 @@ export default function FlightBoardPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="label">Kode Maskapai</label>
-                  <select
-                    className="select-field"
+                  <GlassSelect
+                    aria-label="Kode maskapai"
                     value={createForm.airlineCode}
-                    onChange={(event) =>
+                    onChange={(value) =>
                       setCreateForm((current) =>
                         applyFlightMasterRules(current, {
-                        airlineCode: event.target.value as SupportedAirlineCode,
+                          airlineCode: value as SupportedAirlineCode,
                         }),
                       )
                     }
-                  >
-                    {AIRLINE_CODE_OPTIONS.map((item) => (
-                      <option key={item.code} value={item.code}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={AIRLINE_CODE_OPTIONS.map((item) => ({ value: item.code, label: item.label }))}
+                  />
                 </div>
-                <div>
+                <div data-field="flightNumberSuffix">
                   <label className="label">Nomor Penerbangan (3-4 digit)</label>
                   <input
-                    className="input-field"
+                    className={fieldClassName("input-field", createErrors.flightNumberSuffix)}
                     value={createForm.flightNumberSuffix}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      clearCreateFieldError("flightNumberSuffix");
                       setCreateForm((current) => ({
                         ...current,
                         flightNumberSuffix: normalizeFlightNumberSuffix(event.target.value),
-                      }))
-                    }
+                      }));
+                    }}
                     placeholder="714"
                   />
+                  <FormFieldError message={createErrors.flightNumberSuffix} />
                 </div>
                 <div>
                   <label className="label">Jenis Pesawat</label>
-                  <select
-                    className="select-field"
+                  <GlassSelect
+                    aria-label="Jenis pesawat"
                     value={createForm.aircraftType}
-                    onChange={(event) => setCreateForm((current) => ({ ...current, aircraftType: event.target.value }))}
-                  >
-                    {AIRCRAFT_TYPE_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="form-help">Bisa dipilih karena satu maskapai punya beberapa tipe armada.</p>
+                    onChange={(value) => setCreateForm((current) => ({ ...current, aircraftType: value }))}
+                    options={AIRCRAFT_TYPE_OPTIONS.map((item) => ({ value: item, label: item }))}
+                  />
+                  <p className="form-help">
+                    Bisa dipilih karena satu maskapai punya beberapa tipe armada.
+                    {AIRCRAFT_CAPACITY_KG[createForm.aircraftType]
+                      ? ` Kapasitas muatan referensi: ${AIRCRAFT_CAPACITY_KG[createForm.aircraftType].toLocaleString("id-ID")} kg.`
+                      : ""}
+                  </p>
                 </div>
-                <div>
-                  <label className="label">Asal</label>
-                  <select
-                    className="select-field"
-                    value={createForm.origin}
-                    onChange={(event) => setCreateForm((current) => applyFlightMasterRules(current, { origin: event.target.value }))}
-                  >
-                    {STATION_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Tujuan</label>
-                  <select
-                    className="select-field"
-                    value={createForm.destination}
-                    onChange={(event) => setCreateForm((current) => applyFlightMasterRules(current, { destination: event.target.value }))}
-                  >
-                    {STATION_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flight-station-pair md:col-span-2">
+                  <div data-field="origin">
+                    <label className="label">Asal</label>
+                    <GlassSelect
+                      aria-label="Stasiun asal"
+                      value={createForm.origin}
+                      onChange={(value) => {
+                        clearCreateFieldError("origin");
+                        clearCreateFieldError("destination");
+                        setCreateForm((current) => applyFlightMasterRules(current, { origin: value }));
+                      }}
+                      options={stationSelectOptions()}
+                      className={fieldClassName("select-field", createErrors.origin)}
+                    />
+                    <FormFieldError message={createErrors.origin} />
+                  </div>
+                  <div data-field="destination">
+                    <label className="label">Tujuan</label>
+                    <GlassSelect
+                      aria-label="Stasiun tujuan"
+                      value={createForm.destination}
+                      onChange={(value) => {
+                        clearCreateFieldError("destination");
+                        setCreateForm((current) => applyFlightMasterRules(current, { destination: value }));
+                      }}
+                      options={stationSelectOptions()}
+                      className={fieldClassName("select-field", createErrors.destination)}
+                    />
+                    <FormFieldError message={createErrors.destination} />
+                  </div>
                 </div>
                 <div>
                   <label className="label">Batas Kargo T-70 Otomatis ({OPS_TIME_ZONE_LABEL})</label>
                   <input type="datetime-local" className="input-field input-readonly" value={createForm.cargoCutoffTime} readOnly />
                   <p className="form-help">Tidak perlu diisi manual. Sistem memakai T-70 menit dari waktu berangkat.</p>
                 </div>
-                <div>
+                <div data-field="departureTime">
                   <label className="label">Waktu Berangkat ({OPS_TIME_ZONE_LABEL})</label>
                   <input
                     type="datetime-local"
-                    className="input-field"
+                    className={fieldClassName("input-field", createErrors.departureTime)}
                     value={createForm.departureTime}
-                    onChange={(event) => setCreateForm((current) => applyFlightMasterRules(current, { departureTime: event.target.value }))}
+                    onChange={(event) => {
+                      clearCreateFieldError("departureTime");
+                      setCreateForm((current) => applyFlightMasterRules(current, { departureTime: event.target.value }));
+                    }}
                   />
+                  <FormFieldError message={createErrors.departureTime} />
                   <p className="form-help">Jam lokal operasional bandara, bukan UTC.</p>
                 </div>
                 <div>
@@ -1286,14 +1321,6 @@ export default function FlightBoardPage() {
                 <label className="label">Catatan</label>
                 <textarea className="textarea-field" value={createForm.remarks} onChange={(event) => setCreateForm((current) => ({ ...current, remarks: event.target.value }))} />
               </div>
-              <div className="flex justify-end gap-3">
-                <button type="button" className="btn btn-secondary" onClick={() => setCreateOpen(false)}>
-                  Batal
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? "Menyimpan..." : "Buat Penerbangan"}
-                </button>
-              </div>
             </form>
       </OpsDrawer>
 
@@ -1303,6 +1330,19 @@ export default function FlightBoardPage() {
         title={selectedFlight ? `Perbarui ${selectedFlight.flightNumber}` : "Ubah Penerbangan"}
         description="Ubah penerbangan dalam jendela kerja supaya manifest dan detail aktif tidak hilang dari alur kerja."
         onClose={() => setEditOpen(false)}
+        footer={
+          selectedFlight ? (
+            <div className="flex w-full justify-end gap-3">
+              <button type="button" className="btn btn-secondary" onClick={() => setEditOpen(false)}>
+                Batal
+              </button>
+              <button type="button" className="btn btn-primary" onClick={handleSaveFlight} disabled={saving}>
+                <Save size={16} />
+                {saving ? "Menyimpan..." : "Simpan Perubahan"}
+              </button>
+            </div>
+          ) : null
+        }
       >
             {selectedFlight ? (
             <div className="space-y-5">
@@ -1320,97 +1360,98 @@ export default function FlightBoardPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="label">Kode Maskapai</label>
-                  <select
-                    className="select-field"
+                  <GlassSelect
+                    aria-label="Kode maskapai"
                     value={editDraft.airlineCode}
-                    onChange={(event) =>
+                    onChange={(value) =>
                       setEditDraft((current) =>
                         applyFlightMasterRules(current, {
-                        airlineCode: event.target.value as SupportedAirlineCode,
+                          airlineCode: value as SupportedAirlineCode,
                         }),
                       )
                     }
-                  >
-                    {AIRLINE_CODE_OPTIONS.map((item) => (
-                      <option key={item.code} value={item.code}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={AIRLINE_CODE_OPTIONS.map((item) => ({ value: item.code, label: item.label }))}
+                  />
                 </div>
-                <div>
+                <div data-field="flightNumberSuffix">
                   <label className="label">Nomor Penerbangan (3-4 digit)</label>
                   <input
-                    className="input-field"
+                    className={fieldClassName("input-field", editErrors.flightNumberSuffix)}
                     value={editDraft.flightNumberSuffix}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      clearEditFieldError("flightNumberSuffix");
                       setEditDraft((current) => ({
                         ...current,
                         flightNumberSuffix: normalizeFlightNumberSuffix(event.target.value),
-                      }))
-                    }
+                      }));
+                    }}
                     placeholder="714"
                   />
+                  <FormFieldError message={editErrors.flightNumberSuffix} />
                 </div>
                 <div>
                   <label className="label">Jenis Pesawat</label>
-                  <select
-                    className="select-field"
+                  <GlassSelect
+                    aria-label="Jenis pesawat"
                     value={editDraft.aircraftType}
-                    onChange={(event) => setEditDraft((current) => ({ ...current, aircraftType: event.target.value }))}
-                  >
-                    {!AIRCRAFT_TYPE_OPTIONS.includes(editDraft.aircraftType as (typeof AIRCRAFT_TYPE_OPTIONS)[number]) ? (
-                      <option value={editDraft.aircraftType}>{editDraft.aircraftType}</option>
-                    ) : null}
-                    {AIRCRAFT_TYPE_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setEditDraft((current) => ({ ...current, aircraftType: value }))}
+                    options={[
+                      ...(!AIRCRAFT_TYPE_OPTIONS.includes(editDraft.aircraftType as (typeof AIRCRAFT_TYPE_OPTIONS)[number])
+                        ? [{ value: editDraft.aircraftType, label: editDraft.aircraftType }]
+                        : []),
+                      ...AIRCRAFT_TYPE_OPTIONS.map((item) => ({ value: item, label: item })),
+                    ]}
+                  />
                   <p className="form-help">Gambar penerbangan mengikuti tipe pesawat yang dipilih.</p>
                 </div>
-                <div>
-                  <label className="label">Asal</label>
-                  <select
-                    className="select-field"
-                    value={editDraft.origin}
-                    onChange={(event) => setEditDraft((current) => applyFlightMasterRules(current, { origin: event.target.value }))}
-                  >
-                    {STATION_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Tujuan</label>
-                  <select
-                    className="select-field"
-                    value={editDraft.destination}
-                    onChange={(event) => setEditDraft((current) => applyFlightMasterRules(current, { destination: event.target.value }))}
-                  >
-                    {STATION_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flight-station-pair md:col-span-2">
+                  <div data-field="origin">
+                    <label className="label">Asal</label>
+                    <GlassSelect
+                      aria-label="Stasiun asal"
+                      value={editDraft.origin}
+                      onChange={(value) => {
+                        clearEditFieldError("origin");
+                        clearEditFieldError("destination");
+                        setEditDraft((current) => applyFlightMasterRules(current, { origin: value }));
+                      }}
+                      options={stationSelectOptions()}
+                      className={fieldClassName("select-field", editErrors.origin)}
+                    />
+                    <FormFieldError message={editErrors.origin} />
+                  </div>
+                  <div data-field="destination">
+                    <label className="label">Tujuan</label>
+                    <GlassSelect
+                      aria-label="Stasiun tujuan"
+                      value={editDraft.destination}
+                      onChange={(value) => {
+                        clearEditFieldError("destination");
+                        setEditDraft((current) => applyFlightMasterRules(current, { destination: value }));
+                      }}
+                      options={stationSelectOptions()}
+                      className={fieldClassName("select-field", editErrors.destination)}
+                    />
+                    <FormFieldError message={editErrors.destination} />
+                  </div>
                 </div>
                 <div>
                   <label className="label">Batas Kargo T-70 Otomatis ({OPS_TIME_ZONE_LABEL})</label>
                   <input type="datetime-local" className="input-field input-readonly" value={editDraft.cargoCutoffTime} readOnly />
                   <p className="form-help">Tidak perlu diisi manual. Sistem memakai T-70 menit dari waktu berangkat.</p>
                 </div>
-                <div>
+                <div data-field="departureTime">
                   <label className="label">Waktu Berangkat ({OPS_TIME_ZONE_LABEL})</label>
                   <input
                     type="datetime-local"
-                    className="input-field"
+                    className={fieldClassName("input-field", editErrors.departureTime)}
                     value={editDraft.departureTime}
-                    onChange={(event) => setEditDraft((current) => applyFlightMasterRules(current, { departureTime: event.target.value }))}
+                    onChange={(event) => {
+                      clearEditFieldError("departureTime");
+                      setEditDraft((current) => applyFlightMasterRules(current, { departureTime: event.target.value }));
+                    }}
                   />
+                  <FormFieldError message={editErrors.departureTime} />
                   <p className="form-help">Jam lokal operasional bandara, bukan UTC.</p>
                 </div>
                 <div>
@@ -1439,15 +1480,6 @@ export default function FlightBoardPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3">
-                <button type="button" className="btn btn-secondary" onClick={() => setEditOpen(false)}>
-                  Batal
-                </button>
-                <button type="button" className="btn btn-primary" onClick={handleSaveFlight} disabled={saving}>
-                  <Save size={16} />
-                  {saving ? "Menyimpan..." : "Simpan Perubahan"}
-                </button>
-              </div>
             </div>
             ) : null}
       </OpsDrawer>
@@ -1466,6 +1498,8 @@ export default function FlightBoardPage() {
         onConfirm={() => void handleDeleteFlight()}
         onCancel={() => setConfirmFlightDelete(false)}
       />
-    </div>
+      </>
+      }
+    />
   );
 }

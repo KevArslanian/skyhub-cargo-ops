@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
 import { routeErrorResponse } from "@/lib/api";
 import { AccessError, canManageCustomerAccounts } from "@/lib/access";
 import { createCustomerAccount, getSettingsData } from "@/lib/data";
@@ -7,7 +7,7 @@ import { customerAccountCreateSchema } from "@/lib/validators";
 
 export async function GET() {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     if (!canManageCustomerAccounts(user)) {
       throw new AccessError("Akses API akun pelanggan hanya untuk admin.", 403, "CUSTOMER_ACCOUNT_ADMIN_ONLY");
     }
@@ -21,7 +21,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     if (!canManageCustomerAccounts(user)) {
       throw new AccessError("Akses API akun pelanggan hanya untuk admin.", 403, "CUSTOMER_ACCOUNT_ADMIN_ONLY");
     }

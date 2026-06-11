@@ -39,8 +39,8 @@ export default async function AwbPrintPage({
       <AutoPrintReport />
       <PrintCenterLayout
       scriptId="print-awb"
-      documentTitle={shipment ? `AWB ${shipment.awb}` : "Pelacakan AWB"}
-      documentSubtitle="Dokumen Pelacakan AWB"
+      documentTitle={shipment ? `Resi AWB ${shipment.awb}` : "Resi Pelacakan AWB"}
+      documentSubtitle="Resi Pelacakan AWB untuk Pelanggan"
       printedAtLabel={formatDateTime(printedAt.toISOString())}
       filterSummary={awb ? `AWB: ${awb}` : "AWB belum diberikan"}
       summaryTitle={shipment ? "Ringkasan Pengiriman" : "Status Permintaan"}
@@ -54,6 +54,14 @@ export default async function AwbPrintPage({
     >
       {shipment ? (
         <>
+          <section className="border-t border-slate-200 bg-white px-8 py-6 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Nomor Resi / AWB</p>
+            <p className="mt-2 font-mono text-4xl font-black tracking-[0.08em] text-slate-900">{shipment.awb}</p>
+            <p className="mt-3 text-sm text-slate-600">
+              {shipment.origin} → {shipment.destination}
+              {shipment.flightNumber ? ` • Penerbangan ${shipment.flightNumber}` : ""}
+            </p>
+          </section>
           <section className="grid gap-3 border-t border-slate-200 bg-white px-8 py-5 md:grid-cols-2">
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Pengirim</p>

@@ -2,30 +2,38 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { LiquidGlassBackdrop } from "@/components/liquid-glass-overlay";
 import {
   Bell,
   BellRing,
-  ChevronDown,
-  FolderKanban,
   History,
-  MessageSquare,
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquare,
   PackageSearch,
   PlaneTakeoff,
-  Radar,
+  ScanBarcode,
   Search,
   Settings2,
 } from "lucide-react";
 import { getNavigationForRole } from "@/lib/access";
 import { APP_NAME, APP_SUBTITLE, ROLE_LABELS } from "@/lib/constants";
-import { cn, formatRelativeShort } from "@/lib/format";
+import { cn, formatNotificationMessage, formatRelativeShort } from "@/lib/format";
 import { BrandMark } from "./brand-mark";
+import { OpsAlertProvider, useOpsAlert } from "./ops-alert-provider";
 import { ShellSearchProvider } from "./shell-search-provider";
 import { ShellTopbarControlsContext } from "./shell-topbar-controls";
 import { runThemeTransition, useTheme } from "./theme-provider";
+
+/** Di atas ops-drawer (z 60) agar simulasi notifikasi terlihat saat pengaturan terbuka. */
+const TOPBAR_OVERLAY_BACKDROP_Z = 64;
+const TOPBAR_OVERLAY_PANEL_Z = 70;
+const TOPBAR_OVERLAY_TRIGGER_Z = 71;
+import { networkErrorMessage, readApiError } from "@/lib/ops-feedback";
 
 type ShellProps = {
   user: {
@@ -69,26 +77,23 @@ type ShellSearchResult = {
 const navIconMap = {
   "/dashboard": LayoutDashboard,
   "/shipment-ledger": PackageSearch,
-  "/awb-tracking": Radar,
+  "/awb-tracking": ScanBarcode,
   "/alerts": BellRing,
   "/flight-board": PlaneTakeoff,
   "/activity-log": History,
   "/complaints": MessageSquare,
+
   "/settings": Settings2,
 } as const;
 
-const navGroupIconMap = {
-  operasional: FolderKanban,
-  pemantauan: PlaneTakeoff,
-  sistem: Settings2,
-} as const;
+const navIconFallback = LayoutDashboard;
 
 const ROUTE_LABELS: Array<[string, string]> = [
-  ["/reports", "Laporan"],
+
   ["/query", "Pemeriksaan Data"],
   ["/seed", "Utilitas Seed"],
   ["/exports/shipments", "Cetak Buku Pengiriman"],
-  ["/exports/flights", "Cetak Management Pesawat"],
+  ["/exports/flights", "Cetak Manajemen Pesawat"],
   ["/exports/activity-log", "Cetak Catatan Aktivitas"],
   ["/exports/awb", "Cetak AWB"],
 ];
@@ -137,16 +142,30 @@ function playCriticalTone() {
   window.setTimeout(() => void context.close(), 360);
 }
 
-export function AppShell({ user, settings, notifications, children }: ShellProps) {
+export function AppShell(props: ShellProps) {
+  return (
+    <OpsAlertProvider>
+      <AppShellFrame {...props} />
+    </OpsAlertProvider>
+  );
+}
+
+function AppShellFrame({ user, settings, notifications, children }: ShellProps) {
+  const { showAlert } = useOpsAlert();
   const pathname = usePathname();
   const router = useRouter();
+  const mainScrollRef = useRef<HTMLElement | null>(null);
   const { setTheme } = useTheme();
   const navigation = getNavigationForRole(user.role);
   const [search, setSearch] = useState("");
   const [shellSettings, setShellSettings] = useState(settings);
   const [collapsed, setCollapsed] = useState(settings.sidebarCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isDesktopSidebar, setIsDesktopSidebar] = useState(false);
+  const reducedMotion = useReducedMotion() ?? false;
   const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationMenuStyle, setNotificationMenuStyle] = useState<CSSProperties>({});
+  const notificationTriggerRef = useRef<HTMLButtonElement>(null);
   const [notificationItems, setNotificationItems] = useState(notifications);
   const [mounted, setMounted] = useState(false);
   const [searchPreviewOpen, setSearchPreviewOpen] = useState(false);
@@ -161,21 +180,55 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   } as CSSProperties;
 
   const unreadCount = useMemo(() => notificationItems.filter((item) => !item.read).length, [notificationItems]);
+  const topbarDropdownOpen = notificationOpen || searchPreviewOpen;
+
+  function closeTopbarDropdowns() {
+    setNotificationOpen(false);
+    setSearchPreviewOpen(false);
+  }
+
+  const getNotificationMenuStyle = useCallback((): CSSProperties => {
+    const trigger = notificationTriggerRef.current;
+    if (!trigger) return { zIndex: TOPBAR_OVERLAY_PANEL_Z };
+
+    const rect = trigger.getBoundingClientRect();
+    const viewportPadding = 12;
+    const menuWidth = Math.min(360, window.innerWidth - viewportPadding * 2);
+
+    return {
+      position: "fixed",
+      top: rect.bottom + 14,
+      right: Math.max(viewportPadding, window.innerWidth - rect.right),
+      width: menuWidth,
+      zIndex: TOPBAR_OVERLAY_PANEL_Z,
+      maxHeight: `min(480px, calc(100svh - ${rect.bottom + 34}px))`,
+    };
+  }, []);
+
+  const updateNotificationMenuPosition = useCallback(() => {
+    setNotificationMenuStyle(getNotificationMenuStyle());
+  }, [getNotificationMenuStyle]);
 
   const activeNav =
     navigation.items.find(
       (item) => pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href)),
-    ) ?? navigation.items[0];
-  const activeGroupId =
-    navigation.groups.find((group) =>
-      group.items.some((item) => pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))),
-    )?.id ?? navigation.groups[0].id;
-  const [openGroupId, setOpenGroupId] = useState<(typeof navigation.groups)[number]["id"]>(activeGroupId);
+    ) ??
+    navigation.items[0] ?? {
+      href: "/awb-tracking" as const,
+      label: "Pelacakan AWB",
+      hint: "Status dan linimasa AWB",
+      groupId: "operasional" as const,
+      groupLabel: "Operasional",
+      roles: ["customer" as const],
+    };
+
+
   const visibleNotifications = notificationItems.slice(0, 10);
   const hasMoreNotifications = notificationItems.length > visibleNotifications.length;
   const showShellSearch = false;
   const routeLabel = ROUTE_LABELS.find(([route]) => pathname === route || pathname.startsWith(`${route}/`))?.[1];
   const topbarLabel = routeLabel ?? activeNav.label;
+
   const displayedNavigationItems = navigation.items.filter((item) => item.href !== "/settings");
   const displayedNavigationGroups = navigation.groups
     .map((group) => ({ ...group, items: group.items.filter((item) => item.href !== "/settings") }))
@@ -186,6 +239,14 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   useEffect(() => {
     setShellSettings(settings);
   }, [settings]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktopSidebar(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     if (!mounted) {
@@ -233,6 +294,8 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
         message: string;
         type: string;
         href?: string | null;
+        soundAlert?: boolean;
+        forceSound?: boolean;
       }>;
 
       if (!customEvent.detail) return;
@@ -248,8 +311,13 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       };
 
       setNotificationItems((items) => [previewItem, ...items].slice(0, 10));
+      setNotificationMenuStyle(getNotificationMenuStyle());
       setNotificationOpen(true);
-      if (shellSettings.soundAlert) {
+      const shouldPlaySound =
+        customEvent.detail.forceSound === true
+          ? true
+          : (customEvent.detail.soundAlert ?? shellSettings.soundAlert);
+      if (shouldPlaySound) {
         playCriticalTone();
       }
     }
@@ -257,20 +325,56 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
     window.addEventListener("skyhub:notification-preview", handleNotificationPreview as EventListener);
     return () =>
       window.removeEventListener("skyhub:notification-preview", handleNotificationPreview as EventListener);
-  }, [shellSettings.soundAlert]);
+  }, [getNotificationMenuStyle, shellSettings.soundAlert]);
 
   useEffect(() => {
     setNotificationItems(notifications);
   }, [notifications]);
 
   useEffect(() => {
-    setOpenGroupId(activeGroupId);
-  }, [activeGroupId]);
+    if (!notificationOpen) return undefined;
+
+    updateNotificationMenuPosition();
+
+    function handleReposition() {
+      updateNotificationMenuPosition();
+    }
+
+    window.addEventListener("scroll", handleReposition, true);
+    window.addEventListener("resize", handleReposition);
+
+    return () => {
+      window.removeEventListener("scroll", handleReposition, true);
+      window.removeEventListener("resize", handleReposition);
+    };
+  }, [notificationOpen, updateNotificationMenuPosition]);
+
+  useEffect(() => {
+    if (!notificationOpen) return undefined;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeTopbarDropdowns();
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [notificationOpen]);
 
   useEffect(() => {
     setSearch("");
     setSearchResults([]);
     setSearchPreviewOpen(false);
+    setNotificationOpen(false);
+
+    const main = mainScrollRef.current;
+    if (main) {
+      main.scrollTop = 0;
+    }
+
+    window.scrollTo(0, 0);
   }, [pathname]);
 
   useEffect(() => {
@@ -291,7 +395,15 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
           cache: "no-store",
           signal: controller.signal,
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          showAlert({
+            title: "Pencarian Gagal",
+            description: await readApiError(response, "Hasil pencarian belum bisa dimuat."),
+            tone: "error",
+          });
+          setSearchResults([]);
+          return;
+        }
 
         const result = (await response.json()) as { results?: ShellSearchResult[] };
         setSearchResults(result.results?.slice(0, 6) ?? []);
@@ -299,6 +411,11 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       } catch (error) {
         if ((error as DOMException).name !== "AbortError") {
           setSearchResults([]);
+          showAlert({
+            title: "Koneksi Terputus",
+            description: networkErrorMessage("memuat hasil pencarian"),
+            tone: "warning",
+          });
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -311,7 +428,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [pathname, search, showShellSearch]);
+  }, [pathname, search, showAlert, showShellSearch]);
 
 
   function runContextSearch(nextQuery: string, targetPath = pathname) {
@@ -360,12 +477,33 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       return;
     }
 
-    const response = await fetch(`/api/search?query=${encodeURIComponent(nextQuery)}&scope=global`);
-    if (!response.ok) return;
-    const result = (await response.json()) as { path?: string | null };
-    if (result.path) {
-      router.push(result.path);
-      setSearch("");
+    try {
+      const response = await fetch(`/api/search?query=${encodeURIComponent(nextQuery)}&scope=global`);
+      if (!response.ok) {
+        showAlert({
+          title: "Pencarian Gagal",
+          description: await readApiError(response, "Pencarian global belum bisa diproses."),
+          tone: "error",
+        });
+        return;
+      }
+      const result = (await response.json()) as { path?: string | null };
+      if (result.path) {
+        router.push(result.path);
+        setSearch("");
+        return;
+      }
+      showAlert({
+        title: "Tidak Ditemukan",
+        description: "Tidak ada halaman operasional yang cocok dengan kata kunci tersebut.",
+        tone: "info",
+      });
+    } catch {
+      showAlert({
+        title: "Koneksi Terputus",
+        description: networkErrorMessage("menjalankan pencarian global"),
+        tone: "warning",
+      });
     }
   }
 
@@ -392,8 +530,24 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   }
 
   async function handleMarkAllRead() {
-    await fetch("/api/notifications/mark-all-read", { method: "POST" });
-    setNotificationItems((items) => items.map((item) => ({ ...item, read: true })));
+    try {
+      const response = await fetch("/api/notifications/mark-all-read", { method: "POST" });
+      if (!response.ok) {
+        showAlert({
+          title: "Gagal Memperbarui",
+          description: await readApiError(response, "Status notifikasi belum bisa diperbarui."),
+          tone: "error",
+        });
+        return;
+      }
+      setNotificationItems((items) => items.map((item) => ({ ...item, read: true })));
+    } catch {
+      showAlert({
+        title: "Koneksi Terputus",
+        description: networkErrorMessage("menandai semua notifikasi sebagai dibaca"),
+        tone: "warning",
+      });
+    }
   }
 
   async function handleNotificationClick(item: ShellProps["notifications"][number]) {
@@ -401,7 +555,22 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
       setNotificationItems((items) =>
         items.map((entry) => (entry.id === item.id ? { ...entry, read: true } : entry)),
       );
-      await fetch(`/api/notifications/${item.id}/read`, { method: "POST" });
+      try {
+        const response = await fetch(`/api/notifications/${item.id}/read`, { method: "POST" });
+        if (!response.ok) {
+          showAlert({
+            title: "Gagal Memperbarui",
+            description: await readApiError(response, "Status notifikasi belum bisa diperbarui."),
+            tone: "error",
+          });
+        }
+      } catch {
+        showAlert({
+          title: "Koneksi Terputus",
+          description: networkErrorMessage("memperbarui status notifikasi"),
+          tone: "warning",
+        });
+      }
     }
 
     setNotificationOpen(false);
@@ -412,9 +581,25 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
   }
 
   async function handleSignOut() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) {
+        showAlert({
+          title: "Keluar Gagal",
+          description: await readApiError(response, "Sesi belum bisa diakhiri. Coba lagi."),
+          tone: "error",
+        });
+        return;
+      }
+      router.push("/login");
+      router.refresh();
+    } catch {
+      showAlert({
+        title: "Koneksi Terputus",
+        description: networkErrorMessage("mengakhiri sesi"),
+        tone: "warning",
+      });
+    }
   }
 
   const searchPlaceholder = useMemo(() => {
@@ -448,19 +633,121 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
           )}
         >
       <div className="flex h-full min-h-0 min-w-0">
-        <div className={cn("fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm lg:hidden", mobileOpen ? "block" : "hidden")} onClick={() => setMobileOpen(false)} />
+        <LiquidGlassBackdrop
+          open={mobileOpen && !isDesktopSidebar}
+          onClose={() => setMobileOpen(false)}
+          theme="ops"
+          className="ops-overlay-sidebar lg:hidden"
+          zIndex={40}
+        />
 
-        <aside
+        <LiquidGlassBackdrop
+          open={topbarDropdownOpen}
+          onClose={closeTopbarDropdowns}
+          theme="ops"
+          zIndex={TOPBAR_OVERLAY_BACKDROP_Z}
+        />
+
+        {mounted && notificationOpen
+          ? createPortal(
+              <div
+                className="dropdown-panel ops-select-menu notifications-dropdown-panel"
+                style={notificationMenuStyle}
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="notifications-dropdown-head shrink-0 flex items-center justify-between border-b border-[color:var(--border-soft)] px-4 py-4">
+                  <div className="min-w-0">
+                    <p className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
+                      Pemberitahuan
+                    </p>
+                    <p className="text-sm text-[color:var(--muted-fg)]">{unreadCount} belum dibaca</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="shrink-0 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--brand-primary)] disabled:text-[color:var(--muted-2)] disabled:cursor-not-allowed"
+                    onClick={handleMarkAllRead}
+                    disabled={unreadCount === 0}
+                  >
+                    Tandai semua
+                  </button>
+                </div>
+                <div className="notifications-dropdown-list min-h-0 flex-1">
+                  {visibleNotifications.length ? (
+                    visibleNotifications.map((item) => {
+                      const displayMessage = formatNotificationMessage(item.message);
+                      return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="block w-full border-b border-[color:var(--border-soft)] px-4 py-4 text-left last:border-b-0 hover:bg-[color:var(--panel-muted)]"
+                        onClick={() => handleNotificationClick(item)}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1 overflow-hidden">
+                            <p className="break-words text-sm font-semibold text-[color:var(--text-strong)]">{item.title}</p>
+                            <p className="mt-1 break-words text-sm leading-6 text-[color:var(--muted-fg)] [overflow-wrap:anywhere]">
+                              {displayMessage}
+                            </p>
+                            <p className="mt-2 text-xs text-[color:var(--muted-2)]">{formatRelativeShort(item.createdAt)}</p>
+                          </div>
+                          {!item.read ? (
+                            <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[color:var(--brand-primary)]" aria-hidden="true" />
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                    })
+                  ) : (
+                    <div className="px-4 py-10 text-center">
+                      <Bell size={26} className="mx-auto text-[color:var(--muted-2)]" />
+                      <p className="mt-3 text-sm font-medium text-[color:var(--muted-fg)]">Tidak ada pemberitahuan baru</p>
+                      <p className="mt-1 text-xs text-[color:var(--muted-2)]">Pemberitahuan akan muncul di sini saat ada aktivitas.</p>
+                    </div>
+                  )}
+                </div>
+                {hasMoreNotifications ? (
+                  <div className="notifications-dropdown-foot shrink-0 border-t border-[color:var(--border-soft)] px-4 py-3">
+                    <button
+                      type="button"
+                      className="w-full rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-3 text-sm font-semibold text-[color:var(--text-strong)]"
+                      onClick={() => {
+                        setNotificationOpen(false);
+                        router.push("/activity-log");
+                      }}
+                    >
+                      Buka Catatan Aktivitas
+                    </button>
+                  </div>
+                ) : null}
+              </div>,
+              document.body,
+            )
+          : null}
+
+        <motion.aside
           className={cn(
-            "fixed inset-y-0 left-0 z-50 flex overflow-hidden border-r border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]/98 backdrop-blur transition-all duration-200",
+            "fixed inset-y-0 left-0 z-50 flex overflow-hidden border-r border-[color:var(--border-soft)] bg-[color:var(--panel-bg)]",
+            isDesktopSidebar ? "shadow-none" : "ops-overlay-panel ops-sidebar-panel",
             "w-[var(--sidebar-width)] max-w-[calc(100vw-1rem)]",
-            mobileOpen
-              ? "visible translate-x-0"
-              : "invisible -translate-x-full pointer-events-none lg:visible lg:translate-x-0 lg:pointer-events-auto",
+            isDesktopSidebar ? "pointer-events-auto" : mobileOpen ? "pointer-events-auto" : "pointer-events-none",
+            "lg:pointer-events-auto",
           )}
+          initial={false}
+          animate={
+            isDesktopSidebar
+              ? { x: 0, opacity: 1 }
+              : reducedMotion
+                ? { x: mobileOpen ? 0 : "-100%", opacity: mobileOpen ? 1 : 0 }
+                : { x: mobileOpen ? 0 : "-100%", opacity: 1 }
+          }
+          transition={
+            reducedMotion
+              ? { duration: 0.2 }
+              : { type: "spring", stiffness: 380, damping: 36 }
+          }
         >
           <div className="flex min-h-0 w-full flex-col">
-            <div className={cn("border-b border-[color:var(--border-soft)]", collapsed ? "px-3 py-4" : "px-5 py-5")}>
+            <div className={cn("shrink-0 border-b border-[color:var(--border-soft)]", collapsed ? "px-3 py-3" : "px-4 py-3")}>
               {collapsed ? (
                 <div className="flex flex-col items-center gap-4">
                   <Link href="/dashboard" className="block" onClick={() => setMobileOpen(false)}>
@@ -480,97 +767,66 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
 
             <nav
               className={cn(
-                "min-h-0 flex-1 overflow-y-auto ops-scrollbar",
-                collapsed ? "flex flex-col items-center gap-3 px-4 py-2" : "space-y-3 px-4 py-5",
+                "sidebar-nav min-h-0 flex-1",
+                collapsed ? "flex flex-col items-center gap-2 px-3 py-2" : "px-3 py-2",
               )}
             >
               {collapsed
                 ? displayedNavigationItems.map((item) => {
-                    const Icon = navIconMap[item.href];
+                    const Icon = navIconMap[item.href] ?? navIconFallback;
                     const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
+                        scroll={false}
                         title={item.label}
                         aria-label={item.label}
                         className={cn(
-                          "sidebar-link",
+                          "sidebar-link sidebar-link-compact",
                           isActive && "sidebar-link-active",
-                          "mx-auto h-12 w-12 justify-center rounded-[18px] px-0",
+                          "mx-auto h-10 w-10 justify-center rounded-[14px] px-0",
                         )}
                         onClick={() => setMobileOpen(false)}
                       >
-                        <Icon size={18} className="shrink-0" />
+                        <Icon size={17} className="shrink-0" />
                       </Link>
                     );
                   })
-                : displayedNavigationGroups.map((group) => {
-                    const GroupIcon = navGroupIconMap[group.id];
-                    const isOpen = openGroupId === group.id;
+                : displayedNavigationGroups.map((group) => (
+                    <div key={group.id} className="sidebar-nav-group">
+                      <p className="sidebar-group-label">{group.label}</p>
+                      <div className="sidebar-nav-items">
+                        {group.items.map((item) => {
+                          const Icon = navIconMap[item.href] ?? navIconFallback;
+                          const isActive =
+                            pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
-                    return (
-                      <div key={group.id} className="rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 py-3">
-                        <button
-                          type="button"
-                          className={cn(
-                            "flex w-full items-center justify-between gap-3 rounded-[18px] px-2 py-2 text-left text-[color:var(--muted-fg)] transition-colors",
-                            isOpen && "text-[color:var(--text-strong)]",
-                          )}
-                          onClick={() => setOpenGroupId(group.id)}
-                        >
-                          <span className="flex items-center gap-3">
-                            <span className="flex h-10 w-10 items-center justify-center rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-bg)] text-[color:var(--brand-primary)]">
-                              <GroupIcon size={18} />
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block text-sm font-semibold">{group.label}</span>
-                              <span className="block text-[11px] uppercase tracking-[0.16em] text-[color:var(--muted-2)]">
-                                {group.items.length} menu
-                              </span>
-                            </span>
-                          </span>
-                          <ChevronDown size={16} className={cn("transition-transform", isOpen && "rotate-180")} />
-                        </button>
-
-                        {isOpen ? (
-                          <div className="mt-2 space-y-1">
-                            {group.items.map((item) => {
-                              const Icon = navIconMap[item.href];
-                              const isActive =
-                                pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
-
-                              return (
-                                <Link
-                                  key={item.href}
-                                  href={item.href}
-                                  className={cn("sidebar-link", isActive && "sidebar-link-active")}
-                                  onClick={() => {
-                                    setOpenGroupId(group.id);
-                                    setMobileOpen(false);
-                                  }}
-                                >
-                                  <Icon size={18} className="shrink-0" />
-                                  <div className="min-w-0">
-                                    <p className="truncate">{item.label}</p>
-                                    <p className="truncate text-[11px] font-medium text-[color:var(--muted-2)]">{item.hint}</p>
-                                  </div>
-                                </Link>
-                              );
-                            })}
-                          </div>
-                        ) : null}
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              scroll={false}
+                              title={item.hint}
+                              className={cn("sidebar-link sidebar-link-compact", isActive && "sidebar-link-active")}
+                              onClick={() => setMobileOpen(false)}
+                            >
+                              <Icon size={16} className="shrink-0" />
+                              <span className="truncate">{item.label}</span>
+                            </Link>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
             </nav>
 
-            <div className={cn("border-t border-[color:var(--border-soft)]", collapsed ? "px-3 py-4" : "px-4 py-4")}>
-              <div className={cn("rounded-[24px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-3", collapsed && "px-2")}>
+            <div className={cn("shrink-0 border-t border-[color:var(--border-soft)]", collapsed ? "px-3 py-3" : "px-3 py-3")}>
+              <div className={cn("rounded-[18px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] p-2.5", collapsed && "px-1.5")}>
                 {!collapsed ? (
                   <>
-                    <div className="flex items-start gap-3 rounded-[18px] px-1 pb-3 text-left">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-[color:var(--brand-primary)] text-sm font-black text-white">
+                    <div className="flex items-center gap-2.5 rounded-[14px] px-1 pb-2 text-left">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-[color:var(--brand-primary)] text-xs font-black text-white">
                         {user.name
                           .split(" ")
                           .map((part) => part[0])
@@ -586,14 +842,12 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                       <div className="grid gap-1 border-t border-[color:var(--border-soft)] pt-3">
                         <Link
                           href="/settings"
-                          className={cn("sidebar-link", isSettingsActive && "sidebar-link-active")}
+                          title="Profil, akses, preferensi"
+                          className={cn("sidebar-link sidebar-link-compact", isSettingsActive && "sidebar-link-active")}
                           onClick={() => setMobileOpen(false)}
                         >
-                          <Settings2 size={18} className="shrink-0" />
-                          <div className="min-w-0">
-                            <p className="truncate">Pengaturan</p>
-                            <p className="truncate text-[11px] font-medium text-[color:var(--muted-2)]">Profil, akses, preferensi</p>
-                          </div>
+                          <Settings2 size={16} className="shrink-0" />
+                          <span className="truncate">Pengaturan</span>
                         </Link>
                       </div>
                     ) : null}
@@ -627,8 +881,8 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               <button
                 type="button"
                 className={cn(
-                  "mt-2 flex w-full items-center gap-3 rounded-[18px] border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3 text-left text-sm font-semibold text-[color:var(--tone-warning)]",
-                  collapsed && "h-11 justify-center px-0",
+                  "mt-2 flex w-full items-center gap-2.5 rounded-[14px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-3 py-2.5 text-left text-sm font-semibold text-[color:var(--muted-fg)] transition-colors hover:border-[color:var(--tone-danger-border)] hover:bg-[color:var(--tone-danger-soft)] hover:text-[color:var(--tone-danger)]",
+                  collapsed && "h-10 justify-center px-0",
                 )}
                 onClick={handleSignOut}
                 title="Keluar"
@@ -639,9 +893,9 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               </button>
             </div>
           </div>
-        </aside>
+        </motion.aside>
 
-        <div className="shell-content flex min-h-0 min-w-0 w-full flex-col transition-all duration-200 lg:ml-[var(--sidebar-width)]" data-density={shellSettings.compactRows ? "compact" : "comfortable"}>
+        <div className="shell-content flex min-h-0 min-w-0 w-full flex-col overflow-hidden transition-all duration-200 lg:ml-[var(--sidebar-width)]" data-density={shellSettings.compactRows ? "compact" : "comfortable"}>
           <header className="shell-topbar sticky top-0 z-30 min-w-0 shrink-0 px-3 py-3 sm:px-4 sm:py-4 lg:px-8 lg:py-5">
             <div className="ops-panel shell-topbar-toolbar flex min-w-0 flex-wrap items-center px-4 py-4 lg:px-5">
               <button type="button" className="topbar-button mobile-hamburger-trigger shrink-0" onClick={() => setMobileOpen(true)}>
@@ -653,12 +907,14 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                 <p className="mt-1 font-[family:var(--font-heading)] text-xl font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
                   {topbarLabel}
                 </p>
+
               </div>
 
               {showShellSearch ? (
                 <form
                   onSubmit={handleSearchSubmit}
                   className="shell-topbar-search relative order-last min-w-0 flex-[1_1_100%] sm:order-none sm:flex-[1_1_240px] lg:flex-[2_1_320px]"
+                  style={searchPreviewOpen ? { zIndex: TOPBAR_OVERLAY_TRIGGER_Z } : undefined}
                 >
                   <button type="submit" className="topbar-search-submit" aria-label="Jalankan pencarian">
                     <Search size={16} />
@@ -679,7 +935,7 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                     className="input-field input-field-leading w-full"
                   />
                   {searchPreviewOpen ? (
-                    <div className="shell-search-preview">
+                    <div className="shell-search-preview ops-select-menu">
                       {searchLoading ? (
                         <div className="shell-search-preview-empty">Mencari kecocokan...</div>
                       ) : searchResults.length ? (
@@ -709,11 +965,22 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
               {topbarControls ? <div className="shell-topbar-controls">{topbarControls}</div> : null}
 
               <div className="shell-topbar-actions ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
-                <div className="relative">
+                <div
+                  className="relative"
+                  style={notificationOpen ? { zIndex: TOPBAR_OVERLAY_TRIGGER_Z } : undefined}
+                >
                   <button
+                    ref={notificationTriggerRef}
                     type="button"
                     className="topbar-button relative shrink-0 overflow-visible pr-5 sm:pr-8"
-                    onClick={() => setNotificationOpen((value) => !value)}
+                    aria-expanded={notificationOpen}
+                    onClick={() => {
+                      setNotificationOpen((value) => {
+                        const next = !value;
+                        if (next) setNotificationMenuStyle(getNotificationMenuStyle());
+                        return next;
+                      });
+                    }}
                   >
                     <Bell size={18} />
                     <span className="hidden sm:inline">Pemberitahuan</span>
@@ -723,76 +990,17 @@ export function AppShell({ user, settings, notifications, children }: ShellProps
                       </span>
                     ) : null}
                   </button>
-
-                  {notificationOpen ? (
-                    <div className="dropdown-panel right-0 top-14 w-[min(360px,calc(100vw-1.5rem))] sm:w-[360px]">
-                      <div className="flex items-center justify-between border-b border-[color:var(--border-soft)] px-4 py-4">
-                        <div>
-                          <p className="font-[family:var(--font-heading)] text-lg font-extrabold tracking-[-0.03em] text-[color:var(--text-strong)]">
-                            Pemberitahuan
-                          </p>
-                          <p className="text-sm text-[color:var(--muted-fg)]">{unreadCount} belum dibaca</p>
-                        </div>
-                        <button
-                          type="button"
-                          className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--brand-primary)] disabled:text-[color:var(--muted-2)] disabled:cursor-not-allowed"
-                          onClick={handleMarkAllRead}
-                          disabled={unreadCount === 0}
-                        >
-                          Tandai semua
-                        </button>
-                      </div>
-                      <div className="notifications-dropdown-list">
-                        {visibleNotifications.length ? (
-                          visibleNotifications.map((item) => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              className="block w-full border-b border-[color:var(--border-soft)] px-4 py-4 text-left last:border-b-0 hover:bg-[color:var(--panel-muted)]"
-                              onClick={() => handleNotificationClick(item)}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-sm font-semibold text-[color:var(--text-strong)]">{item.title}</p>
-                                  <p className="mt-1 text-sm leading-6 text-[color:var(--muted-fg)]">{item.message}</p>
-                                  <p className="mt-2 text-xs text-[color:var(--muted-2)]">{formatRelativeShort(item.createdAt)}</p>
-                                </div>
-                                {!item.read ? <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[color:var(--brand-primary)]" /> : null}
-                              </div>
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-4 py-10 text-center">
-                            <Bell size={26} className="mx-auto text-[color:var(--muted-2)]" />
-                            <p className="mt-3 text-sm font-medium text-[color:var(--muted-fg)]">Tidak ada pemberitahuan baru</p>
-                            <p className="mt-1 text-xs text-[color:var(--muted-2)]">Pemberitahuan akan muncul di sini saat ada aktivitas.</p>
-                          </div>
-                        )}
-                      </div>
-                      {hasMoreNotifications ? (
-                        <div className="border-t border-[color:var(--border-soft)] px-4 py-3">
-                          <button
-                            type="button"
-                            className="w-full rounded-[16px] border border-[color:var(--border-soft)] bg-[color:var(--panel-muted)] px-4 py-3 text-sm font-semibold text-[color:var(--text-strong)]"
-                            onClick={() => {
-                              setNotificationOpen(false);
-                              router.push("/activity-log");
-                            }}
-                          >
-                            Buka Catatan Aktivitas
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
                 </div>
               </div>
 
             </div>
           </header>
 
-          <main className="ops-shell-main-scroll app-main-scroll min-h-0 min-w-0 flex-1 px-3 pb-6 sm:px-4 lg:px-8">
-            <div className="h-full min-h-0 min-w-0 max-w-full">{children}</div>
+          <main
+            ref={mainScrollRef}
+            className="ops-shell-main-scroll app-main-scroll flex min-h-0 min-w-0 flex-1 flex-col px-3 pb-3 sm:px-4 lg:px-8"
+          >
+            <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col">{children}</div>
           </main>
         </div>
       </div>

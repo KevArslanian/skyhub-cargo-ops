@@ -36,9 +36,11 @@ try {
   console.log("[compact] skipped (non-blocking).");
 }
 
-if (process.env.VERCEL === "1" && process.env.DATABASE_URL_UNPOOLED) {
+if (process.env.VERCEL === "1" && process.env.DATABASE_URL_UNPOOLED && process.env.RUN_DB_MIGRATIONS === "1") {
   console.log("Running production database migrations before Vercel build.");
   await run(["db:migrate:unpooled"]);
+} else if (process.env.VERCEL === "1") {
+  console.log("[build] Skipping DB migrations on Vercel (schema already synced from local Neon). Set RUN_DB_MIGRATIONS=1 to force.");
 }
 
 await run(["prisma:generate"]);

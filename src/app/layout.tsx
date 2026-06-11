@@ -38,9 +38,9 @@ export const metadata: Metadata = {
     type: "website",
   },
   icons: {
-    icon: "/skyhub-mark-blue.svg",
-    shortcut: "/skyhub-mark-blue.svg",
-    apple: "/skyhub-mark-blue.svg",
+    icon: "/skyhub-logo-icon-clean.png",
+    shortcut: "/skyhub-logo-icon-clean.png",
+    apple: "/skyhub-logo-icon-clean.png",
   },
 };
 

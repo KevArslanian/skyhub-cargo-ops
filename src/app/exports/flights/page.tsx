@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 function getFlightTone(status: string): PrintChipTone {
   if (status === "on_time") return "success";
+  if (status === "at_risk") return "warning";
   if (status === "delayed") return "warning";
   if (status === "departed") return "info";
   return "neutral";
@@ -55,8 +56,8 @@ export default async function FlightsPrintPage({
       <AutoPrintReport />
       <PrintCenterLayout
       scriptId="print-flights"
-      documentTitle="Management Pesawat"
-      documentSubtitle="Laporan Jadwal dan Assignment Pesawat"
+      documentTitle="Manajemen Pesawat"
+      documentSubtitle="Laporan Jadwal dan Penugasan Pesawat"
       printedAtLabel={formatDateTime(printedAt.toISOString())}
       filterSummary={filterSummary}
       summaryTitle={`Ringkasan • ${flights.length} penerbangan`}
@@ -72,7 +73,7 @@ export default async function FlightsPrintPage({
         <table className="print-table min-w-[1220px]">
           <thead>
             <tr>
-              {["Penerbangan", "Pesawat", "Registrasi", "Rute", "Batas Terima", "Berangkat", "Tiba", "Gate", "Status", "Pengiriman"].map((header) => (
+              {["Penerbangan", "Pesawat", "Registrasi", "Rute", "Batas Terima", "Berangkat", "Tiba", "Gerbang", "Status", "Pengiriman"].map((header) => (
                 <th key={header}>{header}</th>
               ))}
             </tr>

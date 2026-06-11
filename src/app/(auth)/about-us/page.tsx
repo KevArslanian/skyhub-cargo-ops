@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -19,39 +18,50 @@ import {
   Satellite,
   Search,
   Shield,
-  X,
 } from "lucide-react";
-import {
-  getLoginErrorDetail,
-  LOGIN_ERROR_CODES,
-  type LoginErrorCode,
-  type LoginResponse,
-} from "@/lib/auth-login";
+import { getCargoIqMilestone } from "@/lib/constants";
 import {
   COMPANY_ABOUT_COPY,
   COMPANY_CONTACT_ITEMS,
   COMPANY_HERO_COPY,
   COMPANY_HERO_HEADLINE,
-  COMPANY_SUPPORT_TIMELINE,
   COMPANY_SWIPE_CARDS,
 } from "@/lib/company-profile";
-import { APP_NAME, AWB_REGEX } from "@/lib/constants";
+import { PublicAwbPrefixInput } from "@/components/public-awb-prefix-input";
+import { PublicTrackingCaptcha, usePublicTrackingCaptcha } from "@/components/public-tracking-captcha";
+import { validateAwb, validateComplaintForm as validateComplaintFormClient } from "@/lib/client-validation";
+import { APP_NAME, PUBLIC_AWB_PREFIX } from "@/lib/constants";
+import {
+  composePublicAwb,
+  extractPublicAwbSuffix,
+  sanitizeContactInput,
+  sanitizePersonName,
+  sanitizeReferenceInput,
+} from "@/lib/input-guards";
+import { GlassSelect } from "@/components/glass-select";
 import { cn, formatDateTime, formatWeight } from "@/lib/format";
+import {
+  getCachedVideoSources,
+  revokeAboutMediaBlobUrls,
+  subscribeAboutMediaCache,
+  warmAboutMediaCache,
+  type AboutMediaCacheStatus,
+} from "@/lib/about-media-cache";
+import { ABOUT_SCRUB_VIDEO_SOURCES } from "@/lib/about-media-constants";
+import { detectVideoPerfTier, SSR_VIDEO_PERF_TIER, type VideoPerfTier } from "@/lib/video-performance";
 import { AboutScrollVideo, type AboutClip } from "@/components/about-scroll-video";
 import { ScrollScene } from "@/components/about-scroll-scene";
+import { SkyHubLogo } from "@/components/skyhub-logo";
 
-type CounterState = {
+type LandingMetricsState = {
   shipments: number;
-  flights: number;
   accuracy: number;
-  uptime: number;
+  generatedAt: string;
 };
 
 type LandingMetricsResponse = {
   shipmentsToday: number;
-  activeFlights: number;
   onTimeAccuracy: number;
-  platformUptime: number;
   generatedAt: string;
 };
 
@@ -95,10 +105,10 @@ type PublicTrackingShipment = {
 } | null;
 
 const capabilityCard = COMPANY_SWIPE_CARDS.find((card) => card.id === "fokus");
-const CAPABILITIES = capabilityCard?.highlights?.slice(0, 3) ?? [
+const CAPABILITIES = capabilityCard?.highlights ?? [
   {
     icon: Satellite,
-    title: "Management Pesawat Langsung",
+    title: "Manajemen Pesawat Langsung",
     description: "Status penerbangan, batas terima kargo, dan penugasan terlihat dari sumber data operasional yang sama.",
   },
   {
@@ -109,16 +119,9 @@ const CAPABILITIES = capabilityCard?.highlights?.slice(0, 3) ?? [
   {
     icon: Shield,
     title: "Kendali Masalah",
-    description: "Hold, dokumen belum lengkap, dan peringatan operasional disatukan untuk respons cepat.",
+    description: "Tertahan, dokumen belum lengkap, dan peringatan operasional disatukan untuk respons cepat.",
   },
 ];
-
-const OPERATIONS = COMPANY_SUPPORT_TIMELINE.map((item) => ({
-  index: item.label,
-  title: item.title.toUpperCase(),
-  duration: item.label === "01" ? "Penerimaan" : item.label === "02" ? "Manifest" : item.label === "03" ? "Pantau" : "Audit",
-  copy: item.description,
-}));
 
 const ABOUT_CLIPS: AboutClip[] = [
   { src: "/media/about/sky-clouds.mp4", poster: "/media/about/sky-clouds.jpg", label: "Dalam perjalanan" },
@@ -127,10 +130,23 @@ const ABOUT_CLIPS: AboutClip[] = [
   { src: "/media/about/city-aerial.mp4", poster: "/media/about/city-aerial.jpg", label: "Operasi darat" },
 ];
 
-const ABOUT_SCRUB_VIDEO = {
-  src: "/media/about/cargolux-sky-120fps-scrub.mp4",
-  poster: "/media/about/cargolux-sky-120fps-scrub.jpg",
-};
+const ABOUT_SCRUB_VIDEO = ABOUT_SCRUB_VIDEO_SOURCES;
+
+type AboutSectionId = "overview" | "tracking" | "about" | "capabilities" | "complaints";
+
+const COMPLAINTS_SCROLL_FOCUS = "#complaints-panels";
+
+const ABOUT_NAV_ITEMS: { id: AboutSectionId; label: string }[] = [
+  { id: "overview", label: "Ringkasan" },
+  { id: "tracking", label: "Cek Resi" },
+  { id: "about", label: "Tentang Kami" },
+  { id: "capabilities", label: "Kapabilitas" },
+  { id: "complaints", label: "Keluhan" },
+];
+
+function isAboutSectionId(value: string): value is AboutSectionId {
+  return ABOUT_NAV_ITEMS.some((item) => item.id === value);
+}
 
 function getContact(label: string) {
   return COMPANY_CONTACT_ITEMS.find((item) => item.label === label);
@@ -145,126 +161,148 @@ const supportPathContact = getContact("Jalur dukungan");
 
 export default function AboutUsPage() {
   const router = useRouter();
-  const hasAnimatedCountersRef = useRef(false);
+
+  const scrollLockRef = useRef(false);
+  const activeSectionRef = useRef<AboutSectionId>("overview");
 
   const [navSolid, setNavSolid] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [email, setEmail] = useState("staff@skyhub.test");
-  const [password, setPassword] = useState("operator123");
-  const [submitting, setSubmitting] = useState(false);
-  const [loginError, setLoginError] = useState<{ code?: LoginErrorCode; message: string } | null>(null);
+  const [activeSection, setActiveSection] = useState<AboutSectionId>("overview");
   const [complaintState, setComplaintState] = useState<ComplaintFormState>({ name: "", contact: "", topic: "shipment", referenceNo: "", message: "" });
   const [complaintErrors, setComplaintErrors] = useState<ComplaintFormErrors>({});
   const [complaintNotice, setComplaintNotice] = useState<{ tone: "info" | "success" | "error"; message: string } | null>(null);
-  const [trackingAwb, setTrackingAwb] = useState("");
+  const [trackingAwbSuffix, setTrackingAwbSuffix] = useState("");
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [trackingResult, setTrackingResult] = useState<PublicTrackingShipment>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
-  const [counter, setCounter] = useState<CounterState>({
-    shipments: 0,
-    flights: 0,
-    accuracy: 0,
-    uptime: 0,
-  });
+  const [recentPublicSearches, setRecentPublicSearches] = useState<string[]>([]);
+  const {
+    challenge: trackingChallenge,
+    answer: trackingCaptchaAnswer,
+    loading: trackingCaptchaLoading,
+    error: trackingCaptchaError,
+    setAnswer: setTrackingCaptchaAnswer,
+    refreshChallenge: refreshTrackingChallenge,
+  } = usePublicTrackingCaptcha();
 
-  const resolvedLoginError = useMemo(() => {
-    if (!loginError) return null;
-    return getLoginErrorDetail(loginError.code, loginError.message);
-  }, [loginError]);
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem("skyhub_public_searches");
+      if (cached) {
+        setRecentPublicSearches(JSON.parse(cached));
+      }
+    } catch {}
+  }, []);
+  const [landingMetrics, setLandingMetrics] = useState<LandingMetricsState | null>(null);
+  const [videoTier, setVideoTier] = useState<VideoPerfTier>(SSR_VIDEO_PERF_TIER);
+  const [mediaCacheStatus, setMediaCacheStatus] = useState<AboutMediaCacheStatus>("idle");
+  const videoSources = useMemo(() => getCachedVideoSources(videoTier), [mediaCacheStatus, videoTier]);
 
-  const startCounterAnimation = useCallback((target: CounterState) => {
-    if (hasAnimatedCountersRef.current) {
+  useEffect(() => {
+    const tier = detectVideoPerfTier();
+    setVideoTier(tier);
+    void warmAboutMediaCache(tier);
+    return subscribeAboutMediaCache(setMediaCacheStatus);
+  }, []);
+
+  useEffect(() => () => revokeAboutMediaBlobUrls(), []);
+
+  const setActiveSectionMarker = useCallback((id: AboutSectionId) => {
+    for (const item of ABOUT_NAV_ITEMS) {
+      const section = document.getElementById(item.id);
+      if (!section) {
+        continue;
+      }
+
+      section.classList.toggle("is-active", item.id === id);
+    }
+  }, []);
+
+  const revealSectionContent = useCallback((id: AboutSectionId) => {
+    const section = document.getElementById(id);
+    if (!section) {
       return;
     }
 
-    hasAnimatedCountersRef.current = true;
+    setActiveSectionMarker(id);
 
-    const duration = 1800;
-    const startTime = performance.now();
-    const safetyTimer = window.setTimeout(() => {
-      setCounter(target);
-    }, duration + 120);
+    section.querySelectorAll<HTMLElement>(".premium-reveal").forEach((node) => {
+      node.classList.add("visible");
+    });
+  }, [setActiveSectionMarker]);
 
-    const step = (now: number) => {
-      const progress = Math.min((now - startTime) / duration, 1);
-      setCounter({
-        shipments: target.shipments * progress,
-        flights: target.flights * progress,
-        accuracy: target.accuracy * progress,
-        uptime: target.uptime * progress,
-      });
-
-      if (progress < 1) {
-        window.requestAnimationFrame(step);
+  const scrollToSection = useCallback(
+    (id: AboutSectionId, smooth = true) => {
+      const section = document.getElementById(id);
+      if (!section) {
         return;
       }
 
-      window.clearTimeout(safetyTimer);
-    };
+      scrollLockRef.current = true;
+      activeSectionRef.current = id;
+      setActiveSection(id);
 
-    window.requestAnimationFrame(step);
-  }, []);
+      const navHeight = document.getElementById("navbar")?.offsetHeight ?? 96;
+      const scrollAnchor =
+        id === "complaints"
+          ? section.querySelector<HTMLElement>(COMPLAINTS_SCROLL_FOCUS) ?? section
+          : section;
+      const anchorTop = scrollAnchor.getBoundingClientRect().top;
+      const complaintsFocusGap = id === "complaints" ? 12 : 0;
+      let targetTop =
+        id === "overview"
+          ? 0
+          : Math.max(0, window.scrollY + anchorTop - navHeight - complaintsFocusGap);
+
+      if (id === "complaints") {
+        const maxScroll = Math.max(
+          0,
+          Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) - window.innerHeight,
+        );
+        targetTop = Math.min(targetTop, maxScroll);
+      }
+
+      window.scrollTo({
+        top: targetTop,
+        behavior: smooth ? "smooth" : "instant",
+      });
+
+      const nextHash = `#${id}`;
+      if (window.location.hash !== nextHash) {
+        window.history.replaceState(null, "", `${window.location.pathname}${nextHash}`);
+      }
+
+      revealSectionContent(id);
+
+      window.setTimeout(() => {
+        revealSectionContent(id);
+        scrollLockRef.current = false;
+      }, smooth ? 850 : 80);
+    },
+    [revealSectionContent],
+  );
 
   useEffect(() => {
     document.documentElement.classList.add("premium-page-scroll");
     document.body.classList.add("premium-page-scroll");
+
+    const nav = document.getElementById("navbar");
+    const syncNavHeight = () => {
+      const height = nav?.offsetHeight ?? 96;
+      document.documentElement.style.setProperty("--about-nav-height", `${height}px`);
+    };
+
+    syncNavHeight();
+    const resizeObserver = nav ? new ResizeObserver(syncNavHeight) : null;
+    resizeObserver?.observe(nav!);
+    window.addEventListener("resize", syncNavHeight);
+
     return () => {
       document.documentElement.classList.remove("premium-page-scroll");
       document.body.classList.remove("premium-page-scroll");
+      document.documentElement.style.removeProperty("--about-nav-height");
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", syncNavHeight);
     };
-  }, []);
-
-  useEffect(() => {
-    let clampFrame = 0;
-
-    const clampContactTail = () => {
-      if (clampFrame) {
-        return;
-      }
-
-      clampFrame = window.requestAnimationFrame(() => {
-        clampFrame = 0;
-
-        const contact = document.getElementById("complaints");
-        const contactGrid = document.querySelector<HTMLElement>(".premium-contact-grid");
-        if (!contact || !contactGrid) {
-          return;
-        }
-
-        const scrollMax = Math.max(document.documentElement.scrollHeight - window.innerHeight, 0);
-        const contactTop = contact.getBoundingClientRect().top + window.scrollY;
-        const contactContentBottom = contactGrid.getBoundingClientRect().bottom + window.scrollY;
-        const contactTailLimit = Math.max(0, Math.min(scrollMax, contactContentBottom + 24 - window.innerHeight));
-        const isPastContactStart = window.scrollY >= contactTop - window.innerHeight * 0.42;
-        const isInFinalViewport = scrollMax - window.scrollY < window.innerHeight * 1.15;
-
-        if (isPastContactStart && isInFinalViewport && window.scrollY > contactTailLimit) {
-          window.scrollTo(0, contactTailLimit);
-        }
-      });
-    };
-
-    window.addEventListener("scroll", clampContactTail, { passive: true });
-    window.addEventListener("resize", clampContactTail);
-    clampContactTail();
-
-    return () => {
-      if (clampFrame) {
-        window.cancelAnimationFrame(clampFrame);
-      }
-      window.removeEventListener("scroll", clampContactTail);
-      window.removeEventListener("resize", clampContactTail);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setNavSolid(window.scrollY > 80);
-    };
-
-    handleScroll();
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   useEffect(() => {
@@ -278,7 +316,7 @@ export default function AboutUsPage() {
           }
         }
       },
-      { threshold: 0.15 },
+      { threshold: 0.05, rootMargin: "0px 0px -8% 0px" },
     );
 
     for (const node of revealNodes) {
@@ -287,6 +325,75 @@ export default function AboutUsPage() {
 
     return () => revealObserver.disconnect();
   }, []);
+
+  useEffect(() => {
+    const sections = ABOUT_NAV_ITEMS.map((item) => document.getElementById(item.id)).filter(Boolean) as HTMLElement[];
+    if (!sections.length) {
+      return undefined;
+    }
+
+    const navOffset = () => (document.getElementById("navbar")?.offsetHeight ?? 96) + 8;
+
+    const syncActiveSectionFromScroll = () => {
+      if (scrollLockRef.current) {
+        return;
+      }
+
+      const anchor = navOffset();
+      const viewportHeight = window.innerHeight - anchor;
+      let current: AboutSectionId = "overview";
+      let bestScore = -1;
+
+      for (const item of ABOUT_NAV_ITEMS) {
+        const section = document.getElementById(item.id);
+        if (!section) {
+          continue;
+        }
+
+        const rect = section.getBoundingClientRect();
+        const visibleTop = Math.max(rect.top, anchor);
+        const visibleBottom = Math.min(rect.bottom, window.innerHeight);
+        const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+        const score = visibleHeight / Math.max(viewportHeight, 1);
+
+        if (score > bestScore) {
+          bestScore = score;
+          current = item.id;
+        }
+      }
+
+      if (current === activeSectionRef.current) {
+        return;
+      }
+
+      activeSectionRef.current = current;
+      setActiveSection(current);
+      revealSectionContent(current);
+      const nextHash = `#${current}`;
+      if (window.location.hash !== nextHash) {
+        window.history.replaceState(null, "", `${window.location.pathname}${nextHash}`);
+      }
+    };
+
+    const handleScroll = () => {
+      setNavSolid(window.scrollY > 80);
+      syncActiveSectionFromScroll();
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+
+    const hash = window.location.hash.replace(/^#/, "");
+    if (isAboutSectionId(hash)) {
+      window.requestAnimationFrame(() => scrollToSection(hash, false));
+    }
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, [revealSectionContent, scrollToSection]);
 
   useEffect(() => {
     let cancelled = false;
@@ -299,19 +406,18 @@ export default function AboutUsPage() {
         }
 
         const payload = (await response.json()) as LandingMetricsResponse;
-        const target: CounterState = {
-          shipments: Number(payload.shipmentsToday) || 0,
-          flights: Number(payload.activeFlights) || 0,
-          accuracy: Number(payload.onTimeAccuracy) || 0,
-          uptime: Number(payload.platformUptime) || 0,
-        };
 
         if (cancelled) {
           return;
         }
-        startCounterAnimation(target);
+
+        setLandingMetrics({
+          shipments: Number(payload.shipmentsToday) || 0,
+          accuracy: Number(payload.onTimeAccuracy) || 0,
+          generatedAt: payload.generatedAt,
+        });
       } catch {
-        // Keep UI stable with zeroed counters when metrics endpoint is unavailable.
+        // Hero chips stay in loading state when metrics endpoint is unavailable.
       }
     }
 
@@ -320,7 +426,7 @@ export default function AboutUsPage() {
     return () => {
       cancelled = true;
     };
-  }, [startCounterAnimation]);
+  }, []);
 
   useEffect(() => {
     if (!complaintNotice) return undefined;
@@ -328,80 +434,13 @@ export default function AboutUsPage() {
     return () => window.clearTimeout(timer);
   }, [complaintNotice]);
 
-  function scrollToId(id: string) {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!email.trim() || !password.trim()) {
-      setLoginError({
-        code: LOGIN_ERROR_CODES.INVALID_INPUT,
-        message: "Surel dan kata sandi wajib diisi.",
-      });
-      return;
-    }
-
-    setSubmitting(true);
-    setLoginError(null);
-
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, remember: true }),
-      });
-
-      const payload = (await response.json()) as LoginResponse;
-      if (!response.ok) {
-        setLoginError({
-          code: payload.code,
-          message: payload.error || "Masuk gagal.",
-        });
-        return;
-      }
-
-      setModalOpen(false);
-      router.push("/dashboard");
-      router.refresh();
-    } catch {
-      setLoginError({
-        code: LOGIN_ERROR_CODES.AUTH_UNAVAILABLE,
-        message: "Tidak dapat menjangkau layanan masuk saat ini.",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  function isValidContactInput(value: string) {
-    const normalized = value.trim();
-    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
-    const phoneValid = /^(\+62|62|0)8[1-9][0-9]{6,11}$/.test(normalized.replace(/\s+/g, ""));
-    return emailValid || phoneValid;
-  }
-
-  function validateComplaintForm(value: ComplaintFormState) {
-    const errors: ComplaintFormErrors = {};
-
-    if (!value.name.trim()) {
-      errors.name = "Nama wajib diisi.";
-    }
-
-    if (!value.contact.trim()) {
-      errors.contact = "Isi email atau nomor telepon.";
-    } else if (!isValidContactInput(value.contact)) {
-      errors.contact = "Gunakan email valid atau nomor Indonesia, contoh 08123456789.";
-    }
-
-    if (!value.message.trim()) {
-      errors.message = "Uraian keluhan wajib diisi.";
-    } else if (value.message.trim().length < 12) {
-      errors.message = "Uraian keluhan minimal 12 karakter.";
-    }
-
-    return errors;
+  function navButtonClass(id: AboutSectionId) {
+    const isActive = activeSection === id;
+    return cn(
+      "relative shrink-0 pb-1 transition",
+      isActive ? "text-[#0066ff]" : "text-white/85 hover:text-[#0066ff]",
+      isActive && "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#0066ff]",
+    );
   }
 
   function updateComplaintField<K extends keyof ComplaintFormState>(field: K, nextValue: ComplaintFormState[K]) {
@@ -420,8 +459,9 @@ export default function AboutUsPage() {
   async function handleComplaintSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const errors = validateComplaintForm(complaintState);
-    if (Object.keys(errors).length > 0) {
+    const validation = validateComplaintFormClient(complaintState);
+    if (!validation.ok) {
+      const errors = validation.errors;
       setComplaintErrors(errors);
       setComplaintNotice({
         tone: "error",
@@ -468,173 +508,292 @@ export default function AboutUsPage() {
     }
   }
 
+  const executeSearch = useCallback(
+    async (suffixValue: string, challengeId: string, challengeAnswer: string) => {
+      const normalizedAwb = composePublicAwb(suffixValue);
+      const awbValidation = validateAwb(normalizedAwb);
+      if (!awbValidation.ok) {
+        setTrackingResult(null);
+        setTrackingError(awbValidation.message || "Format resi tidak valid.");
+        return;
+      }
+
+      if (!challengeId || !challengeAnswer.trim()) {
+        setTrackingResult(null);
+        setTrackingError("Selesaikan verifikasi robot sebelum mencari resi.");
+        return;
+      }
+
+      setTrackingLoading(true);
+      setTrackingError(null);
+
+      try {
+        const query = new URLSearchParams({
+          awb: normalizedAwb,
+          challengeId,
+          challengeAnswer: challengeAnswer.trim(),
+        });
+        const response = await fetch(`/api/public/awb?${query.toString()}`, { cache: "no-store" });
+        const payload = (await response.json().catch(() => null)) as
+          | { shipment?: PublicTrackingShipment; error?: string; code?: string }
+          | null;
+
+        if (!response.ok) {
+          setTrackingResult(null);
+          setTrackingError(payload?.error || "Pelacakan resi belum bisa dimuat.");
+          if (payload?.code === "CAPTCHA_FAILED") {
+            void refreshTrackingChallenge();
+          }
+          return;
+        }
+
+        if (!payload?.shipment) {
+          setTrackingResult(null);
+          setTrackingError("Resi belum ditemukan. Periksa nomor AWB lalu coba lagi.");
+          void refreshTrackingChallenge();
+          return;
+        }
+
+        setTrackingResult(payload.shipment);
+        void refreshTrackingChallenge();
+
+        setRecentPublicSearches((prev) => {
+          const next = [normalizedAwb, ...prev.filter((item) => item !== normalizedAwb)].slice(0, 5);
+          try {
+            localStorage.setItem("skyhub_public_searches", JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      } catch {
+        setTrackingResult(null);
+        setTrackingError("Koneksi terputus saat memuat pelacakan resi.");
+      } finally {
+        setTrackingLoading(false);
+      }
+    },
+    [refreshTrackingChallenge],
+  );
+
   async function handleTrackingSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    const normalizedAwb = trackingAwb.trim();
-    if (!AWB_REGEX.test(normalizedAwb)) {
-      setTrackingResult(null);
-      setTrackingError("Format resi harus XXX-XXXXXXXX.");
+    if (!trackingChallenge) {
+      setTrackingError("Verifikasi robot belum siap. Tunggu sebentar lalu coba lagi.");
       return;
     }
 
-    setTrackingLoading(true);
-    setTrackingError(null);
-
-    try {
-      const response = await fetch(`/api/public/awb?awb=${encodeURIComponent(normalizedAwb)}`, { cache: "no-store" });
-      const payload = (await response.json().catch(() => null)) as { shipment?: PublicTrackingShipment; error?: string } | null;
-
-      if (!response.ok) {
-        setTrackingResult(null);
-        setTrackingError(payload?.error || "Pelacakan resi belum bisa dimuat.");
-        return;
-      }
-
-      if (!payload?.shipment) {
-        setTrackingResult(null);
-        setTrackingError("Resi belum ditemukan. Periksa nomor AWB lalu coba lagi.");
-        return;
-      }
-
-      setTrackingResult(payload.shipment);
-    } catch {
-      setTrackingResult(null);
-      setTrackingError("Koneksi terputus saat memuat pelacakan resi.");
-    } finally {
-      setTrackingLoading(false);
-    }
+    await executeSearch(trackingAwbSuffix, trackingChallenge.id, trackingCaptchaAnswer);
   }
+
+  const trackingSubmitDisabled =
+    trackingLoading ||
+    trackingCaptchaLoading ||
+    !trackingChallenge ||
+    trackingAwbSuffix.length !== 8 ||
+    !trackingCaptchaAnswer.trim();
 
   return (
     <div className="premium-landing relative isolate bg-[#050505] text-white">
-      <AboutScrollVideo clips={ABOUT_CLIPS} scrubVideo={ABOUT_SCRUB_VIDEO} />
-      <div className="premium-top-blur" aria-hidden="true" />
+      <AboutScrollVideo
+        clips={ABOUT_CLIPS}
+        scrubVideo={ABOUT_SCRUB_VIDEO}
+        tier={videoTier}
+        cacheStatus={mediaCacheStatus}
+        videoSources={videoSources}
+      />
 
       <nav className={`premium-nav ${navSolid ? "premium-nav-solid" : ""}`} id="navbar">
-        <div className="premium-fluid-shell flex items-center justify-between">
-          <button type="button" className="flex items-center gap-3 text-left" onClick={() => scrollToId("hero")}>
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#0066ff66] bg-[#0066ff1a]">
-              <Image
-                src="/skyhub-logo-icon-clean.png"
-                alt="SkyHub"
-                width={34}
-                height={34}
-                className="premium-logo-plane"
-              />
-            </span>
-            <span>
-              <span className="block text-3xl font-semibold tracking-[-2px]">{APP_NAME.toUpperCase()}</span>
-              <span className="mt-[-4px] block text-[10px] tracking-[3.5px] text-white/50">CARGO OPS</span>
-            </span>
-          </button>
+        <div className="premium-fluid-shell">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <button type="button" className="flex min-w-0 items-center gap-2 text-left sm:gap-3" onClick={() => scrollToSection("overview")}>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center sm:h-11 sm:w-11">
+                <SkyHubLogo className="h-9 w-9 sm:h-10 sm:w-10" title="SkyHub" />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-xl font-semibold tracking-[-1px] sm:text-2xl md:text-3xl">
+                  {APP_NAME.toUpperCase()}
+                </span>
+                <span className="mt-[-2px] block text-[9px] tracking-[3px] text-white/50 sm:text-[10px]">CARGO OPS</span>
+              </span>
+            </button>
 
-          <div className="hidden items-center gap-9 text-sm font-medium md:flex">
-            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("overview")}>
-              Ringkasan
-            </button>
-            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("tracking")}>
-              Cek Resi
-            </button>
-            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("about")}>
-              Tentang Kami
-            </button>
-            <button
-              type="button"
-              className="transition hover:text-[#0066ff]"
-              onClick={() => scrollToId("capabilities")}
-            >
-              Kapabilitas
-            </button>
-            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("operations")}>
-              Operasi
-            </button>
-            <button type="button" className="transition hover:text-[#0066ff]" onClick={() => scrollToId("complaints")}>
-              Keluhan
-            </button>
+            <div className="hidden shrink-0 items-center gap-7 text-sm font-medium lg:gap-9 md:flex">
+              {ABOUT_NAV_ITEMS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={navButtonClass(item.id)}
+                  aria-current={activeSection === item.id ? "page" : undefined}
+                  onClick={() => scrollToSection(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="premium-mobile-nav mt-3 flex gap-2 overflow-x-auto pb-1 md:hidden">
+            {ABOUT_NAV_ITEMS.map((item) => (
+              <button
+                key={`mobile-${item.id}`}
+                type="button"
+                className={cn(
+                  "shrink-0 rounded-full border px-4 py-2 text-xs font-semibold tracking-wide transition",
+                  activeSection === item.id
+                    ? "border-[#0066ff] bg-[#0066ff]/20 text-[#9fd1ff]"
+                    : "border-white/15 bg-white/5 text-white/70",
+                )}
+                aria-current={activeSection === item.id ? "page" : undefined}
+                onClick={() => scrollToSection(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
         </div>
       </nav>
 
-      <ScrollScene variant="heroOut" id="hero" data-video-clip="0" className="relative flex min-h-screen items-center overflow-x-clip overflow-y-visible pt-16">
-        <div id="overview" className="pointer-events-none absolute -top-16" />
-        <div className="premium-animated-grid pointer-events-none absolute inset-0 opacity-40" />
+      <ScrollScene variant="heroOut" id="overview" data-video-clip="0" className="about-section about-hero relative overflow-x-clip overflow-y-clip">
+        <div className="about-hero-scrim pointer-events-none absolute inset-0 z-[1]" aria-hidden="true" />
+        <div className="premium-animated-grid pointer-events-none absolute inset-0 z-[2] opacity-[0.08]" />
 
-        <div className="premium-fluid-shell relative z-10 text-left">
-          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-5 py-1 text-xs tracking-[3px]">
-            <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#00a3ff]" />
-            LIVE / PUSAT KONTROL SOEDIRMAN
-          </div>
+        <div className="premium-fluid-shell about-hero-layout relative z-10">
+          <div className="premium-content-panel premium-content-panel-lg about-hero-panel text-left">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#0066ff]/45 bg-[#0066ff]/16 px-5 py-1.5 text-xs font-semibold tracking-[0.2em] text-[#b8dcff]">
+              <Building2 size={14} />
+              PORTAL RESMI KARGO UDARA
+            </div>
 
-          <h1 className="mb-8 max-w-[1500px] text-[64px] font-semibold leading-[0.92] tracking-[-0.05em] md:text-[92px] 2xl:text-[112px]">
-            {COMPANY_HERO_HEADLINE}
-          </h1>
+            <p className="mb-4 max-w-3xl text-sm font-medium leading-6 text-white/78">
+              Pintu masuk publik untuk cek resi AWB. Area operator internal tersedia setelah autentikasi staf.
+            </p>
 
-          <p className="mb-12 max-w-5xl text-2xl text-white/70">{COMPANY_HERO_COPY}</p>
+            <h1 className="mb-8 max-w-[1200px] text-[48px] font-semibold leading-[1.02] tracking-[-0.04em] text-white md:text-[72px] 2xl:text-[84px]">
+              {COMPANY_HERO_HEADLINE}
+            </h1>
 
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => router.push("/login")}
-              className="premium-magnetic-btn group flex h-16 items-center justify-center gap-3 rounded-3xl bg-white px-14 text-lg font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white"
-            >
-              MASUK
-              <ArrowRight className="transition group-hover:-rotate-45" />
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToId("about")}
-              className="h-16 rounded-3xl border border-white/40 px-9 text-lg font-medium transition-all hover:bg-white/5"
-            >
-              Jelajahi Platform
-            </button>
+            <p className="premium-panel-copy mb-6 max-w-4xl text-lg md:text-xl">{COMPANY_HERO_COPY}</p>
+
+            <div className="mb-8 flex flex-wrap items-center gap-2" aria-label="Ringkasan operasi aktif">
+              <span className="rounded-full border border-[#0066ff]/40 bg-[#0066ff]/14 px-3 py-1.5 text-xs font-semibold text-[#b8dcff]">
+                {landingMetrics
+                  ? `${landingMetrics.shipments.toLocaleString("id-ID")} pengiriman aktif`
+                  : "Memuat pengiriman aktif…"}
+              </span>
+              <span className="rounded-full border border-white/18 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/88">
+                {landingMetrics
+                  ? `${landingMetrics.accuracy.toFixed(1)}% penerbangan tepat waktu`
+                  : "Memuat ketepatan waktu…"}
+              </span>
+              {landingMetrics ? (
+                <span className="text-xs text-white/55">
+                  Diperbarui {formatDateTime(landingMetrics.generatedAt)}
+                </span>
+              ) : null}
+            </div>
+
+            <div className="about-portal-actions flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <button
+                type="button"
+                onClick={() => scrollToSection("tracking")}
+                className="premium-magnetic-btn group flex h-14 items-center justify-center gap-3 rounded-2xl border border-white/28 bg-white/10 px-8 text-base font-semibold text-white transition-all hover:border-[#0066ff] hover:bg-[#0066ff]/20"
+              >
+                Cek Resi Publik
+                <Radar size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/login")}
+                className="premium-magnetic-btn group flex h-14 items-center justify-center gap-3 rounded-2xl bg-[#0066ff] px-8 text-base font-semibold text-white transition-all hover:bg-[#2c92ff]"
+              >
+                Masuk Operator
+                <ArrowRight className="transition group-hover:-rotate-45" size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection("about")}
+                className="h-14 rounded-2xl border border-white/22 bg-white/6 px-8 text-base font-medium text-white/88 transition-all hover:bg-white/10"
+              >
+                Tentang Sistem
+              </button>
+            </div>
           </div>
         </div>
       </ScrollScene>
 
-      <ScrollScene variant="left" id="tracking" data-video-clip="1" className="premium-fluid-shell border-t border-white/10 py-24">
-        <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
-          <div className="premium-glass premium-reveal rounded-[32px] border border-white/10 p-8 sm:p-10">
+      <ScrollScene variant="left" id="tracking" data-video-clip="1" className="about-section overflow-x-clip overflow-y-clip">
+        <div className="premium-fluid-shell">
+          <header className="premium-section-header premium-reveal mb-8 max-w-4xl">
             <div className="premium-kicker text-xs tracking-[4px]">CEK RESI LANGSUNG</div>
             <h2 className="mt-4 text-5xl font-semibold tracking-tight sm:text-6xl">
-              Pelanggan cukup datang, staff input shipment, resi langsung bisa dicek.
+              Pelanggan cukup datang, petugas input pengiriman, resi langsung bisa dicek.
             </h2>
-            <p className="mt-5 max-w-3xl text-lg text-white/68">
+            <p className="premium-section-lead mt-5 max-w-3xl text-lg">
               Setelah shipment dibuat, resi langsung dicetak untuk pelanggan. Di halaman awal ini pelanggan tinggal masukkan AWB untuk memantau status terbaru tanpa login.
             </p>
+          </header>
 
-            <form onSubmit={handleTrackingSubmit} className="mt-8 space-y-4">
-              <label className="text-xs font-semibold tracking-[0.26em] text-white/58">NOMOR RESI / AWB</label>
+          <div className="about-equal-columns premium-reveal">
+            <div className="premium-content-panel premium-content-panel-lg about-equal-panel">
+            <div className="about-equal-panel-body justify-center">
+            <form onSubmit={handleTrackingSubmit} className="flex flex-1 flex-col justify-center space-y-4">
+              <label htmlFor="public-awb-suffix" className="text-xs font-semibold tracking-[0.26em] text-white/58">
+                NOMOR RESI / AWB
+              </label>
               <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_190px] md:items-start">
                 <div className="min-w-0">
                   <div className="relative">
-                    <Search className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-white/42" />
-                    <input
-                      type="text"
-                      value={trackingAwb}
-                      onChange={(event) => setTrackingAwb(event.target.value)}
-                      placeholder="Contoh: 123-45678901"
-                      className="h-[62px] w-full rounded-[24px] border border-white/14 bg-white/[0.05] pl-14 pr-5 text-lg font-semibold text-white outline-none transition focus:border-[#0f7bff] focus:bg-white/[0.07]"
-                    />
+                    <Search className="pointer-events-none absolute left-5 top-1/2 z-[1] size-5 -translate-y-1/2 text-white/42" />
+                    <PublicAwbPrefixInput value={trackingAwbSuffix} onChange={setTrackingAwbSuffix} disabled={trackingLoading} />
                   </div>
-                  <p className="mt-3 text-sm text-white/48">Format resi: 3 digit - 8 digit. Contoh: 123-45678901.</p>
-                  {trackingError ? <p className="mt-2 text-sm text-[#ff7b7d]">{trackingError}</p> : null}
+                  {trackingError ? <p className="mt-2 text-sm font-medium text-[#ff4d4f]">{trackingError}</p> : null}
+                  <p className="mt-3 text-sm text-white/48">
+                    Prefix {PUBLIC_AWB_PREFIX}- sudah terisi. Masukkan 8 digit sisanya, contoh: 10000001.
+                  </p>
+                  {recentPublicSearches.length > 0 && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-white/40">Pencarian terakhir:</span>
+                      {recentPublicSearches.map((awb) => (
+                        <button
+                          key={awb}
+                          type="button"
+                          onClick={() => {
+                            setTrackingAwbSuffix(extractPublicAwbSuffix(awb));
+                            setTrackingError(null);
+                          }}
+                          className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-[#9fd1ff] transition hover:border-[#0f7bff] hover:bg-[#0f7bff]/10"
+                        >
+                          {awb}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <button
                   type="submit"
                   className="flex h-[62px] w-full items-center justify-center gap-3 rounded-[24px] bg-[#0f7bff] px-6 text-lg font-semibold text-white transition hover:bg-[#2c92ff] disabled:cursor-not-allowed disabled:opacity-70"
-                  disabled={trackingLoading}
+                  disabled={trackingSubmitDisabled}
                 >
                   {trackingLoading ? <LoaderCircle size={18} className="animate-spin" /> : <Radar size={18} />}
                   Cek Resi
                 </button>
               </div>
+
+              <PublicTrackingCaptcha
+                challenge={trackingChallenge}
+                answer={trackingCaptchaAnswer}
+                loading={trackingCaptchaLoading}
+                error={trackingCaptchaError}
+                onAnswerChange={setTrackingCaptchaAnswer}
+                onRefresh={() => void refreshTrackingChallenge()}
+              />
             </form>
+            </div>
           </div>
 
-          <div className="premium-glass premium-reveal rounded-[32px] border border-white/10 p-8 sm:p-10">
+          <div className="premium-content-panel premium-content-panel-lg about-equal-panel">
+            <div className="about-equal-panel-body">
             {trackingResult ? (
-              <div className="space-y-6">
+              <div className="about-tracking-result flex flex-1 flex-col space-y-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-semibold tracking-[0.24em] text-white/48">STATUS RESI</p>
@@ -643,8 +802,23 @@ export default function AboutUsPage() {
                       {trackingResult.origin} {" -> "} {trackingResult.destination}
                     </p>
                   </div>
-                  <span className="rounded-full border border-[#0f7bff55] bg-[#0f7bff1f] px-4 py-2 text-sm font-semibold text-[#9fd1ff]">
-                    {trackingResult.statusLabel}
+                  <span
+                    className="rounded-full border px-4 py-2 text-sm font-semibold"
+                    style={
+                      trackingResult.status === "hold"
+                        ? {
+                            borderColor: "hsla(38, 92%, 50%, 0.45)",
+                            backgroundColor: "hsla(38, 92%, 50%, 0.14)",
+                            color: "hsl(38, 92%, 62%)",
+                          }
+                        : {
+                            borderColor: "#0f7bff55",
+                            backgroundColor: "#0f7bff1f",
+                            color: "#9fd1ff",
+                          }
+                    }
+                  >
+                    {getCargoIqMilestone(trackingResult.status).code} · {trackingResult.statusLabel}
                   </span>
                 </div>
 
@@ -684,21 +858,46 @@ export default function AboutUsPage() {
                 </div>
 
                 <div>
-                  <p className="text-xs font-semibold tracking-[0.24em] text-white/48">LINIMASA TERBARU</p>
+                  <p className="text-xs font-semibold tracking-[0.24em] text-white/48">LINIMASA CARGO IQ</p>
+                  <p className="mt-1 text-xs text-white/42">Milestone standar IATA Cargo iQ ditampilkan berdampingan status operasional.</p>
                   <div className="mt-4 space-y-3">
                     {trackingResult.trackingLogs.length ? (
-                      trackingResult.trackingLogs.slice(-3).reverse().map((log) => (
+                      trackingResult.trackingLogs.slice(-3).reverse().map((log) => {
+                        const milestone = getCargoIqMilestone(log.status);
+                        return (
                         <div key={log.id} className="rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-4">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                              <p className="font-semibold text-white">{log.label}</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span
+                                  className="rounded-full border px-2.5 py-0.5 font-mono text-[11px] font-bold"
+                                  style={
+                                    log.status === "hold"
+                                      ? {
+                                          borderColor: "hsla(38, 92%, 50%, 0.4)",
+                                          backgroundColor: "hsla(38, 92%, 50%, 0.12)",
+                                          color: "hsl(38, 92%, 60%)",
+                                        }
+                                      : {
+                                          borderColor: "#0f7bff44",
+                                          backgroundColor: "#0f7bff14",
+                                          color: "#9fd1ff",
+                                        }
+                                  }
+                                >
+                                  {milestone.code}
+                                </span>
+                                <p className="font-semibold text-white">{log.label}</p>
+                              </div>
+                              <p className="mt-1 text-xs text-white/50">{milestone.title}</p>
                               <p className="mt-1 text-sm text-white/58">{log.message}</p>
                             </div>
                             <p className="text-xs text-white/45">{formatDateTime(log.createdAt)}</p>
                           </div>
                           <p className="mt-3 text-xs text-white/45">{log.location} • {log.actorName || "Sistem"}</p>
                         </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="rounded-[22px] border border-dashed border-white/14 bg-white/[0.03] px-4 py-6 text-sm text-white/55">
                         Belum ada event pelacakan yang bisa ditampilkan.
@@ -708,7 +907,7 @@ export default function AboutUsPage() {
                 </div>
               </div>
             ) : (
-              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[28px] border border-dashed border-white/12 bg-white/[0.03] px-8 py-10 text-center">
+              <div className="flex flex-1 flex-col items-center justify-center rounded-[28px] border border-dashed border-white/12 bg-white/[0.03] px-8 py-10 text-center">
                 <div className="flex h-20 w-20 items-center justify-center rounded-[28px] bg-white/[0.06] text-[#0f7bff]">
                   <Radar size={34} />
                 </div>
@@ -718,32 +917,42 @@ export default function AboutUsPage() {
                 </p>
               </div>
             )}
+            </div>
+          </div>
           </div>
         </div>
       </ScrollScene>
 
-      <ScrollScene variant="left" id="about" data-video-clip="1" className="premium-fluid-shell border-t border-white/10 py-24">
-        <div className="premium-about-grid grid items-center gap-16">
-          <div className="premium-reveal">
-            <div className="premium-kicker mb-4 text-xs tracking-[4px]">CERITA KAMI</div>
-            <h2 className="mb-8 text-6xl font-semibold leading-none tracking-tight">
+      <ScrollScene variant="left" id="about" data-video-clip="1" className="about-section overflow-x-clip overflow-y-clip">
+        <div className="premium-fluid-shell">
+          <header className="premium-section-header premium-reveal mb-8 max-w-5xl">
+            <div className="premium-kicker text-xs tracking-[4px]">CERITA KAMI</div>
+            <h2 className="mt-4 text-6xl font-semibold leading-none tracking-tight">
               Dibangun untuk tim operasi{" "}
               <br />
               yang mengatur ritme udara.
             </h2>
+          </header>
 
-            <div className="space-y-6 text-lg text-white/70">
-              <p>
-                {COMPANY_ABOUT_COPY}
-              </p>
-              <p>
-                Semua angka, kontak, capability, dan rhythm operasional di halaman ini memakai sumber profil yang sama
-                dengan pusat laporan dan modul operasional, sehingga konteks yang dibaca asdos tetap konsisten.
-              </p>
+          <div className="about-equal-columns premium-reveal">
+            <div className="premium-content-panel premium-content-panel-md about-equal-panel order-2 lg:order-1">
+              <div className="about-equal-panel-body">
+                <div className="premium-panel-copy flex flex-1 flex-col justify-center space-y-6 text-lg">
+                  <p>{COMPANY_ABOUT_COPY}</p>
+                  <p>
+                    Semua angka, kontak, capability, dan rhythm operasional di halaman ini memakai sumber profil yang sama
+                    dengan pusat laporan dan modul operasional, sehingga konteks yang dibaca asdos tetap konsisten.
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="premium-glass premium-reveal rounded-3xl border border-white/10 p-9">
+          <div
+            id="about-contact"
+            data-section-focus="primary"
+            className="premium-content-panel premium-content-panel-md about-equal-panel order-1 lg:order-2"
+          >
+            <div className="about-equal-panel-body">
             <div className="mb-8 flex items-center gap-4">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0066ff1a]">
                 <Building2 className="text-[#0066ff]" size={30} />
@@ -796,27 +1005,33 @@ export default function AboutUsPage() {
                 </div>
               </div>
             </div>
+            </div>
+          </div>
           </div>
         </div>
       </ScrollScene>
 
-      <ScrollScene variant="depth" id="capabilities" data-video-clip="2" className="border-y border-white/10 bg-black/35 py-20">
+      <ScrollScene variant="depth" id="capabilities" data-video-clip="2" className="about-section overflow-x-clip overflow-y-clip">
         <div className="premium-fluid-shell">
-          <div className="premium-reveal mb-16">
+          <header
+            id="capabilities-intro"
+            data-section-focus="primary"
+            className="premium-section-header premium-reveal mb-10 max-w-5xl"
+          >
             <div className="premium-kicker text-xs tracking-[4px]">YANG KAMI SEDIAKAN</div>
             <h3 className="mt-4 text-6xl font-semibold tracking-tight">{capabilityCard?.title ?? "Kapabilitas yang menjaga operasi tetap tajam."}</h3>
-          </div>
+          </header>
 
-          <div className="premium-auto-grid grid gap-6">
+          <div className="premium-capabilities-grid premium-auto-grid grid gap-6">
             {CAPABILITIES.map((item) => {
               const Icon = item.icon;
               return (
-                <div key={item.title} className="premium-glass premium-tilt-card premium-reveal rounded-3xl p-9">
+                <div key={item.title} className="premium-content-panel premium-content-panel-md premium-tilt-card premium-reveal">
                   <div className="mb-8 text-[#0066ff]">
                     <Icon size={40} />
                   </div>
                   <h4 className="mb-4 text-3xl font-semibold">{item.title}</h4>
-                  <p className="text-white/70">{item.description}</p>
+                  <p className="premium-panel-copy">{item.description}</p>
                 </div>
               );
             })}
@@ -824,85 +1039,46 @@ export default function AboutUsPage() {
         </div>
       </ScrollScene>
 
-      <ScrollScene variant="right" id="operations" data-video-clip="3" className="premium-fluid-shell py-24">
-        <div className="premium-reveal mb-12">
-          <div className="premium-kicker text-xs tracking-[4px]">RITME KARGO</div>
-          <h3 className="mt-3 text-6xl font-semibold tracking-tight">Operasi yang terus terpantau.</h3>
-        </div>
-
-        <div className="premium-auto-grid premium-auto-grid-compact grid gap-6">
-          {OPERATIONS.map((item) => (
-            <div key={item.index} className="premium-glass premium-reveal rounded-3xl p-8">
-              <div className="text-xs text-white/50">{item.index}</div>
-              <div className="mb-2 mt-3 text-3xl font-semibold">{item.title}</div>
-              <div className="premium-blue-note text-sm">{item.duration}</div>
-              <p className="mt-4 text-sm text-white/70">{item.copy}</p>
-            </div>
-          ))}
-        </div>
-      </ScrollScene>
-
-      <ScrollScene variant="depth" id="metrics" data-video-clip="2" className="border-y border-white/10 bg-black/35 py-20">
-        <div className="premium-reveal premium-fluid-shell">
-          <div className="premium-kicker text-xs tracking-[4px]">TERUKUR DI OPERASI</div>
-          <h3 className="mt-4 text-6xl font-semibold tracking-tight">Angka yang perlu dipantau.</h3>
-        </div>
-
-        <div className="premium-fluid-shell mt-16 grid grid-cols-1 gap-px sm:grid-cols-2 xl:grid-cols-4">
-          <div className="premium-glass p-10 text-center">
-            <div className="text-5xl font-semibold md:text-7xl">{Math.floor(counter.shipments).toLocaleString()}</div>
-            <div className="mt-2 text-sm text-white/60">Pengiriman hari ini</div>
-          </div>
-          <div className="premium-glass p-10 text-center">
-            <div className="text-5xl font-semibold md:text-7xl">{Math.floor(counter.flights).toLocaleString()}</div>
-            <div className="mt-2 text-sm text-white/60">Penerbangan aktif</div>
-          </div>
-          <div className="premium-glass p-10 text-center">
-            <div className="text-5xl font-semibold md:text-7xl">{counter.accuracy.toFixed(1)}</div>
-            <div className="mt-2 text-sm text-white/60">Akurasi tepat waktu</div>
-          </div>
-          <div className="premium-glass p-10 text-center">
-            <div className="text-5xl font-semibold md:text-7xl">{counter.uptime.toFixed(2)}</div>
-            <div className="mt-2 text-sm text-white/60">Waktu aktif platform</div>
-          </div>
-        </div>
-      </ScrollScene>
-
-      <ScrollScene revealOnce variant="left" id="complaints" data-video-clip="3" className="premium-fluid-shell pt-24 pb-8">
-        <div className="premium-contact-grid grid gap-16">
-          <div className="premium-reveal premium-complaint-intro">
+      <ScrollScene revealOnce variant="left" id="complaints" data-video-clip="3" className="about-section overflow-x-clip overflow-y-clip">
+        <div className="premium-fluid-shell">
+          <header className="premium-section-header premium-reveal mb-8 max-w-4xl">
             <div className="premium-kicker text-xs tracking-[4px]">KOTAK KELUHAN</div>
             <h3 className="premium-complaint-title mt-3 text-5xl font-semibold tracking-tight md:text-6xl">
               Laporkan kendala operasional ke tim SkyHub.
             </h3>
-
-            <p className="premium-complaint-lead">
+            <p className="premium-complaint-lead mt-5">
               Laporan masuk ke <strong>Kotak Keluhan</strong> di aplikasi operasional untuk ditinjau tim yang bertugas.
             </p>
+          </header>
 
-            <div className="premium-complaint-checklist">
-              <span className="premium-complaint-checklist-label">Siapkan</span>
-              <ul>
-                <li>Nama dan kontak aktif</li>
-                <li>Topik: pengiriman, penerbangan, dokumen, atau layanan</li>
-                <li>AWB atau referensi (jika ada)</li>
-                <li>Uraian singkat kejadian</li>
-              </ul>
+          <div id="complaints-panels" className="about-equal-columns premium-reveal">
+            <div className="premium-content-panel premium-content-panel-md about-equal-panel premium-complaint-intro">
+              <div className="about-equal-panel-body">
+                <div className="premium-complaint-checklist">
+                  <span className="premium-complaint-checklist-label">Siapkan</span>
+                  <ul>
+                    <li>Nama dan kontak aktif</li>
+                    <li>Topik: pengiriman, penerbangan, dokumen, atau layanan</li>
+                    <li>AWB atau referensi (jika ada)</li>
+                    <li>Uraian singkat kejadian</li>
+                  </ul>
+                </div>
+
+                <dl className="premium-complaint-meta mt-auto">
+                  <div>
+                    <dt>{supportPathContact?.label ?? "Jalur dukungan"}</dt>
+                    <dd>{supportPathContact?.value ?? "Kotak Keluhan di aplikasi operasional"}</dd>
+                  </div>
+                  <div>
+                    <dt>{hoursContact?.label ?? "Jam operasional"}</dt>
+                    <dd>{hoursContact?.value ?? "Senin - Jumat, 08:00 - 17:00 WIB"}</dd>
+                  </div>
+                </dl>
+              </div>
             </div>
 
-            <dl className="premium-complaint-meta">
-              <div>
-                <dt>{supportPathContact?.label ?? "Jalur dukungan"}</dt>
-                <dd>{supportPathContact?.value ?? "Kotak Keluhan di aplikasi operasional"}</dd>
-              </div>
-              <div>
-                <dt>{hoursContact?.label ?? "Jam operasional"}</dt>
-                <dd>{hoursContact?.value ?? "Senin - Jumat, 08:00 - 17:00 WIB"}</dd>
-              </div>
-            </dl>
-          </div>
-
-          <div className="premium-glass premium-contact-form-card rounded-3xl border border-white/10 p-9">
+          <div className="premium-content-panel premium-content-panel-md about-equal-panel premium-contact-form-card">
+            <div className="about-equal-panel-body">
             <form className="space-y-5" onSubmit={handleComplaintSubmit}>
               <div>
                 <label className="text-xs tracking-widest text-white/60">NAMA ANDA</label>
@@ -915,7 +1091,7 @@ export default function AboutUsPage() {
                       : "border-white/20 focus:border-[#0066ff]",
                   )}
                   value={complaintState.name}
-                  onChange={(event) => updateComplaintField("name", event.target.value)}
+                  onChange={(event) => updateComplaintField("name", sanitizePersonName(event.target.value))}
                 />
                 {complaintErrors.name ? <p className="mt-2 text-sm text-[#ff6b6d]">{complaintErrors.name}</p> : null}
               </div>
@@ -931,28 +1107,29 @@ export default function AboutUsPage() {
                       : "border-white/20 focus:border-[#0066ff]",
                   )}
                   value={complaintState.contact}
-                  onChange={(event) => updateComplaintField("contact", event.target.value)}
+                  onChange={(event) => updateComplaintField("contact", sanitizeContactInput(event.target.value))}
                 />
                 {complaintErrors.contact ? <p className="mt-2 text-sm text-[#ff6b6d]">{complaintErrors.contact}</p> : null}
               </div>
               <div>
                 <label className="text-xs tracking-widest text-white/60">TOPIK KELUHAN</label>
-                <select
+                <GlassSelect
+                  theme="premium"
                   className={cn(
-                    "mt-2 w-full rounded-2xl border bg-white/5 px-5 py-3.5 text-sm focus:outline-none",
-                    complaintErrors.topic
-                      ? "border-[#ff4d4f] text-white focus:border-[#ff4d4f]"
-                      : "border-white/20 focus:border-[#0066ff]",
+                    "mt-2 w-full",
+                    complaintErrors.topic && "border-[#ff4d4f] focus:border-[#ff4d4f]",
                   )}
+                  aria-label="Topik keluhan"
                   value={complaintState.topic}
-                  onChange={(event) => updateComplaintField("topic", event.target.value as ComplaintFormState["topic"])}
-                >
-                  <option value="shipment">Pengiriman / AWB</option>
-                  <option value="flight">Penerbangan</option>
-                  <option value="document">Dokumen</option>
-                  <option value="service">Layanan</option>
-                  <option value="other">Lainnya</option>
-                </select>
+                  onChange={(nextValue) => updateComplaintField("topic", nextValue as ComplaintFormState["topic"])}
+                  options={[
+                    { value: "shipment", label: "Pengiriman / AWB" },
+                    { value: "flight", label: "Penerbangan" },
+                    { value: "document", label: "Dokumen" },
+                    { value: "service", label: "Layanan" },
+                    { value: "other", label: "Lainnya" },
+                  ]}
+                />
               </div>
               <div>
                 <label className="text-xs tracking-widest text-white/60">NOMOR AWB / REFERENSI (OPSIONAL)</label>
@@ -960,7 +1137,9 @@ export default function AboutUsPage() {
                   type="text"
                   className="mt-2 w-full rounded-2xl border border-white/20 bg-white/5 px-5 py-3.5 text-sm focus:border-[#0066ff] focus:outline-none"
                   value={complaintState.referenceNo}
-                  onChange={(event) => updateComplaintField("referenceNo", event.target.value)}
+                  onChange={(event) =>
+                    updateComplaintField("referenceNo", sanitizeReferenceInput(event.target.value, complaintState.topic))
+                  }
                   placeholder="Contoh: CGK-12345678"
                 />
               </div>
@@ -1000,83 +1179,13 @@ export default function AboutUsPage() {
                 </p>
               ) : null}
             </form>
+            </div>
+          </div>
           </div>
         </div>
       </ScrollScene>
 
-      {modalOpen ? (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/88 p-4 backdrop-blur-sm sm:p-6"
-          onClick={() => setModalOpen(false)}
-        >
-          <div
-            className="premium-glass premium-login-modal relative rounded-[28px] border border-white/15 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.58)] sm:p-8"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/60 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
-              aria-label="Tutup modal masuk"
-            >
-              <X size={18} />
-            </button>
-
-            <div className="mb-7 text-center">
-              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-[18px] border border-[#0066ff66] bg-[#0066ff1a]">
-                <Image
-                  src="/skyhub-logo-icon-clean.png"
-                  alt="SkyHub logo"
-                  width={38}
-                  height={38}
-                  className="premium-logo-plane"
-                />
-              </div>
-              <div className="text-[1.55rem] font-semibold leading-tight">Komando SkyHub</div>
-              <div className="mt-1 text-sm text-white/50">Akses operator aman</div>
-            </div>
-
-            <form className="space-y-4" onSubmit={handleLogin}>
-              <div>
-                <label className="mb-2 block text-xs tracking-widest text-white/60">SUREL</label>
-                <input
-                  type="email"
-                  className="h-12 w-full rounded-[18px] border border-white/15 bg-white/[0.06] px-4 text-sm text-white outline-none transition focus:border-[#0066ff] focus:bg-white/[0.08]"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs tracking-widest text-white/60">KATA SANDI</label>
-                <input
-                  type="password"
-                  className="h-12 w-full rounded-[18px] border border-white/15 bg-white/[0.06] px-4 text-sm text-white outline-none transition focus:border-[#0066ff] focus:bg-white/[0.08]"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-              </div>
-
-              {resolvedLoginError ? (
-                <div className="rounded-2xl border border-[color:var(--tone-warning-border)] bg-[color:var(--tone-warning-soft)] px-4 py-3">
-                  <p className="text-sm font-semibold text-[color:var(--text-strong)]">{resolvedLoginError.title}</p>
-                  <p className="mt-1 text-sm text-[color:var(--muted-fg)]">{resolvedLoginError.message}</p>
-                  {resolvedLoginError.note ? (
-                    <p className="mt-1 text-xs text-[color:var(--muted-fg)]">{resolvedLoginError.note}</p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <button
-                type="submit"
-                className="mt-3 h-12 w-full rounded-[18px] bg-white font-semibold text-black transition-all hover:bg-[#0066ff] hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
-                disabled={submitting}
-              >
-                {submitting ? "MEMPROSES..." : "MASUK"}
-              </button>
-            </form>
-          </div>
-        </div>
-      ) : null}
+      <div className="about-scroll-end-spacer" aria-hidden="true" />
 
       <style jsx global>{`
         html.premium-page-scroll {
@@ -1084,8 +1193,65 @@ export default function AboutUsPage() {
           min-height: 100%;
           overflow-x: clip;
           overflow-y: auto;
+          scroll-padding-top: var(--about-nav-height, 6.5rem);
+          scroll-snap-type: y proximity;
           scrollbar-gutter: auto;
           background: #050505 !important;
+        }
+
+        .premium-landing .about-section {
+          scroll-margin-top: var(--about-nav-height, 6.5rem);
+          scroll-snap-align: start;
+          scroll-snap-stop: always;
+        }
+
+        .premium-landing .about-hero {
+          display: flex;
+          min-height: 100svh;
+          min-height: 100dvh;
+          flex-direction: column;
+          justify-content: center;
+          padding-top: calc(var(--about-nav-height, 6.5rem) + clamp(2.5rem, 7vh, 5rem));
+          padding-bottom: clamp(3rem, 10vh, 6rem);
+        }
+
+        .premium-landing .about-hero-copy,
+        .premium-landing .about-hero-layout {
+          width: 100%;
+        }
+
+        .premium-landing .about-hero-scrim {
+          background:
+            linear-gradient(108deg, rgba(5, 8, 14, 0.94) 0%, rgba(5, 8, 14, 0.78) 38%, rgba(5, 8, 14, 0.28) 62%, rgba(5, 8, 14, 0.08) 100%);
+        }
+
+        .premium-landing .about-hero-panel {
+          box-shadow: 0 28px 80px rgba(0, 0, 0, 0.45);
+        }
+
+        .premium-landing .about-section:not(.about-hero) {
+          position: relative;
+          isolation: isolate;
+          min-height: calc(100svh - var(--about-nav-height, 6.5rem));
+          min-height: calc(100dvh - var(--about-nav-height, 6.5rem));
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
+          padding-block: clamp(3rem, 8vh, 5rem);
+        }
+
+        .premium-landing .about-section:not(.about-hero) > * {
+          position: relative;
+          z-index: 1;
+        }
+
+        .premium-mobile-nav {
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+        }
+
+        .premium-mobile-nav::-webkit-scrollbar {
+          display: none;
         }
 
         body.premium-page-scroll {
@@ -1126,35 +1292,6 @@ export default function AboutUsPage() {
           font-family: var(--font-body), "Inter", system-ui, sans-serif;
         }
 
-        .premium-landing::before {
-          content: "";
-          position: fixed;
-          inset: 0 0 auto;
-          z-index: 55;
-          height: clamp(7.5rem, 13vh, 10.75rem);
-          pointer-events: none;
-          background:
-            linear-gradient(180deg, rgba(3, 5, 8, 0.96) 0%, rgba(3, 5, 8, 0.84) 50%, rgba(3, 5, 8, 0) 100%),
-            linear-gradient(90deg, rgba(0, 102, 255, 0.12), rgba(0, 0, 0, 0) 42%);
-          backdrop-filter: blur(22px) saturate(130%);
-          -webkit-backdrop-filter: blur(22px) saturate(130%);
-          mask-image: linear-gradient(180deg, #000 0%, #000 68%, transparent 100%);
-        }
-
-        .premium-top-blur {
-          position: fixed;
-          inset: 0 0 auto;
-          z-index: 56;
-          height: clamp(6.5rem, 11vh, 9rem);
-          pointer-events: none;
-          background:
-            linear-gradient(180deg, rgba(2, 4, 7, 0.82) 0%, rgba(2, 4, 7, 0.54) 58%, rgba(2, 4, 7, 0) 100%),
-            rgba(2, 4, 7, 0.28);
-          backdrop-filter: blur(18px) saturate(135%);
-          -webkit-backdrop-filter: blur(18px) saturate(135%);
-          mask-image: linear-gradient(180deg, #000 0%, #000 72%, transparent 100%);
-        }
-
         .premium-landing *,
         .premium-landing *::before,
         .premium-landing *::after {
@@ -1162,6 +1299,8 @@ export default function AboutUsPage() {
         }
 
         .premium-landing section,
+        .premium-landing .premium-content-panel,
+        .premium-landing .premium-panel-solid,
         .premium-landing .premium-glass {
           max-width: 100%;
           overflow-wrap: anywhere;
@@ -1176,6 +1315,14 @@ export default function AboutUsPage() {
         .premium-landing > nav {
           position: fixed;
           z-index: 60;
+        }
+
+        .premium-landing .about-section:not(.about-hero) h1,
+        .premium-landing .about-section:not(.about-hero) h2,
+        .premium-landing .about-section:not(.about-hero) h3,
+        .premium-landing .about-section:not(.about-hero) h4,
+        .premium-landing .premium-kicker {
+          text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
         }
 
         .premium-landing h1,
@@ -1194,14 +1341,32 @@ export default function AboutUsPage() {
           margin-inline: auto;
         }
 
-        .premium-about-grid {
-          grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+        .about-equal-columns {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr);
+          align-items: stretch;
+          gap: clamp(1.5rem, 3vw, 2.5rem);
         }
 
-        .premium-contact-grid {
-          width: 100%;
-          grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
-          align-items: start;
+        @media (min-width: 1024px) {
+          .about-equal-columns {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: clamp(2rem, 4vw, 4rem);
+          }
+        }
+
+        .about-equal-panel {
+          height: 100%;
+          min-height: clamp(22rem, 42vh, 28rem);
+          display: flex;
+          flex-direction: column;
+        }
+
+        .about-equal-panel-body {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
         }
 
         .premium-complaint-title {
@@ -1210,11 +1375,8 @@ export default function AboutUsPage() {
           line-height: 1.05;
         }
 
-        .premium-complaint-intro {
-          display: flex;
-          flex-direction: column;
+        .premium-complaint-intro .about-equal-panel-body {
           gap: clamp(1.25rem, 2.2vw, 1.75rem);
-          max-width: 36rem;
         }
 
         .premium-complaint-lead {
@@ -1232,8 +1394,8 @@ export default function AboutUsPage() {
         .premium-complaint-checklist {
           padding: clamp(1rem, 1.5vw, 1.25rem) clamp(1.1rem, 1.8vw, 1.35rem);
           border-radius: 1.25rem;
-          border: 1px solid rgb(255 255 255 / 0.1);
-          background: rgb(255 255 255 / 0.04);
+          border: 1px solid rgb(255 255 255 / 0.12);
+          background: rgb(255 255 255 / 0.05);
         }
 
         .premium-complaint-checklist-label {
@@ -1301,9 +1463,13 @@ export default function AboutUsPage() {
         }
 
         :global(#complaints) {
-          display: flex;
-          align-items: flex-start;
-          scroll-margin-top: 5.75rem;
+          scroll-margin-top: var(--about-nav-height, 6.5rem);
+          padding-top: clamp(2rem, 5vh, 3.5rem);
+        }
+
+        .about-scroll-end-spacer {
+          height: calc(var(--about-nav-height, 6.5rem) + 4rem);
+          pointer-events: none;
         }
 
         .premium-contact-form-card {
@@ -1325,20 +1491,79 @@ export default function AboutUsPage() {
           inset: 0 0 auto 0;
           z-index: 50;
           padding: 1.25rem 0;
-          background: linear-gradient(180deg, rgba(3, 5, 8, 0.72), rgba(3, 5, 8, 0.34));
-          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-          backdrop-filter: blur(18px) saturate(132%);
-          -webkit-backdrop-filter: blur(18px) saturate(132%);
-          transition: all 0.25s ease;
+          background: rgba(8, 10, 18, 0.82);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(16px) saturate(140%);
+          -webkit-backdrop-filter: blur(16px) saturate(140%);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+          transition:
+            background 0.25s ease,
+            border-color 0.25s ease,
+            box-shadow 0.25s ease;
         }
 
         .premium-nav-solid {
-          background: rgba(5, 5, 5, 0.9);
-          box-shadow: 0 18px 30px rgba(0, 0, 0, 0.24);
+          background: rgba(8, 10, 18, 0.92);
+          border-bottom-color: rgba(255, 255, 255, 0.12);
+          box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+        }
+
+        .premium-section-header {
+          position: relative;
+          z-index: 2;
+        }
+
+        .premium-section-lead {
+          color: rgba(255, 255, 255, 0.72);
+          line-height: 1.55;
+        }
+
+        .premium-content-panel {
+          background: linear-gradient(180deg, rgba(14, 16, 22, 0.98), rgba(8, 9, 12, 0.99));
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+        }
+
+        .premium-content-panel-lg {
+          border-radius: 2rem;
+          padding: 2rem;
+        }
+
+        @media (min-width: 640px) {
+          .premium-content-panel-lg {
+            padding: 2.5rem;
+          }
+        }
+
+        .premium-content-panel-md {
+          border-radius: 1.5rem;
+          padding: 1.75rem;
+        }
+
+        @media (min-width: 640px) {
+          .premium-content-panel-md {
+            padding: 2rem;
+          }
+        }
+
+        #about-contact {
+          scroll-margin-top: calc(var(--about-nav-height, 6.5rem) + 1rem);
+          scroll-margin-bottom: 1.5rem;
+        }
+
+        .premium-panel-copy {
+          color: rgba(255, 255, 255, 0.78);
+          line-height: 1.6;
+        }
+
+        .premium-panel-solid {
+          background: linear-gradient(180deg, rgba(14, 16, 22, 0.97), rgba(8, 9, 12, 0.99));
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
         }
 
         .premium-glass {
-          background: rgba(8, 9, 12, 0.72);
+          background: rgba(8, 9, 12, 0.78);
           backdrop-filter: blur(26px) saturate(140%);
           -webkit-backdrop-filter: blur(26px) saturate(140%);
           border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1370,23 +1595,31 @@ export default function AboutUsPage() {
           color: #c9f1ff;
         }
 
-        .premium-login-modal {
-          width: min(100%, 460px);
-          max-width: min(460px, calc(100vw - 2rem)) !important;
-          background:
-            linear-gradient(180deg, rgba(16, 18, 22, 0.96), rgba(8, 9, 12, 0.98)),
-            rgba(10, 10, 12, 0.96);
-        }
-
         .premium-reveal {
           opacity: 0;
           transform: translateY(50px);
           transition: all 0.9s cubic-bezier(0.23, 1, 0.32, 1);
         }
 
-        .premium-reveal.visible {
+        .premium-reveal.visible,
+        .premium-landing .about-section.is-active .premium-reveal {
           opacity: 1;
           transform: translateY(0);
+        }
+
+        .about-tracking-result {
+          animation: about-tracking-fade-in 0.55s cubic-bezier(0.23, 1, 0.32, 1) both;
+        }
+
+        @keyframes about-tracking-fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(12px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
 
         .premium-tilt-card {
@@ -1451,16 +1684,8 @@ export default function AboutUsPage() {
             width: min(100% - 8rem, 2040px);
           }
 
-          .premium-about-grid,
-          .premium-contact-grid {
-            gap: 7rem;
-          }
-        }
-
-        @media (max-width: 900px) {
-          .premium-about-grid,
-          .premium-contact-grid {
-            grid-template-columns: minmax(0, 1fr);
+          .about-equal-columns {
+            gap: 4rem;
           }
         }
 
@@ -1469,10 +1694,10 @@ export default function AboutUsPage() {
             width: min(100% - 1.75rem, 100%);
           }
 
-          #hero {
-            min-height: 100svh;
-            padding-top: 5.75rem;
-            padding-bottom: 2rem;
+          .premium-landing .about-hero {
+            padding-top: calc(var(--about-nav-height, 7.5rem) + 1.75rem);
+            padding-bottom: 2.5rem;
+            justify-content: flex-start;
           }
 
           .premium-nav {
@@ -1480,11 +1705,11 @@ export default function AboutUsPage() {
           }
 
           .premium-landing h1 {
-            font-size: 3rem;
+            font-size: clamp(2.25rem, 9vw, 3rem);
             line-height: 0.96;
           }
 
-          #hero p {
+          #overview p {
             margin-bottom: 2rem;
             font-size: 1.125rem;
             line-height: 1.42;
@@ -1501,6 +1726,9 @@ export default function AboutUsPage() {
             line-height: 1.12;
           }
 
+          .premium-landing .premium-content-panel-lg,
+          .premium-landing .premium-content-panel-md,
+          .premium-landing .premium-panel-solid,
           .premium-landing .premium-glass {
             padding: 1.5rem;
           }
@@ -1509,8 +1737,8 @@ export default function AboutUsPage() {
             padding-inline: 2rem;
           }
 
-          #hero .premium-magnetic-btn,
-          #hero .premium-magnetic-btn + button {
+          #overview .premium-magnetic-btn,
+          #overview .premium-magnetic-btn + button {
             height: 3.5rem;
             border-radius: 1.25rem;
             font-size: 0.95rem;

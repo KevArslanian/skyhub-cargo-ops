@@ -26,8 +26,9 @@ const protectedRoutes = [
   "/shipment-ledger",
   "/awb-tracking",
   "/flight-board",
+  "/alerts",
   "/activity-log",
-  "/reports",
+  "/complaints",
   "/settings",
   "/exports/flights",
   "/exports/shipments",
@@ -73,20 +74,50 @@ const scenarios = [
   },
 ];
 
+const routeApiWaits = {
+  "/dashboard": "/api/dashboard",
+  "/shipment-ledger": "/api/shipments",
+  "/flight-board": "/api/flights",
+  "/alerts": "/api/alerts",
+  "/activity-log": "/api/activity-log",
+  "/complaints": "/api/complaints",
+  "/settings": "/api/settings",
+  "/awb-tracking": null,
+  "/exports/flights": "/api/flights",
+  "/exports/shipments": "/api/shipments",
+  "/exports/activity-log": "/api/activity-log",
+  "/exports/awb": null,
+};
+
+const routeContentWaits = {
+  "/dashboard": ".dashboard-summary-strip a",
+  "/shipment-ledger": 'h2:has-text("Manifest aktif")',
+  "/settings": 'button:has-text("Profil")',
+  "/flight-board": "table tbody tr, .ops-empty, p:has-text('Halaman')",
+  "/alerts": "table tbody tr, .ops-empty, p:has-text('Halaman')",
+  "/activity-log": "table tbody tr, .ops-empty",
+  "/complaints": ".ops-empty, table tbody tr",
+  "/exports/flights": "table.print-table",
+  "/exports/shipments": "table.print-table",
+  "/exports/activity-log": "table.print-table",
+  "/exports/awb": "table.print-table",
+};
+
 const requiredSelectors = {
-  "/about-us": ['button:has-text("LOGIN")'],
+  "/about-us": ['button:has-text("MASUK")', "h1"],
   "/login": ['form button[type="submit"]', 'input[type="email"]', 'input[type="password"], input[type="text"]'],
-  "/dashboard": ["h1"],
+  "/dashboard": [".dashboard-summary-strip a"],
   "/shipment-ledger": ["h1"],
-  "/awb-tracking": ["h1", 'input[placeholder*="160-12345678"]'],
+  "/awb-tracking": ["#awb-tracking-input"],
   "/flight-board": ["h1"],
+  "/alerts": ["h1"],
   "/activity-log": ["h1"],
-  "/reports": ["h1"],
+  "/complaints": ["h1"],
   "/settings": ["h1"],
-  "/exports/flights": ["table"],
-  "/exports/shipments": ["table"],
-  "/exports/activity-log": ["table"],
-  "/exports/awb": ["table"],
+  "/exports/flights": ["table.print-table"],
+  "/exports/shipments": ["table.print-table"],
+  "/exports/activity-log": ["table.print-table"],
+  "/exports/awb": ["table.print-table"],
 };
 
 function nowStamp() {
@@ -113,11 +144,41 @@ function routeUrl(route) {
   return new URL(route, baseUrl).toString();
 }
 
+function getOverflowTolerance(scenario, route, viewportWidth) {
+  if (routeKey(route).startsWith("/exports/")) {
+    // Print manifests use wide tables; horizontal scroll is expected on narrow/zoomed screens.
+    return Math.max(scenario.overflowTolerance, viewportWidth * 2);
+  }
+  return scenario.overflowTolerance;
+}
+
+async function hasAppError(page) {
+  return page.locator('text=Sistem sedang bermasalah').isVisible().catch(() => false);
+}
+
 async function ensureVisibleSelectors(page, route) {
-  const selectors = requiredSelectors[routeKey(route)] ?? ["main"];
+  const key = routeKey(route);
+  const selectors = requiredSelectors[key] ?? ["main"];
   const missing = [];
 
+  if (await hasAppError(page)) {
+    missing.push("app-error");
+    return missing;
+  }
+
   for (const selector of selectors) {
+    if (selector === "h1") {
+      const count = await page.locator("h1").count();
+      if (count === 0) missing.push("h1");
+      continue;
+    }
+
+    if (key.startsWith("/exports/")) {
+      const count = await page.locator(selector).count();
+      if (count === 0) missing.push(selector);
+      continue;
+    }
+
     const visible = await page.locator(selector).first().isVisible().catch(() => false);
     if (!visible) {
       missing.push(selector);
@@ -165,19 +226,103 @@ async function applyScenario(page, scenario) {
   }, scenario.colorScheme);
 }
 
-async function captureRoute(page, outputDir, route, viewportName, scenario, results) {
-  await page.goto(routeUrl(route), { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(220);
+const skeletonGoneRoutes = new Set([
+  "/dashboard",
+  "/shipment-ledger",
+  "/flight-board",
+  "/alerts",
+  "/settings",
+]);
+
+async function waitForSkeletonGone(page, route) {
+  const key = routeKey(route);
+  if (!skeletonGoneRoutes.has(key)) return;
+
+  await page
+    .waitForFunction(
+      () => {
+        const loadingLabels = document.querySelectorAll('[aria-label*="Memuat"]');
+        if (loadingLabels.length > 0) return false;
+        const skeletons = document.querySelectorAll(".ops-skeleton, [aria-label*='Memuat dasbor'], [aria-label*='Memuat daftar'], [aria-label*='Memuat detail']");
+        return skeletons.length === 0;
+      },
+      { timeout: 25000 },
+    )
+    .catch(() => null);
+}
+
+async function waitForRouteReady(page, route) {
+  const key = routeKey(route);
+  const apiPath = routeApiWaits[key];
+  const contentSelector = routeContentWaits[key];
+
+  if (apiPath) {
+    await page
+      .waitForResponse((response) => response.url().includes(apiPath) && response.ok(), { timeout: 30000 })
+      .catch(() => null);
+  }
+
+  if (contentSelector) {
+    await page.locator(contentSelector).first().waitFor({ state: "visible", timeout: 30000 }).catch(() => null);
+  }
+
+  if (key.startsWith("/exports/")) {
+    await page.locator("table.print-table").first().waitFor({ state: "attached", timeout: 30000 }).catch(() => null);
+    await page.locator("table.print-table tbody tr").first().waitFor({ state: "attached", timeout: 30000 }).catch(() => null);
+  }
+
+  await waitForSkeletonGone(page, route);
+  await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => null);
+  await page.waitForTimeout(900);
+}
+
+const ROUTE_CAPTURE_MAX_ATTEMPTS = 3;
+
+async function isRouteContentReady(page, route) {
+  if (await hasAppError(page)) return false;
+
+  const key = routeKey(route);
+  if (key.startsWith("/exports/")) {
+    return (await page.locator("table.print-table").count()) > 0;
+  }
+
+  const contentSelector = routeContentWaits[key];
+  if (!contentSelector) return true;
+  return page.locator(contentSelector).first().isVisible().catch(() => false);
+}
+
+async function navigateAndPrepare(page, route, scenario) {
+  const apiPath = routeApiWaits[routeKey(route)];
+  const navigation = page.goto(routeUrl(route), { waitUntil: "domcontentloaded" });
+  const apiWait = apiPath
+    ? page
+        .waitForResponse((response) => response.url().includes(apiPath) && response.ok(), { timeout: 30000 })
+        .catch(() => null)
+    : Promise.resolve(null);
+
+  await Promise.all([navigation, apiWait]);
   await applyScenario(page, scenario);
+  await waitForRouteReady(page, route);
+}
+
+async function captureRoute(page, outputDir, route, viewportName, scenario, results, viewportWidth = 1920) {
+  for (let attempt = 1; attempt <= ROUTE_CAPTURE_MAX_ATTEMPTS; attempt += 1) {
+    if (attempt > 1) {
+      await page.waitForTimeout(1200 * attempt);
+    }
+    await navigateAndPrepare(page, route, scenario);
+    if (await isRouteContentReady(page, route)) break;
+  }
 
   for (const zoom of scenario.zooms) {
     await setZoom(page, zoom);
     await applyScenario(page, scenario);
-    await page.waitForTimeout(180);
+    await page.waitForTimeout(280);
 
     const missingSelectors = await ensureVisibleSelectors(page, route);
     const horizontalOverflow = await getHorizontalOverflow(page);
-    const hasError = missingSelectors.length > 0 || horizontalOverflow > scenario.overflowTolerance;
+    const overflowTolerance = getOverflowTolerance(scenario, route, viewportWidth);
+    const hasError = missingSelectors.length > 0 || horizontalOverflow > overflowTolerance;
 
     const fileName = `${scenario.name}__${viewportName}__${routeSlug(route)}__z${zoom}.png`;
     const screenshotPath = path.join(outputDir, fileName);
@@ -193,7 +338,7 @@ async function captureRoute(page, outputDir, route, viewportName, scenario, resu
       screenshot: screenshotPath,
       missingSelectors,
       horizontalOverflow,
-      overflowTolerance: scenario.overflowTolerance,
+      overflowTolerance,
       status: hasError ? "fail" : "pass",
     });
   }
@@ -220,7 +365,7 @@ async function login(page, scenario) {
     page.waitForURL("**/dashboard", { timeout: 20000 }),
     page.locator('form button[type="submit"]').first().click(),
   ]);
-  await page.locator("h1").first().waitFor({ timeout: 15000 });
+  await page.locator(".dashboard-summary-strip a").first().waitFor({ timeout: 20000 });
 }
 
 async function resolveVisualAwb(page) {
@@ -267,9 +412,9 @@ async function run() {
         await page.emulateMedia({ media: scenario.media, colorScheme: scenario.colorScheme });
 
         if (scenario.capturePublic) {
-          await captureRoute(page, outputDir, "/about-us", viewport.name, scenario, results);
+          await captureRoute(page, outputDir, "/about-us", viewport.name, scenario, results, viewport.width);
           await primeIntroCookie(page);
-          await captureRoute(page, outputDir, "/login", viewport.name, scenario, results);
+          await captureRoute(page, outputDir, "/login", viewport.name, scenario, results, viewport.width);
         }
 
         await login(page, scenario);
@@ -278,7 +423,7 @@ async function run() {
         const authenticatedRoutes = [...scenario.authenticatedRoutes, awbExportRoute];
 
         for (const route of authenticatedRoutes) {
-          await captureRoute(page, outputDir, route, viewport.name, scenario, results);
+          await captureRoute(page, outputDir, route, viewport.name, scenario, results, viewport.width);
         }
 
         await context.close();

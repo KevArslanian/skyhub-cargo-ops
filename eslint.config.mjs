@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "patch_*.js",
+    "get_summary_data.js",
   ]),
 ]);
 

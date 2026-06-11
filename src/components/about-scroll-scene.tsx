@@ -49,14 +49,16 @@ export function ScrollScene({ variant = "rise", revealOnce = false, children, st
 
   const variants = reduceMotion ? REDUCED_VARIANTS : MOTION_VARIANTS[variant];
 
-  // Hero is above the fold, so it animates on mount. Later scenes can either
-  // replay on scroll or stay visible after the first reveal.
+  // Hero animates on mount. Other sections stay readable when jumping via nav
+  // (parent must not sit at opacity:0 waiting for whileInView). Inner .premium-reveal
+  // still handles staged copy fades.
   const inViewProps = isHero
     ? { initial: "hidden" as const, animate: "visible" as const }
     : {
-        initial: "hidden" as const,
+        initial: "visible" as const,
+        animate: "visible" as const,
         whileInView: "visible" as const,
-        viewport: { once: revealOnce, amount: 0.2, margin: "0px 0px -12% 0px" },
+        viewport: { once: revealOnce, amount: 0.05, margin: "0px 0px -5% 0px" },
       };
 
   return (

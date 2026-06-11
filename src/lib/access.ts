@@ -55,7 +55,6 @@ export const CAPABILITIES = [
   "shipment:delete",
   "shipment:document",
   "flight:manage",
-  "payment:verify",
   "reports:export",
   "users:manage",
   "customer_accounts:manage",
@@ -121,8 +120,8 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   },
   {
     href: "/flight-board",
-    label: "Management Pesawat",
-    hint: "Jadwal, kapasitas, dan assignment pesawat",
+    label: "Manajemen Pesawat",
+    hint: "Jadwal, kapasitas, penugasan",
     groupId: "pemantauan",
     groupLabel: "Pemantauan",
     roles: ["admin", "staff"],
@@ -146,15 +145,15 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   {
     href: "/complaints",
     label: "Kotak Keluhan",
-    hint: "Laporan publik dari halaman About Us",
+    hint: "Laporan publik Tentang Kami",
     groupId: "pemantauan",
     groupLabel: "Pemantauan",
     roles: ["admin", "staff"],
   },
   {
     href: "/settings",
-    label: "Pengaturan",
-    hint: "Profil, akses, preferensi",
+    label: "Profil & Pengaturan",
+    hint: "Edit profil, akses, preferensi",
     groupId: "sistem",
     groupLabel: "Sistem",
     roles: ["admin", "staff"],
@@ -231,16 +230,10 @@ export function getNavigationForRole(role: UserRole) {
 }
 
 export function assertCustomerAccountActive(user: AccessUser) {
-  if (user.role !== "customer") {
-    return null;
-  }
-
-  if (!user.customerAccountId || !user.customerAccount || user.customerAccount.status !== "active") {
-    throw new AccessError("Akun pelanggan tidak aktif atau belum terhubung.", 403, "CUSTOMER_ACCOUNT_INACTIVE");
-  }
-
-  return user.customerAccountId;
+  void user;
+  return null;
 }
+
 
 export function requireRole(user: AccessUser, roles: UserRole[], redirectTo = "/dashboard") {
   if (!roles.includes(user.role)) {
@@ -277,8 +270,7 @@ export function canManageUsers(user: AccessUser) {
 }
 
 export function canManageCustomerAccounts(user?: AccessUser) {
-  void user;
-  return false;
+  return user?.role === "admin";
 }
 
 export function canManageShipments(user: AccessUser) {
@@ -297,10 +289,6 @@ export function canManageShipmentDocuments(user: AccessUser) {
   return hasCapability(user, "shipment:document");
 }
 
-export function canVerifyPayments(user: AccessUser) {
-  return hasCapability(user, "payment:verify");
-}
-
 export function canExportReports(user: AccessUser) {
   return hasCapability(user, "reports:export");
 }
@@ -309,17 +297,49 @@ export function canManageWorkspaceSettings(user: AccessUser) {
   return hasCapability(user, "settings:workspace");
 }
 
+const NO_SHIPMENT_ACCESS_SENTINEL = "__no_shipment_access__";
+
 export function scopeShipmentWhere(user: AccessUser): Prisma.ShipmentWhereInput {
-  const baseWhere: Prisma.ShipmentWhereInput = { archivedAt: null };
+  const nonArchived: Prisma.ShipmentWhereInput = { archivedAt: null };
+
+  if (user.role === "admin") {
+    return nonArchived;
+  }
 
   if (user.role === "customer") {
+    if (!user.customerAccountId) {
+      return { ...nonArchived, id: NO_SHIPMENT_ACCESS_SENTINEL };
+    }
+
     return {
-      ...baseWhere,
-      customerAccountId: assertCustomerAccountActive(user),
+      ...nonArchived,
+      customerAccountId: user.customerAccountId,
     };
   }
 
-  return baseWhere;
+  if (user.role === "staff") {
+    const station = user.station?.trim();
+
+    if (!station) {
+      return { ...nonArchived, id: NO_SHIPMENT_ACCESS_SENTINEL };
+    }
+
+    return {
+      ...nonArchived,
+      OR: [{ origin: station }, { destination: station }],
+    };
+  }
+
+  return { ...nonArchived, id: NO_SHIPMENT_ACCESS_SENTINEL };
+}
+
+
+export function andShipmentScope(user: AccessUser, extra?: Prisma.ShipmentWhereInput): Prisma.ShipmentWhereInput {
+  const scope = scopeShipmentWhere(user);
+  if (!extra || Object.keys(extra).length === 0) {
+    return scope;
+  }
+  return { AND: [scope, extra] };
 }
 
 export function scopeAwbWhere(user: AccessUser, awb: string): Prisma.ShipmentWhereInput {
@@ -336,19 +356,8 @@ export function scopeFlightWhere(): Prisma.FlightWhereInput {
 }
 
 export function scopeCustomerAccountWhere(user: AccessUser): Prisma.CustomerAccountWhereInput {
-  if (user.role === "customer") {
-    const customerAccountId = assertCustomerAccountActive(user);
-
-    if (!customerAccountId) {
-      throw new AccessError("Akun pelanggan tidak aktif atau belum terhubung.", 403, "CUSTOMER_ACCOUNT_INACTIVE");
-    }
-
-    return { id: customerAccountId };
-  }
-
   if (canManageCustomerAccounts(user)) {
     return {};
   }
-
   return { id: "__no_customer_account_access__" };
 }

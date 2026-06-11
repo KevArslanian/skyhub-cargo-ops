@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { canExportReports, requireInternalUser } from "@/lib/access";
 import { redirect } from "next/navigation";
 import { listActivityLogs } from "@/lib/data";
-import { formatDateTime, normalizeOperationalCopy } from "@/lib/format";
+import { formatDateTime, formatLogLevel, normalizeOperationalCopy } from "@/lib/format";
 import { AutoPrintReport } from "@/components/auto-print-report";
 import { PrintCenterLayout } from "@/components/print-center-layout";
 import { buildPrintDocumentCode, type PrintChipTone } from "@deltaoga/skyhub-print-center";
@@ -20,7 +20,7 @@ function getLogTone(level: string): PrintChipTone {
 export default async function ActivityLogPrintPage({
   searchParams,
 }: {
-  searchParams: Promise<{ query?: string; action?: string; userId?: string }>;
+  searchParams: Promise<{ query?: string; action?: string; userId?: string; category?: string }>;
 }) {
   const user = await requireUser();
   requireInternalUser(user);
@@ -30,6 +30,7 @@ export default async function ActivityLogPrintPage({
   const printedAt = new Date();
 
   const filterSummary = [
+    params.category ? `Kategori: ${params.category}` : null,
     params.query ? `Kata kunci: ${params.query}` : null,
     params.action ? `Aksi: ${params.action}` : null,
     params.userId ? `Pengguna: ${params.userId}` : null,
@@ -71,7 +72,7 @@ export default async function ActivityLogPrintPage({
         <table className="print-table min-w-[1120px]">
           <thead>
             <tr>
-              {["Waktu", "Pengguna", "Aksi", "Target", "Deskripsi", "Level"].map((header) => (
+              {["Waktu", "Kategori", "Pengguna", "Aksi", "Target", "Deskripsi", "Level"].map((header) => (
                 <th key={header}>{header}</th>
               ))}
             </tr>
@@ -81,18 +82,19 @@ export default async function ActivityLogPrintPage({
               data.logs.map((log) => (
                 <tr key={log.id}>
                   <td className="whitespace-nowrap font-mono text-xs text-slate-500">{formatDateTime(log.createdAt)}</td>
+                  <td className="text-xs font-semibold text-slate-600">{log.categoryLabel}</td>
                   <td className="font-semibold text-slate-800">{log.userName}</td>
                   <td className="font-semibold text-slate-900">{log.action}</td>
                   <td className="font-mono text-xs text-[#1d4ed8]">{log.targetLabel}</td>
                   <td>{normalizeOperationalCopy(log.description)}</td>
                   <td>
-                    <span className={`print-badge print-badge-${getLogTone(log.level)}`}>{log.level}</span>
+                    <span className={`print-badge print-badge-${getLogTone(log.level)}`}>{formatLogLevel(log.level)}</span>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">
                   Tidak ada log aktivitas untuk filter ini.
                 </td>
               </tr>

@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { LiquidGlassOverlay } from "@/components/liquid-glass-overlay";
 import { cn } from "@/lib/format";
 
 type OpsDrawerProps = {
@@ -17,16 +18,33 @@ type OpsDrawerProps = {
 
 export function OpsDrawer({ open, title, eyebrow, description, children, footer, onClose, className }: OpsDrawerProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    if (!open) return undefined;
+    onCloseRef.current = onClose;
+  });
 
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    panelRef.current?.focus();
+  useEffect(() => {
+    if (!open) {
+      previouslyFocusedRef.current?.focus();
+      previouslyFocusedRef.current = null;
+      return undefined;
+    }
+
+    if (!previouslyFocusedRef.current) {
+      previouslyFocusedRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) {
+      panel.focus();
+    }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -53,43 +71,38 @@ export function OpsDrawer({ open, title, eyebrow, description, children, footer,
     }
 
     document.addEventListener("keydown", handleKeyDown);
-    document.body.classList.add("drawer-open");
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.classList.remove("drawer-open");
-      previouslyFocused?.focus();
     };
-  }, [onClose, open]);
-
-  if (!open) return null;
+  }, [open]);
 
   return (
-    <div className="ops-modal-backdrop ops-drawer-backdrop" onMouseDown={onClose}>
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ops-drawer-title"
-        tabIndex={-1}
-        className={cn("ops-drawer-panel", className)}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="ops-drawer-header">
-          <div>
-            {eyebrow ? <p className="ops-eyebrow">{eyebrow}</p> : null}
-            <h2 id="ops-drawer-title" className="mt-2 font-[family:var(--font-heading)] text-[1.75rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
-              {title}
-            </h2>
-            {description ? <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{description}</p> : null}
-          </div>
-          <button type="button" className="topbar-button" onClick={onClose} aria-label="Tutup jendela">
-            <X size={16} />
-          </button>
+    <LiquidGlassOverlay
+      open={open}
+      onClose={onClose}
+      variant="drawer"
+      panelClassName={cn("ops-drawer-panel", className)}
+      panelRef={panelRef}
+      panelTabIndex={-1}
+      ariaLabelledby="ops-drawer-title"
+      bodyLockClass="drawer-open"
+      zIndex={60}
+    >
+      <div className="ops-drawer-header">
+        <div>
+          {eyebrow ? <p className="ops-eyebrow">{eyebrow}</p> : null}
+          <h2 id="ops-drawer-title" className="mt-2 font-[family:var(--font-heading)] text-[1.75rem] font-black tracking-[-0.05em] text-[color:var(--text-strong)]">
+            {title}
+          </h2>
+          {description ? <p className="mt-2 text-sm leading-6 text-[color:var(--muted-fg)]">{description}</p> : null}
         </div>
-        <div className="ops-drawer-body">{children}</div>
-        {footer ? <div className="ops-drawer-footer">{footer}</div> : null}
+        <button type="button" className="topbar-button" onClick={onClose} aria-label="Tutup jendela">
+          <X size={16} />
+        </button>
       </div>
-    </div>
+      <div className="ops-drawer-body ops-drawer-form-readable">{children}</div>
+      {footer ? <div className="ops-drawer-footer">{footer}</div> : null}
+    </LiquidGlassOverlay>
   );
 }

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
 import { routeErrorResponse } from "@/lib/api";
 import { listPublicComplaints } from "@/lib/data";
 import { complaintListQuerySchema } from "@/lib/validators";
 
 export async function GET(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const { searchParams } = new URL(request.url);
     const parsed = complaintListQuerySchema.safeParse({
       query: searchParams.get("query") || undefined,

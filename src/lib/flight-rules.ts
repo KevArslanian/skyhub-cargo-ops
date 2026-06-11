@@ -3,7 +3,47 @@ import { getFlightVisualMeta, type SupportedAirlineCode } from "./flight-meta";
 export const FLIGHT_MASTER_RULES = {
   cargoCutoffMinutesBeforeDeparture: 70,
   fallbackDurationMinutes: 90,
+  /** Setelah STD, masih dianggap terjadwal sampai menit ini (buffer operasional). */
+  departureGraceMinutes: 15,
+  /** Peringatan & status perlu konfirmasi baru setelah STD + menit ini. */
+  departureConfirmThresholdMinutes: 30,
 } as const;
+
+export type StoredFlightStatus = "on_time" | "delayed" | "departed";
+export type DerivedFlightStatus = StoredFlightStatus | "at_risk";
+
+export function getMinutesPastDeparture(departureTime: Date, now: Date = new Date()) {
+  return Math.round((now.getTime() - departureTime.getTime()) / 60000);
+}
+
+export function getMinutesToCargoCutoff(cargoCutoffTime: Date, now: Date = new Date()) {
+  return Math.round((cargoCutoffTime.getTime() - now.getTime()) / 60000);
+}
+
+/** STD sudah lewat cukup lama tanpa konfirmasi berangkat/terlambat. */
+export function isDepartureConfirmOverdue(departureTime: Date, now: Date = new Date()) {
+  return getMinutesPastDeparture(departureTime, now) >= FLIGHT_MASTER_RULES.departureConfirmThresholdMinutes;
+}
+
+/** Batas terima kargo sudah lewat. */
+export function isCargoCutoffBreached(cargoCutoffTime: Date, now: Date = new Date()) {
+  return getMinutesToCargoCutoff(cargoCutoffTime, now) < 0;
+}
+
+export function deriveFlightStatus(input: {
+  status?: StoredFlightStatus | DerivedFlightStatus;
+  departureTime?: Date;
+  now?: Date;
+}): DerivedFlightStatus {
+  const stored = (input.status ?? "on_time") as StoredFlightStatus | DerivedFlightStatus;
+  if (stored === "departed" || stored === "delayed") {
+    return stored;
+  }
+  if (input.departureTime && input.now && isDepartureConfirmOverdue(input.departureTime, input.now)) {
+    return "at_risk";
+  }
+  return "on_time";
+}
 
 const ROUTE_DURATION_MINUTES: Record<string, number> = {
   "SOQ-CGK": 140,

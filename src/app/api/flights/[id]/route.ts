@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
 import { routeErrorResponse, validationErrorResponse } from "@/lib/api";
 import { deleteFlight, updateFlight } from "@/lib/data";
 import { flightUpdateSchema } from "@/lib/validators";
@@ -10,7 +10,7 @@ type RouteContext = {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const { id } = await context.params;
     const json = await request.json();
     const parsed = flightUpdateSchema.safeParse(json);
@@ -33,7 +33,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
 export async function DELETE(_: Request, context: RouteContext) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const { id } = await context.params;
 
     await deleteFlight(id, user.id);

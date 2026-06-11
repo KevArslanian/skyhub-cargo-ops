@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireApiUser } from "@/lib/auth";
 import { routeErrorResponse, validationErrorResponse } from "@/lib/api";
 import { updatePublicComplaintStatus } from "@/lib/data";
 import { complaintStatusUpdateSchema } from "@/lib/validators";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireUser();
+    const user = await requireApiUser();
     const { id } = await context.params;
     const body = await request.json();
     const parsed = complaintStatusUpdateSchema.safeParse(body);

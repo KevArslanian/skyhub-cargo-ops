@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  AIR_CARGO_MODE,
+  AIR_VEHICLE_TYPE,
   AIRCRAFT_TYPE_OPTIONS,
   AWB_REGEX,
   CARGO_MODE_OPTIONS,
@@ -11,6 +13,7 @@ import {
   VEHICLE_TYPE_OPTIONS,
 } from "./constants";
 import { FLIGHT_NUMBER_REGEX } from "./flight-meta";
+import { buildShipmentSubmitPayload, DEFAULT_PIECES } from "./shipment-payload";
 
 export const shipmentStatusSchema = z.enum(["received", "sortation", "loaded_to_aircraft", "departed", "arrived", "hold"]);
 export const flightStatusSchema = z.enum(["on_time", "delayed", "departed"]);
@@ -22,6 +25,45 @@ export const shipmentTransactionStatusSchema = z.preprocess(
   z.enum(TRANSACTION_STATUS_OPTIONS),
 );
 
+export const NAME_NO_DIGITS_REGEX = /^[^0-9]*$/;
+
+export function computeAwbCheckDigit(serial7: string | number) {
+  const normalized = String(serial7).padStart(7, "0").slice(-7);
+  return parseInt(normalized, 10) % 7;
+}
+
+export function buildAwbFromSerial(prefix: string, serial7: string | number) {
+  const normalized = String(serial7).padStart(7, "0").slice(-7);
+  return `${prefix}-${normalized}${computeAwbCheckDigit(normalized)}`;
+}
+
+export function isValidAwbChecksum(value: string) {
+  const parts = value.split("-");
+  const serial = parts[1];
+  if (!serial || serial.length !== 8) return false;
+  const first7 = parseInt(serial.slice(0, 7), 10);
+  const checkDigit = parseInt(serial.slice(7), 10);
+  return computeAwbCheckDigit(first7) === checkDigit;
+}
+
+const COMMODITY_TEXT_REGEX = /^[a-zA-Z\s.,\-&()]+$/;
+
+const personNameSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .refine((value) => NAME_NO_DIGITS_REGEX.test(value), {
+    message: "Nama tidak boleh mengandung angka.",
+  });
+
+const commodityTextSchema = z
+  .string()
+  .trim()
+  .min(2, "Komoditas wajib diisi.")
+  .refine((value) => COMMODITY_TEXT_REGEX.test(value), {
+    message: "Komoditas harus berupa huruf dan spasi, tidak boleh angka atau simbol khusus.",
+  });
+
 const optionalAwbSchema = z
   .string()
   .trim()
@@ -29,6 +71,9 @@ const optionalAwbSchema = z
   .default("")
   .refine((value) => !value || AWB_REGEX.test(value), {
     message: "Format AWB harus XXX-XXXXXXXX.",
+  })
+  .refine((value) => !value || isValidAwbChecksum(value), {
+    message: "Digit terakhir nomor resi tidak sesuai. Periksa penulisan atau biarkan kosong agar sistem membuat nomor otomatis.",
   });
 
 const PHONE_REGEX = /^(\+62|62|0)8[1-9][0-9]{6,11}$/;
@@ -101,83 +146,131 @@ export const loginSchema = z.object({
 export const shipmentCreateSchema = z.object({
   awb: optionalAwbSchema,
   sentAt: optionalCargoDateSchema,
-  commodity: z.string().trim().min(2, "Komoditas wajib diisi."),
-  cargoMode: z.enum(CARGO_MODE_OPTIONS).optional().default("Udara"),
+  commodity: commodityTextSchema,
+  cargoMode: z.literal(AIR_CARGO_MODE).optional().default(AIR_CARGO_MODE),
   senderPhone: requiredPhoneSchema,
   origin: z.enum(STATION_OPTIONS),
   destination: z.enum(STATION_OPTIONS),
-  pieces: z.coerce.number().int().positive("Pieces harus lebih dari 0."),
+  pieces: z.preprocess(
+    (value) => (value === "" || value === undefined || value === null ? DEFAULT_PIECES : value),
+    z.coerce.number().int().positive().default(DEFAULT_PIECES),
+  ),
   weightKg: z.coerce.number().positive("Berat harus lebih dari 0."),
   volumeM3: optionalPositiveVolumeSchema,
   specialHandling: z.string().trim().optional().default(""),
-  serviceType: z.enum(SERVICE_TYPE_OPTIONS).optional().default("Biasa"),
-  shippingRate: z.coerce.number().int().min(0, "Tarif tidak boleh negatif.").optional().default(0),
+  serviceType: z.enum(SERVICE_TYPE_OPTIONS).optional().default("Standard"),
+  shippingRate: z.coerce.number().int().min(0).optional(),
   vehicleName: z.string().trim().min(2, "Nama kendaraan wajib diisi.").optional().default("SkyHub 01"),
-  vehicleType: z.enum(VEHICLE_TYPE_OPTIONS).optional().default("Pesawat"),
+  vehicleType: z.literal(AIR_VEHICLE_TYPE).optional().default(AIR_VEHICLE_TYPE),
   vehicleCode: z.string().trim().min(2, "Kode kendaraan wajib diisi.").optional().default("PK-SHA"),
   vehicleCapacityKg: z.coerce.number().int().positive("Kapasitas harus lebih dari 0.").optional().default(1000),
   vehicleStatus: z.enum(VEHICLE_STATUS_OPTIONS).optional().default("Aktif"),
-  shipper: z.string().trim().min(2),
-  consignee: z.string().trim().min(2),
-  forwarder: z.string().trim().min(2),
-  ownerName: z.string().trim().min(2),
+  shipper: personNameSchema,
+  consignee: personNameSchema,
+  forwarder: personNameSchema,
+  ownerName: personNameSchema,
   flightId: z.string().trim().optional().nullable(),
   customerAccountId: z.string().trim().optional().nullable(),
   notes: z.string().trim().optional().default(""),
-});
+  docStatus: shipmentDocStatusSchema.optional().default("Partial"),
+}).transform((value) => buildShipmentSubmitPayload(value));
 
-export const shipmentUpdateSchema = z.object({
-  status: shipmentStatusSchema.optional(),
-  notes: z.string().trim().optional(),
-  ownerName: z.string().trim().optional(),
-  sentAt: optionalCargoDateSchema,
-  cargoMode: z.enum(CARGO_MODE_OPTIONS).optional(),
-  senderPhone: optionalPhoneSchema,
-  commodity: z.string().trim().min(2).optional(),
-  origin: z.enum(STATION_OPTIONS).optional(),
-  destination: z.enum(STATION_OPTIONS).optional(),
-  pieces: z.coerce.number().int().positive().optional(),
-  weightKg: z.coerce.number().positive().optional(),
-  serviceType: z.enum(SERVICE_TYPE_OPTIONS).optional(),
-  shippingRate: z.coerce.number().int().min(0).optional(),
-  goodsStatus: shipmentGoodsStatusSchema.optional(),
-  transactionStatus: shipmentTransactionStatusSchema.optional(),
-  vehicleName: z.string().trim().min(2).optional(),
-  vehicleType: z.enum(VEHICLE_TYPE_OPTIONS).optional(),
-  vehicleCode: z.string().trim().min(2).optional(),
-  vehicleCapacityKg: z.coerce.number().int().positive().optional(),
-  vehicleStatus: z.enum(VEHICLE_STATUS_OPTIONS).optional(),
-  flightId: z.string().trim().optional().nullable(),
-  customerAccountId: z.string().trim().optional().nullable(),
-});
+export const shipmentUpdateSchema = z
+  .object({
+    status: shipmentStatusSchema.optional(),
+    notes: z.string().trim().optional(),
+    ownerName: z
+      .string()
+      .trim()
+      .optional()
+      .refine((value) => !value || (value.length >= 2 && NAME_NO_DIGITS_REGEX.test(value)), {
+        message: "Nama tidak boleh mengandung angka.",
+      }),
+    sentAt: optionalCargoDateSchema,
+    cargoMode: z.literal(AIR_CARGO_MODE).optional(),
+    senderPhone: optionalPhoneSchema,
+    commodity: z
+      .string()
+      .trim()
+      .optional()
+      .refine((value) => !value || COMMODITY_TEXT_REGEX.test(value), {
+        message: "Komoditas harus berupa huruf dan spasi, tidak boleh angka atau simbol khusus.",
+      }),
+    origin: z.enum(STATION_OPTIONS).optional(),
+    destination: z.enum(STATION_OPTIONS).optional(),
+    pieces: z.coerce.number().int().positive().optional(),
+    weightKg: z.coerce.number().positive().optional(),
+    serviceType: z.enum(SERVICE_TYPE_OPTIONS).optional(),
+    shippingRate: z.coerce.number().int().min(0).optional(),
+    goodsStatus: shipmentGoodsStatusSchema.optional(),
+    transactionStatus: shipmentTransactionStatusSchema.optional(),
+    vehicleName: z.string().trim().min(2).optional(),
+    vehicleType: z.literal(AIR_VEHICLE_TYPE).optional(),
+    vehicleCode: z.string().trim().min(2).optional(),
+    vehicleCapacityKg: z.coerce.number().int().positive().optional(),
+    vehicleStatus: z.enum(VEHICLE_STATUS_OPTIONS).optional(),
+    flightId: z.string().trim().optional().nullable(),
+    customerAccountId: z.string().trim().optional().nullable(),
+    docStatus: shipmentDocStatusSchema.optional(),
+  })
+  .strict()
+  .transform((value) => {
+    const next = buildShipmentSubmitPayload({
+      ...value,
+      cargoMode: value.cargoMode ?? AIR_CARGO_MODE,
+      serviceType: value.serviceType,
+      weightKg: value.weightKg,
+    });
+
+    return {
+      ...value,
+      pieces: DEFAULT_PIECES,
+      vehicleType: AIR_VEHICLE_TYPE,
+      cargoMode: value.cargoMode ?? AIR_CARGO_MODE,
+      shippingRate:
+        value.serviceType !== undefined || value.weightKg !== undefined
+          ? next.shippingRate
+          : value.shippingRate,
+    };
+  });
 
 export const shipmentArchiveSchema = z.object({
   archived: z.boolean(),
 });
 
-export const awbSearchSchema = z.object({
+/** Pencarian/tracking: cek format saja; ketemu atau tidak ditentukan di basis data. */
+export const awbLookupSchema = z.object({
   awb: z
     .string()
     .trim()
-    .regex(AWB_REGEX, "Format AWB harus XXX-XXXXXXXX."),
+    .regex(AWB_REGEX, "Format nomor resi harus XXX-XXXXXXXX, contoh: 160-10000001."),
 });
+
+/** Pelacakan publik landing page: format AWB + verifikasi robot sekali pakai. */
+export const publicAwbTrackingQuerySchema = awbLookupSchema.extend({
+  challengeId: z.string().uuid("Verifikasi robot kedaluwarsa. Muat ulang lalu coba lagi."),
+  challengeAnswer: z.coerce
+    .number()
+    .int("Jawaban verifikasi harus angka bulat.")
+    .min(0, "Jawaban verifikasi tidak valid."),
+});
+
+/** @deprecated Gunakan awbLookupSchema untuk pencarian. Nama dipertahankan agar impor lama tetap jalan. */
+export const awbSearchSchema = awbLookupSchema;
 
 export const settingsUpdateSchema = z.object({
   name: z.string().trim().min(2).optional(),
-  station: z.enum(STATION_OPTIONS).optional(),
   compactRows: z.boolean().optional(),
   sidebarCollapsed: z.boolean().optional(),
   autoRefresh: z.boolean().optional(),
   refreshIntervalSeconds: z.coerce.number().int().min(5).max(60).optional(),
   theme: z.enum(["light", "dark", "system"]).optional(),
-  cutoffAlert: z.boolean().optional(),
-  exceptionAlert: z.boolean().optional(),
   soundAlert: z.boolean().optional(),
-  emailDigest: z.boolean().optional(),
+  accentColor: z.enum(["blue", "teal", "amber", "rose", "violet"]).optional(),
 });
 
 export const inviteUserSchema = z.object({
-  name: z.string().trim().min(2),
+  name: personNameSchema,
   email: z.email(),
   role: z.enum(["admin", "staff"]),
   station: z.enum(STATION_OPTIONS),
@@ -187,7 +280,7 @@ export const inviteUserSchema = z.object({
 export const userRoleUpdateSchema = z.object({
   name: z.string().trim().min(2).optional(),
   email: z.email().optional(),
-  role: z.enum(["admin", "staff"]).optional(),
+  role: z.enum(["admin", "staff", "customer"]).optional(),
   status: z.enum(["active", "invited", "disabled"]).optional(),
   station: z.enum(STATION_OPTIONS).optional(),
   customerAccountId: z.string().trim().optional().nullable(),
@@ -199,7 +292,6 @@ export const userRoleUpdateSchema = z.object({
         "shipment:delete",
         "shipment:document",
         "flight:manage",
-        "payment:verify",
         "reports:export",
         "users:manage",
         "customer_accounts:manage",
@@ -208,6 +300,16 @@ export const userRoleUpdateSchema = z.object({
     )
     .optional(),
 });
+
+export const adminResetPasswordSchema = z
+  .object({
+    password: z.string().min(6, "Kata sandi baru minimal 6 karakter."),
+    confirmPassword: z.string().min(6, "Konfirmasi kata sandi wajib diisi."),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Konfirmasi kata sandi tidak sama.",
+    path: ["confirmPassword"],
+  });
 
 export const customerAccountCreateSchema = z.object({
   code: z.string().trim().min(2, "Kode akun wajib diisi."),
@@ -285,6 +387,8 @@ export const shipmentListQuerySchema = z.object({
   sortBy: z.enum(["updated", "received", "priority"]).optional(),
   dateFrom: optionalDateRangeSchema,
   dateTo: optionalDateRangeSchema,
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(50).optional(),
 }).superRefine((value, context) => {
   if (value.dateFrom && value.dateTo && value.dateTo < value.dateFrom) {
     context.addIssue({
@@ -340,10 +444,17 @@ export const alertActionSchema = z
   });
 
 export const complaintTopicSchema = z.enum(["shipment", "flight", "document", "service", "other"]);
-export const complaintStatusSchema = z.enum(["new", "in_review", "resolved", "closed"]);
+export const complaintStatusSchema = z.enum(["new", "in_review", "escalated", "resolved", "closed"]);
 
 export const publicComplaintCreateSchema = z.object({
-  name: z.string().trim().min(2, "Nama wajib diisi.").max(120, "Nama terlalu panjang."),
+  name: z
+    .string()
+    .trim()
+    .min(2, "Nama wajib diisi.")
+    .max(120, "Nama terlalu panjang.")
+    .refine((value) => NAME_NO_DIGITS_REGEX.test(value), {
+      message: "Nama tidak boleh mengandung angka.",
+    }),
   contact: z
     .string()
     .trim()
@@ -365,8 +476,26 @@ export const complaintListQuerySchema = z.object({
   topic: z.union([complaintTopicSchema, z.literal("all")]).optional().default("all"),
 });
 
-export const complaintStatusUpdateSchema = z.object({
-  status: complaintStatusSchema,
-  resolutionNote: z.string().trim().max(500, "Catatan penyelesaian maksimal 500 karakter.").optional().nullable(),
-});
+export const complaintStatusUpdateSchema = z
+  .object({
+    status: complaintStatusSchema,
+    resolutionNote: z.string().trim().max(500, "Catatan penyelesaian maksimal 500 karakter.").optional().nullable(),
+    escalationReason: z.string().trim().max(500, "Alasan eskalasi maksimal 500 karakter.").optional().nullable(),
+  })
+  .superRefine((value, context) => {
+    if (value.status === "resolved" && (!value.resolutionNote || value.resolutionNote.trim().length < 8)) {
+      context.addIssue({
+        code: "custom",
+        path: ["resolutionNote"],
+        message: "Catatan penyelesaian minimal 8 karakter.",
+      });
+    }
+    if (value.status === "escalated" && (!value.escalationReason || value.escalationReason.trim().length < 8)) {
+      context.addIssue({
+        code: "custom",
+        path: ["escalationReason"],
+        message: "Alasan eskalasi minimal 8 karakter.",
+      });
+    }
+  });
 
